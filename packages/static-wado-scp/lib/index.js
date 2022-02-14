@@ -2,7 +2,7 @@
 
 const { Stats } = require("@ohif/static-wado-util");
 
-const dcmjsDimse = require('dcmjs-dimse');
+const dcmjsDimse = require("dcmjs-dimse");
 const { Server, Scp } = dcmjsDimse;
 const { CEchoResponse, CFindResponse, CStoreResponse } = dcmjsDimse.responses;
 const {
@@ -18,38 +18,37 @@ const {
 
 // An in-order list of transfer syntaxes.
 const AcceptedTransferSyntax = {
-  '1.2.840.10008.1.2.4.80': 'JpegLsLossless',
-  '1.2.840.10008.1.2.4.100': 'mpeg',
-  '1.2.840.10008.1.2.4.101': 'mpeg',
-  '1.2.840.10008.1.2.4.102': 'h264',
-  '1.2.840.10008.1.2.4.103': 'h264',
-  '1.2.840.10008.1.2.4.70': 'JpegLossless',
-  '1.2.840.10008.1.2.5': 'RleLossless',
-  '1.2.840.10008.1.2.4.50': 'JpegBaseline',
-  '1.2.840.10008.1.2.1': 'ExplicitVRLittleEndian',
-  '1.2.840.10008.1.2': 'ImplicitVRLittleEndian',
+  "1.2.840.10008.1.2.4.80": "JpegLsLossless",
+  "1.2.840.10008.1.2.4.100": "mpeg",
+  "1.2.840.10008.1.2.4.101": "mpeg",
+  "1.2.840.10008.1.2.4.102": "h264",
+  "1.2.840.10008.1.2.4.103": "h264",
+  "1.2.840.10008.1.2.4.70": "JpegLossless",
+  "1.2.840.10008.1.2.5": "RleLossless",
+  "1.2.840.10008.1.2.4.50": "JpegBaseline",
+  "1.2.840.10008.1.2.1": "ExplicitVRLittleEndian",
+  "1.2.840.10008.1.2": "ImplicitVRLittleEndian",
 };
 
 const PreferredTransferSyntax = [
-  '1.2.840.10008.1.2.4.80',
-  '1.2.840.10008.1.2.4.81',
-  '1.2.840.10008.1.2.4.100',
-  '1.2.840.10008.1.2.4.101',
-  '1.2.840.10008.1.2.4.102',
-  '1.2.840.10008.1.2.4.103',
-  '1.2.840.10008.1.2.4.70',
-  '1.2.840.10008.1.2.5',
-  '1.2.840.10008.1.2.4.50',
-  '1.2.840.10008.1.2.1',
-  '1.2.840.10008.1.2',
+  "1.2.840.10008.1.2.4.80",
+  "1.2.840.10008.1.2.4.81",
+  "1.2.840.10008.1.2.4.100",
+  "1.2.840.10008.1.2.4.101",
+  "1.2.840.10008.1.2.4.102",
+  "1.2.840.10008.1.2.4.103",
+  "1.2.840.10008.1.2.4.70",
+  "1.2.840.10008.1.2.5",
+  "1.2.840.10008.1.2.4.50",
+  "1.2.840.10008.1.2.1",
+  "1.2.840.10008.1.2",
 ];
 
 const defaults = {
   isStudyData: true,
   isGroup: true,
   helpShort: "dicomwebscp",
-  helpDescription:
-    "Creates server to receive data on DIMSE and store it DICOM",
+  helpDescription: "Creates server to receive data on DIMSE and store it DICOM",
 };
 
 class DcmjsDimseScp extends Scp {
@@ -77,30 +76,43 @@ class DcmjsDimseScp extends Scp {
 
     const contexts = association.getPresentationContexts();
     try {
-      contexts.forEach(c => {
+      contexts.forEach((c) => {
         const context = association.getPresentationContext(c.id);
         if (
           context.getAbstractSyntaxUid() === SopClass.Verification ||
           Object.values(StorageClass).includes(context.getAbstractSyntaxUid())
         ) {
           const transferSyntaxes = context.getTransferSyntaxUids();
-          const transferSyntax = PreferredTransferSyntax.find(tsuid =>
-            transferSyntaxes.find(contextTsuid => {
-              return contextTsuid === tsuid
-            }));
+          const transferSyntax = PreferredTransferSyntax.find((tsuid) =>
+            transferSyntaxes.find((contextTsuid) => {
+              return contextTsuid === tsuid;
+            })
+          );
           if (transferSyntax) {
             context.setResult(PresentationContextResult.Accept, transferSyntax);
           } else {
-            console.log('Rejected syntax', context.getAbstractSyntaxUid(), 'because no transfer syntax found in', transferSyntaxes);
-            context.setResult(PresentationContextResult.RejectTransferSyntaxesNotSupported);
+            console.log(
+              "Rejected syntax",
+              context.getAbstractSyntaxUid(),
+              "because no transfer syntax found in",
+              transferSyntaxes
+            );
+            context.setResult(
+              PresentationContextResult.RejectTransferSyntaxesNotSupported
+            );
           }
         } else {
-          console.log('Not supported abstract syntax', context.getAbstractSyntaxUid());
-          context.setResult(PresentationContextResult.RejectAbstractSyntaxNotSupported);
+          console.log(
+            "Not supported abstract syntax",
+            context.getAbstractSyntaxUid()
+          );
+          context.setResult(
+            PresentationContextResult.RejectAbstractSyntaxNotSupported
+          );
         }
       });
     } catch (e) {
-      console.log('Caught', e)
+      console.log("Caught", e);
       throw e;
     }
     this.sendAssociationAccept();
@@ -123,19 +135,21 @@ class DcmjsDimseScp extends Scp {
         TransferSyntaxUID: request.dataset.transferSyntaxUid,
       };
 
-      this.importer.importBinaryDicom(importDs, params).then(value => {
-        response.setStatus(Status.Success);
-        Stats.StudyStats.add('Receive DICOM', `Receive DICOM instance`);
-        callback(response);
+      this.importer
+        .importBinaryDicom(importDs, params)
+        .then((value) => {
+          response.setStatus(Status.Success);
+          Stats.StudyStats.add("Receive DICOM", `Receive DICOM instance`);
+          callback(response);
+        })
+        .catch((rejected) => {
+          console.log("Rejected because:", rejected);
+          response.setStatus(0xc001);
 
-      }).catch(rejected => {
-        console.log('Rejected because:', rejected);
-        response.setStatus(0xC001);
-
-        callback(response);
-      });
+          callback(response);
+        });
     } catch (e) {
-      console.log('Caught cStoreRequest error', e);
+      console.log("Caught cStoreRequest error", e);
       throw e;
     }
   }

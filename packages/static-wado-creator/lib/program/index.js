@@ -5,7 +5,7 @@ const dicomwebDefaultDir = "~/dicomweb";
 
 /**
  * Configure static-wado-creator commander program.
- * 
+ *
  * @param {*} defaults Configuration caller level
  * @returns Program object
  */
@@ -14,7 +14,7 @@ function configureProgram(defaults) {
     argumentsRequired = [],
     optionsRequired = [],
     helpShort,
-    helpDescription
+    helpDescription,
   } = defaults;
 
   const argumentsList = [
@@ -124,7 +124,7 @@ function configureProgram(defaults) {
     optionsList,
     optionsRequired,
     packageJson,
-  }
+  };
 
   return staticWadoUtil.configureProgram(configuration);
 }

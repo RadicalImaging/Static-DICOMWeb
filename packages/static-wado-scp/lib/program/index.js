@@ -3,7 +3,7 @@ const packageJson = require("../../package.json");
 
 /**
  * Configure static-wado-scp commander program.
- * 
+ *
  * @param {*} defaults Configuration caller level
  * @returns Program object
  */
@@ -12,7 +12,7 @@ function configureProgram(defaults) {
     argumentsRequired = [],
     optionsRequired = [],
     helpShort,
-    helpDescription
+    helpDescription,
   } = defaults;
 
   const configuration = {
@@ -23,7 +23,7 @@ function configureProgram(defaults) {
     optionsList: [],
     optionsRequired,
     packageJson,
-  }
+  };
 
   return staticWadoUtil.configureProgram(configuration);
 }
