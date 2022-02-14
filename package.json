@@ -17,7 +17,8 @@
     "test": "lerna run test --parallel --stream",
     "build": "lerna run build --stream",
     "link:exec": "lerna run link:exec --stream",
-    "lint:fix": "lerna run lint:fix --parallel --stream -- ./lib/**/*.js"
+    "lint": "lerna run lint --parallel --stream -- ./lib/**/*.js ./__tests__/**/*.js",
+    "lint:fix": "lerna run lint:fix --parallel --stream -- ./lib/**/*.js ./__tests__/**/*.js"
   },
   "dependencies": {
     "commander": "^9.0.0",

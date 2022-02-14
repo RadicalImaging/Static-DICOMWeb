@@ -1,7 +1,7 @@
-'use strict';
+"use strict";
 
-const staticWadoUtil = require('..');
+const staticWadoUtil = require("..");
 
-describe('@ohif/static-wado-util', () => {
-    it('needs tests');
+describe("@ohif/static-wado-util", () => {
+  it("needs tests");
 });

@@ -1,7 +1,7 @@
-'use strict';
+"use strict";
 
-const staticWadoScp = require('..');
+const staticWadoScp = require("..");
 
-describe('@ohif/static-wado-scp', () => {
-    it('needs tests');
+describe("@ohif/static-wado-scp", () => {
+  it("needs tests");
 });
