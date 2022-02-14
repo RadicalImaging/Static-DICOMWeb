@@ -45,11 +45,14 @@
     "mkdicomwebstudy": "bin/mkdicomwebstudy.js"
   },
   "scripts": {
-    "test": "echo \"No tests yet\" && exit 0",
+    "test": "jest --config ./jest.config.js __test__/**/*.js",
     "build": "echo \"No build yet\" && exit 0",
     "link:exec": "npm link",
     "lint": "npx prettier",
     "lint:fix": "npx prettier --write"
+  },
+  "jest": {
+    "verbose": true
   },
   "dependencies": {
     "@cornerstonejs/dicom-codec": "^0.1.2",
