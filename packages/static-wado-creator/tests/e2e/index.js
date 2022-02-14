@@ -3,7 +3,6 @@ const { execSync } = require("child_process");
 const StaticWado = require("../../lib");
 const deleteDir = require("../../lib/util/deleteDir");
 
-
 // same level at package folder
 const junoDir = `${OUTPUT_TEMP_PATH}/studies/1.2.840.113619.2.5.1762583153.215519.978957063.78`;
 const junoSeriesDir = `${junoDir}/series/1.2.840.113619.2.5.1762583153.215519.978957063.121`;
@@ -32,7 +31,11 @@ describe("index", () => {
 
     assertExists(OUTPUT_TEMP_PATH, true);
 
-    console.log("Created directory", OUTPUT_TEMP_PATH, fs.existsSync(OUTPUT_TEMP_PATH));
+    console.log(
+      "Created directory",
+      OUTPUT_TEMP_PATH,
+      fs.existsSync(OUTPUT_TEMP_PATH)
+    );
   });
 
   const createJuno = () => {
