@@ -1,0 +1,42 @@
+{
+  "name": "@ohif/static-wado-util",
+  "version": "0.5.0",
+  "description": "Utils for other packages.",
+  "keywords": [
+    "commander",
+    "StaticWado"
+  ],
+  "author": "Rodolfo Ladeira <rodolfo2611@gmail.com>",
+  "contributors": [
+    "Bill Wallace <bill.wallace@radicalimaging.com>"
+  ],
+  "engines": {
+    "node": ">=14.18.1",
+    "npm": ">=6.14.15",
+    "yarn": ">=1.22.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OHIF/static-wado",
+    "directory": "packages/static-wado-util"
+  },
+  "bugs": {
+    "url": "https://github.com/OHIF/static-wado/issues"
+  },
+  "homepage": "https://github.com/OHIF/static-wado#readme",
+  "license": "ISC",
+  "main": "lib/index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "test": "echo \"No tests yet\" && exit 0",
+    "build": "echo \"No build yet\" && exit 0",
+    "link:exec": "npm link",
+    "lint": "npx prettier",
+    "lint:fix": "npx prettier --write"
+  }
+}

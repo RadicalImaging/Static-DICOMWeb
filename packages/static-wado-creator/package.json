@@ -1,0 +1,60 @@
+{
+  "name": "@ohif/static-wado-creator",
+  "version": "0.5.0",
+  "description": "Library to convert DICOMP10 to DICOMweb format. Original upstream: https://github.com/chafey/dicomp10-to-dicomweb-js",
+  "keywords": [
+    "StaticWado",
+    "DICOM",
+    "DICOMweb"
+  ],
+  "author": [
+    "Chris Hafey <chafey@gmail.com>",
+    "Bill Wallace <bill.wallace@radicalimaging.com>"
+  ],
+  "contributors": [
+    "Rodolfo Costa <rodolfo.costa@radicalimaging.com>"
+  ],
+  "engines": {
+    "node": ">=14.18.1",
+    "npm": ">=6.14.15",
+    "yarn": ">=1.22.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OHIF/static-wado",
+    "directory": "packages/static-wado-creator"
+  },
+  "bugs": {
+    "url": "https://github.com/OHIF/static-wado/issues"
+  },
+  "homepage": "https://github.com/OHIF/static-wado#readme",
+  "license": "ISC",
+  "main": "lib/index.js",
+  "directories": {
+    "lib": "lib",
+    "bin": "bin"
+  },
+  "files": [
+    "lib"
+  ],
+  "bin": {
+    "mkdicomweb": "bin/mkdicomweb.js",
+    "mkdicomwebdeduplicated": "bin/mkdicomwebdeduplicated.js",
+    "mkdicomwebdeduplicatedgroup": "bin/mkdicomwebdeduplicatedgroup.js",
+    "mkdicomwebinstances": "bin/mkdicomwebinstances.js",
+    "mkdicomwebstudy": "bin/mkdicomwebstudy.js"
+  },
+  "scripts": {
+    "test": "echo \"No tests yet\" && exit 0",
+    "build": "echo \"No build yet\" && exit 0",
+    "link:exec": "npm link",
+    "lint": "npx prettier",
+    "lint:fix": "npx prettier --write"
+  },
+  "dependencies": {
+    "@cornerstonejs/dicom-codec": "^0.1.2",
+    "@ohif/static-wado-util": "^0.5.0",
+    "dicom-parser": "^1.8.13",
+    "node-object-hash": "^2.3.10"
+  }
+}

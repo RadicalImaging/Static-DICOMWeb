@@ -1,0 +1,55 @@
+{
+  "name": "@ohif/static-wado-scp",
+  "version": "0.5.0",
+  "description": "DimseScp server to connect to static-wado repo",
+  "keywords": [
+    "DIMSESCP",
+    "DICOM",
+    "DICOMweb"
+  ],
+  "author": [
+    "Chris Hafey <chafey@gmail.com>",
+    "Bill Wallace <bill.wallace@radicalimaging.com>"
+  ],
+  "contributors": [
+    "Rodolfo Costa <rodolfo.costa@radicalimaging.com>"
+  ],
+  "engines": {
+    "node": ">=14.18.1",
+    "npm": ">=6.14.15",
+    "yarn": ">=1.22.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OHIF/static-wado",
+    "directory": "packages/static-wado-scp"
+  },
+  "bugs": {
+    "url": "https://github.com/OHIF/static-wado/issues"
+  },
+  "homepage": "https://github.com/OHIF/static-wado#readme",
+  "license": "ISC",
+  "main": "lib/index.js",
+  "directories": {
+    "lib": "lib",
+    "bin": "bin"
+  },
+  "files": [
+    "lib"
+  ],
+  "bin": {
+    "dicomwebscp": "bin/dicomwebscp.js"
+  },
+  "scripts": {
+    "test": "echo \"No tests yet\" && exit 0",
+    "build": "echo \"No build yet\" && exit 0",
+    "link:exec": "npm link",
+    "lint": "npx prettier",
+    "lint:fix": "npx prettier --write"
+  },
+  "dependencies": {
+    "@ohif/static-wado-creator": "^0.5.0",
+    "@ohif/static-wado-util": "^0.5.0",
+    "dcmjs-dimse": "^0.0.14"
+  }
+}
