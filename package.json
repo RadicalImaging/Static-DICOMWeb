@@ -8,7 +8,13 @@
   },
   "devDependencies": {
     "jest": "^27.5.1",
-    "lerna": "^4.0.0"
+    "lerna": "^4.0.0",
+    "must": "^0.13.4",
+    "prettier": "^2.5.1"
+  },
+  "dependencies": {
+    "commander": "^9.0.0",
+    "husky": "^7.0.4"
   },
   "workspaces": [
     "packages/*"
@@ -17,13 +23,7 @@
     "test": "lerna run test --parallel --stream",
     "build": "lerna run build --stream",
     "link:exec": "lerna run link:exec --stream",
-    "lint": "lerna run lint --parallel --stream -- ./lib/**/*.js ./__tests__/**/*.js",
-    "lint:fix": "lerna run lint:fix --parallel --stream -- ./lib/**/*.js ./__tests__/**/*.js"
-  },
-  "dependencies": {
-    "commander": "^9.0.0",
-    "husky": "^7.0.4",
-    "jest-runner-mocha": "^0.6.0",
-    "prettier": "^2.5.1"
+    "lint": "lerna run lint --parallel --stream -- ./lib/**/*.js ./tests/**/*.js",
+    "lint:fix": "lerna run lint:fix --parallel --stream -- ./lib/**/*.js ./tests/**/*.js"
   }
 }

@@ -1,11 +1,8 @@
 "use strict";
 
 const fs = require("fs");
-const path = require("path");
-const assert = require("assert");
 const StaticWado = require("../../lib");
 
-const TEST_DATA_PATH = path.resolve(__dirname, "../../../../testdata");
 describe("index", () => {
   let dicomp10stream;
 
@@ -23,7 +20,7 @@ describe("index", () => {
   });
 
   it("exports", () => {
-    assert.notStrictEqual(importer, undefined);
+    importer.must.not.be.undefined();
   });
 
   // TODO - add integration tests

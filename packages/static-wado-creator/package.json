@@ -45,7 +45,7 @@
     "mkdicomwebstudy": "bin/mkdicomwebstudy.js"
   },
   "scripts": {
-    "test": "jest --config ./jest.config.js __test__/**/*.js",
+    "test": "jest --config ./jest.config.js tests/**/*.js",
     "build": "echo \"No build yet\" && exit 0",
     "link:exec": "npm link",
     "lint": "npx prettier",

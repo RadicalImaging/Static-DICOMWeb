@@ -1,15 +1,11 @@
 const fs = require("fs");
-const path = require("path");
-const assert = require("assert");
 const { execSync } = require("child_process");
 const StaticWado = require("../../lib");
 const deleteDir = require("../../lib/util/deleteDir");
 
-const TEST_DATA_PATH = path.resolve(__dirname, "../../../../testdata");
 
 // same level at package folder
-const outputDir = "./tmp/dicomweb";
-const junoDir = `${outputDir}/studies/1.2.840.113619.2.5.1762583153.215519.978957063.78`;
+const junoDir = `${OUTPUT_TEMP_PATH}/studies/1.2.840.113619.2.5.1762583153.215519.978957063.78`;
 const junoSeriesDir = `${junoDir}/series/1.2.840.113619.2.5.1762583153.215519.978957063.121`;
 const junoInstancesDir = `${junoSeriesDir}/instances/1.2.840.113619.2.5.1762583153.215519.978957063.122`;
 
@@ -27,22 +23,22 @@ describe("index", () => {
   });
 
   function assertExists(fileOrDir, exists = true) {
-    assert.equal(fs.existsSync(fileOrDir), exists);
+    fs.existsSync(fileOrDir).must.be.eql(exists);
   }
 
-  before(async () => {
-    await deleteDir(outputDir, true);
-    fs.mkdirSync(outputDir, { recursive: true });
+  beforeEach(async () => {
+    await deleteDir(OUTPUT_TEMP_PATH, true);
+    fs.mkdirSync(OUTPUT_TEMP_PATH, { recursive: true });
 
-    assertExists(outputDir, true);
+    assertExists(OUTPUT_TEMP_PATH, true);
 
-    console.log("Created directory", outputDir, fs.existsSync(outputDir));
+    console.log("Created directory", OUTPUT_TEMP_PATH, fs.existsSync(OUTPUT_TEMP_PATH));
   });
 
   const createJuno = () => {
     if (processes.createJuno) return;
     execSync(
-      `node bin/mkdicomweb.js -o ${outputDir} ${TEST_DATA_PATH}/dcm/MisterMr/1.2.840.113619.2.5.1762583153.215519.978957063.122`,
+      `node bin/mkdicomweb.js -o ${OUTPUT_TEMP_PATH} ${TEST_DATA_PATH}/dcm/MisterMr/1.2.840.113619.2.5.1762583153.215519.978957063.122`,
       (error, stdout, stderr) => {
         if (error) {
           console.log(`error: ${error.message}`);
