@@ -3,11 +3,12 @@
 Util and common code shared between packages. 
 It includes a factory to node commander package. It is a complete solution for command-line programs (i.e static-wado packages commands). 
 
-## Pre-requisites
 
-* NodeJS >=v14.18.1
-* NPM >=6.14.15
-* Yarn >=1.22.4
+## Pre-requisites
+View root pre-requisites section [development](../../README.md#pre-requisites)
+
+## Development
+View root development section [development](../../README.md#development)
 
 ## Usage
 

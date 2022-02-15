@@ -35,13 +35,14 @@
     "bin": "bin"
   },
   "files": [
+    "bin",
     "lib"
   ],
   "bin": {
     "dicomwebscp": "bin/dicomwebscp.js"
   },
   "scripts": {
-    "test": "echo \"No tests yet\" && exit 0",
+    "test": "jest --config ./jest.config.js",
     "build": "echo \"No build yet\" && exit 0",
     "link:exec": "npm link",
     "lint": "npx eslint",

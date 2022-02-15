@@ -36,7 +36,7 @@
     "commander": "^9.0.0"
   },
   "scripts": {
-    "test": "echo \"No tests yet\" && exit 0",
+    "test": "jest --config ./jest.config.js",
     "build": "echo \"No build yet\" && exit 0",
     "link:exec": "npm link",
     "lint": "npx eslint",

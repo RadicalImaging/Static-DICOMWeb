@@ -1,6 +1,5 @@
 const fs = require("fs");
 const { execSync } = require("child_process");
-const deleteDir = require("../../lib/util/deleteDir");
 
 // same level at package folder
 const junoDir = `${OUTPUT_TEMP_PATH}/studies/1.2.840.113619.2.5.1762583153.215519.978957063.78`;
@@ -20,7 +19,6 @@ describe("index", () => {
   }
 
   beforeEach(async () => {
-    await deleteDir(OUTPUT_TEMP_PATH, true);
     fs.mkdirSync(OUTPUT_TEMP_PATH, { recursive: true });
 
     assertExists(OUTPUT_TEMP_PATH, true);

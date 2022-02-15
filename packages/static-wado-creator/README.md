@@ -1,13 +1,5 @@
 # `@ohif/static-wado-creator`
 
-> TODO: description
-
-## Pre-requisites
-
-* NodeJS >=v14.18.1
-* NPM >=6.14.15
-* Yarn >=1.22.4
-
 # static-wado-js
 
 Status: Beta - in development (as of Oct 25, 2021)
@@ -39,16 +31,10 @@ View [frequently asked questions](docs/faq.md)
 View [specification](docs/spec.md)
 
 ## Pre-requisites
+View root pre-requisites section [development](../../README.md#pre-requisites)
 
-* NodeJS >=v14.18.1
-* NPM
-* Yarn
-
-## Running Unit Tests
-
-> yarn run test
-
-A visual studio code build task is also included so you can run it from there with "Terminal->Run Build Task" (Shift+Command+B)
+## Development
+View root development section [development](../../README.md#development)
 
 ## Running the CLI
 Install the CLI with either npm install -g .  or npm install -g @ohif/static-wado-js
@@ -230,33 +216,6 @@ The table below shows the support for transfer syntax recompression(i.e use "...
 
 
 ## Development
-
-## Inner Packages dependency
-@ohif/static-wado-util: To configure command-line program.
-
-## Installation
-Install packages
-on root
-```
-yarn install
-```
-
-Ensure packages are linked
-### Linking packages
-Link all packages using yarn/lerna to link packages in the correct other.
-on root
-```
-yarn run link:exec
-```
-
-This will install packages globally on current global prefix, @see @link{https://docs.npmjs.com/cli/v8/commands/npm-link} and @see @link{https://docs.npmjs.com/cli/v8/commands/npm-prefix}, and, also bins will be generated inner ```{prefix}/bin/{name}```
-
-If process success a log message will be shown with binaries' path location.
-
-### Running binaries
-Firstly, ensure your binaries' path location is set on your computer path.
-Then you just run binary command (as usual on your command line) as described on each package's documentation.
-
 
 ## TODO (Looking for help here!!)
 

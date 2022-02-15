@@ -36,10 +36,11 @@
     "bin": "bin"
   },
   "files": [
+    "bin",
     "lib"
   ],
   "scripts": {
-    "test": "echo \"No tests yet\" && exit 0",
+    "test": "jest --config ./jest.config.js",
     "build": "echo \"No build yet\" && exit 0",
     "lint": "npx eslint",
     "lint:fix": "npx eslint --fix"

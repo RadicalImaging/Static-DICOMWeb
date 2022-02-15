@@ -2,11 +2,12 @@
 
 > TODO: description
 
-## Pre-requisites
 
-* NodeJS >=v14.18.1
-* NPM >=6.14.15
-* Yarn >=1.22.4
+## Pre-requisites
+View root pre-requisites section [development](../../README.md#pre-requisites)
+
+## Development
+View root development section [development](../../README.md#development)
 
 ## Usage
 
