@@ -31,7 +31,7 @@ View [frequently asked questions](docs/faq.md)
 View [specification](docs/spec.md)
 
 ## Pre-requisites
-View root pre-requisites section [development](../../README.md#pre-requisites)
+View root pre-requisites section [pre-requisites](../../README.md#pre-requisites)
 
 ## Development
 View root development section [development](../../README.md#development)

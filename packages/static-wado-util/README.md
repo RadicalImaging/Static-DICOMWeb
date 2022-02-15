@@ -5,7 +5,7 @@ It includes a factory to node commander package. It is a complete solution for c
 
 
 ## Pre-requisites
-View root pre-requisites section [development](../../README.md#pre-requisites)
+View root pre-requisites section [pre-requisites](../../README.md#pre-requisites)
 
 ## Development
 View root development section [development](../../README.md#development)
