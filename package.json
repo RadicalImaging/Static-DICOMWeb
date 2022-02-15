@@ -7,13 +7,20 @@
     "yarn": ">=1.22.4"
   },
   "devDependencies": {
+    "eslint": "^8.9.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-import": "^2.25.4",
+    "eslint-plugin-jest": "^26.1.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^4.0.0",
     "jest": "^27.5.1",
     "lerna": "^4.0.0",
     "must": "^0.13.4",
-    "prettier": "^2.5.1"
+    "prettier": "^2.5.1",
+    "prettier-eslint": "^13.0.0"
   },
   "dependencies": {
-    "commander": "^9.0.0",
     "husky": "^7.0.4"
   },
   "workspaces": [
@@ -23,7 +30,8 @@
     "test": "lerna run test --parallel --stream",
     "build": "lerna run build --stream",
     "link:exec": "lerna run link:exec --stream",
-    "lint": "lerna run lint --parallel --stream -- ./lib/**/*.js ./tests/**/*.js",
-    "lint:fix": "lerna run lint:fix --parallel --stream -- ./lib/**/*.js ./tests/**/*.js"
+    "lint": "lerna run lint --parallel --stream -- --color ./lib/**/*.js ./tests/**/*.js",
+    "lint:fix": "lerna run lint:fix --parallel --stream -- --color ./lib/**/*.js ./tests/**/*.js",
+    "postinstall": "git config core.hooksPath '.husky' && echo 'Pre-commit configured'"
   }
 }

@@ -1,4 +1,4 @@
-const dataDictionary = require("../../lib/dictionary/dataDictionary");
+const dataDictionary = require("../dictionary/dataDictionary");
 
 const getVR = (attr) => {
   if (attr.vr) {

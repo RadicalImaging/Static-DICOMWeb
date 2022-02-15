@@ -1,22 +1,14 @@
-"use strict";
-
 const { Stats } = require("@ohif/static-wado-util");
-
+const StaticWado = require("@ohif/static-wado-creator");
 const dcmjsDimse = require("dcmjs-dimse");
+
 const { Server, Scp } = dcmjsDimse;
-const { CEchoResponse, CFindResponse, CStoreResponse } = dcmjsDimse.responses;
-const {
-  Status,
-  PresentationContextResult,
-  RejectResult,
-  RejectSource,
-  RejectReason,
-  TransferSyntax,
-  SopClass,
-  StorageClass,
-} = dcmjsDimse.constants;
+const { CEchoResponse, CStoreResponse } = dcmjsDimse.responses;
+const { Status, PresentationContextResult, SopClass, StorageClass } =
+  dcmjsDimse.constants;
 
 // An in-order list of transfer syntaxes.
+/*
 const AcceptedTransferSyntax = {
   "1.2.840.10008.1.2.4.80": "JpegLsLossless",
   "1.2.840.10008.1.2.4.100": "mpeg",
@@ -29,6 +21,7 @@ const AcceptedTransferSyntax = {
   "1.2.840.10008.1.2.1": "ExplicitVRLittleEndian",
   "1.2.840.10008.1.2": "ImplicitVRLittleEndian",
 };
+*/
 
 const PreferredTransferSyntax = [
   "1.2.840.10008.1.2.4.80",
@@ -84,9 +77,7 @@ class DcmjsDimseScp extends Scp {
         ) {
           const transferSyntaxes = context.getTransferSyntaxUids();
           const transferSyntax = PreferredTransferSyntax.find((tsuid) =>
-            transferSyntaxes.find((contextTsuid) => {
-              return contextTsuid === tsuid;
-            })
+            transferSyntaxes.find((contextTsuid) => contextTsuid === tsuid)
           );
           if (transferSyntax) {
             context.setResult(PresentationContextResult.Accept, transferSyntax);
@@ -119,6 +110,7 @@ class DcmjsDimseScp extends Scp {
   }
 
   // Handle incoming C-ECHO requests
+  /* eslint-disable-next-line class-methods-use-this */
   cEchoRequest(request, callback) {
     const response = CEchoResponse.fromRequest(request);
     response.setStatus(Status.Success);
@@ -137,7 +129,7 @@ class DcmjsDimseScp extends Scp {
 
       this.importer
         .importBinaryDicom(importDs, params)
-        .then((value) => {
+        .then(() => {
           response.setStatus(Status.Success);
           Stats.StudyStats.add("Receive DICOM", `Receive DICOM instance`);
           callback(response);

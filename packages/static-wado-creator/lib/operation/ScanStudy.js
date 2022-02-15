@@ -1,11 +1,10 @@
 const path = require("path");
-const StudyData = require("./StudyData");
 
 function ScanStudy(options) {
   const { directoryName, deduplicatedRoot, deduplicatedInstancesRoot } =
     options;
 
-  return async function (dir, studyInstanceUid) {
+  return async function run(dir, studyInstanceUid) {
     const studyPath = path.join(directoryName, "studies", studyInstanceUid);
     const deduplicatedPath = path.join(deduplicatedRoot, studyInstanceUid);
     const deduplicatedInstancesPath = path.join(

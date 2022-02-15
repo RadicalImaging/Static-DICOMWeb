@@ -1,7 +1,5 @@
-"use strict";
-
-module.exports = staticWadoWebserver;
-
 function staticWadoWebserver() {
   // TODO
 }
+
+module.exports = staticWadoWebserver;

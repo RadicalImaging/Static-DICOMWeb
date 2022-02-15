@@ -1,7 +1,7 @@
 const { Stats } = require("@ohif/static-wado-util");
 
 const handler = {
-  get: function (obj, key) {
+  get(obj, key) {
     const ikey = parseInt(key);
     if (ikey == key) return obj.index_get(ikey);
     const handlerFunc = handler[key];
@@ -17,27 +17,28 @@ const handler = {
 };
 
 const StreamingFunctions = {
-  addChunks: function (chunks) {
+  addChunks(chunks) {
     if (!this.chunks) this.chunks = [];
     chunks.forEach((chunk) => this.chunks.push(chunk));
     this.combinedLength = 0;
     let i = 0;
     this.chunks.forEach((chunk) => {
       chunk.start = this.combinedLength;
-      chunk.i = i++;
+      chunk.i = i;
+      i += 1;
       this.combinedLength += chunk.length;
     });
     this.lastChunk = this.chunks[0];
   },
 
-  index_get: function (ikey) {
+  index_get(ikey) {
     const found = this.findChunk(ikey);
     if (!found)
       throw Error(`index ${ikey} not found between 0..${this.combinedLength}`);
     return found[ikey - found.start];
   },
 
-  findChunk: function (ikey) {
+  findChunk(ikey) {
     let i = (this.lastChunk.start <= ikey && this.lastChunk.i) || 0;
     while (i < this.chunks.length) {
       const chunk = this.chunks[i];
@@ -45,11 +46,11 @@ const StreamingFunctions = {
         this.lastChunk = chunk;
         return chunk;
       }
-      i++;
+      i += 1;
     }
   },
 
-  slice: function (start, end) {
+  slice(start, end) {
     const buflen = end - start;
     const ret = Buffer.alloc(buflen);
     let i = 0;
@@ -63,20 +64,22 @@ const StreamingFunctions = {
     return ret;
   },
 
-  hexSlice: function (start, end) {
+  hexSlice(start, end) {
     return this.slice(start, end).hexSlice();
   },
 
   /** The internal node copy function is a native that directly accesses internal class details, so over-ride it.
    * TODO: Make this efficient by using the internal copy function when available rather than copy one at a time.
    */
-  copy: function (target, targetStart = 0, srcStart = 0, srcEnd) {
+  copy(target, targetStart = 0, srcStart = 0, srcEnd = 0) {
     const { length } = target;
     const srcLength =
       (srcEnd === undefined && Math.min(this.length, srcEnd)) || this.length;
-    let copied = 0;
+    const copied = 0;
     while (targetStart < length && srcStart < srcLength) {
-      target[targetStart++] = this[srcStart++];
+      target[targetStart] = this[srcStart];
+      targetStart += 1;
+      srcStart += 1;
     }
     return copied;
   },
@@ -84,9 +87,9 @@ const StreamingFunctions = {
   _keys: { then: true },
 };
 
-Object.keys(StreamingFunctions).forEach(
-  (key) => (StreamingFunctions._keys[key] = true)
-);
+Object.keys(StreamingFunctions).forEach((key) => {
+  StreamingFunctions._keys[key] = true;
+});
 
 const StreamingBuffer = (chunks) => {
   const buf = Buffer.from("NotUsed");
@@ -98,7 +101,7 @@ const StreamingBuffer = (chunks) => {
 const asyncIteratorToBuffer = async (readable) => {
   if (ArrayBuffer.isView(readable)) return readable;
   const chunks = [];
-  for await (let chunk of readable) {
+  for await (const chunk of readable) {
     chunks.push(chunk);
     Stats.BufferStats.add(
       "Read Async",

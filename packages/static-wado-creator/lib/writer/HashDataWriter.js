@@ -1,12 +1,12 @@
-const zlib = require("zlib");
 const hashFactory = require("node-object-hash");
+
 const hasher = hashFactory();
 const path = require("path");
-const Tags = require("../../lib/dictionary/Tags");
-const WriteStream = require("../../lib/writer/WriteStream");
+const Tags = require("../dictionary/Tags");
+const WriteStream = require("./WriteStream");
 
 /** Writes out JSON files to the given file name.  Automatically GZips them, and adds the extension */
-const HashDataWriter = (options) => async (id, key, data) => {
+const HashDataWriter = () => async (id, key, data) => {
   const isRaw = ArrayBuffer.isView(data);
   const gzip = !isRaw || data.length > 1024;
   const { dirName, fileName } = HashDataWriter.createHashPath(data);
@@ -18,7 +18,7 @@ const HashDataWriter = (options) => async (id, key, data) => {
   });
   await writeStream.write(rawData);
   await writeStream.close();
-  return dirName + "/" + fileName;
+  return `${dirName}/${fileName}`;
 };
 
 /**
@@ -32,8 +32,10 @@ HashDataWriter.createHashPath = (data) => {
     (existingHash && existingHash.Value[0]) || hasher.hash(data);
   return {
     // Use string concat as this value is used for the BulkDataURI which needs forward slashes
-    dirName:
-      "bulkdata/" + hashValue.substring(0, 3) + "/" + hashValue.substring(3, 5),
+    dirName: `bulkdata/${hashValue.substring(0, 3)}/${hashValue.substring(
+      3,
+      5
+    )}`,
     fileName: hashValue.substring(5) + extension,
   };
 };

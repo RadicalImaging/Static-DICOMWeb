@@ -1,7 +1,6 @@
 class Stats {
-  stats = {};
-
   constructor(name, description, parent) {
+    this.stats = {};
     this.name = name;
     this.description = description;
     this.parent = parent;
@@ -12,7 +11,7 @@ class Stats {
     if (!this.stats[item]) {
       this.stats[item] = 0;
     }
-    this.stats[item]++;
+    this.stats[item] += 1;
     if (messageCount && this.stats[item] % messageCount == 0) {
       console.log(item, this.stats[item], description);
     }

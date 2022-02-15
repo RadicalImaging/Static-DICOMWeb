@@ -1,5 +1,3 @@
-"use strict";
-
 const { program, Argument } = require("commander");
 
 function configureBaseProgram(configuration) {
@@ -32,7 +30,7 @@ function configureProgram(configuration) {
 
   program.version(packageJson.version);
 
-  const _program = configureBaseProgram(configuration);
+  const currentProgram = configureBaseProgram(configuration);
 
   // program command options
   argumentsRequired.forEach((argName) => {
@@ -45,7 +43,7 @@ function configureProgram(configuration) {
 
   // iterate over option list and set to program
   optionsList.forEach(({ key, description, defaultValue, choices }) => {
-    const option = _program.createOption(key, description);
+    const option = currentProgram.createOption(key, description);
 
     option.default(defaultValue);
 
@@ -60,12 +58,12 @@ function configureProgram(configuration) {
       option.choices(choices);
     }
 
-    _program.addOption(option);
+    currentProgram.addOption(option);
   });
 
-  _program.parse();
+  currentProgram.parse();
 
-  return _program;
+  return currentProgram;
 }
 
 exports.configureProgram = configureProgram;

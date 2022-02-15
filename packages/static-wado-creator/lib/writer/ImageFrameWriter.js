@@ -1,4 +1,3 @@
-const fs = require("fs");
 const uids = require("../model/uids");
 const WriteStream = require("./WriteStream");
 

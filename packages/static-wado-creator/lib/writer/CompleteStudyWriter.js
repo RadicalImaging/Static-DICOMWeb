@@ -1,8 +1,8 @@
 const { Stats } = require("@ohif/static-wado-util");
-const JSONWriter = require("../../lib/writer/JSONWriter");
-const StudyData = require("../../lib/operation/StudyData");
-const JSONReader = require("../../lib/reader/JSONReader");
-const Tags = require("../../lib/dictionary/Tags");
+const JSONWriter = require("./JSONWriter");
+const StudyData = require("../operation/StudyData");
+const JSONReader = require("../reader/JSONReader");
+const Tags = require("../dictionary/Tags");
 
 /**
  * CompleteStudyWriter takes the deduplicated data values, all loaded into the study parameter,
@@ -11,7 +11,7 @@ const Tags = require("../../lib/dictionary/Tags");
  * The studyData object is then removed, so that a new one can be created if required.
  */
 const CompleteStudyWriter = (options) => {
-  const ret = async function () {
+  async function ret() {
     const { studyData } = this;
     if (!studyData) return;
 
@@ -64,7 +64,7 @@ const CompleteStudyWriter = (options) => {
       []
     );
     if (!studyQuery[Tags.StudyInstanceUID]) {
-      console.error("studyQuery=", studyQuery, anInstance);
+      console.error("studyQuery=", studyQuery);
     }
     const studyUID = studyQuery[Tags.StudyInstanceUID].Value[0];
     const studyIndex = allStudies.findIndex(
@@ -80,22 +80,21 @@ const CompleteStudyWriter = (options) => {
     Stats.StudyStats.summarize(
       `Wrote study metadata/query files for ${studyData.studyInstanceUid}`
     );
-  };
+  }
 
   /**
    * Gets a current study data object, or completes the old one and generates a new one.
    * async call as it may need to store the current study data value.
    */
   ret.getCurrentStudyData = async (callback, id) => {
-    let { studyData } = callback;
+    const { studyData } = callback;
     const { studyInstanceUid } = id;
 
     if (studyData) {
       if (studyData.studyInstanceUid == studyInstanceUid) {
         return studyData;
-      } else {
-        await callback.completeStudy(studyData);
       }
+      await callback.completeStudy(studyData);
     }
     callback.studyData = new StudyData(id, options);
     await callback.studyData.init(options);

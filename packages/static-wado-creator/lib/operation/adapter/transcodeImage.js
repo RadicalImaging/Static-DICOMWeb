@@ -1,5 +1,5 @@
 const dicomCodec = require("@cornerstonejs/dicom-codec");
-const Tags = require("../../../lib/dictionary/Tags");
+const Tags = require("../../dictionary/Tags");
 
 const transcodeOp = {
   none: 0,
@@ -55,6 +55,46 @@ const transcodeMap = {
 };
 
 /**
+ * Return a existing transcoder for the given transferSyntaxUid. Otherwise it returns undefined.
+ *
+ * @param {*} transferSyntaxUid
+ * @returns
+ */
+function getTranscoder(transferSyntaxUid) {
+  return transcodeMap[transferSyntaxUid];
+}
+
+/**
+ * Tell whether given id contain transferSyntaxUid which can be transcoded or not.
+ * @param {*} id object containing transferSyntaxUid
+ * @param {*} options runner options
+ */
+function shouldTranscodeImageFrame(id, options) {
+  if (!options.recompressType) {
+    return false;
+  }
+
+  function isValidTranscoder() {
+    const { transferSyntaxUid } = id;
+    const transcoder = getTranscoder(transferSyntaxUid);
+
+    return (
+      transcoder &&
+      transcoder.transferSyntaxUid &&
+      options.recompressType.includes(transcoder.alias)
+    );
+  }
+
+  return isValidTranscoder();
+}
+
+function transcodeLog(options, msg, error = "") {
+  if (options.verbose) {
+    console.log(`\x1b[34m${msg}\x1b[0m`, error);
+  }
+}
+
+/**
  * Minimum image info data to be used on transcode process by dicom-codec api.
  */
 function getImageInfo(dataSet) {
@@ -72,16 +112,6 @@ function getImageInfo(dataSet) {
     signed: pixelRepresentation === 1,
     pixelRepresentation,
   };
-}
-
-/**
- * Return a existing transcoder for the given transferSyntaxUid. Otherwise it returns undefined.
- *
- * @param {*} transferSyntaxUid
- * @returns
- */
-function getTranscoder(transferSyntaxUid) {
-  return transcodeMap[transferSyntaxUid];
 }
 
 /**
@@ -106,7 +136,7 @@ async function transcodeImageFrame(
   if (!shouldTranscodeImageFrame(id, options)) {
     return {
       id,
-      imageFrame: imageFrame,
+      imageFrame,
       done: false,
     };
   }
@@ -117,7 +147,7 @@ async function transcodeImageFrame(
   if (targetId.transferSyntaxUid !== transcoder.transferSyntaxUid) {
     return {
       id,
-      imageFrame: imageFrame,
+      imageFrame,
       done: false,
     };
   }
@@ -170,6 +200,8 @@ async function transcodeImageFrame(
 
         processResultMsg = `Decoding finished`;
         break;
+      default:
+        processResultMsg = "";
     }
 
     done = !!result.imageFrame;
@@ -188,19 +220,13 @@ async function transcodeImageFrame(
     transcodeLog(options, processResultMsg);
   }
 
-  let _imageFrame = result.imageFrame ?? imageFrame;
+  const _imageFrame = result.imageFrame ?? imageFrame;
 
   return {
     id: targetId,
     imageFrame: _imageFrame,
     done,
   };
-}
-
-function transcodeLog(options, msg, error = "") {
-  if (options.verbose) {
-    console.log(`\x1b[34m${msg}\x1b[0m`, error);
-  }
 }
 
 /**
@@ -216,7 +242,7 @@ function transcodeId(id, options) {
     return id;
   }
 
-  const targetId = Object.assign({}, id);
+  const targetId = { ...id };
   const { transferSyntaxUid } = getTranscoder(id.transferSyntaxUid);
 
   targetId.transferSyntaxUid = transferSyntaxUid;
@@ -242,7 +268,7 @@ function transcodeMetadata(metadata, id, options) {
 
   const transcodedId = transcodeId(id, options);
 
-  const result = Object.assign({}, metadata);
+  const result = { ...metadata };
 
   if (result[Tags.AvailableTransferSyntaxUID]) {
     result[Tags.AvailableTransferSyntaxUID].Value = [
@@ -251,30 +277,6 @@ function transcodeMetadata(metadata, id, options) {
   }
 
   return result;
-}
-
-/**
- * Tell whether given id contain transferSyntaxUid which can be transcoded or not.
- * @param {*} id object containing transferSyntaxUid
- * @param {*} options runner options
- */
-function shouldTranscodeImageFrame(id, options) {
-  if (!options.recompressType) {
-    return false;
-  }
-
-  function isValidTranscoder() {
-    const { transferSyntaxUid } = id;
-    const transcoder = getTranscoder(transferSyntaxUid);
-
-    return (
-      transcoder &&
-      transcoder.transferSyntaxUid &&
-      options.recompressType.includes(transcoder.alias)
-    );
-  }
-
-  return isValidTranscoder();
 }
 
 exports.shouldTranscodeImageFrame = shouldTranscodeImageFrame;

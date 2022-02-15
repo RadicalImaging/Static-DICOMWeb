@@ -1,8 +1,6 @@
 const extractImageFrames = require("./extractImageFrames");
 
-const getValueInlineString = (dataSet, attr) => {
-  return [dataSet.string(attr.tag)];
-};
+const getValueInlineString = (dataSet, attr) => [dataSet.string(attr.tag)];
 
 const getStrings = (dataSet, attr) => {
   const ret = dataSet.string(attr.tag);
@@ -29,64 +27,56 @@ const getValueInlineBinary = (dataSet, attr) => {
 const getValueInlineSignedShort = (dataSet, attr) => {
   if (attr.length > 2) {
     return getValueInlineBinary(dataSet, attr);
-  } else {
-    return [dataSet.int16(attr.tag)];
   }
+  return [dataSet.int16(attr.tag)];
 };
 
 const getValueInlineUnsignedShort = (dataSet, attr) => {
   if (attr.length > 2) {
     return getValueInlineBinary(dataSet, attr);
-  } else {
-    return [dataSet.uint16(attr.tag)];
   }
+  return [dataSet.uint16(attr.tag)];
 };
 
 const getValueInlineSignedLong = (dataSet, attr) => {
   if (attr.length > 4) {
     return getValueInlineBinary(dataSet, attr);
-  } else {
-    return [dataSet.int32(attr.tag)];
   }
+  return [dataSet.int32(attr.tag)];
 };
 
 const getValueInlineUnsignedLong = (dataSet, attr) => {
   if (attr.length > 4) {
     return getValueInlineBinary(dataSet, attr);
-  } else {
-    return [dataSet.uint32(attr.tag)];
   }
+  return [dataSet.uint32(attr.tag)];
 };
 
 const getValueInlineFloat = (dataSet, attr) => {
   if (attr.length > 4) {
     return getValueInlineBinary(dataSet, attr);
-  } else {
-    return [dataSet.float(attr.tag)];
   }
+  return [dataSet.float(attr.tag)];
 };
 
-const getValueInlineIntString = (dataSet, attr) => {
-  return getStrings(dataSet, attr).map((val) => parseInt(val));
-};
+const getValueInlineIntString = (dataSet, attr) =>
+  getStrings(dataSet, attr).map((val) => parseInt(val));
 
-const getValueInlineFloatString = (dataSet, attr) => {
-  return getStrings(dataSet, attr).map((val) => parseFloat(val));
-};
+const getValueInlineFloatString = (dataSet, attr) =>
+  getStrings(dataSet, attr).map((val) => parseFloat(val));
 
 const getValueInlineFloatDouble = (dataSet, attr) => {
   if (attr.length > 8) {
     return getValueInlineBinary(dataSet, attr);
-  } else {
-    return [dataSet.double(attr.tag)];
   }
+  return [dataSet.double(attr.tag)];
 };
 
 const getValueInlineAttributeTag = (dataSet, attr) => {
   const group = dataSet.uint16(attr.tag, 0);
-  const groupHexStr = ("0000" + group.toString(16)).substr(-4);
+  const groupHexStr = `0000${group.toString(16)}`.substr(-4);
   const element = dataSet.uint16(attr.tag, 1);
-  const elementHexStr = ("0000" + element.toString(16)).substr(-4);
+  const elementHexStr = `0000${element.toString(16)}`.substr(-4);
   return groupHexStr + elementHexStr;
 };
 
@@ -146,7 +136,7 @@ const getValueInline = (dataSet, attr, vr) => {
 };
 
 const isPrivate = (attr) => {
-  const tag = attr.tag;
+  const { tag } = attr;
   const ch = tag.substr(4, 1);
   const chHex = parseInt(ch, 16);
   return chHex % 2 == 1;
@@ -200,20 +190,19 @@ const getValue = async (
       if (subResult.metadata) result.push(subResult.metadata);
     }
     return result;
-  } else if (attr.Value) {
-    return (Array.isArray(attr.Value) && attr.Value) || [attr.Value];
-  } else {
-    // non sequence item
-    if (isValueInline(attr, options)) {
-      return getValueInline(dataSet, attr, vr);
-    } else {
-      const binaryValue = dataSet.byteArray.slice(
-        attr.dataOffset,
-        attr.dataOffset + attr.length
-      );
-      const BulkDataURI = await callback.bulkdata(binaryValue);
-      return { BulkDataURI };
-    }
   }
+  if (attr.Value) {
+    return (Array.isArray(attr.Value) && attr.Value) || [attr.Value];
+  }
+  // non sequence item
+  if (isValueInline(attr, options)) {
+    return getValueInline(dataSet, attr, vr);
+  }
+  const binaryValue = dataSet.byteArray.slice(
+    attr.dataOffset,
+    attr.dataOffset + attr.length
+  );
+  const BulkDataURI = await callback.bulkdata(binaryValue);
+  return { BulkDataURI };
 };
 module.exports = getValue;

@@ -1,6 +1,8 @@
-const JSONWriter = require("../../lib/writer/JSONWriter");
-const TagLists = require("../../lib/model/TagLists");
-const Tags = require("../../lib/dictionary/Tags");
+// TODO review returning type of some methods
+const JSONWriter = require("../writer/JSONWriter");
+const TagLists = require("../model/TagLists");
+const Tags = require("../dictionary/Tags");
+
 const extractors = {
   patient: TagLists.PatientQuery,
   study: TagLists.StudyQuery,
@@ -15,18 +17,18 @@ const extractors = {
  * Whenever the study UID changes, a new event is fired to indicate the deduplicated data is ready.
  */
 async function deduplicateSingleInstance(id, imageFrame) {
-  if (!imageFrame) return;
+  if (!imageFrame) return {};
   const studyData = await this.completeStudy.getCurrentStudyData(this, id);
   const seriesUID = imageFrame[Tags.SeriesInstanceUID];
   const sopUID = imageFrame[Tags.SOPInstanceUID];
   if (!sopUID) {
     console.warn("No sop instance UID in", imageFrame);
-    return;
+    return {};
   }
   if (studyData.sopExists(sopUID)) {
     // console.log('SOP Instance UID', sopUID.Value[0], 'already exists, skipping');
     // TODO - allow replace as an option
-    return;
+    return {};
   }
   const deduplicated = { ...imageFrame };
 
@@ -59,6 +61,7 @@ const canonicalize = (json) => {
   Object.keys(json).forEach((tag) => {
     if (!tag || tag === "undefined") {
       // console.error('Got an undefined tag:', tag, typeof(tag));
+      // TODO check returning value
       return;
     }
     const val = json[tag];
@@ -71,23 +74,28 @@ const canonicalize = (json) => {
 };
 
 const InstanceDeduplicate = (options) =>
-  async function InstanceDeduplicate(id, imageFrame) {
+  async function run(id, sourceImageFrame) {
     // Notify the existing listeners, if any
-    imageFrame = canonicalize(imageFrame);
+    const imageFrame = canonicalize(sourceImageFrame);
     if (options.isInstanceMetadata) {
       await JSONWriter(id.sopInstanceRootPath, "metadata", imageFrame);
     }
     if (!options.isDeduplicate && !options.isGroup) {
       return;
     }
-    if (!this.deduplicateSingleInstance)
+
+    if (!this.deduplicateSingleInstance) {
       this.deduplicateSingleInstance = deduplicateSingleInstance;
+    }
+
     const deduppedInstance = await this.deduplicateSingleInstance(
       id,
       imageFrame
     );
-    if (!deduppedInstance) return;
-    await this.deduplicated(id, deduppedInstance);
+    if (deduppedInstance) {
+      // this refers to callee
+      await this.deduplicated(id, deduppedInstance);
+    }
   };
 
 module.exports = InstanceDeduplicate;

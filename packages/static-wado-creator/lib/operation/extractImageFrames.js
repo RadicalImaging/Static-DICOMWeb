@@ -1,11 +1,10 @@
 const getNumberOfFrames = require("./getNumberOfFrames");
 const getUncompressedImageFrame = require("./getUncompressedImageFrame");
 const getEncapsulatedImageFrame = require("./getEncapsulatedImageFrame");
-const { isVideo } = require("../../lib/writer/VideoWriter");
+const { isVideo } = require("../writer/VideoWriter");
 
-const areFramesAreFragmented = (attr, numberOfFrames) => {
-  return attr.encapsulatedPixelData && numberOfFrames != attr.fragments.length;
-};
+const areFramesAreFragmented = (attr, numberOfFrames) =>
+  attr.encapsulatedPixelData && numberOfFrames != attr.fragments.length;
 
 const getFrameSize = (dataSet) => {
   const rows = dataSet.uint16("x00280010");
@@ -15,7 +14,7 @@ const getFrameSize = (dataSet) => {
   return (rows * columns * samplesPerPixel * bitsAllocated) / 8;
 };
 
-const extractImageFrames = async (dataSet, attr, vr, callback, options) => {
+const extractImageFrames = async (dataSet, attr, vr, callback) => {
   const numberOfFrames = getNumberOfFrames(dataSet);
   const framesAreFragmented = areFramesAreFragmented(attr, numberOfFrames);
   const uncompressedFrameSize = getFrameSize(dataSet);

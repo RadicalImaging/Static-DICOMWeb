@@ -1,6 +1,7 @@
 const hashFactory = require("node-object-hash");
+const Tags = require("../dictionary/Tags");
+
 const hasher = hashFactory();
-const Tags = require("../../lib/dictionary/Tags");
 
 const { PatientID, PatientName, IssuerOfPatientID } = Tags;
 const {

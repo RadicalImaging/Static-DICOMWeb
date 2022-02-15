@@ -48,8 +48,8 @@
     "test": "jest --config ./jest.config.js tests/**/*.js",
     "build": "echo \"No build yet\" && exit 0",
     "link:exec": "npm link",
-    "lint": "npx prettier",
-    "lint:fix": "npx prettier --write"
+    "lint": "npx eslint",
+    "lint:fix": "npx eslint --fix"
   },
   "jest": {
     "verbose": true

@@ -1,6 +1,5 @@
 const fs = require("fs");
 const { execSync } = require("child_process");
-const StaticWado = require("../../lib");
 const deleteDir = require("../../lib/util/deleteDir");
 
 // same level at package folder
@@ -15,11 +14,6 @@ const junoFramesFile = `${junoInstancesDir}/frames/1.gz`;
 
 describe("index", () => {
   const processes = {};
-
-  const importer = new StaticWado({
-    isStudyData: true,
-    isGroup: true,
-  });
 
   function assertExists(fileOrDir, exists = true) {
     fs.existsSync(fileOrDir).must.be.eql(exists);

@@ -1,22 +1,19 @@
-"use strict";
 const dicomCodec = require("@cornerstonejs/dicom-codec");
 const { program, Stats } = require("@ohif/static-wado-util");
 const dicomParser = require("dicom-parser");
+const fs = require("fs");
+const path = require("path");
+const homedir = require("os").homedir();
 const asyncIterableToBuffer = require("./operation/adapter/asyncIterableToBuffer");
 const getDataSet = require("./operation/getDataSet");
-const JSONWriter = require("./writer/JSONWriter");
 const InstanceDeduplicate = require("./operation/InstanceDeduplicate");
 const DeduplicateWriter = require("./writer/DeduplicateWriter");
 const ImageFrameWriter = require("./writer/ImageFrameWriter");
 const CompleteStudyWriter = require("./writer/CompleteStudyWriter");
 const IdCreator = require("./util/IdCreator");
-const fs = require("fs");
 const dirScanner = require("./reader/dirScanner");
 const ScanStudy = require("./operation/ScanStudy");
 const HashDataWriter = require("./writer/HashDataWriter");
-const JSONReader = require("./reader/JSONReader");
-const path = require("path");
-const homedir = require("os").homedir();
 const VideoWriter = require("./writer/VideoWriter");
 const {
   transcodeImageFrame,
@@ -150,8 +147,11 @@ class StaticWado {
     let bulkDataIndex = 0;
     let imageFrameIndex = 0;
     const generator = {
-      bulkdata: async (bulkData) =>
-        this.callback.bulkdata(targetId, bulkDataIndex++, bulkData),
+      bulkdata: async (bulkData) => {
+        const _bulkDataIndex = bulkDataIndex;
+        bulkDataIndex += 1;
+        this.callback.bulkdata(targetId, _bulkDataIndex, bulkData);
+      },
       imageFrame: async (originalImageFrame) => {
         const { imageFrame, id: transcodedId } = await transcodeImageFrame(
           id,
@@ -161,9 +161,12 @@ class StaticWado {
           this.options
         );
 
+        const currentImageFrameIndex = imageFrameIndex;
+        imageFrameIndex += 1;
+
         return this.callback.imageFrame(
           transcodedId,
-          imageFrameIndex++,
+          currentImageFrameIndex,
           imageFrame
         );
       },

@@ -1,10 +1,11 @@
-const Tags = require("../../lib/dictionary/Tags");
-const TagLists = require("../../lib/model/TagLists");
 const path = require("path");
 const fs = require("fs");
-const JSONReader = require("../../lib/reader/JSONReader");
-const JSONWriter = require("../../lib/writer/JSONWriter");
 const hashFactory = require("node-object-hash");
+const Tags = require("../dictionary/Tags");
+const TagLists = require("../model/TagLists");
+const JSONReader = require("../reader/JSONReader");
+const JSONWriter = require("../writer/JSONWriter");
+
 const hasher = hashFactory();
 
 const getSeriesInstanceUid = (seriesInstance) =>
@@ -23,19 +24,6 @@ const getSeriesInstanceUid = (seriesInstance) =>
  * level data multiple times when it already exists.
  */
 class StudyData {
-  deduplicated = [];
-  extractData = {};
-  // The list of already existing files read in to create this object
-  existingFiles = [];
-  // The read hashes is the hashes of the files that are read, both as groups and internally
-  readHashes = {};
-  // The deduplicated hashes are just the hashes for individual items
-  deduplicatedHashes = {};
-  sopInstances = {};
-
-  // Used to track if new instances have been added.
-  newInstancesAdded = 0;
-
   constructor(
     {
       studyInstanceUid,
@@ -45,6 +33,18 @@ class StudyData {
     },
     { isGroup }
   ) {
+    this.deduplicated = [];
+    this.extractData = {};
+    // The list of already existing files read in to create this object
+    this.existingFiles = [];
+    // The read hashes is the hashes of the files that are read, both as groups and internally
+    this.readHashes = {};
+    // The deduplicated hashes are just the hashes for individual items
+    this.deduplicatedHashes = {};
+    this.sopInstances = {};
+
+    // Used to track if new instances have been added.
+    this.newInstancesAdded = 0;
     this.studyInstanceUid = studyInstanceUid;
     this.studyPath = studyPath;
     this.isGroup = isGroup;
@@ -138,7 +138,7 @@ class StudyData {
       console.log("No refs for", deduplicated);
       return deduplicated;
     }
-    const ret = Object.assign({}, deduplicated);
+    const ret = { ...deduplicated };
     for (const hashKey of refs.Value) {
       const item = await this.getOrLoadExtract(hashKey);
       Object.assign(ret, item);
@@ -161,23 +161,23 @@ class StudyData {
     if (!this.isGroup) return;
     // TODO - check the hash code on the added data, if it has already been seen then ignore this item.
     if (this.internalAddDeduplicated(data)) {
-      this.newInstancesAdded++;
+      this.newInstancesAdded += 1;
     }
   }
 
   /** Add the instance if not already present */
   internalAddDeduplicated(data, fileName = "internal") {
     const hashValue = TagLists.addHash(data, Tags.InstanceType);
-    if (this.deduplicatedHashes[hashValue]) {
+    if (!hashValue || this.deduplicatedHashes[hashValue]) {
       // console.log('Not adding', hashValue, 'because the hash exists');
-      return;
+      return false;
     }
     const sopUID = data[Tags.SOPInstanceUID];
     const sopValue = (sopUID && sopUID.Value && sopUID.Value[0]) || sopUID;
     const sopIndex = this.sopInstances[sopValue];
     if (!sopValue) {
       console.warn("No sop value in ", data);
-      return;
+      return false;
     }
     this.deduplicatedHashes[hashValue] = data;
     this.readHashes[hashValue] = fileName;
@@ -188,7 +188,8 @@ class StudyData {
       this.sopInstances[sopValue] = this.deduplicated.length;
       this.deduplicated.push(data);
     }
-    return hashValue;
+
+    return !!hashValue;
   }
 
   async listJsonFiles(dir) {
@@ -259,7 +260,7 @@ class StudyData {
           const refs = item[Tags.DeduppedRef];
           if (refs && refs.Value) {
             refs.Value.forEach((hashValue) => {
-              this.readHashes[hashValue] = hashValue + ".gz";
+              this.readHashes[hashValue] = `${hashValue}.gz`;
             });
           }
         } else {
@@ -327,7 +328,7 @@ class StudyData {
         Value: [instances.length],
       };
       numberOfInstances += instances.length;
-      numberOfSeries++;
+      numberOfSeries += 1;
       seriesList.push(seriesQuery);
       const modality = seriesQuery[Tags.Modality].Value[0];
       if (modalitiesInStudy.indexOf(modality) == -1)
@@ -391,6 +392,7 @@ class StudyData {
     return data;
   }
 
+  /* eslint-disable-next-line class-methods-use-this */
   removeGz(name) {
     const gzIndex = name.indexOf(".gz");
     return (gzIndex > 0 && name.substring(0, gzIndex)) || name;
@@ -410,7 +412,7 @@ class StudyData {
     data[Tags.DeduppedRef] = {
       vr: "CS",
       Value: Object.keys(this.readHashes).filter(
-        (hash) => this.deduplicatedHashes[hashValue] == undefined
+        () => this.deduplicatedHashes[hashValue] == undefined
       ),
     };
     await JSONWriter(

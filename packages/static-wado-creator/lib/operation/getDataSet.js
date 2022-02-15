@@ -1,43 +1,6 @@
 const getVR = require("./getVR");
 const getValue = require("./getValue");
-const Tags = require("../../lib/dictionary/Tags");
-
-const attributeToJS = async (
-  metadata,
-  tag,
-  dataSet,
-  attr,
-  callback,
-  options,
-  parentAttr
-) => {
-  const vr = getVR(attr);
-  const value = await getValue(
-    dataSet,
-    attr,
-    vr,
-    getDataSet,
-    callback,
-    options,
-    parentAttr
-  );
-  const key = tag.substring(1).toUpperCase();
-  if (value == undefined || value.length == 0) {
-    metadata[key] = {
-      vr: vr,
-    };
-  } else if (value.InlineBinary || value.BulkDataURI) {
-    metadata[key] = {
-      vr: vr,
-      ...value,
-    };
-  } else {
-    metadata[key] = {
-      vr: vr,
-      Value: value,
-    };
-  }
-};
+const Tags = require("../dictionary/Tags");
 
 /**
  * Get dataset.
@@ -50,12 +13,7 @@ const attributeToJS = async (
  * @param {*} parentAttr Parent reference for sequence element tags.
  * @returns
  */
-const getDataSet = async (
-  dataSet,
-  callback,
-  options,
-  parentAttr = undefined
-) => {
+async function getDataSet(dataSet, callback, options, parentAttr = undefined) {
   const metadata = {};
 
   // iterate over dataSet attributes in order
@@ -69,6 +27,7 @@ const getDataSet = async (
       continue;
     }
     const attr = dataSet.elements[tag];
+    /* eslint-disable-next-line no-use-before-define */
     await attributeToJS(
       metadata,
       tag,
@@ -86,6 +45,43 @@ const getDataSet = async (
     delete metadata[Tags.TransferSyntaxUID];
   }
   return { metadata };
-};
+}
+
+async function attributeToJS(
+  metadata,
+  tag,
+  dataSet,
+  attr,
+  callback,
+  options,
+  parentAttr
+) {
+  const vr = getVR(attr);
+  const value = await getValue(
+    dataSet,
+    attr,
+    vr,
+    getDataSet,
+    callback,
+    options,
+    parentAttr
+  );
+  const key = tag.substring(1).toUpperCase();
+  if (value == undefined || value.length == 0) {
+    metadata[key] = {
+      vr,
+    };
+  } else if (value.InlineBinary || value.BulkDataURI) {
+    metadata[key] = {
+      vr,
+      ...value,
+    };
+  } else {
+    metadata[key] = {
+      vr,
+      Value: value,
+    };
+  }
+}
 
 module.exports = getDataSet;

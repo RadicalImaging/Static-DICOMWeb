@@ -1,11 +1,11 @@
-const path = require("path");
 const fs = require("fs");
 
 /**
  * Executes a given callback on the scanned list of names, OR matches up the names present
  * in the actual directory with the specified list.
  */
-async function dirScanner(files, options) {
+async function dirScanner(input, options) {
+  let files = input;
   if (!Array.isArray(files)) files = [files];
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
@@ -13,7 +13,7 @@ async function dirScanner(files, options) {
       const names = await fs.promises.readdir(file);
       if (options.recursive !== false) {
         await dirScanner(
-          names.map((dirFile) => file + "/" + dirFile),
+          names.map((dirFile) => `${file}/${dirFile}`),
           options
         );
       } else {

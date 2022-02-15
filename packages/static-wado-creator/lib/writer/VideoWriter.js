@@ -1,8 +1,6 @@
 /** Write raw video file */
-
-const Tags = require("../../lib/dictionary/Tags");
-const WriteStream = require("../../lib/writer/WriteStream");
-const dicomParser = require("dicom-parser");
+const Tags = require("../dictionary/Tags");
+const WriteStream = require("./WriteStream");
 
 const MPEG2 = "mpg";
 const H264 = "mp4";
@@ -24,8 +22,8 @@ const VIDEO_TYPES = {
 const isVideo = (dataSet) =>
   VIDEO_TYPES[dataSet.string(Tags.RawTransferSyntaxUID)];
 
-const VideoWriter = (options) => {
-  const writeVideo = async (id, dataSet) => {
+const VideoWriter = () =>
+  async function run(id, dataSet) {
     console.log(`Writing video  ${id.sopInstanceUid}`);
     const extension = VIDEO_TYPES[dataSet.string(Tags.RawTransferSyntaxUID)];
     const filename = `pixeldata.${extension}`;
@@ -37,7 +35,7 @@ const VideoWriter = (options) => {
 
     if (!fragments) {
       console.warn("No video data");
-      return;
+      return "";
     }
     // The zero position fragment isn't available, even though present in the original data
     for (let i = 0; i < fragments.length; i++) {
@@ -55,8 +53,6 @@ const VideoWriter = (options) => {
     );
     return `series/${id.seriesInstanceUid}/instances/${id.sopInstanceUid}/pixeldata.${extension}?length=${length}&offset=0`;
   };
-  return writeVideo;
-};
 
 module.exports = VideoWriter;
 VideoWriter.isVideo = isVideo;

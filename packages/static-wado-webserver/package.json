@@ -41,8 +41,8 @@
   "scripts": {
     "test": "echo \"No tests yet\" && exit 0",
     "build": "echo \"No build yet\" && exit 0",
-    "lint": "npx prettier",
-    "lint:fix": "npx prettier --write"
+    "lint": "npx eslint",
+    "lint:fix": "npx eslint --fix"
   },
   "dependencies": {
     "@ohif/static-wado-util": "^0.5.0"

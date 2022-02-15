@@ -3,12 +3,10 @@ const fs = require("fs");
 const path = require("path");
 const zlib = require("zlib");
 
-let count = 0;
-
 const JSONReader = async (dir, name, def) => {
   let finalData;
   try {
-    let rawdata = fs.readFileSync(path.join(dir, name));
+    const rawdata = fs.readFileSync(path.join(dir, name));
     if (name.indexOf(".gz") != -1) {
       finalData = zlib.gunzipSync(rawdata).toString("utf-8");
     } else {

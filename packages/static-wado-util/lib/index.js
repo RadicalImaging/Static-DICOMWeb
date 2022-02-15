@@ -1,5 +1,3 @@
-"use strict";
-
 const { program, configureProgram } = require("./program");
 const { Stats } = require("./stats");
 
