@@ -21,8 +21,7 @@
     "prettier-eslint": "^13.0.0"
   },
   "dependencies": {
-    "husky": "^7.0.4",
-    "semantic-release": "^19.0.2"
+    "husky": "^7.0.4"
   },
   "workspaces": [
     "packages/*"
@@ -36,6 +35,7 @@
     "lint": "lerna run lint --parallel --stream -- --color \"./!(node_modules)/**/*.js\"",
     "lint:ci": "yarn run lint",
     "lint:fix": "lerna run lint:fix --parallel --stream -- --color \"./!(node_modules)/**/*.js\"",
-    "postinstall": "git config core.hooksPath '.husky' && echo 'Pre-commit configured'"
+    "postinstall": "git config core.hooksPath '.husky' && echo 'git hooks configured'",
+    "reset:hooks": "git config core.hooksPath '.git' && echo 'git hooks was reset'"
   }
 }
