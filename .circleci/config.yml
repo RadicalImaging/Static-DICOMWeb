@@ -167,17 +167,9 @@ jobs:
           paths:
             - ~/.cache/yarn
           key: yarn-packages-{{ checksum "yarn.lock" }}
-     
-      # via the `GH_TOKEN` environment variable
-      - run:
-          name: Avoid hosts unknown for github
-          command: |
-            rm -rf ~/.ssh
-            mkdir ~/.ssh/
-            echo -e "Host github.com\n\tStrictHostKeyChecking no\n" > ~/.ssh/config
-            git config --global user.email "rodolfo2611@gmail.com"
-            git config --global user.name "ladeirarodolfo"
-      
+
+      - run: echo "git hub token $GITHUB_TOKEN"
+      - run: echo "git npm token $NPM_TOKEN"
       # The value is determined by out `NPM_TOKEN` environment variable
       - run:
           name: Authenticate with NPM registry
