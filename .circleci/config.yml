@@ -96,6 +96,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/repo
+      - run: ls -R testdata
       - run: yarn run test:ci
 
   NPM_PUBLISH:
@@ -193,7 +194,7 @@ workflows:
             branches:
               ignore:
                 - master
-      
+
       - LINT:
           requires:
             - BUILD
