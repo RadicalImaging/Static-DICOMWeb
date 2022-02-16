@@ -190,15 +190,7 @@ jobs:
           name: Authenticate with NPM registry
           command:
             echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/repo/.npmrc
-      - run:  cat  ~/.ssh/config
-      - run: ls ~/.ssh
-      - run: cat ~/repo/.npmrc
-      - run: git config -l
-      - run:
-          name: test to push
-          command: |
-            git branch -f test master
-            GIT_SSH_COMMAND="ssh -vvv" git push --dry-run --verbose --progress origin test
+
       # reset hooks to prevent running unwanted client checks
       - run: yarn run reset:hooks
       #
