@@ -173,7 +173,6 @@ jobs:
           name: Authenticate with NPM registry
           command:
             echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/repo/.npmrc
-
       - run:
           name: Publish using Semantic Release
           command: npx semantic-release
