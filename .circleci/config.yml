@@ -78,6 +78,7 @@ jobs:
           name: Install Dependencies
           command: yarn install --frozen-lockfile
       - run: yarn run build:ci
+      - run: ls
       - persist_to_workspace:
           root: ~/repo
           paths:
@@ -88,7 +89,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/repo
-      - run: yarn run test:ci
+      - run: yarn run lint:ci
 
   TEST:
     executor: node
@@ -96,7 +97,6 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/repo
-      - run: ls -R testdata
       - run: yarn run test:ci
 
   NPM_PUBLISH:
