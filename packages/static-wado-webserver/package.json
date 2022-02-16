@@ -1,6 +1,6 @@
 {
   "name": "@ohif/static-wado-webserver",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Webserver to serve a static-wado repo",
   "publishConfig": {
     "access": "public"
@@ -49,6 +49,6 @@
     "lint:fix": "npx eslint --fix"
   },
   "dependencies": {
-    "@ohif/static-wado-util": "^0.5.0"
+    "@ohif/static-wado-util": "^0.5.1"
   }
 }
