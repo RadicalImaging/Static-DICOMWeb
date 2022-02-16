@@ -168,14 +168,42 @@ jobs:
             - ~/.cache/yarn
           key: yarn-packages-{{ checksum "yarn.lock" }}
 
+      #
+      # This step is a prerequisite for `lerna version`
+      # The git config values need to match the personal access token set
+      # via the `GH_TOKEN` environment variable
+      - run:
+          name: Avoid hosts unknown for github
+          command: |
+            rm -rf ~/.ssh
+            mkdir ~/.ssh/
+            echo -e "Host github.com\n\tStrictHostKeyChecking no\n" > ~/.ssh/config
+            git config --global user.email "rodolfo2611@gmail.com"
+            git config --global user.name "ladeirarodolfo"
+      #
+      # This step is a prerequisite for `lera publish`
+      # Lerna and NPM will not automatically detect environment variables
+      # instead, we set our registry and auth token by writing to a temporary
+      # `.npmrc` file that `lerna publish`/`npm publish` will use
       # The value is determined by out `NPM_TOKEN` environment variable
       - run:
           name: Authenticate with NPM registry
           command:
             echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/repo/.npmrc
-      - run:
-          name: Publish using Semantic Release
-          command: npx semantic-release
+      #
+      # This step is configured in `/lerna.json`.
+      # Only runs on `main` branch. Walks all commits since last tagged release.
+      # Determines, based on commit syntax and files changed, what each packages new
+      # version should be. Creates a commit to update all updated package versions.
+      # Pushes commit to main, cuts GitHub release w/ changelog.
+      # @see https://github.com/lerna/lerna/tree/main/commands/version
+      - run: npx lerna version
+      #
+      # This step is configured in `/lerna.json`.
+      # Checks package versions and publishes packages where the latest version is not
+      # present in the registry. This command ignores changes to files w/ specific extensions.
+      # @see https://github.com/lerna/lerna/tree/main/commands/publish
+      - run: npx lerna publish from-package
       
 workflows:
   version: 2
