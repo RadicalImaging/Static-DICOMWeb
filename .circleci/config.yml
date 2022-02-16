@@ -173,12 +173,11 @@ jobs:
           command:
             echo "git hub token $GITHUB_TOKEN"
             echo "git npm token $NPM_TOKEN"
-            echo "${{env}}"
       # The value is determined by out `NPM_TOKEN` environment variable
       - run:
           name: Authenticate with NPM registry
           command:
-            echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/repo/.npmrc
+            echo "//registry.npmjs.org/:_authToken=$GITHUB_TOKEN" > ~/repo/.npmrc
 
       - run:
           name: Publish using Semantic Release
