@@ -193,6 +193,7 @@ jobs:
       - run:  cat  ~/.ssh/config
       - run: ls ~/.ssh
       - run: cat ~/repo/.npmrc
+      - run: git config -l
       - run:
           name: test to push
           command: |
