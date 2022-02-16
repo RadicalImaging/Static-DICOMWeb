@@ -196,7 +196,7 @@ jobs:
       # version should be. Creates a commit to update all updated package versions.
       # Pushes commit to main, cuts GitHub release w/ changelog.
       # @see https://github.com/lerna/lerna/tree/main/commands/version
-      - run: npx lerna version
+      - run: npx lerna version --loglevel "verbose"
       #
       # This step is configured in `/lerna.json`.
       # Checks package versions and publishes packages where the latest version is not
