@@ -21,7 +21,8 @@
     "prettier-eslint": "^13.0.0"
   },
   "dependencies": {
-    "husky": "^7.0.4"
+    "husky": "^7.0.4",
+    "semantic-release": "^19.0.2"
   },
   "workspaces": [
     "packages/*"
