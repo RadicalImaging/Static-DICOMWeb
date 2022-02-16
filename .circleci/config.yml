@@ -78,7 +78,6 @@ jobs:
           name: Install Dependencies
           command: yarn install --frozen-lockfile
       - run: yarn run build:ci
-      - run: ls
       - persist_to_workspace:
           root: ~/repo
           paths:
@@ -169,16 +168,11 @@ jobs:
             - ~/.cache/yarn
           key: yarn-packages-{{ checksum "yarn.lock" }}
 
-      - run:
-          name: TOKENS
-          command:
-            echo "git hub token $GITHUB_TOKEN"
-            echo "git npm token $NPM_TOKEN"
       # The value is determined by out `NPM_TOKEN` environment variable
       - run:
           name: Authenticate with NPM registry
           command:
-            echo "//registry.npmjs.org/:_authToken=$GITHUB_TOKEN" > ~/repo/.npmrc
+            echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/repo/.npmrc
 
       - run:
           name: Publish using Semantic Release

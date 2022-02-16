@@ -2,6 +2,9 @@
   "name": "@ohif/static-wado-webserver",
   "version": "0.5.0",
   "description": "Webserver to serve a static-wado repo",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "StaticWado",
     "StaticWadoServer",

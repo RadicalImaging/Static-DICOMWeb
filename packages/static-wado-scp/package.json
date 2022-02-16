@@ -2,6 +2,9 @@
   "name": "@ohif/static-wado-scp",
   "version": "0.5.0",
   "description": "DimseScp server to connect to static-wado repo",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "DIMSESCP",
     "DICOM",

@@ -2,6 +2,9 @@
   "name": "@ohif/static-wado-util",
   "version": "0.5.0",
   "description": "Utils for other packages.",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "commander",
     "StaticWado"
