@@ -168,10 +168,12 @@ jobs:
             - ~/.cache/yarn
           key: yarn-packages-{{ checksum "yarn.lock" }}
 
-      - run: |
-        echo "git hub token $GITHUB_TOKEN"
-        echo "git npm token $NPM_TOKEN"
-        echo "${{env}}"
+      - run:
+          name: TOKENS
+          command:
+            echo "git hub token $GITHUB_TOKEN"
+            echo "git npm token $NPM_TOKEN"
+            echo "${{env}}"
       # The value is determined by out `NPM_TOKEN` environment variable
       - run:
           name: Authenticate with NPM registry
