@@ -195,8 +195,7 @@ jobs:
       - run:
           name: test to push
           command:
-          git branch -f test master
-          GIT_SSH_COMMAND="ssh -vvv" git push --dry-run --verbose --progress origin test
+            git branch -f test master
       # reset hooks to prevent running unwanted client checks
       - run: yarn run reset:hooks
       #
