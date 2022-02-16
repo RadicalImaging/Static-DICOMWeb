@@ -28,9 +28,12 @@
   ],
   "scripts": {
     "test": "lerna run test --parallel --stream",
+    "test:ci": "yarn run test",
     "build": "lerna run build --stream",
+    "build:ci": "yarn run build",
     "link:exec": "lerna run link:exec --stream",
     "lint": "lerna run lint --parallel --stream -- --color \"./!(node_modules)/**/*.js\"",
+    "lint:ci": "yarn run lint",
     "lint:fix": "lerna run lint:fix --parallel --stream -- --color \"./!(node_modules)/**/*.js\"",
     "postinstall": "git config core.hooksPath '.husky' && echo 'Pre-commit configured'"
   }
