@@ -19,7 +19,6 @@ Most of commands runs at root level and lerna is responsible to manager running 
 * NPM >=6.14.15
 * Yarn >=1.22.4
 
-
 ## Development
 
 ## Installation
