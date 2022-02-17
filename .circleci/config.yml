@@ -193,6 +193,7 @@ jobs:
 
       # reset hooks to prevent running unwanted client checks
       - run: yarn run reset:hooks
+      - run: npm whoami
       #
       # This step is configured in `/lerna.json`.
       # Only runs on `main` branch. Walks all commits since last tagged release.
