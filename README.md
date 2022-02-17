@@ -1,17 +1,55 @@
-# `root`
+# `static-wado`
 
-> Lerna Monorepo package containing static-wado packages.
+The static wado project is a project to create a web-centric PACS system based on DICOMweb.  The project was started out of
+some scripts that converted binary DICOM files into static wado (DICOMweb) files, but has been extended to cover more
+areas.  There are a few parts to the idea of "static" wado files:
+
+1. Store data organized by RESTful path in DICOMweb
+2. Separate data in separate objects organized by how it is accessed, NOT how it is provided
+3. Compress the data (gzip for JSON files and image compression for images)
+4. Store deduplicated data in a write once fashion for fast retrieves as well as efficient updates
+
+That is basically it.  All of the other operations are on top of those four basic principles.
+
+## How to build a mini-PACS system with OHIF
+What you need to do is run the dicomweb scp and server components to accept incoming images and serve up the data, complete with the OHIF client.  This can be done with the following steps:
+
+1. Clone the OHIF Viewer project using `git clone https://github.com/OHIF/Viewers.git`
+2. Clone the static-wado project using `git clone https://github.com/OHIF/static-wado.git`
+3. Run `yarn install` in both directories
+4. Build a copy of the OHIF viewer with: `APP_CONFIG=config/local_static.js yarn build`  
+5. Copy the build output to `~/ohif`  (from Viewers/platform/viewer/dist)
+6. Install the dicomwebscp from static-wado/packages/static-wado-scp  with the command `npm install -g`
+7. Install the dicomwebserver from `static-wado/packages/static-wado-server` with the command `npm install -g`
+8. Start the SCP with `dicomwebscp`
+9. Start the web server with `dicomwebserver`
+10. Send in images to the AE  SCP@localhost:11112
+11. Display studies on the webpage http://localhost:5000
+12. Add a proxy service to add authentication and encryption to http://localhost:5000
+13. Configure your modalities to send to `SCP@<hostname>:11112`
+
+This provides a very basic PACS system.
 
 ## Packages
---- static-wado-creator
---- static-wado-scp
---- static-wado-util
---- static-wado-webserver
-
-Most of commands runs at root level and lerna is responsible to manager running on packages, such as:
+The packages are organized using lerna as a package manager, combined yarn.  Most packages provide commands in the bin directory which can be installed using `npm install -g`.
+The top level package is responsible for:
 - lint
 - test
 - build
+
+### `static-wado-creator`
+The creator package provides the functionality to convert objects to and from binary DICOM, as well as providing command line tools to invoke the library.
+
+### `static-wado-scp`
+The scp package provides a javascript based SCP, that stores C-Store data into the static data files.  In the future, it is expected to also convert from DICOMweb objects back into binary DICOM.
+
+### `static-wado-webserver`
+The webserver component is a very simple script that serves up the files, setting the appropriate content types and performing a limited amount of redirection.  This allows serving both the OHIF client as well as a dicomweb directory.
+
+Additionally, the webserver supports plugin modules to enable enhanced functionality, such as serving up filtered responses, or performing database queries to decide on object responses.
+
+### `static-wado-util`
+Utilities
 
 ## Pre-requisites
 
@@ -91,7 +129,6 @@ or in case you want to also run eslint autofix
 * Document API
 * Create CI + Publish to NPM
 * Fix Bugs
-    * Get bulkdata refs written properly
 * Enhance cli
     * Add support for specifying bulkDataMinSize
     * Add support for writing out DICOM P10 file
@@ -100,4 +137,5 @@ or in case you want to also run eslint autofix
         * P10 Header
         * Data needed to recreate original P10 instance
 * Create DICOMweb -> DICOM P10 tool
-
+* Add a set of tools to perform Patient and Study (QC) updates
+* Add a study/patient only database for query support

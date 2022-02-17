@@ -1,7 +1,7 @@
 const { Stats } = require("@ohif/static-wado-util");
+const { JSONReader } = require("@ohif/static-wado-util");
 const JSONWriter = require("./JSONWriter");
 const StudyData = require("../operation/StudyData");
-const JSONReader = require("../reader/JSONReader");
 const Tags = require("../dictionary/Tags");
 
 /**

@@ -18,16 +18,10 @@ describe("index", () => {
     fs.existsSync(fileOrDir).must.be.eql(exists);
   }
 
-  beforeEach(async () => {
+  beforeEach(() => {
     fs.mkdirSync(OUTPUT_TEMP_PATH, { recursive: true });
 
     assertExists(OUTPUT_TEMP_PATH, true);
-
-    console.log(
-      "Created directory",
-      OUTPUT_TEMP_PATH,
-      fs.existsSync(OUTPUT_TEMP_PATH)
-    );
   });
 
   const createJuno = () => {

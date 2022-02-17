@@ -26,7 +26,6 @@ describe("asyncIterableToBuffer", () => {
     const start = 3215 + 8;
     const len = 526728 - start;
 
-    console.log("Slice buffer test");
     const subBuffer = buffer.slice(start, start + len);
     for (let i = 0; i < len; i++) {
       const bufVal = buffer[i + start];

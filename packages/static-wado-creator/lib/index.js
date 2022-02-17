@@ -1,9 +1,13 @@
 const dicomCodec = require("@cornerstonejs/dicom-codec");
-const { program, Stats } = require("@ohif/static-wado-util");
+const {
+  program,
+  Stats,
+  handleHomeRelative,
+} = require("@ohif/static-wado-util");
 const dicomParser = require("dicom-parser");
 const fs = require("fs");
 const path = require("path");
-const homedir = require("os").homedir();
+const { dirScanner } = require("@ohif/static-wado-util");
 const asyncIterableToBuffer = require("./operation/adapter/asyncIterableToBuffer");
 const getDataSet = require("./operation/getDataSet");
 const InstanceDeduplicate = require("./operation/InstanceDeduplicate");
@@ -11,7 +15,6 @@ const DeduplicateWriter = require("./writer/DeduplicateWriter");
 const ImageFrameWriter = require("./writer/ImageFrameWriter");
 const CompleteStudyWriter = require("./writer/CompleteStudyWriter");
 const IdCreator = require("./util/IdCreator");
-const dirScanner = require("./reader/dirScanner");
 const ScanStudy = require("./operation/ScanStudy");
 const HashDataWriter = require("./writer/HashDataWriter");
 const VideoWriter = require("./writer/VideoWriter");
@@ -20,10 +23,7 @@ const {
   transcodeId,
   transcodeMetadata,
 } = require("./operation/adapter/transcodeImage");
-
-console.log(`homedir=${homedir}`);
-const handleHomeRelative = (dirName) =>
-  dirName[0] == "~" ? path.join(homedir, dirName.substring(1)) : dirName;
+const staticWadoConfig = require("./staticWadoConfig.js");
 
 class StaticWado {
   constructor(defaults) {
@@ -40,8 +40,8 @@ class StaticWado {
       recompress,
       contentType,
       colourContentType,
-      dir = "~/dicomweb",
-      pathDeduplicated = "deduplicated",
+      dir = defaults.rootDir || "~/dicomweb",
+      pathDeduplicated = defaults.pathDeduplicated || "deduplicated",
       pathInstances = "instances",
       removeDeduplicatedInstances,
       verbose = false,
@@ -209,5 +209,7 @@ class StaticWado {
     return importer.main();
   }
 }
+
+StaticWado.staticWadoConfig = staticWadoConfig;
 
 module.exports = StaticWado;

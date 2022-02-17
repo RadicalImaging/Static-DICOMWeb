@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
-const { main } = require("../lib");
+const { main, staticWadoConfig } = require("../lib");
 const { configureProgram } = require("../lib/program");
 
 const defaults = {
+  ...staticWadoConfig,
   isStudyData: true,
   isGroup: true,
   argumentsRequired: ["input"],

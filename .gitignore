@@ -44,3 +44,9 @@ node_modules/
 
 # dotenv environment variables file
 .env
+
+# Build directory
+**/build/
+
+# VS Code
+*.code-workspace

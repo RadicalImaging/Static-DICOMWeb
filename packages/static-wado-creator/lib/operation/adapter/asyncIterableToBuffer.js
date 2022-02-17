@@ -84,7 +84,7 @@ const StreamingFunctions = {
     return copied;
   },
 
-  _keys: { then: true },
+  _keys: { then: true, lastChunk: true, chunks: true },
 };
 
 Object.keys(StreamingFunctions).forEach((key) => {

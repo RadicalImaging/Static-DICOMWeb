@@ -1,9 +1,9 @@
 const path = require("path");
 const fs = require("fs");
 const hashFactory = require("node-object-hash");
+const { JSONReader } = require("@ohif/static-wado-util");
 const Tags = require("../dictionary/Tags");
 const TagLists = require("../model/TagLists");
-const JSONReader = require("../reader/JSONReader");
 const JSONWriter = require("../writer/JSONWriter");
 
 const hasher = hashFactory();
