@@ -6,7 +6,8 @@
   "command": {
     "publish": {
       "ignoreChanges": ["*.md", "*.yml", "*.spec.js", "*.test.js"],
-      "message": "chore(release): publish"
+      "message": "chore(release): publish",
+      "verifyAccess": false
     },
     "version": {
       "allowBranch": "master",
