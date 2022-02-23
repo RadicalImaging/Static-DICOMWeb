@@ -19,8 +19,7 @@ const VIDEO_TYPES = {
   // TODO - add the new multi-segment MPEG2 and H264 variants
 };
 
-const isVideo = (dataSet) =>
-  VIDEO_TYPES[dataSet.string(Tags.RawTransferSyntaxUID)];
+const isVideo = (dataSet) => VIDEO_TYPES[dataSet.string(Tags.RawTransferSyntaxUID)];
 
 const VideoWriter = () =>
   async function run(id, dataSet) {
@@ -40,17 +39,12 @@ const VideoWriter = () =>
     // The zero position fragment isn't available, even though present in the original data
     for (let i = 0; i < fragments.length; i++) {
       const fragment = fragments[i];
-      const blob = dataSet.byteArray.slice(
-        fragment.position,
-        fragment.position + fragment.length
-      );
+      const blob = dataSet.byteArray.slice(fragment.position, fragment.position + fragment.length);
       length += blob.length;
       await writeStream.write(blob);
     }
     await writeStream.close();
-    console.log(
-      `Done video ${id.sopInstanceRootPath}\\${filename} of length ${length}`
-    );
+    console.log(`Done video ${id.sopInstanceRootPath}\\${filename} of length ${length}`);
     return `series/${id.seriesInstanceUid}/instances/${id.sopInstanceUid}/pixeldata.${extension}?length=${length}&offset=0`;
   };
 

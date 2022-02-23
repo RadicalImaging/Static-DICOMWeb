@@ -5,8 +5,8 @@ const JSONWriter = require("./JSONWriter");
 const Tags = require("../dictionary/Tags");
 const TagLists = require("../model/TagLists");
 
-async function writeDeduplicatedFile(dir, data, hashValue) {
-  if (!hashValue) hashValue = hasher.hash(data);
+async function writeDeduplicatedFile(dir, data, hashValueSrc) {
+  const hashValue = hashValueSrc || hasher.hash(data);
   // Write it direct in the deduplicated directory, not as a sub-directory or index file
   await JSONWriter(dir, hashValue, data, { gzip: true, index: false });
   return hashValue;
@@ -20,7 +20,7 @@ const perInstanceWriter = async (id, data) => {
 
 /** Writes out JSON files to the given file name.  Automatically GZips them, and adds the extension */
 const DeduplicateWriter = (options) =>
-  async function (id, data) {
+  async function DeduplicateWriterInstance(id, data) {
     const studyData = await this.completeStudy.getCurrentStudyData(this, id);
 
     if (options.isDeduplicate) {

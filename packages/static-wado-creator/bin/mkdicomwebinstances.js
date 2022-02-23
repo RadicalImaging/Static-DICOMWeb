@@ -9,8 +9,7 @@ const defaults = {
   clean: true,
   argumentsRequired: ["input"],
   helpShort: "mkdicomwebinstances",
-  helpDescription:
-    "Takes DICOM part 10 files and writes the bulkdata/instance metadata.",
+  helpDescription: "Takes DICOM part 10 files and writes the bulkdata/instance metadata.",
 };
 
 // Configure program commander

@@ -5,9 +5,7 @@ describe("asyncIterableToBuffer", () => {
   let dicomp10stream;
 
   beforeEach(async () => {
-    dicomp10stream = fs.createReadStream(
-      `${TEST_DATA_PATH}/dcm/Juno/1.3.6.1.4.1.25403.345050719074.3824.20170125113606.8`
-    );
+    dicomp10stream = fs.createReadStream(`${TEST_DATA_PATH}/dcm/Juno/1.3.6.1.4.1.25403.345050719074.3824.20170125113606.8`);
   });
 
   it("copies child elements correctly", async () => {
@@ -31,9 +29,7 @@ describe("asyncIterableToBuffer", () => {
       const bufVal = buffer[i + start];
       const subVal = subBuffer[i];
       if (bufVal != subVal) {
-        console.log(
-          `At position ${i} relative to ${start} buffer is ${bufVal} but subVal is ${subVal}`
-        );
+        console.log(`At position ${i} relative to ${start} buffer is ${bufVal} but subVal is ${subVal}`);
       }
       buffer[i + start].must.be.eql(subBuffer[i]);
     }

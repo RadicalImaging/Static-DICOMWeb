@@ -1,0 +1,6 @@
+{
+  // Cause an error to occur
+  dicomWebServerConfig: {
+    studyQuery: "notFound",
+  },
+}

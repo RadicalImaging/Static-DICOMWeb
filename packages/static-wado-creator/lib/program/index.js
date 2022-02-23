@@ -10,12 +10,7 @@ const dicomwebDefaultDir = "~/dicomweb";
  * @returns Program object
  */
 function configureProgram(defaults) {
-  const {
-    argumentsRequired = [],
-    optionsRequired = [],
-    helpShort,
-    helpDescription,
-  } = defaults;
+  const { argumentsRequired = [], optionsRequired = [], helpShort, helpDescription } = defaults;
 
   const argumentsList = [
     {
@@ -48,14 +43,12 @@ function configureProgram(defaults) {
     },
     {
       key: "-s, --study",
-      description:
-        "Write study metadata - on provided instances only (TO FIX},",
+      description: "Write study metadata - on provided instances only (TO FIX},",
       defaultValue: defaults.isStudyData || false,
     },
     {
       key: "-C, --remove-deduplicated-instances",
-      description:
-        "Remove single instance deduplicated files after writing group files",
+      description: "Remove single instance deduplicated files after writing group files",
       defaultValue: defaults.removeDeduplicatedInstances || false,
     },
     {
@@ -124,6 +117,7 @@ function configureProgram(defaults) {
     optionsList,
     optionsRequired,
     packageJson,
+    configurationFile: defaults.configurationFile,
   };
 
   return staticWadoUtil.configureProgram(configuration);

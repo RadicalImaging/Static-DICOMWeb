@@ -8,12 +8,7 @@ const packageJson = require("../../package.json");
  * @returns Program object
  */
 function configureProgram(defaults) {
-  const {
-    argumentsRequired = [],
-    optionsRequired = [],
-    helpShort,
-    helpDescription,
-  } = defaults;
+  const { argumentsRequired = [], optionsRequired = [], helpShort, helpDescription } = defaults;
 
   const configuration = {
     argumentsList: [],
@@ -23,6 +18,7 @@ function configureProgram(defaults) {
     optionsList: [],
     optionsRequired,
     packageJson,
+    configurationFile: defaults.configurationFile,
   };
 
   return staticWadoUtil.configureProgram(configuration);

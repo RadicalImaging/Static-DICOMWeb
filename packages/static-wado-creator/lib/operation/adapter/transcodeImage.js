@@ -78,11 +78,7 @@ function shouldTranscodeImageFrame(id, options) {
     const { transferSyntaxUid } = id;
     const transcoder = getTranscoder(transferSyntaxUid);
 
-    return (
-      transcoder &&
-      transcoder.transferSyntaxUid &&
-      options.recompressType.includes(transcoder.alias)
-    );
+    return transcoder && transcoder.transferSyntaxUid && options.recompressType.includes(transcoder.alias);
   }
 
   return isValidTranscoder();
@@ -124,13 +120,7 @@ function getImageInfo(dataSet) {
  * @param {*} options runner options
  * @returns object result for transcoding operation with id and image frame.
  */
-async function transcodeImageFrame(
-  id,
-  targetId,
-  imageFrame,
-  dataSet,
-  options = {}
-) {
+async function transcodeImageFrame(id, targetId, imageFrame, dataSet, options = {}) {
   let result = {};
 
   if (!shouldTranscodeImageFrame(id, options)) {
@@ -159,44 +149,22 @@ async function transcodeImageFrame(
   try {
     switch (transcoder.transcodeOp) {
       case transcodeOp.transcode:
-        transcodeLog(
-          options,
-          `Full transcoding image from \x1b[43m${id.transferSyntaxUid}\x1b[0m to \x1b[43m${targetId.transferSyntaxUid}\x1b[0m`
-        );
+        transcodeLog(options, `Full transcoding image from \x1b[43m${id.transferSyntaxUid}\x1b[0m to \x1b[43m${targetId.transferSyntaxUid}\x1b[0m`);
 
-        result = await dicomCodec.transcode(
-          imageFrame,
-          imageInfo,
-          id.transferSyntaxUid,
-          targetId.transferSyntaxUid
-        );
+        result = await dicomCodec.transcode(imageFrame, imageInfo, id.transferSyntaxUid, targetId.transferSyntaxUid);
 
         processResultMsg = `Transcoding finished`;
         break;
       case transcodeOp.encodeOnly:
-        transcodeLog(
-          options,
-          `Encoding image to \x1b[43m${targetId.transferSyntaxUid}\x1b[0m`
-        );
+        transcodeLog(options, `Encoding image to \x1b[43m${targetId.transferSyntaxUid}\x1b[0m`);
 
-        result = await dicomCodec.encode(
-          imageFrame,
-          imageInfo,
-          targetId.transferSyntaxUid
-        );
+        result = await dicomCodec.encode(imageFrame, imageInfo, targetId.transferSyntaxUid);
 
         processResultMsg = `Encoding finished`;
         break;
       case transcodeOp.decodeOnly:
-        transcodeLog(
-          options,
-          `Decoding image from \x1b[43m${id.transferSyntaxUid}\x1b[0m`
-        );
-        result = await dicomCodec.decode(
-          imageFrame,
-          imageInfo,
-          id.transferSyntaxUid
-        );
+        transcodeLog(options, `Decoding image from \x1b[43m${id.transferSyntaxUid}\x1b[0m`);
+        result = await dicomCodec.decode(imageFrame, imageInfo, id.transferSyntaxUid);
 
         processResultMsg = `Decoding finished`;
         break;
@@ -271,9 +239,7 @@ function transcodeMetadata(metadata, id, options) {
   const result = { ...metadata };
 
   if (result[Tags.AvailableTransferSyntaxUID]) {
-    result[Tags.AvailableTransferSyntaxUID].Value = [
-      transcodedId.transferSyntaxUid,
-    ];
+    result[Tags.AvailableTransferSyntaxUID].Value = [transcodedId.transferSyntaxUid];
   }
 
   return result;

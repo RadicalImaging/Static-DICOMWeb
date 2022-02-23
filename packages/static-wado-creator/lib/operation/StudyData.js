@@ -9,9 +9,7 @@ const JSONWriter = require("../writer/JSONWriter");
 const hasher = hashFactory();
 
 const getSeriesInstanceUid = (seriesInstance) =>
-  seriesInstance[Tags.SeriesInstanceUID] &&
-  seriesInstance[Tags.SeriesInstanceUID].Value &&
-  seriesInstance[Tags.SeriesInstanceUID].Value[0];
+  seriesInstance[Tags.SeriesInstanceUID] && seriesInstance[Tags.SeriesInstanceUID].Value && seriesInstance[Tags.SeriesInstanceUID].Value[0];
 
 /**
  * StudyData contains information about the grouped study data.  It is used to create
@@ -24,15 +22,7 @@ const getSeriesInstanceUid = (seriesInstance) =>
  * level data multiple times when it already exists.
  */
 class StudyData {
-  constructor(
-    {
-      studyInstanceUid,
-      studyPath,
-      deduplicatedPath,
-      deduplicatedInstancesPath,
-    },
-    { isGroup }
-  ) {
+  constructor({ studyInstanceUid, studyPath, deduplicatedPath, deduplicatedInstancesPath }, { isGroup }) {
     this.deduplicated = [];
     this.extractData = {};
     // The list of already existing files read in to create this object
@@ -87,19 +77,12 @@ class StudyData {
       return true;
     }
     try {
-      const deduplicatedTopFile = await JSONReader(
-        this.studyPath,
-        "deduplicated.gz"
-      );
+      const deduplicatedTopFile = await JSONReader(this.studyPath, "deduplicated.gz");
       if (!deduplicatedTopFile) {
         return true;
       }
       const info = deduplicatedTopFile[0];
-      if (
-        !info ||
-        !info[Tags.DeduppedHash] ||
-        info[Tags.DeduppedType].Value[0] != "info"
-      ) {
+      if (!info || !info[Tags.DeduppedHash] || info[Tags.DeduppedType].Value[0] != "info") {
         return true;
       }
       const hashValue = info[Tags.DeduppedHash].Value[0];
@@ -129,9 +112,7 @@ class StudyData {
   async recombine(index) {
     const deduplicated = this.deduplicated[index];
     if (index < 0 || index >= this.deduplicated.length) {
-      throw new Error(
-        `Can't read index ${index}, out of bounds [0..${this.deduplicated.length})`
-      );
+      throw new Error(`Can't read index ${index}, out of bounds [0..${this.deduplicated.length})`);
     }
     const refs = deduplicated[Tags.DeduppedRef];
     if (!refs) {
@@ -264,8 +245,7 @@ class StudyData {
             });
           }
         } else {
-          const hashValue =
-            item[Tags.DeduppedHash] && item[Tags.DeduppedHash].Value[0];
+          const hashValue = item[Tags.DeduppedHash] && item[Tags.DeduppedHash].Value[0];
           if (hashValue) {
             this.extractData[hashValue] = item;
           }
@@ -284,24 +264,12 @@ class StudyData {
       const seriesInstance = await this.recombine(i);
       const seriesInstanceUid = getSeriesInstanceUid(seriesInstance);
       if (!seriesInstanceUid) {
-        console.log(
-          "Cant get seriesUid from",
-          Tags.SeriesInstanceUID,
-          seriesInstance
-        );
+        console.log("Cant get seriesUid from", Tags.SeriesInstanceUID, seriesInstance);
         continue;
       }
       if (!series[seriesInstanceUid]) {
-        const seriesQuery = TagLists.extract(
-          seriesInstance,
-          "series",
-          TagLists.SeriesQuery
-        );
-        const seriesPath = path.join(
-          this.studyPath,
-          "series",
-          seriesInstanceUid
-        );
+        const seriesQuery = TagLists.extract(seriesInstance, "series", TagLists.SeriesQuery);
+        const seriesPath = path.join(this.studyPath, "series", seriesInstanceUid);
         series[seriesInstanceUid] = {
           seriesPath,
           seriesQuery,
@@ -310,9 +278,7 @@ class StudyData {
         };
       }
       series[seriesInstanceUid].instances.push(seriesInstance);
-      series[seriesInstanceUid].instancesQuery.push(
-        TagLists.extract(seriesInstance, "instance", TagLists.InstanceQuery)
-      );
+      series[seriesInstanceUid].instancesQuery.push(TagLists.extract(seriesInstance, "instance", TagLists.InstanceQuery));
     }
 
     const seriesList = [];
@@ -321,8 +287,7 @@ class StudyData {
     let numberOfSeries = 0;
     for (const seriesUid of Object.keys(series)) {
       const singleSeries = series[seriesUid];
-      const { seriesQuery, seriesPath, instances, instancesQuery } =
-        singleSeries;
+      const { seriesQuery, seriesPath, instances, instancesQuery } = singleSeries;
       seriesQuery[Tags.NumberOfSeriesRelatedInstances] = {
         vr: "IS",
         Value: [instances.length],
@@ -331,8 +296,7 @@ class StudyData {
       numberOfSeries += 1;
       seriesList.push(seriesQuery);
       const modality = seriesQuery[Tags.Modality].Value[0];
-      if (modalitiesInStudy.indexOf(modality) == -1)
-        modalitiesInStudy.push(modality);
+      if (modalitiesInStudy.indexOf(modality) == -1) modalitiesInStudy.push(modality);
       await JSONWriter(seriesPath, "metadata", instances, {
         gzip: true,
         index: false,
@@ -343,11 +307,7 @@ class StudyData {
 
     await JSONWriter(this.studyPath, "series", seriesList);
 
-    const studyQuery = TagLists.extract(
-      anInstance,
-      "study",
-      TagLists.PatientStudyQuery
-    );
+    const studyQuery = TagLists.extract(anInstance, "study", TagLists.PatientStudyQuery);
     studyQuery[Tags.ModalitiesInStudy] = { Value: modalitiesInStudy, vr: "CS" };
     studyQuery[Tags.NumberOfStudyRelatedInstances] = {
       Value: [numberOfInstances],
@@ -364,18 +324,8 @@ class StudyData {
     });
 
     const infoItem = this.createInfo();
-    console.log(
-      "Writing deduplicated study data with",
-      Object.values(this.extractData).length,
-      "extract items and",
-      this.deduplicated.length,
-      "instance items"
-    );
-    await JSONWriter(this.studyPath, "deduplicated", [
-      infoItem,
-      ...Object.values(this.extractData),
-      ...this.deduplicated,
-    ]);
+    console.log("Writing deduplicated study data with", Object.values(this.extractData).length, "extract items and", this.deduplicated.length, "instance items");
+    await JSONWriter(this.studyPath, "deduplicated", [infoItem, ...Object.values(this.extractData), ...this.deduplicated]);
 
     return studyQuery;
   }
@@ -411,16 +361,9 @@ class StudyData {
     );
     data[Tags.DeduppedRef] = {
       vr: "CS",
-      Value: Object.keys(this.readHashes).filter(
-        () => this.deduplicatedHashes[hashValue] == undefined
-      ),
+      Value: Object.keys(this.readHashes).filter(() => this.deduplicatedHashes[hashValue] == undefined),
     };
-    await JSONWriter(
-      this.deduplicatedPath,
-      hashValue,
-      [data, ...Object.values(this.extractData), ...this.deduplicated],
-      { gzip: true, index: false }
-    );
+    await JSONWriter(this.deduplicatedPath, hashValue, [data, ...Object.values(this.extractData), ...this.deduplicated], { gzip: true, index: false });
   }
 }
 

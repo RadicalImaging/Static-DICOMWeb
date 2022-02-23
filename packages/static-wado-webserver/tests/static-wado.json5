@@ -1,0 +1,9 @@
+{
+  staticWadoConfig: {
+    rootDir: "../../../../tmp/dicomweb",
+  },
+
+  dicomWebServerConfig: {
+    port: 5001,
+  },
+}

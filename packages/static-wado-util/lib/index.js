@@ -4,6 +4,7 @@ exports.handleHomeRelative = require("./handleHomeRelative");
 exports.JSONReader = require("./reader/JSONReader");
 exports.dirScanner = require("./reader/dirScanner");
 exports.qidoFilter = require("./qidoFilter");
+exports.loadConfiguration = require("./loadConfiguration");
 
 exports.configureProgram = configureProgram;
 exports.program = program;

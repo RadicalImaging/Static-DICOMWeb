@@ -24,15 +24,9 @@ const CompleteStudyWriter = (options) => {
     if (options.isGroup) {
       if (studyData.dirty) {
         await studyData.writeDeduplicatedGroup();
-        console.log(
-          "Wrote updated deduplicated data for study",
-          studyData.studyInstanceUid
-        );
+        console.log("Wrote updated deduplicated data for study", studyData.studyInstanceUid);
       } else {
-        console.log(
-          "Not writing new deduplicated data because it is clean:",
-          studyData.studyInstanceUid
-        );
+        console.log("Not writing new deduplicated data because it is clean:", studyData.studyInstanceUid);
       }
     }
 
@@ -44,32 +38,20 @@ const CompleteStudyWriter = (options) => {
 
     const isDirtyMetadata = await studyData.dirtyMetadata();
     if (!isDirtyMetadata) {
-      console.log(
-        "Study metadata",
-        studyData.studyInstanceUid,
-        "has clean metadata, not writing"
-      );
+      console.log("Study metadata", studyData.studyInstanceUid, "has clean metadata, not writing");
       delete this.studyData;
-      Stats.StudyStats.summarize(
-        `Study metadata ${studyData.studyInstanceUid} has clean metadata, not writing`
-      );
+      Stats.StudyStats.summarize(`Study metadata ${studyData.studyInstanceUid} has clean metadata, not writing`);
       return;
     }
 
     const studyQuery = await studyData.writeMetadata();
 
-    const allStudies = await JSONReader(
-      options.directoryName,
-      "studies/index.json.gz",
-      []
-    );
+    const allStudies = await JSONReader(options.directoryName, "studies/index.json.gz", []);
     if (!studyQuery[Tags.StudyInstanceUID]) {
       console.error("studyQuery=", studyQuery);
     }
     const studyUID = studyQuery[Tags.StudyInstanceUID].Value[0];
-    const studyIndex = allStudies.findIndex(
-      (item) => item[Tags.StudyInstanceUID].Value[0] == studyUID
-    );
+    const studyIndex = allStudies.findIndex((item) => item[Tags.StudyInstanceUID].Value[0] == studyUID);
     if (studyIndex == -1) {
       allStudies.push(studyQuery);
     } else {
@@ -77,9 +59,7 @@ const CompleteStudyWriter = (options) => {
     }
     JSONWriter(options.directoryName, "studies", allStudies);
     delete this.studyData;
-    Stats.StudyStats.summarize(
-      `Wrote study metadata/query files for ${studyData.studyInstanceUid}`
-    );
+    Stats.StudyStats.summarize(`Wrote study metadata/query files for ${studyData.studyInstanceUid}`);
   }
 
   /**

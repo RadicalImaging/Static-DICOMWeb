@@ -25,17 +25,8 @@ const JSONReader = async (dirSrc, name, def) => {
 };
 
 /** Calls the JSON reader on the path appropriate for the given hash data */
-JSONReader.readHashData = async (
-  studyDir,
-  hashValue,
-  extension = ".json.gz"
-) => {
-  const hashPath = path.join(
-    studyDir,
-    "bulkdata",
-    hashValue.substring(0, 3),
-    hashValue.substring(3, 5)
-  );
+JSONReader.readHashData = async (studyDir, hashValue, extension = ".json.gz") => {
+  const hashPath = path.join(studyDir, "bulkdata", hashValue.substring(0, 3), hashValue.substring(3, 5));
   Stats.StudyStats.add("Read Hash Data", "Read hash data", 100);
   return JSONReader(hashPath, hashValue.substring(5) + extension);
 };

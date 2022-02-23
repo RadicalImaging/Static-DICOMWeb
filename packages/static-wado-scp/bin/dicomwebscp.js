@@ -1,24 +1,20 @@
 #!/usr/bin/env node
 
-const { DcmjsDimseScp, Server } = require("../lib");
+const { DcmjsDimseScp, Server, dicomWebScpConfig } = require("../lib");
 const { configureProgram } = require("../lib/program");
 
-const port = 11112;
-
-const defaults = {
-  isStudyData: true,
-  isGroup: true,
-  helpShort: "dicomwebscp",
-  helpDescription: "Creates server to receive data on DIMSE and store it DICOM",
-};
+const defaults = Object.create(dicomWebScpConfig);
 
 // Configure program commander
-configureProgram(defaults);
+configureProgram(defaults)
+  .loadConfiguration()
+  .then(() => {
+    const port = defaults.scpPort || 11112;
 
-console.log(Server);
-const server = new Server(DcmjsDimseScp);
-server.on("networkError", (e) => {
-  console.log("Network error: ", e);
-});
-console.log(`Starting server listen on port ${port}`);
-server.listen(port);
+    const server = new Server(DcmjsDimseScp);
+    server.on("networkError", (e) => {
+      console.log("Network error: ", e);
+    });
+    console.log(`Starting server listen on port ${port}`);
+    server.listen(port);
+  });

@@ -1,9 +1,5 @@
 const dicomCodec = require("@cornerstonejs/dicom-codec");
-const {
-  program,
-  Stats,
-  handleHomeRelative,
-} = require("@ohif/static-wado-util");
+const { program, Stats, handleHomeRelative } = require("@ohif/static-wado-util");
 const dicomParser = require("dicom-parser");
 const fs = require("fs");
 const path = require("path");
@@ -18,11 +14,7 @@ const IdCreator = require("./util/IdCreator");
 const ScanStudy = require("./operation/ScanStudy");
 const HashDataWriter = require("./writer/HashDataWriter");
 const VideoWriter = require("./writer/VideoWriter");
-const {
-  transcodeImageFrame,
-  transcodeId,
-  transcodeMetadata,
-} = require("./operation/adapter/transcodeImage");
+const { transcodeImageFrame, transcodeId, transcodeMetadata } = require("./operation/adapter/transcodeImage");
 const staticWadoConfig = require("./staticWadoConfig.js");
 
 class StaticWado {
@@ -131,7 +123,8 @@ class StaticWado {
     const studyInstanceUid = dataSet.string("x0020000d");
 
     if (!studyInstanceUid) {
-      throw new Error(`Can't import dataSet ${dataSet}`);
+      console.log(`Can't import file`);
+      return undefined;
     }
 
     // Extract uids
@@ -153,22 +146,12 @@ class StaticWado {
         this.callback.bulkdata(targetId, _bulkDataIndex, bulkData);
       },
       imageFrame: async (originalImageFrame) => {
-        const { imageFrame, id: transcodedId } = await transcodeImageFrame(
-          id,
-          targetId,
-          originalImageFrame,
-          dataSet,
-          this.options
-        );
+        const { imageFrame, id: transcodedId } = await transcodeImageFrame(id, targetId, originalImageFrame, dataSet, this.options);
 
         const currentImageFrameIndex = imageFrameIndex;
         imageFrameIndex += 1;
 
-        return this.callback.imageFrame(
-          transcodedId,
-          currentImageFrameIndex,
-          imageFrame
-        );
+        return this.callback.imageFrame(transcodedId, currentImageFrameIndex, imageFrame);
       },
       videoWriter: async (_dataSet) => this.callback.videoWriter(id, _dataSet),
     };

@@ -12,10 +12,10 @@ module.exports = {
   },
   rules: {
     "no-param-reassign": "warn",
-    "prettier/prettier": "warn",
+    "prettier/prettier": ["warn", {printWidth: 168}],
     "no-console": 0,
     eqeqeq: 0,
-    "max-len": [2, { code: 168, ignoreUrls: true }],
+    "max-len": [2, { code: 192, ignoreUrls: true }],
     "no-await-in-loop": 0,
     "import/extensions": 0,
     "no-mixed-operators": 0,

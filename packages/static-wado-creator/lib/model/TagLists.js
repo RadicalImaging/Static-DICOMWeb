@@ -4,46 +4,13 @@ const Tags = require("../dictionary/Tags");
 const hasher = hashFactory();
 
 const { PatientID, PatientName, IssuerOfPatientID } = Tags;
-const {
-  StudyDescription,
-  AccessionNumber,
-  StudyInstanceUID,
-  StudyDate,
-  StudyTime,
-} = Tags;
-const {
-  SeriesDescription,
-  SeriesNumber,
-  SeriesInstanceUID,
-  SeriesDate,
-  SeriesTime,
-} = Tags;
+const { StudyDescription, AccessionNumber, StudyInstanceUID, StudyDate, StudyTime } = Tags;
+const { SeriesDescription, SeriesNumber, SeriesInstanceUID, SeriesDate, SeriesTime } = Tags;
 
-const {
-  DeduppedCreator,
-  DeduppedTag,
-  DeduppedHash,
-  DeduppedRef,
-  DeduppedType,
-} = Tags;
+const { DeduppedCreator, DeduppedTag, DeduppedHash, DeduppedRef, DeduppedType } = Tags;
 
-const PatientQuery = [
-  PatientID,
-  PatientName,
-  IssuerOfPatientID,
-  Tags.PatientIdentityRemoved,
-  Tags.DeidentificationMethodCodeSequence,
-];
-const StudyQuery = [
-  StudyDescription,
-  AccessionNumber,
-  StudyInstanceUID,
-  StudyDate,
-  StudyTime,
-  Tags.StudyStatusID,
-  Tags.StudyPriorityID,
-  Tags.StudyID,
-];
+const PatientQuery = [PatientID, PatientName, IssuerOfPatientID, Tags.PatientIdentityRemoved, Tags.DeidentificationMethodCodeSequence];
+const StudyQuery = [StudyDescription, AccessionNumber, StudyInstanceUID, StudyDate, StudyTime, Tags.StudyStatusID, Tags.StudyPriorityID, Tags.StudyID];
 
 const PatientStudyQuery = [...PatientQuery, ...StudyQuery];
 // The difference between the extracts and the query is that the query contains the parent query values

@@ -15,9 +15,7 @@ describe("index", async () => {
   });
 
   beforeEach(async () => {
-    dicomp10stream = fs.createReadStream(
-      "../../testdata/dcm/MisterMr/1.2.840.113619.2.5.1762583153.215519.978957063.101"
-    );
+    dicomp10stream = fs.createReadStream("../../testdata/dcm/MisterMr/1.2.840.113619.2.5.1762583153.215519.978957063.101");
   });
 
   it("exports", async () => {

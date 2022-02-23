@@ -9,9 +9,7 @@ const defaults = {
   isDeduplicate: true,
   argumentsRequired: ["input"],
   helpShort: "mkdicomwebdeduplicated",
-  helpDescription:
-    "Makes deduplicated instance level files from a set of DICOM part 10 files.\n" +
-    "Does not write sets of deduplicated files by default.",
+  helpDescription: "Makes deduplicated instance level files from a set of DICOM part 10 files.\nDoes not write sets of deduplicated files by default.",
 };
 // Configure program commander
 configureProgram(defaults);

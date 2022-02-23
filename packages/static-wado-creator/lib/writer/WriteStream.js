@@ -14,10 +14,7 @@ const WriteStream = (dir, name, options = {}) => {
   }
   if (options.mkdir) fs.mkdirSync(dir, { recursive: true });
 
-  const tempName = path.join(
-    dir,
-    `tempFile-${Math.round(Math.random() * 1000000000)}`
-  );
+  const tempName = path.join(dir, `tempFile-${Math.round(Math.random() * 1000000000)}`);
   const finalName = path.join(dir, name);
   const rawStream = fs.createWriteStream(tempName);
   const closePromise = new Promise((resolve) => {

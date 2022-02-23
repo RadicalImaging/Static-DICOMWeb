@@ -1,13 +1,10 @@
 const { program, Argument } = require("commander");
+const loadConfiguration = require("../loadConfiguration");
 
 function configureBaseProgram(configuration) {
   const { helpDescription, helpShort } = configuration;
 
-  program
-    .name(helpShort)
-    .configureHelp({ sortOptions: true })
-    .addHelpText("beforeAll", helpDescription)
-    .addHelpCommand();
+  program.name(helpShort).configureHelp({ sortOptions: true }).addHelpText("beforeAll", helpDescription).addHelpCommand();
 
   return program;
 }
@@ -20,13 +17,7 @@ function configureBaseProgram(configuration) {
  * @returns Program object
  */
 function configureProgram(configuration) {
-  const {
-    argumentsRequired = [],
-    optionsRequired = [],
-    argumentsList = [],
-    optionsList = [],
-    packageJson = {},
-  } = configuration;
+  const { argumentsRequired = [], optionsRequired = [], argumentsList = [], optionsList = [], packageJson = {} } = configuration;
 
   program.version(packageJson.version);
 
@@ -41,16 +32,18 @@ function configureProgram(configuration) {
     });
   });
 
+  optionsList.push({
+    key: "-c, --configuration <config-file.json5>",
+    description: "Sets the base configurationfile, defaults to static-wado.json5 located in the current directory or in user home directory",
+  });
+
   // iterate over option list and set to program
   optionsList.forEach(({ key, description, defaultValue, choices }) => {
     const option = currentProgram.createOption(key, description);
 
     option.default(defaultValue);
 
-    if (
-      optionsRequired.includes(option.short) ||
-      optionsRequired.includes(option.long)
-    ) {
+    if (optionsRequired.includes(option.short) || optionsRequired.includes(option.long)) {
       option.makeOptionMandatory();
     }
 
@@ -63,6 +56,8 @@ function configureProgram(configuration) {
 
   currentProgram.parse();
 
+  const configurationFile = currentProgram.getOptionValue("configuration");
+  currentProgram.loadConfiguration = () => loadConfiguration(configurationFile || configuration.configurationFile);
   return currentProgram;
 }
 

@@ -3154,18 +3154,10 @@ config-chain@^1.1.12:
     ini "^1.3.4"
     proto-list "~1.2.1"
 
-config-point@0.3.8:
-  version "0.3.8"
-  resolved "https://registry.yarnpkg.com/config-point/-/config-point-0.3.8.tgz#ff2f5ddf9944e5f84ece2840d7376273a8b4e9cb"
-  integrity sha512-UGbPP1k73qv2UWZL8vAy5pS6EdjWBmLw4NG6FD/MpWAVXJyidBAozb6XCeKUN4NVKmZb+BrOjMqUKkeswOJZXA==
-  dependencies:
-    "@babel/runtime" "^7.14.6"
-    json5 "^2.2.0"
-
-config-point@^0.3.9:
-  version "0.3.9"
-  resolved "https://registry.yarnpkg.com/config-point/-/config-point-0.3.9.tgz#2572019bb5beda607f2a0c94f9484b8ff69eec63"
-  integrity sha512-uZstPyWX8udzv73QC+pzAzZecfBZNFU3uUTSvRr2uYPQPBoP9U/P9gzSTwZxD6rJ97czTz5bYYsMoA4v4uD5Vg==
+config-point@0.4.0, config-point@^0.4.0:
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/config-point/-/config-point-0.4.0.tgz#e8633510711ca86ab98cf1ced13c63633cba4ca0"
+  integrity sha512-zUS5OYhmFrQ7Zk2XKhaQpGnrdufFIWdI3g1iQKYGrJ5ymDqfG3KdJXK7S/qq3hyw4opfmvezj4ntQicedDz1cg==
   dependencies:
     "@babel/runtime" "^7.14.6"
     json5 "^2.2.0"
@@ -7132,7 +7124,7 @@ regenerate@^1.4.2:
   resolved "https://registry.yarnpkg.com/regenerate/-/regenerate-1.4.2.tgz#b9346d8827e8f5a32f7ba29637d398b69014848a"
   integrity sha512-zrceR/XhGYU/d/opr2EKO7aRHUeiBI8qjtfHqADTwZd6Szfy16la6kqD0MIUs5z5hx6AaKa+PixpPrR289+I0A==
 
-regenerator-runtime@^0.13.4:
+regenerator-runtime@^0.13.4, regenerator-runtime@^0.13.9:
   version "0.13.9"
   resolved "https://registry.yarnpkg.com/regenerator-runtime/-/regenerator-runtime-0.13.9.tgz#8925742a98ffd90814988d7566ad30ca3b263b52"
   integrity sha512-p3VT+cOEgxFsRRA9X4lkI1E+k2/CtnKtU4gcxyaCUreilL/vqI6CdZ3wxVUx3UOUg+gnUOQQcRI7BmSI656MYA==

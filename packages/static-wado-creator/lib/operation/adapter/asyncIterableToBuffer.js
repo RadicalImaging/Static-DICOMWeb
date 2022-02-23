@@ -33,8 +33,7 @@ const StreamingFunctions = {
 
   index_get(ikey) {
     const found = this.findChunk(ikey);
-    if (!found)
-      throw Error(`index ${ikey} not found between 0..${this.combinedLength}`);
+    if (!found) throw Error(`index ${ikey} not found between 0..${this.combinedLength}`);
     return found[ikey - found.start];
   },
 
@@ -73,8 +72,7 @@ const StreamingFunctions = {
    */
   copy(target, targetStart = 0, srcStart = 0, srcEnd = 0) {
     const { length } = target;
-    const srcLength =
-      (srcEnd === undefined && Math.min(this.length, srcEnd)) || this.length;
+    const srcLength = (srcEnd === undefined && Math.min(this.length, srcEnd)) || this.length;
     const copied = 0;
     while (targetStart < length && srcStart < srcLength) {
       target[targetStart] = this[srcStart];
@@ -103,11 +101,7 @@ const asyncIteratorToBuffer = async (readable) => {
   const chunks = [];
   for await (const chunk of readable) {
     chunks.push(chunk);
-    Stats.BufferStats.add(
-      "Read Async",
-      `Read async buffer ${chunks.length}`,
-      1024
-    );
+    Stats.BufferStats.add("Read Async", `Read async buffer ${chunks.length}`, 1024);
   }
   Stats.BufferStats.reset();
   return StreamingBuffer(chunks);

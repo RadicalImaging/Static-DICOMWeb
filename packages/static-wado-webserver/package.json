@@ -53,10 +53,12 @@
   },
   "dependencies": {
     "@ohif/static-wado-creator": "^0.5.1",
+    "@ohif/static-wado-plugins": "^0.5.1",
     "@ohif/static-wado-util": "^0.5.1",
-    "config-point": "^0.3.9",
+    "config-point": "0.4.0",
     "express": "^4.17.2",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "regenerator-runtime": "^0.13.9"
   },
   "devDependencies": {
     "must": "^0.13.4"
