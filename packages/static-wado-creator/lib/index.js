@@ -143,7 +143,7 @@ class StaticWado {
       bulkdata: async (bulkData) => {
         const _bulkDataIndex = bulkDataIndex;
         bulkDataIndex += 1;
-        this.callback.bulkdata(targetId, _bulkDataIndex, bulkData);
+        return this.callback.bulkdata(targetId, _bulkDataIndex, bulkData);
       },
       imageFrame: async (originalImageFrame) => {
         const { imageFrame, id: transcodedId } = await transcodeImageFrame(id, targetId, originalImageFrame, dataSet, this.options);
