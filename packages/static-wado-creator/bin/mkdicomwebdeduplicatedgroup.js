@@ -2,6 +2,7 @@
 
 const { main } = require("../lib");
 const { configureProgram } = require("../lib/program");
+const adaptProgramOpts = require("../lib/util/adaptProgramOpts.js");
 
 const defaults = {
   isStudyData: false,
@@ -15,8 +16,9 @@ const defaults = {
 };
 
 // Configure program commander
-configureProgram(defaults);
+const program = configureProgram(defaults);
+const configuration = adaptProgramOpts(program.opts());
 
-main(defaults).then(() => {
+main(configuration, program.args).then(() => {
   console.log("done");
 });

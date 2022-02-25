@@ -120,7 +120,8 @@ function getImageInfo(dataSet) {
  * @param {*} options runner options
  * @returns object result for transcoding operation with id and image frame.
  */
-async function transcodeImageFrame(id, targetId, imageFrame, dataSet, options = {}) {
+async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options = {}) {
+  let targetId = targetIdSrc;
   let result = {};
 
   if (!shouldTranscodeImageFrame(id, options)) {

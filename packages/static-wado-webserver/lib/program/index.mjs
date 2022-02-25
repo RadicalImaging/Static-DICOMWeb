@@ -1,7 +1,10 @@
 import staticWadoUtil from "@ohif/static-wado-util";
 import dicomWebServerConfig from "../dicomWebServerConfig.mjs";
+import DicomWebServer from "../index.mjs";
 
-const dicomwebDefaultDir = dicomWebServerConfig.rootDir;
+function main() {
+  return DicomWebServer(this.dicomWebServerConfig).then((value) => value.listen());
+}
 
 /**
  * Configure static-wado-creator commander program.
@@ -9,7 +12,9 @@ const dicomwebDefaultDir = dicomWebServerConfig.rootDir;
  * @param {*} defaults Configuration caller level
  * @returns Program object
  */
-function configureProgram(defaults) {
+async function configureProgram(defaults = dicomWebServerConfig) {
+  await staticWadoUtil.loadConfiguration(defaults, process.argv);
+
   const { argumentsRequired = [], optionsRequired = [], helpShort, helpDescription } = defaults;
 
   const argumentsList = [];
@@ -24,7 +29,7 @@ function configureProgram(defaults) {
     {
       key: "-o, --dir <value>",
       description: "Set output directory (to read from for serving files)",
-      defaultValue: dicomwebDefaultDir,
+      defaultValue: defaults.rootDir,
     },
   ];
 
@@ -38,7 +43,14 @@ function configureProgram(defaults) {
     configurationFile: defaults.configurationFile,
   };
 
-  return staticWadoUtil.configureProgram(configuration);
+  const program = staticWadoUtil.configureProgram(configuration);
+  const opts = program.opts();
+  program.dicomWebServerConfig = Object.assign(Object.create(defaults), opts);
+  program.dicomWebServerConfig.rootDir = opts.dir;
+
+  program.main = main;
+
+  return program;
 }
 
 export default configureProgram;

@@ -18,7 +18,9 @@ const JSONReader = async (dirSrc, name, def) => {
       finalData = rawdata;
     }
   } catch (err) {
-    console.log("Couldn't read", dir, name, err);
+    if (def === undefined) {
+      console.log("Couldn't read", dir, name, err);
+    }
   }
   Stats.StudyStats.add("Read JSON", `Read JSON file ${name}`, 1000);
   return (finalData && JSON.parse(finalData)) || def;

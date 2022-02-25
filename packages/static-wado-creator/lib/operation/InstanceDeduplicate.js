@@ -28,7 +28,8 @@ async function deduplicateSingleInstance(id, imageFrame) {
   if (studyData.sopExists(sopUID)) {
     // console.log('SOP Instance UID', sopUID.Value[0], 'already exists, skipping');
     // TODO - allow replace as an option
-    return {};
+    // Null value means skip writing this instance
+    return null;
   }
   const deduplicated = { ...imageFrame };
 
@@ -49,7 +50,7 @@ async function deduplicateSingleInstance(id, imageFrame) {
 
 /** Canonicalize the JSON data, making Values always arrays, remote "undefined" from the tags etc */
 const canonicalize = (json) => {
-  if (!json) return;
+  if (!json) return undefined;
   if (Array.isArray(json)) {
     return json.map(canonicalize);
   }

@@ -77,7 +77,7 @@ class StudyData {
       return true;
     }
     try {
-      const deduplicatedTopFile = await JSONReader(this.studyPath, "deduplicated.gz");
+      const deduplicatedTopFile = await JSONReader(this.studyPath, "deduplicated.gz", null);
       if (!deduplicatedTopFile) {
         return true;
       }
@@ -138,16 +138,16 @@ class StudyData {
     return sopValue && this.sopInstances[sopValue] !== undefined;
   }
 
-  addDeduplicated(data) {
+  addDeduplicated(data, filename) {
     if (!this.isGroup) return;
     // TODO - check the hash code on the added data, if it has already been seen then ignore this item.
-    if (this.internalAddDeduplicated(data)) {
+    if (this.internalAddDeduplicated(data, filename)) {
       this.newInstancesAdded += 1;
     }
   }
 
   /** Add the instance if not already present */
-  internalAddDeduplicated(data, fileName = "internal") {
+  internalAddDeduplicated(data, filename = "internal") {
     const hashValue = TagLists.addHash(data, Tags.InstanceType);
     if (!hashValue || this.deduplicatedHashes[hashValue]) {
       // console.log('Not adding', hashValue, 'because the hash exists');
@@ -157,11 +157,11 @@ class StudyData {
     const sopValue = (sopUID && sopUID.Value && sopUID.Value[0]) || sopUID;
     const sopIndex = this.sopInstances[sopValue];
     if (!sopValue) {
-      console.warn("No sop value in ", data);
+      console.warn("No sop value in", filename, "reading", data);
       return false;
     }
     this.deduplicatedHashes[hashValue] = data;
-    this.readHashes[hashValue] = fileName;
+    this.readHashes[hashValue] = filename;
     if (sopIndex !== undefined) {
       console.log("Replacing SOP", sopValue, "at index", sopIndex);
       this.deduplicated[sopIndex] = data;

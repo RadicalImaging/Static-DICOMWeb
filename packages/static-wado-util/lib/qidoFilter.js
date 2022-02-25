@@ -20,7 +20,8 @@ const filterKeys = {
  * @param {*} actual
  * @returns true if the values match
  */
-const compareValues = (desired, actual) => {
+const compareValues = (desired, actualSrc) => {
+  let actual = actualSrc;
   if (Array.isArray(desired)) {
     return desired.find((item) => compareValues(item, actual));
   }

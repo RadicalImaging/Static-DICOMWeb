@@ -23,7 +23,7 @@ module.exports = {
     "no-continue": 0,
     radix: 0,
     "no-underscore-dangle": 0,
-    "no-restricted-syntax": "warn",
+    "no-restricted-syntax": 0,
     "consistent-return": "warn",
     "prefer-destructuring": 0,
     "node/no-unsupported-features/es-syntax": 0,

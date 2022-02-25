@@ -1,5 +1,8 @@
 const staticWadoUtil = require("@ohif/static-wado-util");
+const loadConfiguration = require("@ohif/static-wado-util/lib/loadConfiguration");
+const StaticWado = require("../index");
 const packageJson = require("../../package.json");
+const adaptProgramOpts = require("../util/adaptProgramOpts");
 
 const dicomwebDefaultDir = "~/dicomweb";
 
@@ -9,7 +12,8 @@ const dicomwebDefaultDir = "~/dicomweb";
  * @param {*} defaults Configuration caller level
  * @returns Program object
  */
-function configureProgram(defaults) {
+async function configureProgram(defaults) {
+  await loadConfiguration(defaults, process.argv);
   const { argumentsRequired = [], optionsRequired = [], helpShort, helpDescription } = defaults;
 
   const argumentsList = [
@@ -120,7 +124,13 @@ function configureProgram(defaults) {
     configurationFile: defaults.configurationFile,
   };
 
-  return staticWadoUtil.configureProgram(configuration);
+  const program = staticWadoUtil.configureProgram(configuration);
+  program.staticWadoCreator = adaptProgramOpts(program.opts(), defaults);
+  program.main = function main() {
+    const importer = new StaticWado(this.staticWadoCreator);
+    return importer.executeCommand(this.args);
+  };
+  return program;
 }
 
 exports.configureProgram = configureProgram;

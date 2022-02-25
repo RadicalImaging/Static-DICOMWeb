@@ -1,5 +1,17 @@
 const staticWadoUtil = require("@ohif/static-wado-util");
+const { DcmjsDimseScp, Server } = require("..");
 const packageJson = require("../../package.json");
+
+function main() {
+  const port = this.dicomWebScpConfig.scpPort || 11112;
+
+  const server = new Server(DcmjsDimseScp);
+  server.on("networkError", (e) => {
+    console.log("Network error: ", e);
+  });
+  console.log(`Starting server listen on port ${port}`);
+  server.listen(port);
+}
 
 /**
  * Configure static-wado-scp commander program.
@@ -7,7 +19,9 @@ const packageJson = require("../../package.json");
  * @param {*} defaults Configuration caller level
  * @returns Program object
  */
-function configureProgram(defaults) {
+async function configureProgram(defaults) {
+  await staticWadoUtil.loadConfiguration(defaults, process.argv);
+
   const { argumentsRequired = [], optionsRequired = [], helpShort, helpDescription } = defaults;
 
   const configuration = {
@@ -21,7 +35,12 @@ function configureProgram(defaults) {
     configurationFile: defaults.configurationFile,
   };
 
-  return staticWadoUtil.configureProgram(configuration);
+  const program = staticWadoUtil.configureProgram(configuration);
+
+  program.dicomWebScpConfig = defaults;
+  program.main = main;
+
+  return program;
 }
 
 exports.configureProgram = configureProgram;

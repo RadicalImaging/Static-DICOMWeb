@@ -20,7 +20,6 @@ function configureProgram(configuration) {
   const { argumentsRequired = [], optionsRequired = [], argumentsList = [], optionsList = [], packageJson = {} } = configuration;
 
   program.version(packageJson.version);
-
   const currentProgram = configureBaseProgram(configuration);
 
   // program command options
@@ -56,10 +55,9 @@ function configureProgram(configuration) {
 
   currentProgram.parse();
 
-  const configurationFile = currentProgram.getOptionValue("configuration");
-  currentProgram.loadConfiguration = () => loadConfiguration(configurationFile || configuration.configurationFile);
   return currentProgram;
 }
 
 exports.configureProgram = configureProgram;
 exports.program = program;
+exports.loadConfiguration = loadConfiguration;

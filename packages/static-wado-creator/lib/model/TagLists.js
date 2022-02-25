@@ -1,6 +1,8 @@
 const hashFactory = require("node-object-hash");
 const Tags = require("../dictionary/Tags");
 
+/* eslint "no-param-reassign": "off" */
+
 const hasher = hashFactory();
 
 const { PatientID, PatientName, IssuerOfPatientID } = Tags;
@@ -13,6 +15,7 @@ const PatientQuery = [PatientID, PatientName, IssuerOfPatientID, Tags.PatientIde
 const StudyQuery = [StudyDescription, AccessionNumber, StudyInstanceUID, StudyDate, StudyTime, Tags.StudyStatusID, Tags.StudyPriorityID, Tags.StudyID];
 
 const PatientStudyQuery = [...PatientQuery, ...StudyQuery];
+
 // The difference between the extracts and the query is that the query contains the parent query values
 // TODO - make it into a self-cpontained object that can generate either
 const SeriesExtract = [

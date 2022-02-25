@@ -1,4 +1,5 @@
 const { Stats } = require("@ohif/static-wado-util");
+/* eslint "no-param-reassign": "off" */
 
 const handler = {
   get(obj, key) {
@@ -47,6 +48,7 @@ const StreamingFunctions = {
       }
       i += 1;
     }
+    return undefined;
   },
 
   slice(start, end) {

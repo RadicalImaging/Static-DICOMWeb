@@ -1,7 +1,7 @@
 const path = require("path");
 
 function IdCreator({ directoryName, deduplicatedRoot, deduplicatedInstancesRoot }) {
-  return (uids) => {
+  return (uids, filename) => {
     const studyPath = path.join(directoryName, "studies", uids.studyInstanceUid);
     const sopInstanceRootPath = path.join(studyPath, "series", uids.seriesInstanceUid, "instances", uids.sopInstanceUid);
     const deduplicatedPath = path.join(deduplicatedRoot, uids.studyInstanceUid);
@@ -14,6 +14,7 @@ function IdCreator({ directoryName, deduplicatedRoot, deduplicatedInstancesRoot 
       deduplicatedInstancesPath,
       sopInstanceRootPath,
       imageFrameRootPath,
+      filename,
     };
   };
 }

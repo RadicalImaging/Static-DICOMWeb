@@ -26,7 +26,7 @@ const DeduplicateWriter = (options) =>
     if (options.isDeduplicate) {
       await perInstanceWriter(id, data);
     }
-    studyData.addDeduplicated(data);
+    studyData.addDeduplicated(data, id.filename);
   };
 
 module.exports = DeduplicateWriter;

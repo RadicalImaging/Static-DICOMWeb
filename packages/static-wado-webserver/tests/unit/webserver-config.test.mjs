@@ -30,8 +30,9 @@ describe("@ohif/static-wado-webserver", () => {
 
   it("loads program files", async () => {
     const defaults = Object.create(dicomWebServerConfig);
+    defaults.configurationFile = ["~/notFound.json5", "tests/static-wado.json5"];
     must(defaults.port).eql(5000);
-    await loadConfiguration(["~/notFound.json5", "tests/static-wado.json5"]);
+    await loadConfiguration(defaults, []);
     must(defaults.port).eql(5001);
     must(defaults.rootDir).eql("../../../../tmp/dicomweb");
   });

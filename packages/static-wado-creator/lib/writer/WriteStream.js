@@ -7,11 +7,9 @@ const path = require("path");
  * and don't require synchronization, only the 'close' operation
  * requires syncing.
  */
-const WriteStream = (dir, name, options = {}) => {
-  const isGzip = name.indexOf(".gz") != -1 || options.gzip;
-  if (options.gzip && name.indexOf(".gz") == -1) {
-    name += ".gz";
-  }
+const WriteStream = (dir, nameSrc, options = {}) => {
+  const isGzip = nameSrc.indexOf(".gz") != -1 || options.gzip;
+  const name = (isGzip && nameSrc.indexOf(".gz") === -1 && `${nameSrc}.gz`) || nameSrc;
   if (options.mkdir) fs.mkdirSync(dir, { recursive: true });
 
   const tempName = path.join(dir, `tempFile-${Math.round(Math.random() * 1000000000)}`);

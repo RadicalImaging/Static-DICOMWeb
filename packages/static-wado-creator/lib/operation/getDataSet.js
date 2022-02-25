@@ -34,7 +34,8 @@ async function getDataSet(dataSet, callback, options, parentAttr = undefined) {
   return { metadata };
 }
 
-async function attributeToJS(metadata, tag, dataSet, attr, callback, options, parentAttr) {
+async function attributeToJS(metadataSrc, tag, dataSet, attr, callback, options, parentAttr) {
+  const metadata = metadataSrc;
   const vr = getVR(attr);
   const value = await getValue(dataSet, attr, vr, getDataSet, callback, options, parentAttr);
   const key = tag.substring(1).toUpperCase();

@@ -76,7 +76,7 @@ const CompleteStudyWriter = (options) => {
       }
       await callback.completeStudy(studyData);
     }
-    callback.studyData = new StudyData(id, options);
+    callback.setStudyData(new StudyData(id, options));
     await callback.studyData.init(options);
     return callback.studyData;
   };
