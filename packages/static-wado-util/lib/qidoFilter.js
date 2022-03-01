@@ -1,6 +1,7 @@
 const filterKeys = {
   StudyInstanceUID: "0020000D",
   PatientName: "00100010",
+  PatientID: "00100020",
   "00100020": "mrn",
   StudyDescription: "00081030",
   StudyDate: "00080020",

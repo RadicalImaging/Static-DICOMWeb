@@ -1,0 +1,17 @@
+{
+  // Configure a single AE as a proxy
+  aeConfig: {
+   dcmqrscp: {
+      description: "A test AE configuration for sending queries to dcmqrscp",
+      host: "localhost",
+      port: 11113,
+    },
+  },
+
+  // Configure the default studyQuery to be querying to the Scp
+  dicomWebScpConfig: {
+    studyQuery: "studiesQueryToScp",
+    queryAe: "dcmqrscp",
+  },
+}
+

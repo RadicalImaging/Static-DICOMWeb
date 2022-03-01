@@ -1,11 +1,14 @@
 import { handleHomeRelative } from "@ohif/static-wado-util";
 import express from "express";
 import logger from "morgan";
+import dcmjs from "dcmjs";
 import { importPlugin as cpImportPlugin } from "config-point";
 import dicomWebServerConfig from "./dicomWebServerConfig.mjs";
 import "regenerator-runtime";
 
-const importPlugin = (name) => cpImportPlugin(name, (moduleName) => import(moduleName));
+const { DicomMetaDictionary } = dcmjs.data;
+
+const importPlugin = (name) => cpImportPlugin(name, (moduleName) => import(moduleName).then((value) => (value && value.default) || value));
 
 /**
  * Maps QIDO queries for studies, series and instances to the index.json.gz file.
@@ -56,13 +59,17 @@ const addQueryCall = async (router, level, params, key) => {
     const plugin = await importPlugin(name);
     const { generator } = plugin.default || plugin;
     const queryFunction = generator(params, key);
-    console.log("Adding query call on", level, "to", name);
+    if (params.verbose) console.log("Adding query call on", level, "to", name);
     router.get(level, async (req, res, next) => {
-      const results = await queryFunction(req.query);
-      if (results) {
-        console.log("Found results", results.length);
-        res.json(results);
-        return;
+      try {
+        const results = await queryFunction(req.query);
+        if (results) {
+          const retResults = results.map((item) => (item.elements && DicomMetaDictionary.denaturalizeDataset(item.elements)) || item);
+          res.json(retResults);
+          return;
+        }
+      } catch (e) {
+        console.warn("Unable to query:", e);
       }
       next();
     });

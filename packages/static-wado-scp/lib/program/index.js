@@ -1,5 +1,5 @@
 const staticWadoUtil = require("@ohif/static-wado-util");
-const { DcmjsDimseScp, Server } = require("..");
+const { DcmjsDimseScp, Server, loadPlugins } = require("..");
 const packageJson = require("../../package.json");
 
 function main() {
@@ -39,6 +39,8 @@ async function configureProgram(defaults) {
 
   program.dicomWebScpConfig = defaults;
   program.main = main;
+
+  loadPlugins(program.dicomWebScpConfig);
 
   return program;
 }

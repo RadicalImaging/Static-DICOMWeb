@@ -48,7 +48,8 @@
   },
   "dependencies": {
     "@ohif/static-wado-util": "^0.5.1",
-    "config-point": "0.4.0"
+    "config-point": "0.4.0",
+    "dcmjs-dimse": "^0.0.15"
   },
   "devDependencies": {
     "must": "^0.13.4"

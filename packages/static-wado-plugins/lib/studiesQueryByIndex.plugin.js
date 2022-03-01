@@ -20,6 +20,7 @@ const { studiesQueryByIndex } = ConfigPoint.register({
         const studies = await readStudies();
         if (studies) {
           const filteredStudies = qidoFilter(studies, queryKeys);
+          console.log("Found", filteredStudies.length, "from", studies.length);
           return filteredStudies;
         }
         console.log("Couldn't read studies data");
