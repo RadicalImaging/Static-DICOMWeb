@@ -4,7 +4,10 @@ import logger from "morgan";
 import dcmjs from "dcmjs";
 import { importPlugin as cpImportPlugin } from "config-point";
 import dicomWebServerConfig from "./dicomWebServerConfig.mjs";
+import "@ohif/static-wado-plugins";
 import "regenerator-runtime";
+
+import stowrsGenerator from "./stowrs.mjs";
 
 const { DicomMetaDictionary } = dcmjs.data;
 
@@ -93,11 +96,15 @@ const methods = {
     const dir = handleHomeRelative(directory);
 
     const path = params.path || "/dicomweb";
+
     const router = express.Router();
     this.use(path, router);
 
     await addQueryCall(router, "/studies", params, "studyQuery");
     router.get("/studies", qidoMap);
+    const stowrs = stowrsGenerator(params);
+    router.post("/studies", stowrs);
+    router.post("/studies/:studyUID", stowrs);
     router.get("/studies/:studyUID/series", qidoMap);
     router.get("/studies/:studyUID/series/metadata", otherJsonMap);
     router.get("/studies/:studyUID/series/:seriesUID/instances", qidoMap);

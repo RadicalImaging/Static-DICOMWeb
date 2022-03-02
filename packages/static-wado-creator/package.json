@@ -61,7 +61,7 @@
   "dependencies": {
     "@cornerstonejs/dicom-codec": "^0.1.2",
     "@ohif/static-wado-util": "^0.5.1",
-    "config-point": "0.4.0",
+    "config-point": "0.4.1",
     "dicom-parser": "^1.8.13",
     "node-object-hash": "^2.3.10"
   },

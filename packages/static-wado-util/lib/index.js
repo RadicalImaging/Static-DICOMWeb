@@ -6,6 +6,7 @@ exports.dirScanner = require("./reader/dirScanner");
 exports.qidoFilter = require("./qidoFilter");
 exports.loadConfiguration = require("./loadConfiguration");
 exports.aeConfig = require("./aeConfig");
+exports.staticWadoConfig = require("./staticWadoConfig");
 
 exports.configureProgram = configureProgram;
 exports.program = program;

@@ -15,7 +15,7 @@ const ScanStudy = require("./operation/ScanStudy");
 const HashDataWriter = require("./writer/HashDataWriter");
 const VideoWriter = require("./writer/VideoWriter");
 const { transcodeImageFrame, transcodeId, transcodeMetadata } = require("./operation/adapter/transcodeImage");
-const staticWadoConfig = require("./staticWadoConfig.js");
+const mkdicomwebConfig = require("./mkdicomwebConfig");
 
 function setStudyData(studyData) {
   this.studyData = studyData;
@@ -163,6 +163,6 @@ class StaticWado {
   }
 }
 
-StaticWado.staticWadoConfig = staticWadoConfig;
+StaticWado.mkdicomwebConfig = mkdicomwebConfig;
 
 module.exports = StaticWado;

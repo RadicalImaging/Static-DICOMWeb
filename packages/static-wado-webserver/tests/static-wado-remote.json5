@@ -11,6 +11,8 @@
   // Configure the default studyQuery to be querying to the Scp
   dicomWebServerConfig: {
     studyQuery: "studiesQueryToScp",
+    // Default command plus dcmsnd
+    stowCommands: [null, "dcmsnd -L SCU DCMRCV@localhost:11114"],
     queryAe: "dcmqrscp",
   },
 }

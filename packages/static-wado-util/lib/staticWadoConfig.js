@@ -8,6 +8,7 @@ const { staticWadoConfig } = ConfigPoint.register({
     recompressType: "",
     verbose: false,
     studyQuery: "studiesQueryByIndex",
+    staticWadoAe: "DICOMWEB",
   },
 });
 

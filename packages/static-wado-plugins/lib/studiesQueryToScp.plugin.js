@@ -9,7 +9,7 @@ const { Status } = dcmjsDimse.constants;
 const { studiesQueryByIndex } = ConfigPoint.register({
   studiesQueryByIndex: {
     generator: (params) => {
-      const { queryAe, callingAe = "SCU", scpAe } = params;
+      const { queryAe, callingAe = "SCU", staticWadoAe } = params;
       if (!queryAe) throw new Error("queryAe not specified");
       const aeData = aeConfig[queryAe];
       if (!aeData) throw new Error(`No data for aeConfig.${queryAe} is configured in ${Object.keys(aeConfig)}`);
@@ -50,8 +50,8 @@ const { studiesQueryByIndex } = ConfigPoint.register({
             console.log("Network error: ", e);
             reject(e);
           });
-          client.send(host, port, callingAe || scpAe, queryAe);
-          console.log("Sending client request", host, port, callingAe || scpAe, queryAe);
+          client.send(host, port, callingAe || staticWadoAe, queryAe);
+          console.log("Sending client request", host, port, callingAe || staticWadoAe, queryAe);
         });
       };
     },

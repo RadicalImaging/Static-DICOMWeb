@@ -1,8 +1,6 @@
 import ConfigPoint from "config-point";
-import StaticCreator from "@ohif/static-wado-creator";
 import "@ohif/static-wado-plugins";
-
-const { staticWadoConfig } = StaticCreator;
+import { staticWadoConfig } from "@ohif/static-wado-util";
 
 /**
  * Defines the basic configuration values for the dicomwebserver component.  See the README for more details.
@@ -11,6 +9,7 @@ const { dicomWebServerConfig } = ConfigPoint.register({
   dicomWebServerConfig: {
     configBase: staticWadoConfig,
     helpShort: "dicomwebserver",
+    stowCommands: ["mkdicomweb"],
     helpDescription: "Serve up the static wado files and optionally a web client as a web server on the local machine.",
     clientDir: "~/ohif",
     port: 5000,

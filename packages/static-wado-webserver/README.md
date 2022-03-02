@@ -65,17 +65,24 @@ Alternatively, the settings file to use can be specified with the `-c or --confi
 * `port` specifies the default port for the web server to run on (do NOT specify this in staticcWadoConfig, as the SCP uses the same name)
 * `studyQuery` specifies the name of a plugin to use that provides study level query capabilities
 * `accessCheck` specifies the name of a plugin that checks to see if the study is available in the dicomweb dir
-* `stowStudy` specifies the name of a plugin that stores data into the dicomweb dir, possibly backing it up elsewhere
+* `stowCommands` is an array of command lines that will be passed a set of filenames to store.  
+
+#### stowCommands to store to DICOM
+Assuming you have dcm4che installed, then you can configure stowCommands like this:
+```js
+stowComands: ["mkdicomweb", "dcmsnd -L SCUNAME SCPName@hostname:104"],
+```
+to configure to store to the local mkdicomweb plugin, plus SCPName on host hostname on port 104.
 
 ## Plugins
-Currently the only plugin defined is the `studyQueryReadIndex`, which reads the `studies/index.json.gz` file and sub-selects it to generate the query response.  The following plugins are planned:
+There are several pluguins currently defined:
 
-* `cfindStudy` will perform a c-find to the specified system to generate the query response
+* `studyQueryReadIndex` reads the `studies/index.json.gz` file and sub-selects it to generate the query response.
+* `studiesQueryToScp` queries a remote DIMSE service to find the response for the study level data.
+
+  The following plugins are planned:
 * `retrieveCMove` will check if the study is locally available, and if not, will perform a c-move to the specified scp destination
-* `stowStaticWado` will store the study into the static-wado directory
-* `stowCStore` will perform a c-store of the new objects into the specified destination
-* `stowMulti` will store the new objects into several locations (eg stowStaticWado and stowCStore typically)
-* `studyQueryDb` does a query for studies against a database
+* `studyQueryDb` does a query for studies against a database.  Also stores to the given destination.
 
 ## Design
 The basic design of the dicomwebserver is just a configuration script that uses `expressjs` to configure the default handling of the responses, plus add the plugin handling for the responses on top of that.  All of the interesting logic is actually within the various plugins, and those are intentionally kept fairly small.  The intent of this is to allow the same plugins to eventually be re-used for serving data from other sources such as an AWS s3 bucket via cloudfront.

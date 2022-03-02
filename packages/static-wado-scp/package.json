@@ -55,7 +55,7 @@
     "@ohif/static-wado-creator": "^0.5.1",
     "@ohif/static-wado-plugins": "^0.5.1",
     "@ohif/static-wado-util": "^0.5.1",
-    "config-point": "0.4.0",
+    "config-point": "0.4.1",
     "dcmjs": "^0.19.6",
     "dcmjs-dimse": "^0.0.15"
   },

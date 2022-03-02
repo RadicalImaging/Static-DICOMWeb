@@ -1,7 +1,5 @@
 const ConfigPoint = require("config-point");
-const StaticCreator = require("@ohif/static-wado-creator");
-
-const { staticWadoConfig } = StaticCreator;
+const { staticWadoConfig } = require("@ohif/static-wado-util");
 
 /**
  * Defines the basic configuration values for the dicomwebserver component.  See the README for more details.
@@ -13,8 +11,6 @@ const { dicomWebScpConfig } = ConfigPoint.register({
     isGroup: true,
     helpShort: "dicomwebscp",
     helpDescription: "Creates server to receive data on DIMSE and store it DICOM",
-    scpAe: "DICOMWEB",
-    scpPort: 11112,
   },
 });
 
