@@ -56,13 +56,17 @@
     "@ohif/static-wado-plugins": "^0.5.1",
     "@ohif/static-wado-util": "^0.5.1",
     "config-point": "^0.4.1",
+    "cors": "^2.8.5",
     "dcmjs": "^0.19.6",
+    "dcmjs-dimse": "^0.0.15",
     "express": "^4.17.2",
     "formidable": "^2.0.1",
     "morgan": "^1.10.0",
-    "regenerator-runtime": "^0.13.9"
+    "regenerator-runtime": "^0.13.9",
+    "rxjs": "^7.5.4"
   },
   "devDependencies": {
+    "@babel/plugin-transform-runtime": "^7.17.0",
     "must": "^0.13.4"
   }
 }

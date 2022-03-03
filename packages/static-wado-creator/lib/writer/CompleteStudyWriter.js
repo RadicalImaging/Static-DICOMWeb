@@ -57,7 +57,7 @@ const CompleteStudyWriter = (options) => {
     } else {
       allStudies[studyIndex] = studyQuery;
     }
-    JSONWriter(options.directoryName, "studies", allStudies);
+    await JSONWriter(options.directoryName, "studies", allStudies);
     delete this.studyData;
     Stats.StudyStats.summarize(`Wrote study metadata/query files for ${studyData.studyInstanceUid}`);
   }

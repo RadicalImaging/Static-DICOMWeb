@@ -1,6 +1,6 @@
 const ConfigPoint = require("config-point");
 const dcmjsDimse = require("dcmjs-dimse");
-const { aeConfig } = require("@ohif/static-wado-util");
+const { aeConfig, assertions } = require("@ohif/static-wado-util");
 
 const { Client } = dcmjsDimse;
 const { CFindRequest } = dcmjsDimse.requests;
@@ -10,9 +10,11 @@ const { studiesQueryByIndex } = ConfigPoint.register({
   studiesQueryByIndex: {
     generator: (params) => {
       const { queryAe, callingAe = "SCU", staticWadoAe } = params;
-      if (!queryAe) throw new Error("queryAe not specified");
+
+      // asserts there is queryAe value and definition, otherwise throws an exception.
+      assertions.assertAeDefinition(params, "queryAe", ["queryAe not specified", `No data for aeConfig.${queryAe} is configured in ${Object.keys(aeConfig)}`]);
+
       const aeData = aeConfig[queryAe];
-      if (!aeData) throw new Error(`No data for aeConfig.${queryAe} is configured in ${Object.keys(aeConfig)}`);
       const { host, port } = aeData;
       console.log("Studies query to", queryAe);
 

@@ -9,6 +9,8 @@ const { dicomWebScpConfig } = ConfigPoint.register({
     configBase: staticWadoConfig,
     isStudyData: true,
     isGroup: true,
+    maximumInlinePrivateLength: 128 * 1024 + 2,
+    maximumInlinePublicLength: 64,
     helpShort: "dicomwebscp",
     helpDescription: "Creates server to receive data on DIMSE and store it DICOM",
   },

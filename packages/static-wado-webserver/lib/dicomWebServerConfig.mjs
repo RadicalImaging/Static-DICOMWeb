@@ -13,6 +13,14 @@ const { dicomWebServerConfig } = ConfigPoint.register({
     helpDescription: "Serve up the static wado files and optionally a web client as a web server on the local machine.",
     clientDir: "~/ohif",
     port: 5000,
+    corsOptions: {
+      enabled: true,
+      origin: ["http://localhost:3000"],
+      // methods: ['GET', "PUT", "POST"],
+      // allowedHeaders: ['Content-Type', 'Authorization'],
+      // ... https://www.npmjs.com/package/cors#configuration-options
+    },
+    proxyAe: "CLEARCANVAS",
   },
 });
 

@@ -18,7 +18,7 @@ npm install -g
 
 
 ## Usage
-There is a command line tool, installed as above, that provides an extendible web service.  That is run installed, or uninstalled as:
+There is a command line tool, installed as above, that provides an extendible web service. That is run installed, or uninstalled as:
 ```shell
 dicomwebserver
 or
@@ -35,9 +35,9 @@ This will serve up the files in `~/ohif` and `~/dicomweb` in the following way:
 4. Provide a studyQuery result that reads the studies/index.json.gz file and filters it according to the search criteria
 
 ## Default Configuration Files
-The tool looks for a JSON5 configuration file (which is JSON + comments basically), located either in  `./static-wado.json5` or else in `~/static-wado.json5`.   This configuration file can over-ride settings such as the directory that stores the client, or the port number on the web service etc.  These configuration values are then further modified by command line settings.
+The tool looks for a JSON5 configuration file (which is JSON + comments basically), located either in  `./static-wado.json5` or else in `~/static-wado.json5`.   This configuration file can override settings such as the directory that stores the client, or the port number on the web service etc. These configuration values are then further modified by command-line settings.
 
-Alternatively, the settings file to use can be specified with the `-c or --configuration` setting, passing it a file name to read as a JSON5 file (it will add the extension if not present).  The format of the file looks like this:
+Alternatively, the settings file to use can be specified with the `-c or --configuration` setting, passing it a file name to read as a JSON5 file (it will add the extension if not present). The format of the file looks like this:
 ```js
 {
   // Defaults that apply to static wado generally
@@ -65,7 +65,8 @@ Alternatively, the settings file to use can be specified with the `-c or --confi
 * `port` specifies the default port for the web server to run on (do NOT specify this in staticcWadoConfig, as the SCP uses the same name)
 * `studyQuery` specifies the name of a plugin to use that provides study level query capabilities
 * `accessCheck` specifies the name of a plugin that checks to see if the study is available in the dicomweb dir
-* `stowCommands` is an array of command lines that will be passed a set of filenames to store.  
+* `stowCommands` is an array of command lines that will be passed a set of filenames to store.
+* `corsOptions` specifies an object with options to set up cors. CORS is not applied when this property is not present or if there is no origin (inner property) defined.
 
 #### stowCommands to store to DICOM
 Assuming you have dcm4che installed, then you can configure stowCommands like this:
@@ -74,16 +75,32 @@ stowComands: ["mkdicomweb", "dcmsnd -L SCUNAME SCPName@hostname:104"],
 ```
 to configure to store to the local mkdicomweb plugin, plus SCPName on host hostname on port 104.
 
+
+#### Configure external viewer
+Webserver can also be integrated with external viewer server. In order to achieve that configuration file must contain:
+```
+ {
+    ...
+    corsOptions: {
+      enabled: true,
+      origin: ['http://viewer-origin:port]
+      ...other configs
+    }
+
+ }
+```
+This will ensure webserver accepts cross origins requests. @see {@link https://www.npmjs.com/package/cors#configuration-options} for more options properties.
+
 ## Plugins
-There are several pluguins currently defined:
+There are several plugins currently defined:
 
 * `studyQueryReadIndex` reads the `studies/index.json.gz` file and sub-selects it to generate the query response.
 * `studiesQueryToScp` queries a remote DIMSE service to find the response for the study level data.
 
   The following plugins are planned:
 * `retrieveCMove` will check if the study is locally available, and if not, will perform a c-move to the specified scp destination
-* `studyQueryDb` does a query for studies against a database.  Also stores to the given destination.
+* `studyQueryDb` does a query for studies against a database. Also, it stores to the given destination.
 
 ## Design
-The basic design of the dicomwebserver is just a configuration script that uses `expressjs` to configure the default handling of the responses, plus add the plugin handling for the responses on top of that.  All of the interesting logic is actually within the various plugins, and those are intentionally kept fairly small.  The intent of this is to allow the same plugins to eventually be re-used for serving data from other sources such as an AWS s3 bucket via cloudfront.
+The basic design of the dicomwebserver is just a configuration script that uses `expressjs` to configure the default handling of the responses, plus add the plugin handling for the responses on top of that. All of the interesting logic is actually within the various plugins, and those are intentionally kept fairly small. The intent of this is to allow the same plugins to eventually be re-used for serving data from other sources such as an AWS s3 bucket via cloudfront.
 

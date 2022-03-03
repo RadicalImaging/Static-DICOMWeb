@@ -10,7 +10,7 @@ function main() {
     console.log("Network error: ", e);
   });
   console.log(`Starting server listen on port ${port}`);
-  server.listen(port);
+  server.listen(port, this.dicomWebScpConfig);
 }
 
 /**

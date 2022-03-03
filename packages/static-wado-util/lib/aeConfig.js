@@ -5,7 +5,7 @@ const { aeConfig } = ConfigPoint.register({
     DICOMWEB: {
       description: "The static-wado SCU and SCP name by default",
       host: "localhost",
-      port: "11112",
+      port: 11112,
     },
     // Test configurations
     dcmqrscp: {
@@ -16,7 +16,7 @@ const { aeConfig } = ConfigPoint.register({
     CLEARCANVAS: {
       description: "Test ClearCanvas System",
       host: "localhost",
-      port: "11114",
+      port: 11114,
     },
   },
 });
