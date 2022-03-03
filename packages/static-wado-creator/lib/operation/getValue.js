@@ -48,10 +48,14 @@ const getValueInlineUnsignedLong = (dataSet, attr) => {
 };
 
 const getValueInlineFloat = (dataSet, attr) => {
-  if (attr.length > 4) {
+  if (attr.length > 65536 * 4) {
     return getValueInlineBinary(dataSet, attr);
   }
-  return [dataSet.float(attr.tag)];
+  const ret = [];
+  for (let i = 0; i < attr.length / 4; i++) {
+    ret.push(dataSet.float(attr.tag, i));
+  }
+  return ret;
 };
 
 const getValueInlineIntString = (dataSet, attr) => getStrings(dataSet, attr).map((val) => parseInt(val));
@@ -161,6 +165,7 @@ const getValue = async (dataSet, attr, vr, getDataSet, callback, options, parent
     const BulkDataURI = await extractImageFrames(dataSet, attr, vr, callback, options);
     return { BulkDataURI };
   }
+  if (attr.tag === "xfffee00d") return undefined;
   if (attr.items) {
     // sequences
     const result = [];

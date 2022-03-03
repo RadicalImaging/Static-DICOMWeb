@@ -39,7 +39,8 @@ async function attributeToJS(metadataSrc, tag, dataSet, attr, callback, options,
   const vr = getVR(attr);
   const value = await getValue(dataSet, attr, vr, getDataSet, callback, options, parentAttr);
   const key = tag.substring(1).toUpperCase();
-  if (value == undefined || value.length == 0) {
+  if (value === undefined || value === null || value.length === 0) {
+    if (!vr) return;
     metadata[key] = {
       vr,
     };
