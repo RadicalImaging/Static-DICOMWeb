@@ -1,6 +1,6 @@
 {
   "name": "@ohif/static-wado-util",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Utils for other packages.",
   "publishConfig": {
     "access": "public"

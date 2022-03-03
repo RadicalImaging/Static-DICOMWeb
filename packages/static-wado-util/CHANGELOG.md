@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.6.0](https://github.com/OHIF/static-wado/compare/@ohif/static-wado-util@0.5.1...@ohif/static-wado-util@0.6.0) (2022-03-03)
+
+
+### Bug Fixes
+
+* **static-wado:** make the various constructors use a straight configuration without using the program data ([1997d9f](https://github.com/OHIF/static-wado/commit/1997d9f0fe2e0a084d31edeb475494bcec78fd77))
+
+
+### Features
+
+* **static-wado:** qido series fallback to retrieve from proxyAe ([#8](https://github.com/OHIF/static-wado/issues/8)) ([47b5550](https://github.com/OHIF/static-wado/commit/47b55503732e25be08b215bdc201593f64de52e6))
+
+
+
+
+
 ## 0.5.1 (2022-02-16)
 
 

@@ -1,6 +1,6 @@
 {
   "name": "@ohif/static-wado-plugins",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Plugins to support the static-wado project",
   "publishConfig": {
     "access": "public"
@@ -47,7 +47,7 @@
     "verbose": true
   },
   "dependencies": {
-    "@ohif/static-wado-util": "^0.5.1",
+    "@ohif/static-wado-util": "^0.6.0",
     "config-point": "0.4.1",
     "dcmjs-dimse": "^0.0.15"
   },
