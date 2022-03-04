@@ -1,6 +1,6 @@
 {
   "name": "@ohif/static-wado-creator",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Library to convert DICOMP10 to DICOMweb format. Original upstream: https://github.com/chafey/dicomp10-to-dicomweb-js",
   "publishConfig": {
     "access": "public"
