@@ -5,11 +5,16 @@ const path = require("path");
 const Tags = require("../dictionary/Tags");
 const WriteStream = require("./WriteStream");
 
+const extensions = {
+  'application/pdf': '.pdf',
+  'text/json': '.json',
+}
+
 /** Writes out JSON files to the given file name.  Automatically GZips them, and adds the extension */
-const HashDataWriter = () => async (id, key, data) => {
+const HashDataWriter = () => async (id, key, data, options = {}) => {
   const isRaw = ArrayBuffer.isView(data);
   const gzip = !isRaw || data.length > 1024;
-  const { dirName, fileName } = HashDataWriter.createHashPath(data);
+  const { dirName, fileName } = HashDataWriter.createHashPath(data, options);
   const absolutePath = path.join(id.studyPath, dirName);
   const rawData = isRaw ? data : JSON.stringify(data, null, 1);
   const writeStream = WriteStream(absolutePath, fileName, {
@@ -18,15 +23,16 @@ const HashDataWriter = () => async (id, key, data) => {
   });
   await writeStream.write(rawData);
   await writeStream.close();
-  return `${dirName}/${fileName}`;
+  return `${dirName}/${fileName}${gzip && ".gz"}`;
 };
 
 /**
  * Returns a hash path relative to the objectUID directory.
  */
-HashDataWriter.createHashPath = (data) => {
+HashDataWriter.createHashPath = (data, options = {}) => {
+  const {mimeType} = options;
   const isRaw = ArrayBuffer.isView(data);
-  const extension = isRaw ? ".raw" : ".json";
+  const extension = isRaw && (mimeType && extensions[mimeType] || ".raw") || ".json";
   const existingHash = data[Tags.DeduppedHash];
   const hashValue = (existingHash && existingHash.Value[0]) || hasher.hash(data);
   return {
