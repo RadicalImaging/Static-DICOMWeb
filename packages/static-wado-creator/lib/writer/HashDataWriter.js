@@ -5,15 +5,19 @@ const path = require("path");
 const Tags = require("../dictionary/Tags");
 const WriteStream = require("./WriteStream");
 
+// Extensions for encapsulated content.  Do NOT add any executable content extensions here.
 const extensions = {
   'application/pdf': '.pdf',
   'text/json': '.json',
+  'application/xml+cda': '.cda.xml',
 }
 
 /** Writes out JSON files to the given file name.  Automatically GZips them, and adds the extension */
 const HashDataWriter = () => async (id, key, data, options = {}) => {
   const isRaw = ArrayBuffer.isView(data);
-  const gzip = !isRaw || data.length > 1024;
+  const { mimeType } = options;
+  // If the file has an extension, it should be directly accessible as that file type.
+  const gzip = !isRaw || data.length > 1024 && !mimeType;
   const { dirName, fileName } = HashDataWriter.createHashPath(data, options);
   const absolutePath = path.join(id.studyPath, dirName);
   const rawData = isRaw ? data : JSON.stringify(data, null, 1);
