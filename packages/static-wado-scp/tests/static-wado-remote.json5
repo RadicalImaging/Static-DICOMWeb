@@ -12,6 +12,7 @@
   dicomWebScpConfig: {
     studyQuery: "studiesQueryToScp",
     queryAe: "dcmqrscp",
+    proxyAe: "dcmqrscp",
   },
 }
 

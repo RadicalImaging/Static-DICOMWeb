@@ -56,6 +56,7 @@ export function createRequestFactory(requestOptions) {
       operation = _operation;
       _paramsRef.forEach((ref) => {
         const uid = refUIDMap[ref];
+        console.log("Retrieve", ref, uid);
         // elements index ref to receive requestOptions[uid]
         elements[ref] = requestOptions[uid];
       });
@@ -63,6 +64,7 @@ export function createRequestFactory(requestOptions) {
     }
   }
 
+  console.log("elements", elements, CMoveRequest);
   return operation.call(CMoveRequest, destAeTittle, ...elements, priority);
 }
 

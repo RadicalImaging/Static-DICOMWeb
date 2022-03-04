@@ -5,5 +5,7 @@
 
   dicomWebServerConfig: {
     port: 5001,
+    proxyAe: 'dcmqrscp',
+    queryAe: 'dcmqrscp',
   },
 }

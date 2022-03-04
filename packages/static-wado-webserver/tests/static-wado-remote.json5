@@ -14,6 +14,7 @@
     // Default command plus dcmsnd
     stowCommands: [null, "dcmsnd -L SCU DCMRCV@localhost:11114"],
     queryAe: "dcmqrscp",
+    proxyAe: "dcmqrscp",
   },
 }
 

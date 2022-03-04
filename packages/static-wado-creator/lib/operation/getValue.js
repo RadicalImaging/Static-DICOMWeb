@@ -27,10 +27,11 @@ const getValueInlineSignedShort = (dataSet, attr) => {
 };
 
 const getValueInlineUnsignedShort = (dataSet, attr) => {
-  if (attr.length > 2) {
-    return getValueInlineBinary(dataSet, attr);
+  const ret = [];
+  for (let i = 0; i < attr.length / 2; i++) {
+    ret.push(dataSet.uint16(attr.tag, i));
   }
-  return [dataSet.uint16(attr.tag)];
+  return ret;
 };
 
 const getValueInlineSignedLong = (dataSet, attr) => {
@@ -166,6 +167,8 @@ const getValue = async (dataSet, attr, vr, getDataSet, callback, options, parent
     return { BulkDataURI };
   }
   if (attr.tag === "xfffee00d") return undefined;
+  // Group length
+  if (attr.tag.length == 9 && attr.tag.substring(5, 9) === "0000") return undefined;
   if (attr.items) {
     // sequences
     const result = [];
