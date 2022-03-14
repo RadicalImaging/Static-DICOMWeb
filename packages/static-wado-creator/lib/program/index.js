@@ -1,10 +1,7 @@
 const staticWadoUtil = require("@ohif/static-wado-util");
-const loadConfiguration = require("@ohif/static-wado-util/lib/loadConfiguration");
 const StaticWado = require("../index");
 const packageJson = require("../../package.json");
 const adaptProgramOpts = require("../util/adaptProgramOpts");
-
-const dicomwebDefaultDir = "~/dicomweb";
 
 /**
  * Configure static-wado-creator commander program.
@@ -13,7 +10,8 @@ const dicomwebDefaultDir = "~/dicomweb";
  * @returns Program object
  */
 async function configureProgram(defaults) {
-  await loadConfiguration(defaults, process.argv);
+  await staticWadoUtil.loadConfiguration(defaults, process.argv);
+
   const { argumentsRequired = [], optionsRequired = [], helpShort, helpDescription } = defaults;
 
   const argumentsList = [
@@ -83,7 +81,7 @@ async function configureProgram(defaults) {
     {
       key: "-o, --dir <value>",
       description: "Set output directory",
-      defaultValue: dicomwebDefaultDir,
+      defaultValue: defaults.rootDir,
     },
     {
       key: "-M, --maximum-inline-private-length <value>",

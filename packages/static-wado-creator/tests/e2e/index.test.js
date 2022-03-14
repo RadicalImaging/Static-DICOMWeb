@@ -83,7 +83,6 @@ describe("index", () => {
       const { vr } = item;
       if (vrs[vr]) continue;
       vrs[vr] = key;
-      console.log("Found vr", key, vr, item);
     }
 
     objJuno["00181310"].vr.must.eql("US");

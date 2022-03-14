@@ -186,8 +186,8 @@ const getValue = async (dataSet, attr, vr, getDataSet, callback, options, parent
     return getValueInline(dataSet, attr, vr);
   }
   const binaryValue = dataSet.byteArray.slice(attr.dataOffset, attr.dataOffset + attr.length);
-  const mimeType = attr.tag=="x00420011" && dataSet.string("x00420012");
-  const BulkDataURI = await callback.bulkdata(binaryValue, {mimeType});
+  const mimeType = attr.tag == "x00420011" && dataSet.string("x00420012");
+  const BulkDataURI = await callback.bulkdata(binaryValue, { mimeType });
   return { BulkDataURI, vr };
 };
 module.exports = getValue;

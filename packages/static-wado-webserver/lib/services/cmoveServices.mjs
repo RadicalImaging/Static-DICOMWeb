@@ -146,5 +146,6 @@ export const findMove = async (serverOptions, requestOptions) => {
     return runFindMoveRequest(serverOptions, requestOptions, findReq, moveReq);
   } catch (e) {
     console.log("Bulk operation has failed", e);
+    return undefined;
   }
 };
