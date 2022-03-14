@@ -1,6 +1,6 @@
 {
   "name": "@ohif/static-wado-webserver",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Webserver to serve a static-wado repo",
   "publishConfig": {
     "access": "public"
@@ -52,9 +52,9 @@
     "lint:fix": "npx eslint --fix"
   },
   "dependencies": {
-    "@ohif/static-wado-creator": "^0.6.2",
-    "@ohif/static-wado-plugins": "^0.6.0",
-    "@ohif/static-wado-util": "^0.6.0",
+    "@ohif/static-wado-creator": "^0.6.3",
+    "@ohif/static-wado-plugins": "^0.6.1",
+    "@ohif/static-wado-util": "^0.6.1",
     "config-point": "^0.4.3",
     "cors": "^2.8.5",
     "dcmjs": "^0.19.6",
