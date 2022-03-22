@@ -11,7 +11,7 @@ function getCorsOptions(config = {}) {
 
   delete corsOptionsCpy.enabled;
 
-  return { ...defaultOptions, corsOptionsCpy };
+  return { ...defaultOptions, ...corsOptionsCpy };
 }
 
 /**
