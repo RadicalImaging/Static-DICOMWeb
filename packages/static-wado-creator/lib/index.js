@@ -16,6 +16,8 @@ const HashDataWriter = require("./writer/HashDataWriter");
 const VideoWriter = require("./writer/VideoWriter");
 const { transcodeImageFrame, transcodeId, transcodeMetadata } = require("./operation/adapter/transcodeImage");
 const mkdicomwebConfig = require("./mkdicomwebConfig");
+const ThumbnailWriter = require("./writer/ThumbnailWriter");
+const ThumbnailService = require("./operation/ThumbnailService");
 
 function setStudyData(studyData) {
   this.studyData = studyData;
@@ -40,6 +42,7 @@ class StaticWado {
       bulkdata: HashDataWriter(this.options),
       imageFrame: ImageFrameWriter(this.options),
       videoWriter: VideoWriter(this.options),
+      thumbWriter: ThumbnailWriter(this.options),
       completeStudy: CompleteStudyWriter(this.options),
       metadata: InstanceDeduplicate(this.options),
       deduplicated: DeduplicateWriter(this.options),
@@ -113,6 +116,8 @@ class StaticWado {
 
     let bulkDataIndex = 0;
     let imageFrameIndex = 0;
+    const thumbnailService = new ThumbnailService();
+
     const generator = {
       bulkdata: async (bulkData, options) => {
         const _bulkDataIndex = bulkDataIndex;
@@ -120,12 +125,23 @@ class StaticWado {
         return this.callback.bulkdata(targetId, _bulkDataIndex, bulkData, options);
       },
       imageFrame: async (originalImageFrame) => {
-        const { imageFrame, id: transcodedId } = await transcodeImageFrame(id, targetId, originalImageFrame, dataSet, this.options);
+        const { imageFrame: transcodedImageFrame, id: transcodedId } = await transcodeImageFrame(id, targetId, originalImageFrame, dataSet, this.options);
 
         const currentImageFrameIndex = imageFrameIndex;
         imageFrameIndex += 1;
 
-        return this.callback.imageFrame(transcodedId, currentImageFrameIndex, imageFrame);
+        thumbnailService.queueThumbnail(
+          {
+            imageFrame: originalImageFrame,
+            transcodedImageFrame,
+            transcodedId,
+            id,
+            frameIndex: currentImageFrameIndex,
+          },
+          this.options
+        );
+
+        return this.callback.imageFrame(transcodedId, currentImageFrameIndex, transcodedImageFrame);
       },
       videoWriter: async (_dataSet) => this.callback.videoWriter(id, _dataSet),
     };
@@ -134,6 +150,7 @@ class StaticWado {
     const result = await getDataSet(dataSet, generator, this.options);
 
     const transcodedMeta = transcodeMetadata(result.metadata, id, this.options);
+    thumbnailService.generateThumbnails(dataSet, transcodedMeta, this.callback);
 
     await this.callback.metadata(targetId, transcodedMeta);
 

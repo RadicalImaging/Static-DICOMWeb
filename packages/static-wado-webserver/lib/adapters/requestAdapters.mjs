@@ -16,6 +16,15 @@ export const otherJsonMap = (req, res, next) => {
   next();
 };
 
+/**
+ * Handles returning thumbnail jpeg
+ */
+export const thumbnailMap = (req, res, next) => {
+  res.setHeader("content-type", "image/jpeg");
+  req.url = `${req.path}.jpeg`;
+  next();
+};
+
 export const htmlMap = (req, res, next) => {
   req.url = "/index.html";
   next();

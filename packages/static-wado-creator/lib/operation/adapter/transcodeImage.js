@@ -1,5 +1,6 @@
 const dicomCodec = require("@cornerstonejs/dicom-codec");
 const Tags = require("../../dictionary/Tags");
+const getImageInfo = require("./getImageInfo");
 
 const transcodeOp = {
   none: 0,
@@ -70,7 +71,7 @@ function getTranscoder(transferSyntaxUid) {
  * @param {*} options runner options
  */
 function shouldTranscodeImageFrame(id, options) {
-  if (!options.recompressType) {
+  if (!options.recompress) {
     return false;
   }
 
@@ -78,7 +79,30 @@ function shouldTranscodeImageFrame(id, options) {
     const { transferSyntaxUid } = id;
     const transcoder = getTranscoder(transferSyntaxUid);
 
-    return transcoder && transcoder.transferSyntaxUid && options.recompressType.includes(transcoder.alias);
+    return transcoder && transcoder.transferSyntaxUid && options.recompress.includes(transcoder.alias);
+  }
+
+  return isValidTranscoder();
+}
+
+/**
+ * It tells if we should use transcoded image to generate thumb or not.
+ *
+ * @param {*} id
+ * @param {*} options
+ * @returns True if transcoder.alias is present on intersection of recompressThumb and recompress options.
+ */
+function shouldThumbUseTranscoded(id, options) {
+  if (!options.recompressThumb) {
+    return false;
+  }
+
+  function isValidTranscoder() {
+    const { transferSyntaxUid } = id;
+    const transcoder = getTranscoder(transferSyntaxUid);
+    const result = transcoder && transcoder.transferSyntaxUid && options.recompress.includes(transcoder.alias) && options.recompressThumb.includes(transcoder.alias);
+
+    return result;
   }
 
   return isValidTranscoder();
@@ -88,26 +112,6 @@ function transcodeLog(options, msg, error = "") {
   if (options.verbose) {
     console.log(`\x1b[34m${msg}\x1b[0m`, error);
   }
-}
-
-/**
- * Minimum image info data to be used on transcode process by dicom-codec api.
- */
-function getImageInfo(dataSet) {
-  const rows = dataSet.uint16("x00280010");
-  const columns = dataSet.uint16("x00280011");
-  const bitsAllocated = dataSet.uint16("x00280100");
-  const samplesPerPixel = dataSet.uint16("x00280002");
-  const pixelRepresentation = dataSet.uint16("x00280103"); // not yet being used.
-
-  return {
-    bitsAllocated,
-    samplesPerPixel,
-    rows, // Number with the image rows/height
-    columns, // Number with the image columns/width,
-    signed: pixelRepresentation === 1,
-    pixelRepresentation,
-  };
 }
 
 /**
@@ -247,6 +251,7 @@ function transcodeMetadata(metadata, id, options) {
 }
 
 exports.shouldTranscodeImageFrame = shouldTranscodeImageFrame;
+exports.shouldThumbUseTranscoded = shouldThumbUseTranscoded;
 exports.transcodeId = transcodeId;
 exports.transcodeImageFrame = transcodeImageFrame;
 exports.transcodeMetadata = transcodeMetadata;

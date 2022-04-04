@@ -12,6 +12,7 @@ It is not necessary to have the current version and deduplicated instances locat
 * studies.gz  containing the studies query  studies?StudyInstanceUID=<StudyInstanceUID>
 * series.gz   containing the series query   studies/<StudyInstanceUID>/series
 * deduplicated.gz  containing the current study level deduplicated data (for all instances)
+* studies/<StudyInstanceUID>/thumbail containing the study thumbnail in JPEG
 * series/<SeriesInstanceUID>/metadata.gz  containing the metadata for the series
 * series/<SeriesInstanceUID>/instances.gz containing the instances query for this series
 * series/<SeriesInstanceUID>/thumbnail containing the series thumbnail in JPEG

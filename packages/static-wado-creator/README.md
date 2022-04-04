@@ -81,6 +81,10 @@ The options are:
   --no-recompress
   : Force no recompression
   [see](#to-recompress)
+
+  --no-recompress-thumb
+  : Force no recompression for thumbnail
+  [see](#to-recompress-thumb)
   
   -o, --dir <value>
   : Set output directory (default: "~/dicomweb")
@@ -94,6 +98,10 @@ The options are:
   -r, --recompress <listvalue...> 
   : List of types to recompress separated by comma (choices: "uncompressed", "jp2", "jpeglossless", "rle", default: "uncompressed jp2")
   [see](#to-recompress)
+
+  --recompress-thumb <listvalue...> 
+  : List of types to recompress thumb separated by comma (choices: "uncompressed", "jp2", "jpeglossless", "rle", default: "uncompressed jp2")
+  [see](#to-recompress-thumb)
   
   -s, --study
   : Write study metadata - on provided instances only (TO FIX}, (default: true)
@@ -213,6 +221,36 @@ The table below shows the support for transfer syntax recompression(i.e use "...
 | 1.2.840.10008.1.2.4.90 	| JPEG 2000 Image Compression (Lossless Only)             	| jp2              	| 1.2.840.10008.1.2.4.80    |
 | 1.2.840.10008.1.2.4.91 	| JPEG 2000 Image Compression                             	| jp2              	| 1.2.840.10008.1.2.4.80    |
 | 1.2.840.10008.1.2.5    	| RLE Lossless                                            	| rle              	| 1.2.840.10008.1.2.4.80    |
+
+
+### To recompress thumb
+It tells thumbnail creation to use recompressed data or not.
+The list of types MUST be necessarily a subset of recompress list.
+
+Obs: --no-recompress-thumb forces to not use compression at all. Use it if you want to disable even the default behavior.
+
+By default the recompression occurs for incoming types: uncompressed, jp2. This will recompress the types mentioned and will generate the thumbnails with the result of data recompression.
+
+```
+mkdicomweb ./folderName
+```
+
+Force recompression thumb. This will recompress the types: uncompressed jp2 rle, thumbnails creation will use original data for all types except jp2 (which will use recompress data).
+```
+mkdicomweb  -r uncompressed jp2 rle --recompress-thumb jp2 ./folderName
+```
+
+Skipping not recompressed data. This will recompress the types: uncompressed jp2, thumbnails creation will use original data for all types (since recompress-thumb list does not intersect with recompress list).
+```
+mkdicomweb  -r uncompressed jp2 --recompress-thumb rle ./folderName
+```
+
+Force no recompression thumb. This will recompress the types: uncompressed jp2 rle, but for thumbnails creation will use original data.
+```
+mkdicomweb  -r uncompressed jp2 rle --no-recompress-thumb ./folderName
+```
+
+
 
 
 ## Development

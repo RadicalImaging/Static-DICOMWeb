@@ -1,0 +1,50 @@
+{
+  "name": "@ohif/static-cs-lite",
+  "version": "0.0.1",
+  "description": "Cornerstone core lite version that runs on server side",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "Cornerstone server side",
+    "DICOM"
+  ],
+  "author": "Rodolfo Ladeira <rodolfo2611@gmail.com>",
+  "contributors": [
+    "Rodolfo Costa <rodolfo.costa@radicalimaging.com>"
+  ],
+  "engines": {
+    "node": ">=14.18.1",
+    "npm": ">=6.14.15",
+    "yarn": ">=1.22.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OHIF/static-wado",
+    "directory": "packages/static-cs-lite"
+  },
+  "bugs": {
+    "url": "https://github.com/OHIF/static-wado/issues"
+  },
+  "homepage": "https://github.com/OHIF/static-wado#readme",
+  "license": "ISC",
+  "main": "lib/index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "test": "jest --config ./jest.config.js",
+    "build": "echo \"No build yet\" && exit 0",
+    "link:exec": "npm link",
+    "lint:fix": "npx eslint --fix"
+  },
+  "dependencies": {
+    "cornerstone-core": "^2.6.1",
+    "dcmjs": "^0.19.6",
+    "jsdom": "^19.0.0",
+    "jsdom-context-require": "^4.0.4"
+  }
+}

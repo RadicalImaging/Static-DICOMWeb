@@ -95,8 +95,19 @@ async function configureProgram(defaults) {
       choices: ["uncompressed", "jp2", "jpeglossless", "rle"],
     },
     {
+      key: "--recompress-thumb <listvalue...>",
+      description: "List of types to recompress thumb separated by comma",
+      defaultValue: ["uncompressed", "jp2"],
+      choices: ["uncompressed", "jp2", "jpeglossless", "rle"],
+    },
+    {
       key: "--no-recompress",
       description: "Force no recompression",
+      defaultValue: false,
+    },
+    {
+      key: "--no-recompress-thumb",
+      description: "Force no recompression thumbnail",
       defaultValue: false,
     },
     {
