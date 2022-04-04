@@ -1,6 +1,6 @@
 {
   "name": "@ohif/static-wado-scp",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "DimseScp server to connect to static-wado repo",
   "publishConfig": {
     "access": "public"
@@ -52,9 +52,9 @@
     "lint:fix": "npx eslint --fix"
   },
   "dependencies": {
-    "@ohif/static-wado-creator": "^0.6.3",
-    "@ohif/static-wado-plugins": "^0.6.1",
-    "@ohif/static-wado-util": "^0.6.1",
+    "@ohif/static-wado-creator": "^0.6.4",
+    "@ohif/static-wado-plugins": "^0.6.2",
+    "@ohif/static-wado-util": "^0.6.2",
     "config-point": "^0.4.3",
     "dcmjs": "^0.19.6",
     "dcmjs-dimse": "^0.0.15"

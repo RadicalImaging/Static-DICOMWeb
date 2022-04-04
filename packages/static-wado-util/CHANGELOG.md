@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.6.2](https://github.com/OHIF/static-wado/compare/@ohif/static-wado-util@0.6.1...@ohif/static-wado-util@0.6.2) (2022-04-04)
+
+**Note:** Version bump only for package @ohif/static-wado-util
+
+
+
+
+
 ## [0.6.1](https://github.com/OHIF/static-wado/compare/@ohif/static-wado-util@0.6.0...@ohif/static-wado-util@0.6.1) (2022-03-14)
 
 **Note:** Version bump only for package @ohif/static-wado-util
