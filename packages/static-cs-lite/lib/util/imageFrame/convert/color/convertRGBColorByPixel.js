@@ -1,5 +1,4 @@
 /* eslint-disable no-plusplus, no-param-reassign */
-const assertArrayDivisibility = require("../../../assertArrayDivisibility");
 
 /**
  * Convert pixel data with RGB (by pixel) Photometric Interpretation to RGBA
@@ -9,11 +8,7 @@ const assertArrayDivisibility = require("../../../assertArrayDivisibility");
  * @returns {void}
  */
 function converter(imageFrame, rgbaBuffer) {
-  if (!assertArrayDivisibility(imageFrame, 3, ["decodeRGB: rgbBuffer must not be undefined", "decodeRGB: rgbBuffer length must be divisble by 3"])) {
-    return;
-  }
-
-  const numPixels = imageFrame.length / 3;
+  const numPixels = Math.floor(imageFrame.length / 3);
 
   let rgbIndex = 0;
 
