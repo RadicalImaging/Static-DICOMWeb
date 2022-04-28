@@ -5,6 +5,8 @@ const staticCS = require("@ohif/static-cs-lite");
 const fs = require("fs");
 const decodeImage = require("./adapter/decodeImage");
 const { shouldThumbUseTranscoded } = require("./adapter/transcodeImage");
+const { isVideo } = require("../writer/VideoWriter");
+const Tags = require("../dictionary/Tags");
 
 /**
  * Return the middle index of given list
@@ -17,9 +19,13 @@ function getThumbIndex(listThumbs) {
 function internalGenerateThumbnail(originalImageFrame, dataset, metadata, transferSyntaxUid, doneCallback) {
   decodeImage(originalImageFrame, dataset, transferSyntaxUid)
     .then((decodeResult = {}) => {
-      const { imageFrame, imageInfo } = decodeResult;
-      const pixelData = dicomCodec.getPixelData(imageFrame, imageInfo, transferSyntaxUid);
-      staticCS.getRenderedBuffer(transferSyntaxUid, pixelData, metadata, doneCallback);
+      if (isVideo(transferSyntaxUid)) {
+        console.log("Video data - no thumbnail generator yet");
+      } else {
+        const { imageFrame, imageInfo } = decodeResult;
+        const pixelData = dicomCodec.getPixelData(imageFrame, imageInfo, transferSyntaxUid);
+        staticCS.getRenderedBuffer(transferSyntaxUid, pixelData, metadata, doneCallback);
+      }
     })
     .catch((error) => {
       console.log(`Error while generating thumbnail:: ${error}`);
@@ -59,7 +65,7 @@ class ThumbnailService {
   constructor() {
     this.framesThumbnailObj = [];
     this.favoriteThumbnailObj = {};
-    this.thumbFileName = "thumbnail.jpeg";
+    this.thumbFileName = "thumbnail";
   }
 
   /**
@@ -99,6 +105,22 @@ class ThumbnailService {
   generateThumbnails(dataSet, metadata, callback) {
     const { imageFrame, id } = this.favoriteThumbnailObj;
 
+    // There are various reasons no thumbnails might be generated, so just return
+    if( !id ) {
+      const pixelData = metadata[Tags.PixelData];
+      if( pixelData ) {
+        const { BulkDataURI } = pixelData;
+        if( BulkDataURI?.indexOf("mp4") ) {
+          console.log("MP4 - converting video format");
+          
+        } else {
+          console.log('pixelData = ', pixelData, Tags.PixelData);
+        }
+      } else {
+        console.log('Series is of other type...', metadata[Tags.Modality]);
+      }
+      return;
+    }
     internalGenerateThumbnail(imageFrame, dataSet, metadata, id.transferSyntaxUid, async (thumbBuffer) => {
       if (thumbBuffer) {
         await callback.thumbWriter(id.sopInstanceRootPath, this.thumbFileName, thumbBuffer);

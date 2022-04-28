@@ -9,6 +9,14 @@ function configureBaseProgram(configuration) {
   return program;
 }
 
+function configureCommands(config, defaultOpts) {
+  console.log("Configure commands for", config);
+  const { programs } = config;
+  for(const command of programs) {
+    console.log('Configuring command', command);
+  }
+}
+
 /**
  * Configure static-wado commander program. Ideally it should be called just once.
  * Used by static-wado packages command commands.
@@ -60,4 +68,5 @@ function configureProgram(configuration) {
 
 exports.configureProgram = configureProgram;
 exports.program = program;
+exports.configureCommands = configureCommands;
 exports.loadConfiguration = loadConfiguration;

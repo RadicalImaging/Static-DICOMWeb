@@ -29,7 +29,7 @@ const HashDataWriter =
     });
     await writeStream.write(rawData);
     await writeStream.close();
-    return `${dirName}/${fileName}${gzip && ".gz"}`;
+    return `${dirName}/${fileName}`;
   };
 
 /**
@@ -38,7 +38,7 @@ const HashDataWriter =
 HashDataWriter.createHashPath = (data, options = {}) => {
   const { mimeType } = options;
   const isRaw = ArrayBuffer.isView(data);
-  const extension = (isRaw && ((mimeType && extensions[mimeType]) || ".raw")) || ".json";
+  const extension = isRaw ? (mimeType && extensions[mimeType]) || "" : ".json";
   const existingHash = data[Tags.DeduppedHash];
   const hashValue = (existingHash && existingHash.Value[0]) || hasher.hash(data);
   return {

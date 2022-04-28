@@ -1,0 +1,73 @@
+{
+  "name": "@ohif/static-wado-s3",
+  "type": "module",
+  "version": "0.6.3",
+  "description": "S3 deploy plugin",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "StaticWado",
+    "DICOM",
+    "DICOMweb"
+  ],
+  "author": [
+    "Bill Wallace <bill.wallace@radicalimaging.com>"
+  ],
+  "engines": {
+    "node": ">=14.18.1",
+    "npm": ">=6.14.15",
+    "yarn": ">=1.22.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OHIF/static-wado",
+    "directory": "packages/static-wado-s3"
+  },
+  "bugs": {
+    "url": "https://github.com/OHIF/static-wado/issues"
+  },
+  "homepage": "https://github.com/OHIF/static-wado#readme",
+  "license": "ISC",
+  "main": "lib/index.js",
+  "directories": {
+    "bin": "bin",
+    "lib": "lib"
+  },
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "bin": {
+    "mkdicomwebdeploy": "bin/mkdicomwebdeploy.mjs"
+  },
+  "scripts": {
+    "test": "jest --config ./jest.config.js",
+    "build": "tsc",
+    "deploy": "yarn build && cdk deploy",
+    "watch": "tsc -w",
+    "cdk": "cdk",
+    "link:exec": "npm link",
+    "lint": "npx eslint",
+    "lint:fix": "npx eslint --fix"
+  },
+  "jest": {
+    "verbose": true
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.54.0",
+    "@ohif/static-wado-plugins": "^0.6.1",
+    "@ohif/static-wado-util": "^0.6.1",
+    "aws-cdk-lib": "^2.17.0",
+    "config-point": "^0.4.3",
+    "constructs": "^10.0.94",
+    "json5-writer": "noahsug/json5-writer",
+    "mime-types": "^2.1.35"
+  },
+  "devDependencies": {
+    "@types/node": "^17.0.23",
+    "aws-cdk": "^2.17.0",
+    "must": "^0.13.4",
+    "typescript": "^4.6.2"
+  }
+}

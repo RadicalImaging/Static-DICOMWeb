@@ -1,0 +1,5 @@
+cdk.json
+cdk.out/
+lib/static-site.js
+index.js
+

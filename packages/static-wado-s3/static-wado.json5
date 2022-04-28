@@ -1,0 +1,17 @@
+{
+    staticWadoConfig: {
+      clientDir: "~/ohif",
+      rootGroup: {
+        Bucket: 'root-7175656',
+      },
+
+      clientGroup: {
+        Bucket: 'ohif-43940199',
+      },
+      s3Env: {
+        // account: '447282567673',
+        account: '744036437957',
+        region: 'us-east-2',
+      },
+    },
+}

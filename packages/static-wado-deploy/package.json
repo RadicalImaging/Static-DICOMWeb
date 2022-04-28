@@ -1,16 +1,16 @@
 {
-  "name": "@ohif/static-wado-util",
-  "version": "0.6.2",
-  "description": "Utils for other packages.",
+  "name": "@ohif/static-wado-deploy",
+  "version": "0.6.3",
+  "description": "Library to deploy static wado created files to s3",
   "publishConfig": {
     "access": "public"
   },
   "keywords": [
-    "commander",
-    "StaticWado"
+    "StaticWado",
+    "DICOM",
+    "DICOMweb"
   ],
-  "author": "Rodolfo Ladeira <rodolfo2611@gmail.com>",
-  "contributors": [
+  "author": [
     "Bill Wallace <bill.wallace@radicalimaging.com>"
   ],
   "engines": {
@@ -21,7 +21,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/OHIF/static-wado",
-    "directory": "packages/static-wado-util"
+    "directory": "packages/static-wado-deploy"
   },
   "bugs": {
     "url": "https://github.com/OHIF/static-wado/issues"
@@ -30,15 +30,15 @@
   "license": "ISC",
   "main": "lib/index.js",
   "directories": {
-    "lib": "lib"
+    "lib": "lib",
+    "bin": "bin"
   },
   "files": [
+    "bin",
     "lib"
   ],
-  "dependencies": {
-    "commander": "^9.0.0",
-    "config-point": "^0.4.3",
-    "json5-writer": "noahsug/json5-writer"
+  "bin": {
+    "deploydicomweb": "bin/deployDicomWeb.mjs"
   },
   "scripts": {
     "test": "jest --config ./jest.config.js",
@@ -46,5 +46,16 @@
     "link:exec": "npm link",
     "lint": "npx eslint",
     "lint:fix": "npx eslint --fix"
+  },
+  "jest": {
+    "verbose": true
+  },
+  "dependencies": {
+    "@ohif/static-wado-util": "^0.6.1",
+    "@ohif/static-wado-s3": "^0.6.1",
+    "config-point": "^0.4.4"
+  },
+  "devDependencies": {
+    "must": "^0.13.4"
   }
 }
