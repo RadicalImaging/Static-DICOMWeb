@@ -21,7 +21,7 @@ export const otherJsonMap = (req, res, next) => {
  */
 export const thumbnailMap = (req, res, next) => {
   res.setHeader("content-type", "image/jpeg");
-  req.url = `${req.path}.jpeg`;
+  req.url = `${req.path}`;
   next();
 };
 

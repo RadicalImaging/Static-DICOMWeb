@@ -7,6 +7,7 @@ const decodeImage = require("./adapter/decodeImage");
 const { shouldThumbUseTranscoded } = require("./adapter/transcodeImage");
 const { isVideo } = require("../writer/VideoWriter");
 const Tags = require("../dictionary/Tags");
+const { exec } = require("child_process");
 
 /**
  * Return the middle index of given list
@@ -95,6 +96,20 @@ class ThumbnailService {
     this.favoriteThumbnailObj = this.framesThumbnailObj[favIndex];
   }
 
+  ffmpeg(input, output) {
+
+    exec(`ffmpeg -i "${input}" -vf  "thumbnail,scale=640:360" -frames:v 1 -f singlejpeg "${output}"`, (error, stdout, stderr) => {
+      if (error) {
+        console.log(`error: ${error.message}`);
+        return;
+      }
+      if (stderr) {
+        console.log(`stderr: ${stderr}`);
+        return;
+      }
+      console.log(`stdout: ${stdout}`);
+    });
+  }
   /**
    * Generates thumbnails for the levels: instances, series, study
    *
@@ -102,17 +117,19 @@ class ThumbnailService {
    * @param {*} metadata
    * @param {*} callback
    */
-  generateThumbnails(dataSet, metadata, callback) {
+  generateThumbnails(itemId, dataSet, metadata, callback) {
     const { imageFrame, id } = this.favoriteThumbnailObj;
 
     // There are various reasons no thumbnails might be generated, so just return
-    if( !id ) {
+    if (!id) {
       const pixelData = metadata[Tags.PixelData];
-      if( pixelData ) {
+      if (pixelData) {
         const { BulkDataURI } = pixelData;
-        if( BulkDataURI?.indexOf("mp4") ) {
-          console.log("MP4 - converting video format");
-          
+        if (BulkDataURI?.indexOf("mp4")) {
+          const mp4Path = path.join(itemId.sopInstanceRootPath, "pixeldata.mp4");
+          const thumbPath = path.join(itemId.sopInstanceRootPath, "thumbnail");
+          console.log("MP4 - converting video format", mp4Path);
+          this.ffmpeg(mp4Path, thumbPath);
         } else {
           console.log('pixelData = ', pixelData, Tags.PixelData);
         }

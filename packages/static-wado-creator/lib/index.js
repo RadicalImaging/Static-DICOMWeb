@@ -150,7 +150,7 @@ class StaticWado {
     const result = await getDataSet(dataSet, generator, this.options);
 
     const transcodedMeta = transcodeMetadata(result.metadata, id, this.options);
-    thumbnailService.generateThumbnails(dataSet, transcodedMeta, this.callback);
+    thumbnailService.generateThumbnails(id, dataSet, transcodedMeta, this.callback);
 
     await this.callback.metadata(targetId, transcodedMeta);
 
