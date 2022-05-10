@@ -7,19 +7,29 @@ import { dicomWebServerConfig, importPlugin } from "../../lib/index.mjs";
 import "regenerator-runtime";
 
 describe("@ohif/static-wado-webserver", () => {
-  beforeAll(() => importPlugin("readSeriesIndex"));
+  beforeAll(() => {
+    importPlugin("readSeriesIndex");
+    importPlugin("aiIntegrationGetContours");
+  });
 
   const params = { rootDir: ".." };
 
   it("has default values", () => {
     must(ConfigPoint.getConfig(dicomWebServerConfig)).not.be.undefined();
     must(ConfigPoint.getConfig("readSeriesIndex")).not.be.undefined();
+    must(ConfigPoint.getConfig("aiIntegrationGetContours")).not.be.undefined();
   });
 
   it("loaded readSeriesIndex", async () => {
     const { generator } = await importPlugin("readSeriesIndex");
     const readSeriesIndex = generator(params);
     must(readSeriesIndex).be.function();
+  });
+
+  it("loaded aiIntegration", async () => {
+    const { generator } = await importPlugin("aiIntegrationGetContours");
+    const aiIntegration = generator(params);
+    must(aiIntegration).be.function();
   });
 
   it("loaded studiesQueryByIndex", async () => {

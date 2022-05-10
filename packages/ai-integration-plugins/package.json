@@ -1,0 +1,55 @@
+{
+  "name": "@ohif/ai-integration-plugins",
+  "version": "0.6.3",
+  "description": "Plugins to support the static-wado project",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "StaticWado",
+    "StaticWadoPlugins"
+  ],
+  "author": [
+    "David Smith <david.smith@radicalimaging.com>"
+  ],
+  "engines": {
+    "node": ">=14.18.1",
+    "npm": ">=6.14.15",
+    "yarn": ">=1.22.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OHIF/static-wado",
+    "directory": "packages/ai-integration-plugins"
+  },
+  "bugs": {
+    "url": "https://github.com/OHIF/static-wado/issues"
+  },
+  "homepage": "https://github.com/OHIF/static-wado#readme",
+  "license": "ISC",
+  "main": "lib/index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "test": "jest --config ./jest.config.js",
+    "build": "tsc",
+    "link:exec": "npm link",
+    "lint": "npx eslint",
+    "lint:fix": "npx eslint --fix"
+  },
+  "jest": {
+    "verbose": true
+  },
+  "dependencies": {
+    "@ohif/static-wado-util": "^0.6.2",
+    "config-point": "^0.4.3",
+    "nanoid": "^3.3.4"
+  },
+  "devDependencies": {
+    "must": "^0.13.4"
+  }
+}

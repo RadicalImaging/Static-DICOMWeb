@@ -1,5 +1,6 @@
 import express from "express";
 import dicomWebServerConfig from "./dicomWebServerConfig.mjs";
+import "@ohif/ai-integration-plugins";
 import "@ohif/static-wado-plugins";
 import "regenerator-runtime";
 

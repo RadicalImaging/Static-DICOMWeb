@@ -1,0 +1,50 @@
+{
+  "annotations": [
+    {
+      "algorithm": {
+        "algorithmName": "string",
+      },
+      "isClosed": true,
+      "location": [
+        {
+          "frame": 0,
+          "seriesInstanceUID": "string",
+          "sopInstanceUID": "string",
+          "studyInstanceUID": "string"
+        },
+      ],
+      "points": [
+        {
+          "x": 20,
+          "y": 20,
+        },
+        {
+          "x": 20,
+          "y": -20,
+        },
+        {
+          "x": -20,
+          "y": -20,
+        },
+        {
+          "x": -20,
+          "y": 20,
+        }
+      ],
+      "selectionCodes": [
+        "string"
+      ],
+      "type": "contours"
+    }
+  ],
+  "job": {
+    "jobProgress": 0,
+    "jobStatus": "STARTED",
+    "requestDateTime": "string"
+  },
+  "selection": [
+    {
+      "studyInstanceUID": "string"
+    }
+  ],
+}

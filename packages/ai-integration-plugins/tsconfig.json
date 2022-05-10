@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "es2016",
+    "module": "commonjs",
+    "strict": true,
+    "esModuleInterop": true,
+    "inlineSourceMap": true
+  },
+  "include": [
+    "./lib/*.ts",
+    "./lib/**/*.ts",
+    "./*.ts"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "annotations": [
+    {
+      "algorithm": {
+        "algorithmName": "string",
+        "algorithmVersion": "string",
+        "params": "string"
+      },
+      "location": [
+        {
+          "frame": 0,
+          "seriesInstanceUID": "string",
+          "sopInstanceUID": "string",
+          "studyInstanceUID": "string"
+        },
+      ],
+      "selectionCodes": [
+        "string"
+      ],
+      "type": "prediction"
+    }
+  ],
+  "job": {
+    "jobProgress": 0,
+    "jobStatus": "STARTED",
+    "requestDateTime": "string"
+  },
+  "selection": [
+    {
+      "studyInstanceUID": "string"
+    }
+  ],
+}

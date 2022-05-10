@@ -1,4 +1,5 @@
 import ConfigPoint from "config-point";
+import "@ohif/ai-integration-plugins";
 import "@ohif/static-wado-plugins";
 import { staticWadoConfig } from "@ohif/static-wado-util";
 
@@ -12,6 +13,10 @@ const { dicomWebServerConfig } = ConfigPoint.register({
     stowCommands: ["mkdicomweb"],
     helpDescription: "Serve up the static wado files and optionally a web client as a web server on the local machine.",
     clientDir: "~/ohif",
+    aiIntegrationGetContours: "aiIntegrationGetContours",
+    aiIntegrationPostContours: "aiIntegrationPostContours",
+    aiIntegrationGetPrediction: "aiIntegrationGetPrediction",
+    aiIntegrationRunPrediction: "aiIntegrationRunPrediction",
     port: 5000,
     corsOptions: {
       enabled: true,
