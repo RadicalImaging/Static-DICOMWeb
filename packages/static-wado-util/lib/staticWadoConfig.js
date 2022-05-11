@@ -9,7 +9,7 @@ const { staticWadoConfig } = ConfigPoint.register({
       configurationFile: ["./static-wado.json5", "~/static-wado.json5"],
       recompress: [""],
       recompressThumb: [""],
-        // True means compress to gzip for dicomweb and to brotli for OHIF client
+      // True means compress to gzip for dicomweb and to brotli for OHIF client
       compress: true,
       studyQuery: "studiesQueryByIndex",
       staticWadoAe: "DICOMWEB",

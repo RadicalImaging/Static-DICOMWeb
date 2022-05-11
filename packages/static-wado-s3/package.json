@@ -1,7 +1,7 @@
 {
   "name": "@ohif/static-wado-s3",
-  "type": "module",
   "version": "0.6.3",
+  "type": "module",
   "description": "S3 deploy plugin",
   "publishConfig": {
     "access": "public"
@@ -42,9 +42,11 @@
     "mkdicomwebdeploy": "bin/mkdicomwebdeploy.mjs"
   },
   "scripts": {
-    "test": "jest --config ./jest.config.js",
-    "build": "tsc",
-    "deploy": "yarn build && cdk deploy",
+    "copyFiles": "cp -R lib build",
+    "test": "jest --config ./jest.config.cjs",
+    "build": "tsc && yarn copyFiles",
+    "deploy": "yarn build && yarn copyFiles && yarn deployOnly",
+    "deployOnly": "cdk deploy -a build/index.js",
     "watch": "tsc -w",
     "cdk": "cdk",
     "link:exec": "npm link",

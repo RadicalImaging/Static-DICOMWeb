@@ -12,8 +12,8 @@ function configureBaseProgram(configuration) {
 function configureCommands(config, defaultOpts) {
   console.log("Configure commands for", config);
   const { programs } = config;
-  for(const command of programs) {
-    console.log('Configuring command', command);
+  for (const command of programs) {
+    console.log("Configuring command", command);
   }
 }
 

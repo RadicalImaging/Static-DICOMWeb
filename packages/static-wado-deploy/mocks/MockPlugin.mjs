@@ -1,5 +1,5 @@
 import ConfigPoint from "config-point";
-import { deployS3Config } from "../lib/index.mjs";
+import { deployConfig } from "../lib/index.mjs";
 
 let deployers = {};
 
@@ -15,7 +15,7 @@ class TestDeployer {
 
 const { testDeploy, MockPlugin } = ConfigPoint.register({
   testDeploy: {
-    configBase: deployS3Config,
+    configBase: deployConfig,
     deployPlugin: "MockPlugin",
     clientDeployURL: "s3://bucketName",
     rootDeployURL: "s3://",

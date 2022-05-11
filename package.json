@@ -37,7 +37,7 @@
     "build": "lerna run build --stream",
     "build:ci": "yarn run build",
     "link:exec": "lerna run link:exec --stream",
-    "lint": "lerna run lint --parallel --stream -- --color \"./!(node_modules)/**/*.{js,mjs}\"",
+    "lint": "lerna run lint --parallel --stream -- --color \"./!(node_modules)/**/*.{js,mjs,ts}\"",
     "lint:ci": "yarn run lint",
     "lint:fix": "lerna run lint:fix --parallel --stream -- --color \"./!(node_modules)/**/*.{js,mjs}\"",
     "postinstall": "git config core.hooksPath '.husky' && echo 'git hooks configured'",

@@ -10,6 +10,7 @@ module.exports = {
   parserOptions: {
     ecmaVersion: 2021,
   },
+  ignorePatterns: [".eslintrc.js"],
   rules: {
     "no-param-reassign": "warn",
     "prettier/prettier": ["warn", {printWidth: 168}],

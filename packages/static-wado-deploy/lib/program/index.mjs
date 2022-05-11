@@ -1,15 +1,5 @@
-import staticWadoUtil, {staticWadoConfig, updateConfiguration} from "@ohif/static-wado-util";
-import {DeployGroup} from "../index.mjs";
-
-async function studiesMain() {
-  const rootDeployer = new DeployGroup(this.awsConfig,"root");
-  await rootDeployer.store("studies");
-}
-
-async function clientMain() {
-  const ohifDeployer = new DeployGroup(this.awsConfig, "client");
-  await ohifDeployer.store();
-}
+import staticWadoUtil from "@ohif/static-wado-util";
+import "../index.mjs";
 
 /**
  * Configure static-wado-creator commander program.
@@ -17,12 +7,8 @@ async function clientMain() {
  * @param {*} defaults Configuration caller level
  * @returns Program object
  */
-async function configureProgram(defaults = awsConfig) {
+async function configureProgram(defaults = {}) {
   const configurationFile = await staticWadoUtil.loadConfiguration(defaults, process.argv);
-
-  const { argumentsRequired = [], optionsRequired = [], helpShort, helpDescription } = defaults;
-
-  const argumentsList = [];
 
   // program command options
   const optionsList = [

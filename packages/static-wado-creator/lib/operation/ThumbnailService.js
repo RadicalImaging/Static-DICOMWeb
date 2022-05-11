@@ -3,11 +3,11 @@ const glob = require("glob");
 const dicomCodec = require("@cornerstonejs/dicom-codec");
 const staticCS = require("@ohif/static-cs-lite");
 const fs = require("fs");
+const { exec } = require("child_process");
 const decodeImage = require("./adapter/decodeImage");
 const { shouldThumbUseTranscoded } = require("./adapter/transcodeImage");
 const { isVideo } = require("../writer/VideoWriter");
 const Tags = require("../dictionary/Tags");
-const { exec } = require("child_process");
 
 /**
  * Return the middle index of given list
@@ -97,7 +97,6 @@ class ThumbnailService {
   }
 
   ffmpeg(input, output) {
-
     exec(`ffmpeg -i "${input}" -vf  "thumbnail,scale=640:360" -frames:v 1 -f singlejpeg "${output}"`, (error, stdout, stderr) => {
       if (error) {
         console.log(`error: ${error.message}`);
@@ -110,6 +109,7 @@ class ThumbnailService {
       console.log(`stdout: ${stdout}`);
     });
   }
+
   /**
    * Generates thumbnails for the levels: instances, series, study
    *
@@ -131,10 +131,10 @@ class ThumbnailService {
           console.log("MP4 - converting video format", mp4Path);
           this.ffmpeg(mp4Path, thumbPath);
         } else {
-          console.log('pixelData = ', pixelData, Tags.PixelData);
+          console.log("pixelData = ", pixelData, Tags.PixelData);
         }
       } else {
-        console.log('Series is of other type...', metadata[Tags.Modality]);
+        console.log("Series is of other type...", metadata[Tags.Modality]);
       }
       return;
     }

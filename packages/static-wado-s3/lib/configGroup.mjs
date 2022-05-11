@@ -1,3 +1,3 @@
-export default () => {
-  console.log('Unimplemented')
+export default (props,id) => {
+  console.log('Unimplemented', props, id);
 }
