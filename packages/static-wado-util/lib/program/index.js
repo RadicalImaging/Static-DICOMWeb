@@ -9,7 +9,7 @@ function configureBaseProgram(configuration) {
   return program;
 }
 
-function configureCommands(config, defaultOpts) {
+function configureCommands(config) {
   console.log("Configure commands for", config);
   const { programs } = config;
   for (const command of programs) {
