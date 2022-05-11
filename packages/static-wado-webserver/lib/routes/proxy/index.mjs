@@ -12,6 +12,7 @@ export default async function setProxy(routerExpress, params) {
   // TODO - make these load from plugins - as such, they need standard parameters.
   // setQueryProxy does load from a plugin, but it should be fully defined there, including the
   // registration parameters.
+
   await setQueryProxy(routerExpress, "/studies", params, "studyQuery");
   setRejectProxy(routerExpress, params);
 }

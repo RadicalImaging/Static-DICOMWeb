@@ -1,7 +1,7 @@
 import fs from "fs";
 import { configGroup, handleHomeRelative } from "@ohif/static-wado-util";
 import path from "path";
-import S3Ops from "@ohif/static-wado-s3/lib/s3Ops.mjs";
+import importer from "./importer.mjs";
 
 /**
  * Deployment class.
@@ -20,11 +20,9 @@ class DeployGroup {
     this.baseDir = handleHomeRelative(this.group.dir);
   }
 
-  get ops() {
-    if (!this._ops) {
-      this._ops = new S3Ops(this.config, this.groupName);
-    }
-    return this._ops;
+  // Loads the ops
+  async loadOps() {
+    this.ops = new (await importer(this.config.opsPlugin || "@ohif/static-wado-s3"))(this.config, this.groupName);
   }
 
   /**

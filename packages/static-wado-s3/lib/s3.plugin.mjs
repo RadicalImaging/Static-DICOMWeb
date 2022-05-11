@@ -5,5 +5,4 @@ const s3Plugin = ConfigPoint.createConfiguration("s3Plugin", {
   createPlugin: s3Ops,
 });
 
-
 export default s3Plugin;

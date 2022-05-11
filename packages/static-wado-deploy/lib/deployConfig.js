@@ -1,5 +1,5 @@
-const ConfigPoint = require("config-point");
-const { staticWadoConfig } = require("@ohif/static-wado-util");
+import ConfigPoint from "config-point";
+import { staticWadoConfig } from "@ohif/static-wado-util";
 
 /**
  * Defines the basic configuration values for deploying to the cloud.
@@ -36,4 +36,4 @@ const { deployConfig } = ConfigPoint.register({
   },
 });
 
-module.exports = deployConfig;
+export default deployConfig;
