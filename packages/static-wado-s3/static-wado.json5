@@ -9,8 +9,8 @@
         Bucket: 'ohif-43940199',
       },
       s3Env: {
-        // account: '447282567673',
-        account: '744036437957',
+        account: '447282567673',
+        // account: '744036437957',
         region: 'us-east-2',
       },
     },
