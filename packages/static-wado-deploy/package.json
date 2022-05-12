@@ -52,7 +52,7 @@
     "verbose": true
   },
   "dependencies": {
-    "@ohif/static-wado-s3": "^0.6.1",
+    "@radical/s3-deploy": "^0.6.1",
     "@ohif/static-wado-util": "^0.6.1",
     "config-point": "^0.4.4"
   },

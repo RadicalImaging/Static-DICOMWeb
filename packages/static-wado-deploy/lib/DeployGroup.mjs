@@ -22,7 +22,10 @@ class DeployGroup {
 
   // Loads the ops
   async loadOps() {
-    this.ops = new (await importer(this.config.opsPlugin || "@ohif/static-wado-s3"))(this.config, this.groupName);
+    const imported = await importer(this.config.deployPlugin || "s3Plugin");
+    const { createPlugin } = imported.default || imported; 
+    console.log("imported=", imported, createPlugin);
+    this.ops = new createPlugin(this.config, this.groupName);
   }
 
   /**
@@ -41,10 +44,13 @@ class DeployGroup {
     if (lstat.isDirectory()) {
       console.log("Reading directory", fileName);
       const names = await fs.promises.readdir(fileName);
-      await Promise.all(names.map((childName) => this.store(relativeName, childName)));
-      return;
+      for(const childName of names) {
+        await this.store(relativeName, childName);  
+      }
+      // await Promise.all(names.map((childName) => this.store(relativeName, childName)));
+    } else {
+      await this.ops.upload(this.baseDir, relativeName, null, lstat.size);
     }
-    await this.ops.upload(this.baseDir, relativeName, null, lstat.size);
   }
 }
 
