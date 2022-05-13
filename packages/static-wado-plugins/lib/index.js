@@ -17,7 +17,7 @@ const { plugins } = ConfigPoint.register({
 
 const importer = (name) => import(name);
 
-console.log('s3Plugin=', plugins.s3Plugin);
+console.log("s3Plugin=", plugins.s3Plugin);
 
 exports.importPlugin = (name) => importPlugin(name, importer);
 exports.plugins = plugins;

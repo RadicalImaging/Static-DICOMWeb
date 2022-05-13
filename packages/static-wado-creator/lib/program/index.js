@@ -1,7 +1,4 @@
 const staticWadoUtil = require("@ohif/static-wado-util");
-const StaticWado = require("../index");
-const packageJson = require("../../package.json");
-const adaptProgramOpts = require("../util/adaptProgramOpts");
 
 /**
  * Configure static-wado-creator commander program.

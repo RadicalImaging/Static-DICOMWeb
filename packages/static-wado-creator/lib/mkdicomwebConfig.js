@@ -1,7 +1,7 @@
 const ConfigPoint = require("config-point");
 const { staticWadoConfig } = require("@ohif/static-wado-util");
 const createMain = require("./createMain");
-const deleteMain = require("./deleteMain")
+const deleteMain = require("./deleteMain");
 const rejectMain = require("./rejectMain");
 
 /**
@@ -96,14 +96,12 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       {
         command: "delete",
         main: deleteMain,
-        helpDescription:
-          "Delete the given study, series or instance.",
+        helpDescription: "Delete the given study, series or instance.",
       },
       {
         command: "reject",
         main: rejectMain,
-        helpDescription:
-          "Reject the specified series, specified as studies/<studyUID>/series/<seriesUID>",
+        helpDescription: "Reject the specified series, specified as studies/<studyUID>/series/<seriesUID>",
       },
     ],
   },

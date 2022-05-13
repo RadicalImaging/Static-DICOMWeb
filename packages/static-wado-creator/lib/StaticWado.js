@@ -57,11 +57,11 @@ class StaticWado {
   /**
    * Rejects the given item, specified as studies/<studyUID>/series/<seriesUID>
    * Does NOT remove any files, but adds a flag to the study indicating the deleted series and instances.
-   * 
-   * @param {string} args listing the instances to remove (may remove entire series) 
+   *
+   * @param {string} args listing the instances to remove (may remove entire series)
    */
   async reject(args) {
-    args.forEach(removal => {
+    args.forEach((removal) => {
       this.callback.reject(removal);
     });
   }
@@ -69,11 +69,11 @@ class StaticWado {
   /**
    * Deletes a study, as specified by the study instance UID by removing instance, deduplicated and studies files,
    * as well as removing the object from the studies list.
-   *  
-   * @param {string[]} args listing the studies to remove 
+   *
+   * @param {string[]} args listing the studies to remove
    */
   async delete(args) {
-    args.forEach(studyUID => this.callback.delete(studyUID));
+    args.forEach((studyUID) => this.callback.delete(studyUID));
   }
 
   /**

@@ -3086,6 +3086,26 @@
   dependencies:
     "@octokit/openapi-types" "^11.2.0"
 
+"@ohif/static-wado-plugins@^0.6.3":
+  version "0.6.3"
+  resolved "https://registry.yarnpkg.com/@ohif/static-wado-plugins/-/static-wado-plugins-0.6.3.tgz#93eb48f69e2c3e0f4f156812f5500b019f0c6227"
+  integrity sha512-aeHQQkLl25ryE4w3Dvn8kF7zraqWjxPMj9g0o7iWorbIBpQ5f5K1cfFAcJop5IUCexPRwrb5yN/GbStr/+iCUQ==
+  dependencies:
+    "@ohif/static-wado-util" "^0.6.3"
+    config-point "^0.4.3"
+    dcmjs-dimse "^0.0.15"
+
+"@ohif/static-wado-util@^0.6.3":
+  version "0.6.3"
+  resolved "https://registry.yarnpkg.com/@ohif/static-wado-util/-/static-wado-util-0.6.3.tgz#678fa9c7e88d10b33d74d66d042a47e1b1585291"
+  integrity sha512-DomPbWrYN1HJOltd7yKxY7mFYqeWA56bGelVde5ywacR+BBy9FJAh4CRN16hVFmG54+RavKVRreJSQsa/LU8Qg==
+  dependencies:
+    commander "^9.0.0"
+    config-point "^0.4.3"
+    json5 "^2.2.1"
+    json5-writer noahsug/json5-writer
+    must "^0.13.4"
+
 "@sinclair/typebox@^0.23.3":
   version "0.23.5"
   resolved "https://registry.yarnpkg.com/@sinclair/typebox/-/typebox-0.23.5.tgz#93f7b9f4e3285a7a9ade7557d9a8d36809cbc47d"
@@ -7200,7 +7220,7 @@ json-stable-stringify-without-jsonify@^1.0.1:
   resolved "https://registry.yarnpkg.com/json-stringify-safe/-/json-stringify-safe-5.0.1.tgz#1296a2d58fd45f19a0f6ce01d65701e2c735b6eb"
   integrity sha1-Epai1Y/UXxmg9s4B1lcB4sc1tus=
 
-json5-writer@noahsug/json5-writer:
+"json5-writer@github:noahsug/json5-writer", json5-writer@noahsug/json5-writer:
   version "0.1.7"
   resolved "https://codeload.github.com/noahsug/json5-writer/tar.gz/a17b759d64bd18ef0bfece8f8e11165774bf5ff8"
   dependencies:

@@ -1,8 +1,7 @@
-
 const assignDefined = (dest, src) => {
-  Object.keys(src).forEach(key => {
+  Object.keys(src).forEach((key) => {
     const val = src[key];
-    if( val!==undefined ) {
+    if (val !== undefined) {
       dest[key] = val;
     }
   });

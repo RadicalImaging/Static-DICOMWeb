@@ -23,9 +23,9 @@ class DeployGroup {
   // Loads the ops
   async loadOps() {
     const imported = await importer(this.config.deployPlugin || "s3Plugin");
-    const { createPlugin } = imported.default || imported; 
-    console.log("imported=", imported, createPlugin);
-    this.ops = new createPlugin(this.config, this.groupName);
+    const { createPlugin: CreatePlugin } = imported.default || imported;
+    // console.log("imported=", imported, CreatePlugin);
+    this.ops = new CreatePlugin(this.config, this.groupName);
   }
 
   /**
@@ -44,8 +44,8 @@ class DeployGroup {
     if (lstat.isDirectory()) {
       console.log("Reading directory", fileName);
       const names = await fs.promises.readdir(fileName);
-      for(const childName of names) {
-        await this.store(relativeName, childName);  
+      for (const childName of names) {
+        await this.store(relativeName, childName);
       }
       // await Promise.all(names.map((childName) => this.store(relativeName, childName)));
     } else {
