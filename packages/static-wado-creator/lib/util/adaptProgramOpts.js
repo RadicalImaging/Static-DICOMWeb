@@ -1,3 +1,14 @@
+
+const assignDefined = (dest, src) => {
+  Object.keys(src).forEach(key => {
+    const val = src[key];
+    if( val!==undefined ) {
+      dest[key] = val;
+    }
+  });
+  return dest;
+};
+
 module.exports = function adaptProgramOpts(programOpts, defaults) {
   const {
     maximumInlinePublicLength,
@@ -18,7 +29,7 @@ module.exports = function adaptProgramOpts(programOpts, defaults) {
     verbose,
   } = programOpts;
 
-  return Object.assign(Object.create(defaults), {
+  return assignDefined(Object.create(defaults), {
     maximumInlinePublicLength,
     maximumInlinePrivateLength,
     isGroup,
