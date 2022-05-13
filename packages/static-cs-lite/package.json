@@ -39,7 +39,8 @@
     "test": "jest --config ./jest.config.js",
     "build": "echo \"No build yet\" && exit 0",
     "link:exec": "npm link",
-    "lint:fix": "npx eslint --fix"
+    "lint": "npx eslint --color \"*(bin|lib)/**/*.{js,mjs}\"",
+    "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
   },
   "dependencies": {
     "cornerstone-core": "^2.6.1",

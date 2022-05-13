@@ -26,7 +26,7 @@ module.exports = (defaults, argvSrc) => {
   for (const configFile of configurationFiles) {
     const filename = handleHomeRelative(configFile);
     if (fs.existsSync(filename)) {
-      console.log("Using configuration", filename);
+      // console.log("Using configuration", filename);
       return loadFile(filename, fs.promises).then(() => filename);
     }
   }

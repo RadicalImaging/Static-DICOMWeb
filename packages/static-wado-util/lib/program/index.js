@@ -9,12 +9,17 @@ function configureBaseProgram(configuration) {
   return program;
 }
 
-function configureCommands(config, defaultOpts) {
-  console.log("Configure commands for", config);
-  const { programs } = config;
-  for(const command of programs) {
-    console.log('Configuring command', command);
+function configureCommands(config, configurationFile) {
+  //console.log("Configure commands for", config);
+  const { programs: programsDefinition } = config;
+
+  for (const item of programsDefinition) {
+    const { command, helpDescription, main, isDefault } = item;
+    console.log("Configuring command", command);
+    const cmdConfig = program.command(command, { isDefault }).description(helpDescription);
+    cmdConfig.action((...args) => main.call(config, ...args));
   }
+  program.parse();
 }
 
 /**

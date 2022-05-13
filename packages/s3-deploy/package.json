@@ -1,7 +1,7 @@
 {
-  "name": "@ohif/static-wado-s3",
-  "type": "module",
+  "name": "@radical/s3-deploy",
   "version": "0.6.3",
+  "type": "module",
   "description": "S3 deploy plugin",
   "publishConfig": {
     "access": "public"
@@ -21,13 +21,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/OHIF/static-wado",
-    "directory": "packages/static-wado-s3"
+    "url": "https://github.com/Radical/static-dicomweb",
+    "directory": "packages/s3-deploy"
   },
   "bugs": {
-    "url": "https://github.com/OHIF/static-wado/issues"
+    "url": "https://github.com/Radical/static-dicomweb/issues"
   },
-  "homepage": "https://github.com/OHIF/static-wado#readme",
+  "homepage": "https://github.com/Radical/static-dicomweb#readme",
   "license": "ISC",
   "main": "lib/index.js",
   "directories": {
@@ -42,14 +42,16 @@
     "mkdicomwebdeploy": "bin/mkdicomwebdeploy.mjs"
   },
   "scripts": {
-    "test": "jest --config ./jest.config.js",
-    "build": "tsc",
-    "deploy": "yarn build && cdk deploy",
+    "copyFiles": "cp -R lib build",
+    "test": "jest --config ./jest.config.cjs",
+    "build": "tsc && yarn copyFiles",
+    "deploy": "yarn build && yarn copyFiles && yarn deployOnly",
+    "deployOnly": "cdk deploy -a build/index.js",
     "watch": "tsc -w",
     "cdk": "cdk",
     "link:exec": "npm link",
-    "lint": "npx eslint",
-    "lint:fix": "npx eslint --fix"
+    "lint": "npx eslint --color \"*(bin|lib)/**/*.{js,mjs}\"",
+    "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
   },
   "jest": {
     "verbose": true

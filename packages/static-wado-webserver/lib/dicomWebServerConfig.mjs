@@ -21,6 +21,8 @@ const { dicomWebServerConfig } = ConfigPoint.register({
       // ... https://www.npmjs.com/package/cors#configuration-options
     },
     proxyAe: "CLEARCANVAS",
+
+    webserverPlugins: [],
   },
 });
 

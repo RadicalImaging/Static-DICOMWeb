@@ -1,20 +1,18 @@
-import must from "must";
-import { updateConfiguration, staticWadoConfig } from "../../lib/index";
-import fs from "fs";
-import json5 from "json5";
+const must = require("must");
+const fs = require("fs");
+const json5 = require("json5");
+const { updateConfiguration, staticWadoConfig } = require("../../lib/index");
 
 const readConfiguration = (filename) => {
   const contents = fs.readFileSync(filename);
   return json5.parse(contents);
-}
-
+};
 
 const configName = "./test-configuration.json5";
 
 describe("updateConfiguration", () => {
-  
   it("updates just the changed objects.", () => {
-    if( fs.existsSync(configName) ) fs.unlinkSync(configName);
+    if (fs.existsSync(configName)) fs.unlinkSync(configName);
     const updated = {
       ...staticWadoConfig,
       compress: false,
@@ -35,12 +33,12 @@ describe("updateConfiguration", () => {
       rootGroup: {
         Bucket: "bucket",
       },
-    }
+    };
     updateConfiguration(configName, updated2);
     const { staticWadoConfig: config2 } = readConfiguration(configName);
     must(config2.rootGroup.Bucket).eql("bucket");
     must(config2.compress).be.undefined();
     must(config2.verbose).eql(true);
     must(config2.rootDir).eql(updated2.rootDir);
-  })
-})
+  });
+});

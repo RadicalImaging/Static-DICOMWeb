@@ -5,8 +5,7 @@ import * as cloudfront_origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { CfnOutput, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import { handleHomeRelative } from '@ohif/static-wado-util';
-import configGroup from './configGroup.mjs';
+import { handleHomeRelative, configGroup } from '@ohif/static-wado-util';
 
 const cors = [
   {

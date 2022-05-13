@@ -11,6 +11,7 @@ exports.assertions = require("./assertions");
 exports.configDiff = require("./update/configDiff");
 exports.configGroup = require("./configGroup.js");
 exports.updateConfiguration = require("./update/updateConfiguration");
+
 exports.configureProgram = configureProgram;
 exports.configureCommands = configureCommands;
 exports.program = program;

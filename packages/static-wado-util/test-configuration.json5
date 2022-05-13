@@ -1,0 +1,11 @@
+{
+  "staticWadoConfig": {
+    "rootDir": 'update2',
+
+    'rootGroup': {
+      Bucket: 'bucket',
+    },
+
+    'verbose': true,
+  }
+}

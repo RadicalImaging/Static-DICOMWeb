@@ -48,9 +48,9 @@
     "test": "jest --config ./jest.config.js",
     "build": "echo \"No build yet\" && exit 0",
     "link:exec": "npm link",
-    "lint": "npx eslint",
-    "lint:fix": "npx eslint --fix"
-  },
+    "lint": "npx eslint --color \"*(bin|lib)/**/*.{js,mjs}\"",
+      "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
+    },
   "dependencies": {
     "@ohif/static-wado-creator": "^0.6.4",
     "@ohif/static-wado-plugins": "^0.6.2",

@@ -36,7 +36,9 @@ class DeployStaticWado {
   /**
    * Deploys the client to the web service.  Throws an exception if the client path isn't configured.
    */
-  deployClient() {}
+  deployClient() {
+    
+  }
 
   /**
    * Deploys the studies that have notifications in the DICOMWeb notifications directory.

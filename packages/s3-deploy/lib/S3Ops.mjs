@@ -1,94 +1,93 @@
-import {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand,
-} from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import fs from "fs";
 import mime from "mime-types";
-import { configGroup } from '@ohif/static-wado-util';
+import { configGroup } from "@ohif/static-wado-util";
 
-const compressedRe = /((\.br)|(\.gz))$/
-const indexRe = /\/index\.json$/
+const compressedRe = /((\.br)|(\.gz))$/;
+const indexRe = /\/index\.json$/;
 
-const octetStream = "application/octet-stream"
+const octetStream = "application/octet-stream";
 const multipartRelated = "multipart/related";
-const imagejpeg = "image/jpeg"
+const imagejpeg = "image/jpeg";
 
 class S3Ops {
-
-  constructor(config,name) {
-    this.group = configGroup(config,name);
+  constructor(config, name) {
+    this.group = configGroup(config, name);
     this.config = config;
   }
 
   get client() {
-    return this._client || (this._client = new S3Client(this.group));
+    if (!this._client) {
+      this._client = new S3Client(this.group);
+    }
+    return this._client;
   }
 
   /**
-   * Converts a file name into a path name for s3. 
-   * @param {string} file - assumes relative to the group directory name 
+   * Converts a file name into a path name for s3.
+   * @param {string} file - assumes relative to the group directory name
    * @returns path name in s3 as an absolute path
    */
   fileToKey(file) {
-    let fileName = file.replaceAll('\\', '/')
+    let fileName = file.replaceAll("\\", "/");
     if (compressedRe.test(fileName)) {
       fileName = fileName.substring(0, fileName.length - 3);
     }
-    if ( fileName[0] != '/') fileName = `/${fileName}`
-    if (this.group.path && this.group.path!='/') {
-      fileName = `${this.group.path}${fileName}`
+    if (fileName[0] != "/") fileName = `/${fileName}`;
+    if (this.group.path && this.group.path != "/") {
+      fileName = `${this.group.path}${fileName}`;
     }
     if (indexRe.test(fileName)) {
       const indexPos = fileName.lastIndexOf("/index");
       fileName = fileName.substring(0, indexPos);
     }
-    if( fileName[0]=='/' ) {
+    if (fileName[0] == "/") {
       fileName = fileName.substring(1);
     }
-    if( !fileName ) {
+    if (!fileName) {
       throw new Error("No filename defined for", file);
     }
-    return fileName
+    return fileName;
   }
 
   /**
    * Generates the content type for the file name
-   * @param {string} file 
+   * @param {string} file
    */
   fileToContentType(file) {
     const compressed = compressedRe.test(file);
     const src = (compressed && file.substring(0, file.length - 3)) || file;
     return (
       mime.lookup(src) ||
-      (src.indexOf("bulkdata")!==-1 && octetStream) ||
+      (src.indexOf("bulkdata") !== -1 && octetStream) ||
       (src.indexOf(".raw") !== -1 && octetStream) ||
       (src.indexOf("frames") !== -1 && multipartRelated) ||
-      (src.indexOf("thumbnail")!==-1 && imagejpeg) ||
+      (src.indexOf("thumbnail") !== -1 && imagejpeg) ||
       "application/json"
     );
   }
 
   fileToContentEncoding(file) {
-    if (file.indexOf(".br") !== -1) return "brotli"
+    if (file.indexOf(".br") !== -1) return "brotli";
     if (file.indexOf(".gz") !== -1) return "gzip";
     return undefined;
   }
 
   fileToMetadata(file, hash) {
-    if( hash ) return { hash };
+    if (hash) return { hash };
+    return undefined;
   }
 
   toFile(dir, file) {
     if (!dir) return file;
-    return `${dir}/${file}`
+    return `${dir}/${file}`;
   }
 
-  /** 
+  /**
    * Uploads file into the group s3 bucket.
    * Asynchronous
    */
-  upload(dir, file, hash, ContentSize) {
+  async upload(dir, file, hash, ContentSize) {
     const Key = this.fileToKey(file);
     const ContentType = this.fileToContentType(file);
     const Metadata = this.fileToMetadata(file, hash);
@@ -103,11 +102,17 @@ class S3Ops {
       Key,
       Metadata,
       ContentSize,
-    })
+    });
     console.log("uploading", file, ContentType, ContentEncoding, Key, ContentSize, Metadata, this.group.Bucket);
-    return this.client.send(command);
+    try {
+      const data = await this.client.send(command);
+      console.log("Success", file);
+    } catch (error) {
+      console.log("Error sending", file, error);
+    } finally {
+      await Body.close();
+    }
   }
-
-};
+}
 
 export default S3Ops;

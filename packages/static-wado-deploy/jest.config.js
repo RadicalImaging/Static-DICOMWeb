@@ -1,5 +1,9 @@
-const baseConfig = require("../../.config/jest/jest.config");
+import baseConfig from "../../.config/jest/jest.config.js";
 
-module.exports = {
-  ...baseConfig
-}
+export default {...baseConfig,
+  preset: 'ts-jest',
+  transform: {
+    '^.+\\.(ts|tsx)?$': 'ts-jest',
+    "^.+\\.(js|mjs)$": "babel-jest",
+  },
+};

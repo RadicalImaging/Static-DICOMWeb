@@ -1,10 +1,10 @@
-import must from "must";
-import { configDiff, staticWadoConfig } from "../../lib/index";
+const must = require("must");
+const { configDiff, staticWadoConfig } = require("../../lib/index");
 
 describe("configDiff", () => {
   it("returns same object if identical", () => {
     const updated = {
-      ...staticWadoConfig
+      ...staticWadoConfig,
     };
     const diff = configDiff(updated);
     must(diff).be.undefined();
@@ -21,5 +21,5 @@ describe("configDiff", () => {
     must(diff.verbose).eql(true);
     must(diff.compress).be.undefined();
     must(diff.configBase).be.undefined();
-  })
-})
+  });
+});

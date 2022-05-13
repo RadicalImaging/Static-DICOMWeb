@@ -19,7 +19,7 @@ const VIDEO_TYPES = {
   // TODO - add the new multi-segment MPEG2 and H264 variants
 };
 
-const isVideo = (value) => VIDEO_TYPES[(value && value.string) ? value.string(Tags.RawTransferSyntaxUID) : value];
+const isVideo = (value) => VIDEO_TYPES[value && value.string ? value.string(Tags.RawTransferSyntaxUID) : value];
 
 const VideoWriter = () =>
   async function run(id, dataSet) {
