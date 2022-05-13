@@ -75,7 +75,7 @@ class S3Ops {
 
   fileToMetadata(file, hash) {
     if (hash) return { hash };
-    return null;
+    return undefined;
   }
 
   toFile(dir, file) {
@@ -87,7 +87,7 @@ class S3Ops {
    * Uploads file into the group s3 bucket.
    * Asynchronous
    */
-  upload(dir, file, hash, ContentSize) {
+  async upload(dir, file, hash, ContentSize) {
     const Key = this.fileToKey(file);
     const ContentType = this.fileToContentType(file);
     const Metadata = this.fileToMetadata(file, hash);
@@ -104,7 +104,14 @@ class S3Ops {
       ContentSize,
     });
     console.log("uploading", file, ContentType, ContentEncoding, Key, ContentSize, Metadata, this.group.Bucket);
-    return this.client.send(command);
+    try {
+      await this.client.send(command);
+      console.log("Success", file);
+    } catch (error) {
+      console.log("Error sending", file, error);
+    } finally {
+      await Body.close();
+    }
   }
 }
 

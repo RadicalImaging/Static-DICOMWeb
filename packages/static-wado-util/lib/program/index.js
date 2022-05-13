@@ -9,12 +9,36 @@ function configureBaseProgram(configuration) {
   return program;
 }
 
-function configureCommands(config) {
-  console.log("Configure commands for", config);
-  const { programs } = config;
-  for (const command of programs) {
-    console.log("Configuring command", command);
+const addOptions = (cmd, options) => {
+  if (options) {
+    options.forEach((optionConfig) => {
+      const { key, description, defaultValue, choices, isRequired } = optionConfig;
+      const option = cmd.createOption(key, description);
+      option.default(defaultValue);
+      if (isRequired) {
+        option.makeOptionMandatory();
+      }
+      if (Array.isArray(choices)) {
+        option.choices(choices);
+      }
+
+      cmd.addOption(option);
+    });
   }
+};
+
+function configureCommands(config, configurationFile) {
+  // console.log("Configure commands for", config);
+  const { programs: programsDefinition, options } = config;
+
+  for (const item of programsDefinition) {
+    const { command, helpDescription, main, isDefault, options: subOptions } = item;
+    const cmdConfig = program.command(command, { isDefault }).description(helpDescription);
+    cmdConfig.action((...args) => main.call(config, ...args, configurationFile));
+    addOptions(cmdConfig, options);
+    addOptions(cmdConfig, subOptions);
+  }
+  program.parse();
 }
 
 /**

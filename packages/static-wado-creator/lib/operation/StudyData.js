@@ -23,6 +23,15 @@ const getSeriesInstanceUid = (seriesInstance) =>
  */
 class StudyData {
   constructor({ studyInstanceUid, studyPath, deduplicatedPath, deduplicatedInstancesPath }, { isGroup }) {
+    this.studyInstanceUid = studyInstanceUid;
+    this.studyPath = studyPath;
+    this.isGroup = isGroup;
+    this.deduplicatedPath = deduplicatedPath;
+    this.deduplicatedInstancesPath = deduplicatedInstancesPath;
+    this.clear();
+  }
+
+  clear() {
     this.deduplicated = [];
     this.extractData = {};
     // The list of already existing files read in to create this object
@@ -35,11 +44,6 @@ class StudyData {
 
     // Used to track if new instances have been added.
     this.newInstancesAdded = 0;
-    this.studyInstanceUid = studyInstanceUid;
-    this.studyPath = studyPath;
-    this.isGroup = isGroup;
-    this.deduplicatedPath = deduplicatedPath;
-    this.deduplicatedInstancesPath = deduplicatedInstancesPath;
   }
 
   /**
@@ -93,6 +97,30 @@ class StudyData {
     }
   }
 
+  async reject(seriesInstanceUid, sopInstanceUid, reason) {
+    console.log("Rejecting series instance UID", seriesInstanceUid, "because", reason);
+    // TODO - actually add a reject note...
+    this.newInstancesAdded += 1;
+    for (let i = 0; i < this.deduplicated.length; i++) {
+      const recombined = await this.recombine(i);
+      const reSeries = recombined[Tags.SeriesInstanceUID];
+      if (!reSeries || !reSeries.Value || reSeries.Value[0] !== seriesInstanceUid) continue;
+      const reSop = recombined[Tags.SOPInstanceUID];
+      if (!reSop || !reSop.Value) continue;
+      if (sopInstanceUid && reSop.Value[0] !== sopInstanceUid) continue;
+      console.log("Found an instance to delete", i, reSop);
+      console.log("Type", i, this.deduplicated[i][Tags.DeduppedType]);
+      this.deduplicated[i][Tags.DeduppedType].Value[0] = "deleted";
+    }
+  }
+
+  async delete() {
+    await fs.rmSync(this.studyPath, { recursive: true, force: true });
+    await fs.rmSync(this.deduplicatedInstancesPath, {recursive: true, force: true });
+    await fs.rmSync(this.deduplicatedPath, {recursive: true, force: true} );
+    this.clear();
+  }
+
   async getOrLoadExtract(hashKey) {
     let item = this.extractData[hashKey];
     if (!item) {
@@ -104,6 +132,14 @@ class StudyData {
       this.extractData[hashKey] = item;
     }
     return item;
+  }
+
+  assignUndefined(ret, item) {
+    if (!item) return;
+    Object.keys(item).forEach((key) => {
+      if (ret[key]) return;
+      ret[key] = item[key];
+    });
   }
 
   /**
@@ -122,7 +158,7 @@ class StudyData {
     const ret = { ...deduplicated };
     for (const hashKey of refs.Value) {
       const item = await this.getOrLoadExtract(hashKey);
-      Object.assign(ret, item);
+      this.assignUndefined(ret, item);
     }
     return ret;
   }
@@ -262,6 +298,11 @@ class StudyData {
 
     for (let i = 0; i < this.numberOfInstances; i++) {
       const seriesInstance = await this.recombine(i);
+      const type = seriesInstance[Tags.DeduppedType].Value[0];
+      if (type == "deleted") {
+        console.log("Skipping", type);
+        continue;
+      }
       const seriesInstanceUid = getSeriesInstanceUid(seriesInstance);
       if (!seriesInstanceUid) {
         console.log("Cant get seriesUid from", Tags.SeriesInstanceUID, seriesInstance);
@@ -306,6 +347,7 @@ class StudyData {
     }
 
     await JSONWriter(this.studyPath, "series", seriesList);
+    console.log("Wrote series with", seriesList.length);
 
     const studyQuery = TagLists.extract(anInstance, "study", TagLists.PatientStudyQuery);
     studyQuery[Tags.ModalitiesInStudy] = { Value: modalitiesInStudy, vr: "CS" };

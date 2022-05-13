@@ -11,11 +11,13 @@ const { plugins } = ConfigPoint.register({
     studiesQueryByIndex: "@ohif/static-wado-plugins/lib/studiesQueryByIndex.plugin.js",
     studiesQueryToScp: "@ohif/static-wado-plugins/lib/studiesQueryToScp.plugin.js",
     // The point of plugins is that they can be lazy loaded, so no need to load s3 if not being used.
-    s3Plugin: "@ohif/static-wado-s3/lib/s3.plugin.mjs",
+    s3Plugin: "@radical/s3-deploy/lib/s3.plugin.mjs",
   },
 });
 
 const importer = (name) => import(name);
+
+console.log("s3Plugin=", plugins.s3Plugin);
 
 exports.importPlugin = (name) => importPlugin(name, importer);
 exports.plugins = plugins;
