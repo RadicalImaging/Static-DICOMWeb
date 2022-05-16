@@ -3,6 +3,7 @@ import express from "express";
 import setServerRoutes from "./server/index.mjs";
 import setClientRoutes from "./client/index.mjs";
 import setProxy from "./proxy/index.mjs";
+import setPluginRoutes from "./plugins/index.mjs";
 
 /**
  * Set all app routes.
@@ -36,4 +37,6 @@ export default async function setRoutes(appExpress, params) {
   // set routes
   setClientRoutes(clientServer, params, clientDir);
   setServerRoutes(routerServer, params, serverDir);
+  // set additional plugin routes
+  await setPluginRoutes(clientServer, params, "webserverPlugins");
 }
