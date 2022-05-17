@@ -7,7 +7,8 @@ import importPlugin from '../../util/importPlugin.mjs';
  * @param {*} params
  * @param {*} pluginsKey name of plugins configuration section.
  */
-export default async function setPlugins(routerExpress, params, pluginsKey) {
+export default async function setPlugins(routerExpress, params, pluginsKey = "plugins") {
+  if( !params ) return;
   const plugins = params[pluginsKey];
   if (plugins) {
     for (let i = 0; i < plugins.length; i++) {
@@ -20,5 +21,7 @@ export default async function setPlugins(routerExpress, params, pluginsKey) {
       const { setRoute } = plugin.default || plugin;
       setRoute(routerExpress, pluginItem);
     }
+  } else {
+    console.log("No plugins defined");
   }
 }
