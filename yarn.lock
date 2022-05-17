@@ -7220,7 +7220,7 @@ json-stable-stringify-without-jsonify@^1.0.1:
   resolved "https://registry.yarnpkg.com/json-stringify-safe/-/json-stringify-safe-5.0.1.tgz#1296a2d58fd45f19a0f6ce01d65701e2c735b6eb"
   integrity sha1-Epai1Y/UXxmg9s4B1lcB4sc1tus=
 
-"json5-writer@github:noahsug/json5-writer", json5-writer@noahsug/json5-writer:
+json5-writer@noahsug/json5-writer:
   version "0.1.7"
   resolved "https://codeload.github.com/noahsug/json5-writer/tar.gz/a17b759d64bd18ef0bfece8f8e11165774bf5ff8"
   dependencies:
