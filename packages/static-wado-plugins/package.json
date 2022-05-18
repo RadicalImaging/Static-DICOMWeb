@@ -41,15 +41,16 @@
     "build": "echo \"No build yet\" && exit 0",
     "link:exec": "npm link",
     "lint": "npx eslint --color \"*(bin|lib)/**/*.{js,mjs}\"",
-      "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
-    },
+    "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
+  },
   "jest": {
     "verbose": true
   },
   "dependencies": {
     "@ohif/static-wado-util": "^0.6.2",
     "config-point": "^0.4.3",
-    "dcmjs-dimse": "^0.0.15"
+    "dcmjs-dimse": "^0.0.15",
+    "http-proxy-middleware": "^2.0.6"
   },
   "devDependencies": {
     "must": "^0.13.4"

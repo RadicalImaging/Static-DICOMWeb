@@ -1,4 +1,6 @@
 const ConfigPoint = require("config-point");
+const apiSimulator = require("./api-simulator");
+const webProxy = require("./web-proxy");
 
 const { importPlugin } = ConfigPoint;
 
@@ -17,7 +19,7 @@ const { plugins } = ConfigPoint.register({
 
 const importer = (name) => import(name);
 
-console.log("s3Plugin=", plugins.s3Plugin);
-
 exports.importPlugin = (name) => importPlugin(name, importer);
 exports.plugins = plugins;
+exports.apiSimulator = apiSimulator;
+exports.webProxy = webProxy;

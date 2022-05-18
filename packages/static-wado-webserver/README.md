@@ -103,7 +103,7 @@ There are several plugins currently defined:
 
 Additional external plugins can be defined to extend the base router by defining a `webserverPlugins` array in the configuration file - ex:
 ```
-    webserverPlugins: [
+    clientGroup { plugins: [
       {
         pluginModule: 'my-plugins',
         pluginName: 'aPlugin',
@@ -114,7 +114,7 @@ Additional external plugins can be defined to extend the base router by defining
         pluginName: 'bPlugin',
         pluginRoute: '/endpoint2',
       },
-    ]
+    ]}
 ```
 
 The plugin is imported dynamically using the pluginModule and pluginModuleName, and must define a setRoute method that registers the pluginRoute with the express router - ex:
