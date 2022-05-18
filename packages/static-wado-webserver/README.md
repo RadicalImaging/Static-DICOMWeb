@@ -8,7 +8,7 @@ View root pre-requisites section [pre-requisites](../../README.md#pre-requisites
 
 ## Development
 View root development section [development](../../README.md#development).  Additionally, this component
-is developped using ecmascript modules, so be aware that most of the code uses the .mjs module extension for javascript.
+is developed using ecmascript modules, so be aware that most of the code uses the .mjs module extension for javascript.
 
 ## Installation
 The component can be installed as a global module via:
@@ -100,6 +100,33 @@ There are several plugins currently defined:
   The following plugins are planned:
 * `retrieveCMove` will check if the study is locally available, and if not, will perform a c-move to the specified scp destination
 * `studyQueryDb` does a query for studies against a database. Also, it stores to the given destination.
+
+Additional external plugins can be defined to extend the base router by defining a `webserverPlugins` array in the configuration file - ex:
+```
+    clientGroup { plugins: [
+      {
+        pluginModule: 'my-plugins',
+        pluginName: 'aPlugin',
+        pluginRoute: '/endpoint1/:myParam',
+      },
+      {
+        pluginModule: 'my-plugins',
+        pluginName: 'bPlugin',
+        pluginRoute: '/endpoint2',
+      },
+    ]}
+```
+
+The plugin is imported dynamically using the pluginModule and pluginModuleName, and must define a setRoute method that registers the pluginRoute with the express router - ex:
+```js
+  aPlugin: {
+    setRoute: (routerExpress, pluginItem) => {
+      routerExpress.get(pluginItem.pluginRoute, async (req, res) => {
+          res.status(200).send(`Invoked with ${req.params.myParam}`);
+      });
+    },
+  },
+```
 
 ## Design
 The basic design of the dicomwebserver is just a configuration script that uses `expressjs` to configure the default handling of the responses, plus add the plugin handling for the responses on top of that. All of the interesting logic is actually within the various plugins, and those are intentionally kept fairly small. The intent of this is to allow the same plugins to eventually be re-used for serving data from other sources such as an AWS s3 bucket via cloudfront.

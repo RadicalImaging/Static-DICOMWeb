@@ -1,3 +1,4 @@
+import express from "express";
 import setCorsMiddlewares from "./cors.mjs";
 import setLogsMiddlewares from "./logs.mjs";
 
@@ -10,4 +11,5 @@ import setLogsMiddlewares from "./logs.mjs";
 export default function setMiddlewares(appExpress, config) {
   setLogsMiddlewares(appExpress, config);
   setCorsMiddlewares(appExpress, config);
+  appExpress.use(express.json());
 }
