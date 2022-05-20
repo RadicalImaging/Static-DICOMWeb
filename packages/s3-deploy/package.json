@@ -61,7 +61,7 @@
     "@ohif/static-wado-plugins": "^0.6.1",
     "@ohif/static-wado-util": "^0.6.1",
     "aws-cdk-lib": "^2.17.0",
-    "config-point": "^0.4.3",
+    "config-point": "^0.4.5",
     "constructs": "^10.0.94",
     "json5-writer": "noahsug/json5-writer",
     "mime-types": "^2.1.35"

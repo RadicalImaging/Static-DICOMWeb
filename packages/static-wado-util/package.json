@@ -37,7 +37,7 @@
   ],
   "dependencies": {
     "commander": "^9.0.0",
-    "config-point": "^0.4.3",
+    "config-point": "^0.4.5",
     "json5": "^2.2.1",
     "json5-writer": "noahsug/json5-writer",
     "must": "^0.13.4"
