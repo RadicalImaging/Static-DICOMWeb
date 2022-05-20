@@ -6,6 +6,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import { CfnOutput, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { handleHomeRelative, configGroup } from '@ohif/static-wado-util';
+import { Function, FunctionCode, FunctionEventType } from 'aws-cdk-lib/aws-cloudfront';
 
 const cors = [
   {
@@ -101,6 +102,19 @@ export class StaticSite extends Construct {
       },
     });
 
+    const rewriteFunction = new Function(this, 'RouteRedirectFunction', {
+      code: FunctionCode.fromInline(`
+        function handler(event) {
+          var request = event.request;
+      
+          if (!request.uri.includes('.')) {
+              request.uri = '/index.html';
+          } 
+      
+          return request;
+        }`
+      )});
+
     // CloudFront distribution
     const distribution = new cloudfront.Distribution(this, 'StaticDICOMWeb', {
       // certificate: certificate,
@@ -110,6 +124,10 @@ export class StaticSite extends Construct {
         origin: new cloudfront_origins.S3Origin(ohifBucket, {originAccessIdentity: cloudfrontOAI}),
         allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
         responseHeadersPolicy: myResponseHeadersPolicy,
+        functionAssociations: [{
+          function: rewriteFunction,
+          eventType: FunctionEventType.VIEWER_REQUEST,
+        }],
       },
       additionalBehaviors: {
         "/dicomweb/*": {
