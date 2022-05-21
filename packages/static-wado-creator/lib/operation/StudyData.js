@@ -116,8 +116,8 @@ class StudyData {
 
   async delete() {
     await fs.rmSync(this.studyPath, { recursive: true, force: true });
-    await fs.rmSync(this.deduplicatedInstancesPath, {recursive: true, force: true });
-    await fs.rmSync(this.deduplicatedPath, {recursive: true, force: true} );
+    await fs.rmSync(this.deduplicatedInstancesPath, { recursive: true, force: true });
+    await fs.rmSync(this.deduplicatedPath, { recursive: true, force: true });
     this.clear();
   }
 

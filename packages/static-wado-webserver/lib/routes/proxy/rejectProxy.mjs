@@ -11,6 +11,6 @@ export default function setRejectProxy(routerExpress, params) {
     const command = `mkdicomweb reject studies/${studyUID}/series/${seriesUID}`;
     const { stdout, stderr } = await exec(command);
     console.log("Rejected output:", stdout, stderr);
-    res.status(204);
+    res.status(204).send();
   });
 }
