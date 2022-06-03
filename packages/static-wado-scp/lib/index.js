@@ -1,17 +1,13 @@
-const { Stats } = require("@ohif/static-wado-util");
-const StaticWado = require("@ohif/static-wado-creator");
+const { Stats } = require("@radical/static-wado-util");
+const StaticWado = require("@radical/static-wado-creator");
 const dcmjsDimse = require("dcmjs-dimse");
 const dcmjs = require("dcmjs");
-const ConfigPoint = require("config-point");
-require("@ohif/static-wado-plugins");
+const { plugins } = require("@radical/static-wado-plugins");
 const dicomWebScpConfig = require("./dicomWebScpConfig");
 
 const { Server, Scp, Dataset } = dcmjsDimse;
 const { CEchoResponse, CStoreResponse, CFindResponse } = dcmjsDimse.responses;
 const { Status, PresentationContextResult, SopClass, StorageClass } = dcmjsDimse.constants;
-const cpImportPlugin = ConfigPoint.importPlugin;
-
-const importPlugin = (name) => cpImportPlugin(name, (key) => import(key));
 
 const PreferredTransferSyntax = [
   "1.2.840.10008.1.2.4.80",
@@ -32,7 +28,7 @@ const loadedPlugins = {};
 const loadPlugins = (options) => {
   const { studyQuery } = options;
   console.log("Using study query", studyQuery);
-  return importPlugin(studyQuery)
+  return import(plugins[studyQuery])
     .then((value) => {
       const theImport = value.default || value;
       loadedPlugins.STUDY = theImport.generator(options);
@@ -191,5 +187,4 @@ class DcmjsDimseScp extends Scp {
 exports.dicomWebScpConfig = dicomWebScpConfig;
 exports.DcmjsDimseScp = DcmjsDimseScp;
 exports.Server = Server;
-exports.importPlugin = importPlugin;
 exports.loadPlugins = loadPlugins;

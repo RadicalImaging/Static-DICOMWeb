@@ -1,4 +1,4 @@
-# `@ohif/static-wado-creator`
+# `@radical/static-wado-creator`
 
 # static-wado-js
 
@@ -37,7 +37,7 @@ View root pre-requisites section [pre-requisites](../../README.md#pre-requisites
 View root development section [development](../../README.md#development)
 
 ## Running the CLI
-Install the CLI with either npm install -g .  or npm install -g @ohif/static-wado-js
+Install the CLI with either npm install -g .  or npm install -g @radical/static-wado-js
 
 ## Usage
 Once you install the package the executables (i.e static-wado commands) are installed into to your PATH system, then you can use anywhere on your command line program.

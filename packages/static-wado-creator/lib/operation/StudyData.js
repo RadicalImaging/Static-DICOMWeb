@@ -1,7 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const hashFactory = require("node-object-hash");
-const { JSONReader } = require("@ohif/static-wado-util");
+const { JSONReader } = require("@radical/static-wado-util");
 const Tags = require("../dictionary/Tags");
 const TagLists = require("../model/TagLists");
 const JSONWriter = require("../writer/JSONWriter");
@@ -22,12 +22,15 @@ const getSeriesInstanceUid = (seriesInstance) =>
  * level data multiple times when it already exists.
  */
 class StudyData {
-  constructor({ studyInstanceUid, studyPath, deduplicatedPath, deduplicatedInstancesPath }, { isGroup }) {
+  constructor({ studyInstanceUid, studyPath, deduplicatedPath, deduplicatedInstancesPath }, 
+    { isGroup, clean }) {
     this.studyInstanceUid = studyInstanceUid;
     this.studyPath = studyPath;
     this.isGroup = isGroup;
     this.deduplicatedPath = deduplicatedPath;
     this.deduplicatedInstancesPath = deduplicatedInstancesPath;
+    this.clean = clean;
+    console.log("Study data", isGroup, clean);
     this.clear();
   }
 

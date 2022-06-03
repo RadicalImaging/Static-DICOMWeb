@@ -3086,26 +3086,6 @@
   dependencies:
     "@octokit/openapi-types" "^11.2.0"
 
-"@ohif/static-wado-plugins@^0.6.3":
-  version "0.6.3"
-  resolved "https://registry.yarnpkg.com/@ohif/static-wado-plugins/-/static-wado-plugins-0.6.3.tgz#93eb48f69e2c3e0f4f156812f5500b019f0c6227"
-  integrity sha512-aeHQQkLl25ryE4w3Dvn8kF7zraqWjxPMj9g0o7iWorbIBpQ5f5K1cfFAcJop5IUCexPRwrb5yN/GbStr/+iCUQ==
-  dependencies:
-    "@ohif/static-wado-util" "^0.6.3"
-    config-point "^0.4.3"
-    dcmjs-dimse "^0.0.15"
-
-"@ohif/static-wado-util@^0.6.3":
-  version "0.6.3"
-  resolved "https://registry.yarnpkg.com/@ohif/static-wado-util/-/static-wado-util-0.6.3.tgz#678fa9c7e88d10b33d74d66d042a47e1b1585291"
-  integrity sha512-DomPbWrYN1HJOltd7yKxY7mFYqeWA56bGelVde5ywacR+BBy9FJAh4CRN16hVFmG54+RavKVRreJSQsa/LU8Qg==
-  dependencies:
-    commander "^9.0.0"
-    config-point "^0.4.3"
-    json5 "^2.2.1"
-    json5-writer noahsug/json5-writer
-    must "^0.13.4"
-
 "@sinclair/typebox@^0.23.3":
   version "0.23.5"
   resolved "https://registry.yarnpkg.com/@sinclair/typebox/-/typebox-0.23.5.tgz#93f7b9f4e3285a7a9ade7557d9a8d36809cbc47d"
@@ -4363,14 +4343,6 @@ config-chain@^1.1.12:
   dependencies:
     ini "^1.3.4"
     proto-list "~1.2.1"
-
-config-point@^0.4.3:
-  version "0.4.4"
-  resolved "https://registry.yarnpkg.com/config-point/-/config-point-0.4.4.tgz#0d6b67cebc771cb538f032e14c551d2f27baf70a"
-  integrity sha512-YgiNcMAUGWw0iuC7BCQUP/S3Xr8MlfPpdy+ovZ9/KppODGqJweN/oAUrY/NOQvxfkB3p3XoBuE3iIS+AXGMDxA==
-  dependencies:
-    "@babel/runtime" "^7.14.6"
-    json5 "^2.2.0"
 
 config-point@^0.4.5:
   version "0.4.5"

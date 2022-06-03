@@ -1,4 +1,4 @@
-const { JSONReader } = require("@ohif/static-wado-util");
+const { JSONReader } = require("@radical/static-wado-util");
 const JSONWriter = require("./writer/JSONWriter");
 const Tags = require("./dictionary/Tags");
 

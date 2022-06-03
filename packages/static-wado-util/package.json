@@ -1,5 +1,5 @@
 {
-  "name": "@ohif/static-wado-util",
+  "name": "@radical/static-wado-util",
   "version": "0.6.2",
   "description": "Utils for other packages.",
   "publishConfig": {

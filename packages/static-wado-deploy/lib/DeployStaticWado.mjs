@@ -1,5 +1,4 @@
-import importer from "./importer.mjs";
-
+import { plugins } from "@radical/static-wado-plugins";
 /**
  * Class that knows how to handle DICOMweb deployments.
  * Assumptions are that files are deployed to an archiving file system like S3 that stores items in multiple locations for safety,
@@ -25,7 +24,7 @@ class DeployStaticWado {
   }
 
   async loadPlugins() {
-    this.deployPlugin = await importer(this.config.deployPlugin);
+    this.deployPlugin = await import(plugins[this.config.deployPlugin]);
     if (!this.deployPlugin) throw new Error(`Deploy plugin ${this.config.deployPlugin} not defined`);
     console.log("Deploy plugin=", this.config.deployPlugin, this.deployPlugin);
     this.clientDeploy = this.deployPlugin.factory("client", this.config);

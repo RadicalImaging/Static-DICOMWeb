@@ -1,5 +1,5 @@
 {
-  "name": "@ohif/static-wado-deploy",
+  "name": "@radical/static-wado-deploy",
   "type": "module",
   "version": "0.6.3",
   "description": "Library to deploy static wado created files to s3",
@@ -52,8 +52,8 @@
     "verbose": true
   },
   "dependencies": {
-    "@ohif/static-wado-plugins": "^0.6.3",
-    "@ohif/static-wado-util": "^0.6.1",
+    "@radical/static-wado-plugins": "^0.6.3",
+    "@radical/static-wado-util": "^0.6.1",
     "@radical/s3-deploy": "^0.6.1",
     "config-point": "^0.4.5"
   },

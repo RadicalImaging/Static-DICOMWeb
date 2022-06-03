@@ -10,17 +10,17 @@ const transcodeOp = {
 };
 
 /**
- * Static mapping for transcoding image.
+ * Static mapping for transcoding decoders
  */
 const transcodeMap = {
   "1.2.840.10008.1.2": {
-    transferSyntaxUid: "1.2.840.10008.1.2",
-    transcodeOp: transcodeOp.decodeOnly,
+    transferSyntaxUid: "1.2.840.10008.1.2.4.80",
+    transcodeOp: transcodeOp.transcode,
     alias: "uncompressed",
   },
   "1.2.840.10008.1.2.1": {
-    transferSyntaxUid: "1.2.840.10008.1.2.1",
-    transcodeOp: transcodeOp.decodeOnly,
+    transferSyntaxUid: "1.2.840.10008.1.2.4.80",
+    transcodeOp: transcodeOp.transcode,
     alias: "uncompressed",
   },
   "1.2.840.10008.1.2.2": {
@@ -72,6 +72,7 @@ function getTranscoder(transferSyntaxUid) {
  */
 function shouldTranscodeImageFrame(id, options) {
   if (!options.recompress) {
+    console.log("Not transcoding because recompress not set");
     return false;
   }
 
@@ -129,6 +130,7 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
   let result = {};
 
   if (!shouldTranscodeImageFrame(id, options)) {
+    console.log("Shouldn't transcode");
     return {
       id,
       imageFrame,
@@ -140,6 +142,7 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
 
   // last chance to prevent transcoding
   if (targetId.transferSyntaxUid !== transcoder.transferSyntaxUid) {
+    console.log("Target transfer syntax isn't", transcoder.transferSyntaxUid);
     return {
       id,
       imageFrame,
@@ -147,6 +150,7 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
     };
   }
 
+  console.log("Transcoding to", transcoder.transferSyntaxUid);
   const imageInfo = getImageInfo(dataSet);
   let done = false;
   let processResultMsg = "";
@@ -215,6 +219,7 @@ function transcodeId(id, options) {
     return id;
   }
 
+  
   const targetId = { ...id };
   const { transferSyntaxUid } = getTranscoder(id.transferSyntaxUid);
 

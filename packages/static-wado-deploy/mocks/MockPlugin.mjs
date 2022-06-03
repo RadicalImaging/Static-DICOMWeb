@@ -23,7 +23,7 @@ const { testDeploy, MockPlugin } = ConfigPoint.register({
   },
 
   plugins: {
-    MockPlugin: "@ohif/static-wado-deploy/tests/unit/MockPlugin.mjs",
+    MockPlugin: "@radical/static-wado-deploy/tests/unit/MockPlugin.mjs",
   },
 
   MockPlugin: {

@@ -1,10 +1,10 @@
-import importPlugin from "../../util/importPlugin.mjs";
+import {plugins} from "@radical/static-wado-plugins";
 
 export default async function setQueryProxy(routerExpress, level, params, key) {
   const name = params[key];
   if (!name) return;
   try {
-    const plugin = await importPlugin(name);
+    const plugin = await import(plugins[name]);
     const { generator } = plugin.default || plugin;
     const queryFunction = generator(params, key);
     console.log("Adding query call on", level, "to", name);

@@ -1,7 +1,8 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import fs from "fs";
 import mime from "mime-types";
-import { configGroup } from "@ohif/static-wado-util";
+import { configGroup } from "@radical/static-wado-util";
+import { ConfigPoint } from "config-point";
 
 const compressedRe = /((\.br)|(\.gz))$/;
 const indexRe = /\/index\.json$/;
@@ -114,5 +115,7 @@ class S3Ops {
     }
   }
 }
+
+ConfigPoint.createConfiguration("s3Plugin", S3Ops);
 
 export default S3Ops;

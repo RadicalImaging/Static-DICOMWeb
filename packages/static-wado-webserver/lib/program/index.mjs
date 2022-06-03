@@ -1,4 +1,4 @@
-import staticWadoUtil from "@ohif/static-wado-util";
+import staticWadoUtil from "@radical/static-wado-util";
 import dicomWebServerConfig from "../dicomWebServerConfig.mjs";
 import DicomWebServer from "../index.mjs";
 

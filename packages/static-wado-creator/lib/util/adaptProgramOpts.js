@@ -28,7 +28,7 @@ module.exports = function adaptProgramOpts(programOpts, defaults) {
     verbose,
   } = programOpts;
 
-  return assignDefined(Object.create(defaults), {
+  return assignDefined(Object.assign({},defaults), {
     maximumInlinePublicLength,
     maximumInlinePrivateLength,
     isGroup,
