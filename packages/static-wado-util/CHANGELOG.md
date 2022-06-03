@@ -3,23 +3,23 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
-## [0.6.2](https://github.com/OHIF/static-wado/compare/@ohif/static-wado-util@0.6.1...@ohif/static-wado-util@0.6.2) (2022-04-04)
+## [0.6.2](https://github.com/OHIF/static-wado/compare/@radical/static-wado-util@0.6.1...@radical/static-wado-util@0.6.2) (2022-04-04)
 
-**Note:** Version bump only for package @ohif/static-wado-util
-
-
-
-
-
-## [0.6.1](https://github.com/OHIF/static-wado/compare/@ohif/static-wado-util@0.6.0...@ohif/static-wado-util@0.6.1) (2022-03-14)
-
-**Note:** Version bump only for package @ohif/static-wado-util
+**Note:** Version bump only for package @radical/static-wado-util
 
 
 
 
 
-# [0.6.0](https://github.com/OHIF/static-wado/compare/@ohif/static-wado-util@0.5.1...@ohif/static-wado-util@0.6.0) (2022-03-03)
+## [0.6.1](https://github.com/OHIF/static-wado/compare/@radical/static-wado-util@0.6.0...@radical/static-wado-util@0.6.1) (2022-03-14)
+
+**Note:** Version bump only for package @radical/static-wado-util
+
+
+
+
+
+# [0.6.0](https://github.com/OHIF/static-wado/compare/@radical/static-wado-util@0.5.1...@radical/static-wado-util@0.6.0) (2022-03-03)
 
 
 ### Bug Fixes

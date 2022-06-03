@@ -1,6 +1,6 @@
 import ConfigPoint from "config-point";
-import "@ohif/static-wado-plugins";
-import { staticWadoConfig } from "@ohif/static-wado-util";
+import "@radical/static-wado-plugins";
+import { staticWadoConfig } from "@radical/static-wado-util";
 
 /**
  * Defines the basic configuration values for the dicomwebserver component.  See the README for more details.

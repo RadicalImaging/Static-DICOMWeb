@@ -2,11 +2,11 @@
     staticWadoConfig: {
       clientDir: "~/ohif",
       rootGroup: {
-        Bucket: 'root-7175656',
+        Bucket: 'root-radical-002-mpr',
       },
 
       clientGroup: {
-        Bucket: 'ohif-43940199',
+        Bucket: 'ohif-radical-002-mpr',
       },
       s3Env: {
         account: '447282567673',
@@ -14,4 +14,5 @@
         region: 'us-east-2',
       },
     },
+    // Website: d3t6nz73ql33tx.cloudfront.net
 }

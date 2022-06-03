@@ -1,4 +1,4 @@
-const { Stats } = require("@ohif/static-wado-util");
+const { Stats } = require("@radical/static-wado-util");
 const path = require("path");
 const WriteStream = require("./WriteStream");
 

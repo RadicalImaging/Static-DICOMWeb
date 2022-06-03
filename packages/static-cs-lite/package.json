@@ -1,5 +1,5 @@
 {
-  "name": "@ohif/static-cs-lite",
+  "name": "@radical/static-cs-lite",
   "version": "0.0.2",
   "description": "Cornerstone core lite version that runs on server side",
   "publishConfig": {

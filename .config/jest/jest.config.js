@@ -24,7 +24,7 @@ module.exports = {
     "(.*)-(charls|openjpeg)\/wasmjs": "$1-$2/dist/$2wasm.js",
     "(.*)-(libjpeg)-(turbo)-(8bit)\/wasmjs": "$1-$2-$3-$4/dist/$2$3wasm.js",
     // This should be removed once there is a setup for jest-jsdom or there are e2e tests from/to it.
-    "@ohif/static-cs-lite": "@ohif/static-cs-lite/lib/index.mock.js"
+    "@radical/static-cs-lite": "@radical/static-cs-lite/lib/index.mock.js"
   },
   moduleDirectories: [
     "<rootDir>/node_modules",

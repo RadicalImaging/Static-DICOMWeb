@@ -1,4 +1,4 @@
-import staticWadoUtil from "@ohif/static-wado-util";
+import staticWadoUtil from "@radical/static-wado-util";
 import "../index.mjs";
 
 /**

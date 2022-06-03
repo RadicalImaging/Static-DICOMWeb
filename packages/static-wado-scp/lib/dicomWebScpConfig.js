@@ -1,5 +1,5 @@
 const ConfigPoint = require("config-point");
-const { staticWadoConfig } = require("@ohif/static-wado-util");
+const { staticWadoConfig } = require("@radical/static-wado-util");
 
 /**
  * Defines the basic configuration values for the dicomwebserver component.  See the README for more details.

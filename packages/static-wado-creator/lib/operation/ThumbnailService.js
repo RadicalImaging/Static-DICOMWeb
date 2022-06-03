@@ -1,7 +1,7 @@
 const path = require("path");
 const glob = require("glob");
 const dicomCodec = require("@cornerstonejs/dicom-codec");
-const staticCS = require("@ohif/static-cs-lite");
+const staticCS = require("@radical/static-cs-lite");
 const fs = require("fs");
 const { exec } = require("child_process");
 const decodeImage = require("./adapter/decodeImage");

@@ -1,8 +1,11 @@
 const ConfigPoint = require("config-point");
-const { staticWadoConfig } = require("@ohif/static-wado-util");
+const { staticWadoConfig } = require("@radical/static-wado-util");
 const createMain = require("./createMain");
 const deleteMain = require("./deleteMain");
 const rejectMain = require("./rejectMain");
+const instanceMain = require("./instanceMain");
+const groupMain = require("./groupMain");
+const metadataMain = require("./metadataMain");
 
 /**
  * Defines the basic configuration values for the dicomwebserver component.  See the README for more details.
@@ -16,7 +19,7 @@ const { mkdicomwebConfig } = ConfigPoint.register({
     options: [
       {
         key: "-c, --clean",
-        description: "Clean the study output directory for these instances",
+        description: "Clean the outputs before generating/starting to write new values.",
         defaultValue: false,
       },
       {
@@ -94,9 +97,27 @@ const { mkdicomwebConfig } = ConfigPoint.register({
           "having at least one ",
       },
       {
+        command: "instance",
+        arguments: ["input"],
+        main: instanceMain,
+        helpDescription: "Make instance level DICOMweb metadata and bulkdata, but don't group or write series metadata",
+      },
+      {
+        command: "group",
+        arguments: ["input"],
+        main: groupMain,
+        helpDescription: "Group instance level metadata into deduplicated data.\nDeletes instance level deduplicated information once it is confirmed written.",
+      },
+      {
+        command: "metadata",
+        arguments: ["input"],
+        main: metadataMain,
+        helpDescription: "Write the metadata object (series and study details) from the deduplicated data.",
+      },
+      {
         command: "delete",
         main: deleteMain,
-        helpDescription: "Delete the given study, series or instance.",
+        helpDescription: "Delete the given study, series or instance (not yet implemented)",
       },
       {
         command: "reject",

@@ -1,3 +1,3 @@
-xdescribe("@ohif/static-cs-lite", () => {
+xdescribe("@radical/static-cs-lite", () => {
   test.todo("needs tests");
 });

@@ -2,13 +2,10 @@
 import * as cdk from 'aws-cdk-lib';
 import { StaticSite } from './lib/static-site.js';
 import awsConfig from './lib/awsConfig.mjs';
-import staticWadoUtil from '@ohif/static-wado-util';
+import staticWadoUtil from '@radical/static-wado-util';
 
-console.log('Create S3 start');
 const defaults = Object.create(awsConfig);
 await staticWadoUtil.loadConfiguration(defaults, process.argv)
-
-console.log('defaults=', awsConfig);
 
 /**
  * This stack relies on getting the domain name from CDK context.

@@ -10,17 +10,17 @@ const transcodeOp = {
 };
 
 /**
- * Static mapping for transcoding image.
+ * Static mapping for transcoding decoders
  */
 const transcodeMap = {
   "1.2.840.10008.1.2": {
-    transferSyntaxUid: "1.2.840.10008.1.2",
-    transcodeOp: transcodeOp.decodeOnly,
+    transferSyntaxUid: "1.2.840.10008.1.2.4.80",
+    transcodeOp: transcodeOp.transcode,
     alias: "uncompressed",
   },
   "1.2.840.10008.1.2.1": {
-    transferSyntaxUid: "1.2.840.10008.1.2.1",
-    transcodeOp: transcodeOp.decodeOnly,
+    transferSyntaxUid: "1.2.840.10008.1.2.4.80",
+    transcodeOp: transcodeOp.transcode,
     alias: "uncompressed",
   },
   "1.2.840.10008.1.2.2": {
@@ -147,6 +147,7 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
     };
   }
 
+  console.log("Transcoding to", transcoder.transferSyntaxUid);
   const imageInfo = getImageInfo(dataSet);
   let done = false;
   let processResultMsg = "";

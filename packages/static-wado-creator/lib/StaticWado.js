@@ -1,9 +1,9 @@
 const dicomCodec = require("@cornerstonejs/dicom-codec");
-const { Stats, handleHomeRelative } = require("@ohif/static-wado-util");
+const { Stats, handleHomeRelative } = require("@radical/static-wado-util");
 const dicomParser = require("dicom-parser");
 const fs = require("fs");
 const path = require("path");
-const { dirScanner } = require("@ohif/static-wado-util");
+const { dirScanner } = require("@radical/static-wado-util");
 const asyncIterableToBuffer = require("./operation/adapter/asyncIterableToBuffer");
 const getDataSet = require("./operation/getDataSet");
 const InstanceDeduplicate = require("./operation/InstanceDeduplicate");
@@ -31,13 +31,13 @@ class StaticWado {
     dicomCodec.setConfig({ verbose });
     const directoryName = handleHomeRelative(rootDir);
 
-    this.options = Object.assign(Object.create(configuration), {
+    this.options = {
+      ...configuration,
       directoryName,
       deduplicatedRoot: path.join(directoryName, pathDeduplicated),
       deduplicatedInstancesRoot: path.join(directoryName, pathInstances),
       TransferSyntaxUID: "1.2.840.10008.1.2",
-    });
-
+    };
     this.callback = {
       uids: IdCreator(this.options),
       bulkdata: HashDataWriter(this.options),

@@ -5,10 +5,10 @@ module.exports = function createMain(options, program) {
   const finalOptions = adaptProgramOpts(options, {
     ...this,
     isInstance: false,
-    isGroup: true,
-    isDeduplicate: true,
-    isStudyData: true,
+    isGroup: false,
+    isStudyData: false,
   });
   const importer = new StaticWado(finalOptions);
+  // Either do a scan or on specified studies
   return importer.executeCommand(program.args);
 };
