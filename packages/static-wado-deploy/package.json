@@ -55,7 +55,7 @@
     "@radical/static-wado-plugins": "^0.6.3",
     "@radical/static-wado-util": "^0.6.1",
     "@radical/s3-deploy": "^0.6.1",
-    "config-point": "^0.4.5"
+    "config-point": "^0.4.6"
   },
   "devDependencies": {
     "must": "^0.13.4",

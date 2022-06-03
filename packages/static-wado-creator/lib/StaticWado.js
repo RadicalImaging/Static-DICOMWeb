@@ -28,17 +28,16 @@ class StaticWado {
   constructor(configuration) {
     const { rootDir = "~/dicomweb", pathDeduplicated = "deduplicated", pathInstances = "instances", verbose } = configuration;
 
-    console.log("configuration=", configuration);
-
     dicomCodec.setConfig({ verbose });
     const directoryName = handleHomeRelative(rootDir);
 
-    this.options = Object.assign({}, configuration, {
+    this.options = {
+      ...configuration,
       directoryName,
       deduplicatedRoot: path.join(directoryName, pathDeduplicated),
       deduplicatedInstancesRoot: path.join(directoryName, pathInstances),
       TransferSyntaxUID: "1.2.840.10008.1.2",
-    });
+    };
     this.callback = {
       uids: IdCreator(this.options),
       bulkdata: HashDataWriter(this.options),

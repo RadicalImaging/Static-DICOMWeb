@@ -18,7 +18,8 @@ describe("@radical/static-wado-webserver", () => {
   });
 
   it("loaded readSeriesIndex", async () => {
-    const { generator } = await import(plugins["readSeriesIndex"]);
+    const imported = await import(plugins["readSeriesIndex"]);
+    const { generator } = imported.default || imported; 
     const readSeriesIndex = generator(params);
     must(readSeriesIndex).be.function();
   });

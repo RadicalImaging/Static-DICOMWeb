@@ -1,5 +1,3 @@
-import { plugins } from "@radical/static-wado-plugins";
-
 /**
  * Set plugin routes.
  *

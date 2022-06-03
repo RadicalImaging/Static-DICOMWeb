@@ -28,22 +28,25 @@ module.exports = function adaptProgramOpts(programOpts, defaults) {
     verbose,
   } = programOpts;
 
-  return assignDefined(Object.assign({},defaults), {
-    maximumInlinePublicLength,
-    maximumInlinePrivateLength,
-    isGroup,
-    isInstanceMetadata,
-    isDeduplicate,
-    isStudyData,
-    isClean,
-    recompress,
-    recompressThumb,
-    contentType,
-    colourContentType,
-    rootDir,
-    pathDeduplicated,
-    pathInstances,
-    removeDeduplicatedInstances,
-    verbose,
-  });
+  return assignDefined(
+    { ...defaults },
+    {
+      maximumInlinePublicLength,
+      maximumInlinePrivateLength,
+      isGroup,
+      isInstanceMetadata,
+      isDeduplicate,
+      isStudyData,
+      isClean,
+      recompress,
+      recompressThumb,
+      contentType,
+      colourContentType,
+      rootDir,
+      pathDeduplicated,
+      pathInstances,
+      removeDeduplicatedInstances,
+      verbose,
+    }
+  );
 };

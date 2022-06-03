@@ -72,7 +72,6 @@ function getTranscoder(transferSyntaxUid) {
  */
 function shouldTranscodeImageFrame(id, options) {
   if (!options.recompress) {
-    console.log("Not transcoding because recompress not set");
     return false;
   }
 
@@ -130,7 +129,6 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
   let result = {};
 
   if (!shouldTranscodeImageFrame(id, options)) {
-    console.log("Shouldn't transcode");
     return {
       id,
       imageFrame,
@@ -142,7 +140,6 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
 
   // last chance to prevent transcoding
   if (targetId.transferSyntaxUid !== transcoder.transferSyntaxUid) {
-    console.log("Target transfer syntax isn't", transcoder.transferSyntaxUid);
     return {
       id,
       imageFrame,
@@ -219,7 +216,6 @@ function transcodeId(id, options) {
     return id;
   }
 
-  
   const targetId = { ...id };
   const { transferSyntaxUid } = getTranscoder(id.transferSyntaxUid);
 

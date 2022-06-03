@@ -1,4 +1,4 @@
-import {plugins} from "@radical/static-wado-plugins";
+import { plugins } from "@radical/static-wado-plugins";
 
 export default async function setQueryProxy(routerExpress, level, params, key) {
   const name = params[key];

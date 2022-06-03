@@ -100,23 +100,19 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         command: "instance",
         arguments: ["input"],
         main: instanceMain,
-        helpDescription: 
-          "Make instance level DICOMweb metadata and bulkdata, but don't group or write series metadata",
+        helpDescription: "Make instance level DICOMweb metadata and bulkdata, but don't group or write series metadata",
       },
       {
         command: "group",
         arguments: ["input"],
         main: groupMain,
-        helpDescription: 
-          "Group instance level metadata into deduplicated data.\n"+
-          "Deletes instance level deduplicated information once it is confirmed written.",
+        helpDescription: "Group instance level metadata into deduplicated data.\nDeletes instance level deduplicated information once it is confirmed written.",
       },
       {
         command: "metadata",
         arguments: ["input"],
         main: metadataMain,
-        helpDescription: 
-          "Write the metadata object (series and study details) from the deduplicated data.",
+        helpDescription: "Write the metadata object (series and study details) from the deduplicated data.",
       },
       {
         command: "delete",

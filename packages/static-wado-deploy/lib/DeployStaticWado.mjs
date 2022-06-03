@@ -24,9 +24,9 @@ class DeployStaticWado {
   }
 
   async loadPlugins() {
-    this.deployPlugin = await import(plugins[this.config.deployPlugin]);
-    if (!this.deployPlugin) throw new Error(`Deploy plugin ${this.config.deployPlugin} not defined`);
-    console.log("Deploy plugin=", this.config.deployPlugin, this.deployPlugin);
+    const imported = await import(plugins[this.config.deployPlugin]);
+    if (!imported) throw new Error(`Deploy plugin ${this.config.deployPlugin} not defined`);
+    this.deployPlugin = imported.default || imported;
     this.clientDeploy = this.deployPlugin.factory("client", this.config);
     this.rootDeploy = this.deployPlugin.factory("root", this.config);
     return { client: this.clientDeploy, root: this.rootDeploy };

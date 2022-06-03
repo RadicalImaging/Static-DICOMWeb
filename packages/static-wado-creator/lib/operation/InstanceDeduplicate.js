@@ -74,7 +74,7 @@ const InstanceDeduplicate = (options) =>
     // Notify the existing listeners, if any
     const imageFrame = canonicalize(sourceImageFrame);
     if (options.isInstanceMetadata) {
-      console.log("Writing instance metadata");
+      // console.log("Writing instance metadata");
       await JSONWriter(id.sopInstanceRootPath, "metadata", imageFrame);
     }
     if (!options.isDeduplicate && !options.isGroup) {

@@ -1,7 +1,7 @@
 const ConfigPoint = require("config-point");
 const { JSONReader } = require("@radical/static-wado-util");
 
-const readSeriesIndex = ConfigPoint.register({
+const { readSeriesIndex } = ConfigPoint.register({
   readSeriesIndex: {
     generator: (params) => (studyInstanceUID) => {
       console.log("Retrieve series", studyInstanceUID, "in", params.rootDir);

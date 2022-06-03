@@ -12,6 +12,6 @@ import setLogsMiddlewares from "./logs.mjs";
 export default function setMiddlewares(appExpress, config) {
   setLogsMiddlewares(appExpress, config);
   setCorsMiddlewares(appExpress, config);
-  setEmbedder(appExpress,config);
+  setEmbedder(appExpress, config);
   appExpress.use(express.json());
 }

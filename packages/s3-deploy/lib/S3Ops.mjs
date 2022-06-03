@@ -107,7 +107,7 @@ class S3Ops {
     console.log("uploading", file, ContentType, ContentEncoding, Key, ContentSize, Metadata, this.group.Bucket);
     try {
       await this.client.send(command);
-      console.log("Success", file);
+      // console.log("Success", file);
     } catch (error) {
       console.log("Error sending", file, error);
     } finally {
