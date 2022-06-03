@@ -11,7 +11,7 @@ const junoInstancesDir = `${junoSeriesDir}/instances/1.2.840.113619.2.5.17625831
 const junoStudiesFile = `${junoDir}/index.json.gz`;
 const junoSeriesFile = `${junoDir}/series/index.json.gz`;
 const junoInstancesFile = `${junoSeriesDir}/instances/index.json.gz`;
-const junoFramesFile = `${junoInstancesDir}/frames/1.gz`;
+const junoFramesFile = `${junoInstancesDir}/frames/1`;
 
 const cwd = process.cwd();
 const root = cwd.indexOf("static-wado-creator") == -1 ? cwd : `${cwd}/../..`;
@@ -22,7 +22,7 @@ describe("index", () => {
   let objJuno;
 
   function assertExists(fileOrDir, exists = true) {
-    fs.existsSync(fileOrDir).must.be.eql(exists);
+    must(fs.existsSync(fileOrDir), `File ${fileOrDir} ${exists ? "does not" : ""} exist`).be.eql(exists);
   }
 
   beforeEach(() => {
@@ -32,7 +32,9 @@ describe("index", () => {
   });
 
   const createJuno = async () => {
-    if (processes.createJuno) return;
+    if (processes.createJuno) {
+      return;
+    }
     execSync(
       `node ${root}/packages/static-wado-creator/bin/mkdicomweb.js -o ${OUTPUT_TEMP_PATH} ${TEST_DATA_PATH}/dcm/MisterMr/1.2.840.113619.2.5.1762583153.215519.978957063.122`,
       (error, stdout, stderr) => {
@@ -53,6 +55,7 @@ describe("index", () => {
   };
 
   it("basic exists test", async () => {
+    jest.setTimeout(25000);
     await createJuno();
 
     assertExists(junoDir);
