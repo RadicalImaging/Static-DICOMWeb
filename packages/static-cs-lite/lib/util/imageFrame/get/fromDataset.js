@@ -20,7 +20,7 @@ function fromDataset(dataSet, decodedPixelData) {
     columns: dataSet.Columns,
     bitsAllocated: dataSet.BitsAllocated,
     bitsStored: dataSet.BitsStored,
-    pixelRepresentation: dataSet.PixelPresentation, // 0 = unsigned,
+    pixelRepresentation: dataSet.PixelPresentation || 0, // 0 = unsigned,
     smallestPixelValue: dataSet.SmallestImagePixelValue,
     largestPixelValue: dataSet.LargestImagePixelValue,
     bluePaletteColorLookupTableData,
