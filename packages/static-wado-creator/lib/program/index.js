@@ -1,4 +1,4 @@
-const staticWadoUtil = require("@ohif/static-wado-util");
+const staticWadoUtil = require("@radical/static-wado-util");
 
 /**
  * Configure static-wado-creator commander program.

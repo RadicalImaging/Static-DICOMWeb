@@ -1,3 +1,3 @@
-xdescribe("@ohif/static-wado-webserver", () => {
+xdescribe("@radical/static-wado-webserver", () => {
   test.todo("needs tests");
 });

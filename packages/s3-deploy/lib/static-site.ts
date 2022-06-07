@@ -5,7 +5,7 @@ import * as cloudfront_origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { CfnOutput, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import { handleHomeRelative, configGroup } from '@ohif/static-wado-util';
+import { handleHomeRelative, configGroup } from '@radical/static-wado-util';
 import { Function, FunctionCode, FunctionEventType } from 'aws-cdk-lib/aws-cloudfront';
 
 const cors = [
@@ -96,8 +96,14 @@ export class StaticSite extends Construct {
         accessControlAllowOrigins: ['*'],
         originOverride: true,
       },
+      customHeadersBehavior: {
+        customHeaders: [
+          { header: 'Cross-Origin-Embedder-Policy', value: 'require-corp', override: true },
+          { header: 'Cross-Origin-Opener-Policy', value: 'same-origin', override: true },
+        ],
+      },
       securityHeadersBehavior: {
-        contentSecurityPolicy: { contentSecurityPolicy: "script-src: 'unsafe-eval';", override: true },
+        // contentSecurityPolicy: { contentSecurityPolicy: "script-src: unsafe-eval", override: true },
         contentTypeOptions: { override: true },
       },
     });

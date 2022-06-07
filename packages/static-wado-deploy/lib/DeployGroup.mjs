@@ -1,7 +1,7 @@
 import fs from "fs";
-import { configGroup, handleHomeRelative } from "@ohif/static-wado-util";
+import { configGroup, handleHomeRelative } from "@radical/static-wado-util";
 import path from "path";
-import importer from "./importer.mjs";
+import { plugins } from "@radical/static-wado-plugins";
 
 /**
  * Deployment class.
@@ -22,18 +22,16 @@ class DeployGroup {
 
   // Loads the ops
   async loadOps() {
-    const imported = await importer(this.config.deployPlugin || "s3Plugin");
+    const imported = await import(plugins[this.config.deployPlugin || "s3Plugin"]);
     const { createPlugin: CreatePlugin } = imported.default || imported;
-    // console.log("imported=", imported, CreatePlugin);
     this.ops = new CreatePlugin(this.config, this.groupName);
   }
 
   /**
    * Stores the entire directory inside basePath / subdir.
    * asynchronous function
-   * @params basePath is the part of the path name outside the sub-directory name.
-   * @params {string[]} files is a list of base file locations to start with
-   * @params subdir is the sub directory within basePath that is included in the path name for upload.
+   * @params parentDir is the part of the path to include in the upload name
+   * @params name is the item to add
    */
   async store(parentDir = "", name = "") {
     const fileName = path.join(this.baseDir, parentDir, name);

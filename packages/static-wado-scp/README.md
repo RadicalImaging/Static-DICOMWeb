@@ -1,4 +1,4 @@
-# `@ohif/static-wado-scp`
+# `@radical/static-wado-scp`
 
 > TODO: description
 
@@ -12,7 +12,7 @@ View root development section [development](../../README.md#development)
 ## Usage
 
 ```
-const staticWadoScp = require('@ohif/static-wado-scp');
+const staticWadoScp = require('@radical/static-wado-scp');
 
 // TODO: DEMONSTRATE API
 ```

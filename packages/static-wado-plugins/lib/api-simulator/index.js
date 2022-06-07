@@ -1,4 +1,4 @@
-const ConfigPoint = require('config-point');
+const ConfigPoint = require("config-point");
 
 let jobId = 1000;
 const jobs = {};
@@ -25,9 +25,9 @@ const subsequentApi = (item, req, res, next) => {
 module.exports = ConfigPoint.createConfiguration("apiSimulator", {
   setRoute: (router, item) => {
     console.log("Registering API", item.pluginRoute);
-    router.post(item.pluginRoute, initiateApi.bind(null,item));
+    router.post(item.pluginRoute, initiateApi.bind(null, item));
     // The get route isn't quite valid here, but is useful for testing before completing this.
-    router.get(item.pluginRoute, initiateApi.bind(null,item));
-    router.get(`${item.pluginRoute}/:jobId`, subsequentApi.bind(null,item));
+    router.get(item.pluginRoute, initiateApi.bind(null, item));
+    router.get(`${item.pluginRoute}/:jobId`, subsequentApi.bind(null, item));
   },
 });

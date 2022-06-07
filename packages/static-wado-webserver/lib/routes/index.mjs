@@ -1,4 +1,4 @@
-import { handleHomeRelative } from "@ohif/static-wado-util";
+import { handleHomeRelative } from "@radical/static-wado-util";
 import express from "express";
 import setServerRoutes from "./server/index.mjs";
 import setClientRoutes from "./client/index.mjs";

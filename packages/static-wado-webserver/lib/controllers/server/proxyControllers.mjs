@@ -1,5 +1,5 @@
 /* eslint-disable import/prefer-default-export */
-import { aeConfig } from "@ohif/static-wado-util";
+import { aeConfig } from "@radical/static-wado-util";
 import * as cmoveServices from "../../services/cmoveServices.mjs";
 
 /**

@@ -6,9 +6,9 @@ module.exports = function createMain(options, program) {
     ...this,
     isInstance: false,
     isGroup: true,
-    isDeduplicate: true,
-    isStudyData: true,
+    isStudyData: false,
   });
   const importer = new StaticWado(finalOptions);
+  // Either do a scan or on specified studies
   return importer.executeCommand(program.args);
 };

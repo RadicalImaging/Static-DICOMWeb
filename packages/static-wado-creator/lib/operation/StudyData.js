@@ -1,7 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const hashFactory = require("node-object-hash");
-const { JSONReader } = require("@ohif/static-wado-util");
+const { JSONReader } = require("@radical/static-wado-util");
 const Tags = require("../dictionary/Tags");
 const TagLists = require("../model/TagLists");
 const JSONWriter = require("../writer/JSONWriter");
@@ -22,12 +22,13 @@ const getSeriesInstanceUid = (seriesInstance) =>
  * level data multiple times when it already exists.
  */
 class StudyData {
-  constructor({ studyInstanceUid, studyPath, deduplicatedPath, deduplicatedInstancesPath }, { isGroup }) {
+  constructor({ studyInstanceUid, studyPath, deduplicatedPath, deduplicatedInstancesPath }, { isGroup, clean }) {
     this.studyInstanceUid = studyInstanceUid;
     this.studyPath = studyPath;
     this.isGroup = isGroup;
     this.deduplicatedPath = deduplicatedPath;
     this.deduplicatedInstancesPath = deduplicatedInstancesPath;
+    this.clean = clean;
     this.clear();
   }
 
@@ -77,7 +78,7 @@ class StudyData {
 
   async dirtyMetadata() {
     if (this.dirty) {
-      console.log("Study data is dirty - need to write updated file");
+      // console.log("Study data is dirty - need to write updated file");
       return true;
     }
     try {
@@ -108,16 +109,14 @@ class StudyData {
       const reSop = recombined[Tags.SOPInstanceUID];
       if (!reSop || !reSop.Value) continue;
       if (sopInstanceUid && reSop.Value[0] !== sopInstanceUid) continue;
-      console.log("Found an instance to delete", i, reSop);
-      console.log("Type", i, this.deduplicated[i][Tags.DeduppedType]);
       this.deduplicated[i][Tags.DeduppedType].Value[0] = "deleted";
     }
   }
 
   async delete() {
     await fs.rmSync(this.studyPath, { recursive: true, force: true });
-    await fs.rmSync(this.deduplicatedInstancesPath, {recursive: true, force: true });
-    await fs.rmSync(this.deduplicatedPath, {recursive: true, force: true} );
+    await fs.rmSync(this.deduplicatedInstancesPath, { recursive: true, force: true });
+    await fs.rmSync(this.deduplicatedPath, { recursive: true, force: true });
     this.clear();
   }
 

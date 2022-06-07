@@ -1,5 +1,3 @@
-import importPlugin from '../../util/importPlugin.mjs';
-
 /**
  * Set plugin routes.
  *
@@ -8,17 +6,15 @@ import importPlugin from '../../util/importPlugin.mjs';
  * @param {*} pluginsKey name of plugins configuration section.
  */
 export default async function setPlugins(routerExpress, params, pluginsKey = "plugins") {
-  if( !params ) return;
-  const plugins = params[pluginsKey];
-  if (plugins) {
-    for (let i = 0; i < plugins.length; i++) {
-      const pluginItem = plugins[i];
-      console.log(
-        `Configuring ${pluginItem.pluginName}(${pluginItem.pluginModule}) on ${pluginItem.pluginRoute}`
-      );
-      await import(pluginItem.pluginModule);
-      const plugin = await importPlugin(pluginItem.pluginName);
-      const { setRoute } = plugin.default || plugin;
+  if (!params) return;
+  const loadPlugins = params[pluginsKey];
+  if (loadPlugins) {
+    for (let i = 0; i < loadPlugins.length; i++) {
+      const pluginItem = loadPlugins[i];
+      console.log(`Configuring ${pluginItem.pluginName}(${pluginItem.pluginModule}) on ${pluginItem.pluginRoute}`);
+      const plugin = await import(pluginItem.pluginModule);
+      const pluginDefault = plugin.default || plugin;
+      const { setRoute } = pluginDefault[pluginItem.pluginName];
       setRoute(routerExpress, pluginItem);
     }
   } else {

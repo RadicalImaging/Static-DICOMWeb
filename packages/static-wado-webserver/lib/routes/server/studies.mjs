@@ -1,4 +1,4 @@
-import { assertions } from "@ohif/static-wado-util";
+import { assertions } from "@radical/static-wado-util";
 import { qidoMap, otherJsonMap, thumbnailMap } from "../../adapters/requestAdapters.mjs";
 import { defaultPostController as postController } from "../../controllers/server/commonControllers.mjs";
 import { defaultNotFoundController as notFoundController } from "../../controllers/server/notFoundControllers.mjs";

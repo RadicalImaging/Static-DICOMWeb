@@ -5,6 +5,6 @@ export default async function () {
   const deployer = new DeployGroup(this, "root");
   await deployer.loadOps();
   console.log("Loaded operations");
-  await deployer.store();
+  await deployer.store("studies");
   console.log("Stored");
 }
