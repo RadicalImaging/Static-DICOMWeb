@@ -25,6 +25,7 @@ module.exports = function adaptProgramOpts(programOpts, defaults) {
     pathDeduplicated,
     pathInstances,
     removeDeduplicatedInstances,
+    storeMultipartBulkData,
     verbose,
   } = programOpts;
 
@@ -46,6 +47,7 @@ module.exports = function adaptProgramOpts(programOpts, defaults) {
       pathDeduplicated,
       pathInstances,
       removeDeduplicatedInstances,
+      storeMultipartBulkData,
       verbose,
     }
   );

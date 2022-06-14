@@ -84,6 +84,11 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         description: "Set the instances directory path (relative to dir)",
         defaultValue: "instances",
       },
+      {
+        key: "--store-multipart-bulk-data",
+        description: "Use multipart encoding for non image frame bulkdata",
+        defaultValue: false,
+      },
     ],
     programs: [
       {
