@@ -1,6 +1,7 @@
 const uids = require("../model/uids");
 const WriteStream = require("./WriteStream");
 const WriteMultipart = require("./WriteMultipart");
+const ExpandUriPath = require("./ExpandUriPath");
 
 const ImageFrameWriter = (options) => {
   const { verbose } = options;
@@ -22,7 +23,8 @@ const ImageFrameWriter = (options) => {
     await WriteMultipart(writeStream, contentType, content)
     await writeStream.close();
     if (verbose) console.log("Wrote image frame", id.sopInstanceUid, index + 1);
-    return `instances/${id.sopInstanceUid}/frames`;
+    const includeSeries = true;
+    return ExpandUriPath(id, `instances/${id.sopInstanceUid}/frames`, { includeSeries, ...options});
   };
 };
 

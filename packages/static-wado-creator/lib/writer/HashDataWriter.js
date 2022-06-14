@@ -5,6 +5,7 @@ const path = require("path");
 const Tags = require("../dictionary/Tags");
 const WriteStream = require("./WriteStream");
 const WriteMultipart = require("./WriteMultipart");
+const ExpandUriPath = require("./ExpandUriPath");
 
 // Extensions for encapsulated content.  Do NOT add any executable content extensions here.
 const extensions = {
@@ -34,7 +35,7 @@ const HashDataWriter =
       await writeStream.write(rawData);
     }
     await writeStream.close();
-    return `${dirName}/${fileName}`;
+    return ExpandUriPath(id, `${dirName}/${fileName}`, options);
   };
 
 /**

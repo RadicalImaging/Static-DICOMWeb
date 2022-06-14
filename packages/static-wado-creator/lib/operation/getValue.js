@@ -188,7 +188,7 @@ const getValue = async (dataSet, attr, vr, getDataSet, callback, options, parent
   const binaryValue = dataSet.byteArray.slice(attr.dataOffset, attr.dataOffset + attr.length);
   const mimeType = attr.tag == "x00420011" && dataSet.string("x00420012");
   const { storeMultipartBulkData } = options;
-  const BulkDataURI = await callback.bulkdata(binaryValue, { mimeType, storeMultipartBulkData });
+  const BulkDataURI = await callback.bulkdata(binaryValue, { mimeType, ...options });
   return { BulkDataURI, vr };
 };
 module.exports = getValue;

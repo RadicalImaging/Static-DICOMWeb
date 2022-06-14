@@ -16,7 +16,7 @@ const extractors = {
  * and then collects the deduplicate data into a list.
  * Whenever the study UID changes, a new event is fired to indicate the deduplicated data is ready.
  */
-async function deduplicateSingleInstance(id, imageFrame) {
+async function deduplicateSingleInstance(id, imageFrame, options) {
   if (!imageFrame) return {};
   const studyData = await this.completeStudy.getCurrentStudyData(this, id);
   const seriesUID = imageFrame[Tags.SeriesInstanceUID];
@@ -37,7 +37,7 @@ async function deduplicateSingleInstance(id, imageFrame) {
   for (const key of Object.keys(this.extractors)) {
     const extracted = TagLists.extract(deduplicated, key, this.extractors[key], TagLists.RemoveExtract);
     const hashKey = extracted[Tags.DeduppedHash].Value[0];
-    await studyData.addExtracted(this, hashKey, extracted);
+    await studyData.addExtracted(this, hashKey, extracted, options);
   }
 
   // Restore the series and SOP UIDs
@@ -85,7 +85,7 @@ const InstanceDeduplicate = (options) =>
       this.deduplicateSingleInstance = deduplicateSingleInstance;
     }
 
-    const deduppedInstance = await this.deduplicateSingleInstance(id, imageFrame);
+    const deduppedInstance = await this.deduplicateSingleInstance(id, imageFrame, options);
     if (deduppedInstance) {
       // this refers to callee
       await this.deduplicated(id, deduppedInstance);
