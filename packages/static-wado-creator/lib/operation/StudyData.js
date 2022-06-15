@@ -162,9 +162,9 @@ class StudyData {
     return ret;
   }
 
-  async addExtracted(callback, hashKey, item, options) {
+  async addExtracted(callback, hashKey, item) {
     if (this.extractData[hashKey]) return;
-    await callback.bulkdata(this, hashKey, item, options);
+    await callback.bulkdata(this, hashKey, item);
     this.extractData[hashKey] = item;
   }
 
