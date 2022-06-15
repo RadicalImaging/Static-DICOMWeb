@@ -84,6 +84,21 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         description: "Set the instances directory path (relative to dir)",
         defaultValue: "instances",
       },
+      {
+        key: "--store-multipart-bulk-data",
+        description: "Use multipart encoding for non image frame bulkdata",
+        defaultValue: false,
+      },
+      {
+        key: "--prepend-bulk-data-uri <value>",
+        description: "Prepend bulkdata uri (ex. to use absolute Uri like http://host:3000/dicomweb)",
+        defaultValue: "",
+      },
+      {
+        key: "--expand-bulk-data-uri",
+        description: "expand bulkdata relative uri to use full relative path (should also be set when using --prepend-bulk-data-uri)",
+        defaultValue: false,
+      },
     ],
     programs: [
       {

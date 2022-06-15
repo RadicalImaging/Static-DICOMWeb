@@ -4,6 +4,9 @@ const hasher = hashFactory();
 const path = require("path");
 const Tags = require("../dictionary/Tags");
 const WriteStream = require("./WriteStream");
+const WriteMultipart = require("./WriteMultipart");
+const ExpandUriPath = require("./ExpandUriPath");
+const { MultipartHeader } = require("./MultipartHeader");
 
 // Extensions for encapsulated content.  Do NOT add any executable content extensions here.
 const extensions = {
@@ -12,12 +15,21 @@ const extensions = {
   "application/xml+cda": ".cda.xml",
 };
 
+let first = true;
 /** Writes out JSON files to the given file name.  Automatically GZips them, and adds the extension */
 const HashDataWriter =
-  () =>
-  async (id, key, data, options = {}) => {
+  (options) =>
+  async (id, key, data, additionalOptions = {}) => {
+
+    if(first) {
+      console.log("HashDataWriter - options: ", options);
+      console.log("HashDataWriter - additional options: ", additionalOptions);
+      first = false;
+    }
+
     const isRaw = ArrayBuffer.isView(data);
-    const { mimeType } = options;
+    const { storeMultipartBulkData } = options;
+    const { mimeType } = additionalOptions;
     // If the file has an extension, it should be directly accessible as that file type.
     const gzip = !isRaw || (data.length > 1024 && !mimeType);
     const { dirName, fileName } = HashDataWriter.createHashPath(data, options);
@@ -27,9 +39,13 @@ const HashDataWriter =
       mkdir: true,
       gzip,
     });
-    await writeStream.write(rawData);
+    if (isRaw && storeMultipartBulkData) {
+      await WriteMultipart(writeStream, [new MultipartHeader("Content-Type", "application/octet-stream")], rawData);
+    } else {
+      await writeStream.write(rawData);
+    }
     await writeStream.close();
-    return `${dirName}/${fileName}`;
+    return ExpandUriPath(id, `${dirName}/${fileName}`, options);
   };
 
 /**
@@ -41,6 +57,7 @@ HashDataWriter.createHashPath = (data, options = {}) => {
   const extension = isRaw ? (mimeType && extensions[mimeType]) || "" : ".json";
   const existingHash = data[Tags.DeduppedHash];
   const hashValue = (existingHash && existingHash.Value[0]) || hasher.hash(data);
+
   return {
     // Use string concat as this value is used for the BulkDataURI which needs forward slashes
     dirName: `bulkdata/${hashValue.substring(0, 3)}/${hashValue.substring(3, 5)}`,
