@@ -15,17 +15,10 @@ const extensions = {
   "application/xml+cda": ".cda.xml",
 };
 
-let first = true;
 /** Writes out JSON files to the given file name.  Automatically GZips them, and adds the extension */
 const HashDataWriter =
   (options) =>
   async (id, key, data, additionalOptions = {}) => {
-    if (first) {
-      console.log("HashDataWriter - options: ", options);
-      console.log("HashDataWriter - additional options: ", additionalOptions);
-      first = false;
-    }
-
     const isRaw = ArrayBuffer.isView(data);
     const { storeMultipartBulkData } = options;
     const { mimeType } = additionalOptions;
