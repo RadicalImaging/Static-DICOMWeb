@@ -24,7 +24,7 @@ const ImageFrameWriter = (options) => {
     await writeStream.close();
     if (verbose) console.log("Wrote image frame", id.sopInstanceUid, index + 1);
     const includeSeries = true;
-    return ExpandUriPath(id, `instances/${id.sopInstanceUid}/frames`, { includeSeries, ...options});
+    return ExpandUriPath(id, `instances/${id.sopInstanceUid}/frames`, { includeSeries, ...options });
   };
 };
 

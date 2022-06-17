@@ -11,7 +11,17 @@ const { SeriesDescription, SeriesNumber, SeriesInstanceUID, SeriesDate, SeriesTi
 
 const { DeduppedCreator, DeduppedTag, DeduppedHash, DeduppedRef, DeduppedType } = Tags;
 
-const PatientQuery = [PatientID, PatientName, IssuerOfPatientID, Tags.PatientIdentityRemoved, Tags.DeidentificationMethodCodeSequence];
+const PatientQuery = [
+  PatientID,
+  Tags.OtherPatientIDsSequence,
+  PatientName,
+  IssuerOfPatientID,
+  Tags.PatientBirthDate,
+  Tags.PatientBirthTime,
+  Tags.PatientSex,
+  Tags.PatientIdentityRemoved,
+  Tags.DeidentificationMethodCodeSequence,
+];
 const StudyQuery = [StudyDescription, AccessionNumber, StudyInstanceUID, StudyDate, StudyTime, Tags.StudyStatusID, Tags.StudyPriorityID, Tags.StudyID];
 
 const PatientStudyQuery = [...PatientQuery, ...StudyQuery];
@@ -26,6 +36,7 @@ const SeriesExtract = [
   SeriesDate,
   SeriesTime,
   Tags.SpecificCharacterSet,
+  Tags.Manufacturer,
   Tags.InstitutionName,
   Tags.ReferringPhysicianName,
   Tags.StationName,

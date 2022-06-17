@@ -3,7 +3,7 @@ const ExpandUriPath = (id, path, options) => {
   let expandedRelative = "";
   if (expandBulkDataUri) {
     let expandedRelativeSeries = "";
-    if(includeSeries) {
+    if (includeSeries) {
       expandedRelativeSeries = `series/${id.seriesInstanceUid}/`;
     }
     expandedRelative = `studies/${id.studyInstanceUid}/${expandedRelativeSeries}`;
