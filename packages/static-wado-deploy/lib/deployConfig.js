@@ -20,6 +20,19 @@ const { deployConfig } = ConfigPoint.register({
     // This declare the inheritted configuration, don't assume this is directly accessible
     configBase: staticWadoConfig,
 
+    options: [
+      {
+        key: "--dry-run",
+        description: "Do a dry run, without actually uploading (but DOES check remote existance if configured)",
+        defaultValue: false,
+      },
+      {
+        key: "-v, --verbose",
+        description: "Write verbose output",
+        defaultValue: false,
+      },
+    ],
+
     programs: [
       {
         command: "studies",

@@ -10,6 +10,7 @@ import "../index.mjs";
 async function configureProgram(defaults = {}) {
   const configurationFile = await staticWadoUtil.loadConfiguration(defaults, process.argv);
   console.log("Loaded configuration from", configurationFile);
+  defaults.configurationFile = configurationFile;
   staticWadoUtil.configureCommands(defaults);
 }
 

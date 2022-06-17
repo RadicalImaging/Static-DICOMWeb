@@ -13,9 +13,10 @@ import { plugins } from "@radical/static-wado-plugins";
  */
 
 class DeployGroup {
-  constructor(config, groupName) {
+  constructor(config, groupName, options) {
     this.config = config;
     this.groupName = groupName;
+    this.options = options;
     this.group = configGroup(config, groupName);
     this.baseDir = handleHomeRelative(this.group.dir);
   }
@@ -24,7 +25,7 @@ class DeployGroup {
   async loadOps() {
     const imported = await import(plugins[this.config.deployPlugin || "s3Plugin"]);
     const { createPlugin: CreatePlugin } = imported.default || imported;
-    this.ops = new CreatePlugin(this.config, this.groupName);
+    this.ops = new CreatePlugin(this.config, this.groupName, this.options);
   }
 
   /**
