@@ -1,9 +1,4 @@
-class MultipartAttribute{
-  constructor(attributeName, attributeValue) {
-    this.attributeName = attributeName;
-    this.attributeValue = attributeValue;
-  }
-}
+const MultipartAttribute = require("./MultipartAttribute");
 
 class MultipartHeader {
   constructor(headerName, headerValue, attributes = []) {
@@ -15,5 +10,5 @@ class MultipartHeader {
 
 module.exports = {
   MultipartAttribute,
-  MultipartHeader
-}
+  MultipartHeader,
+};

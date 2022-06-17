@@ -20,8 +20,7 @@ let first = true;
 const HashDataWriter =
   (options) =>
   async (id, key, data, additionalOptions = {}) => {
-
-    if(first) {
+    if (first) {
       console.log("HashDataWriter - options: ", options);
       console.log("HashDataWriter - additional options: ", additionalOptions);
       first = false;

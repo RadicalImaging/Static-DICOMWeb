@@ -9,6 +9,7 @@ const metadataMain = require("./metadataMain");
 
 /**
  * Defines the basic configuration values for the dicomwebserver component.  See the README for more details.
+ * TODO - fix the default values so they come from the configuration file.  In the meantime, leave the defaults blank.
  */
 const { mkdicomwebConfig } = ConfigPoint.register({
   mkdicomwebConfig: {
@@ -38,11 +39,6 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         defaultValue: 128 * 1024 + 2,
       },
       {
-        key: "-o, --dir <value>",
-        description: "Set output directory",
-        defaultValue: "~/dicomweb", // defaults.rootDir,
-      },
-      {
         key: "-M, --maximum-inline-private-length <value>",
         description: "Maximum length of private binary data",
         defaultValue: 64,
@@ -51,13 +47,13 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         key: "-r, --recompress <listvalue...>",
         description: "List of types to recompress separated by comma",
         defaultValue: ["uncompressed", "jp2"],
-        choices: ["uncompressed", "jp2", "jpeglossless", "rle"],
+        choices: ["uncompressed", "jp2", "jpeglossless", "rle", "none"],
       },
       {
         key: "--recompress-thumb <listvalue...>",
         description: "List of types to recompress thumb separated by comma",
         defaultValue: ["uncompressed", "jp2"],
-        choices: ["uncompressed", "jp2", "jpeglossless", "rle"],
+        choices: ["uncompressed", "jp2", "jpeglossless", "rle", "none"],
       },
       {
         key: "--no-recompress",
@@ -98,6 +94,11 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         key: "--expand-bulk-data-uri",
         description: "expand bulkdata relative uri to use full relative path (should also be set when using --prepend-bulk-data-uri)",
         defaultValue: false,
+      },
+      {
+        key: "-o, --dir <value>",
+        description: "Set output directory",
+        defaultValue: { configOperation: "reference", source: "staticWadoConfig", reference: "rootDir" },
       },
     ],
     programs: [
