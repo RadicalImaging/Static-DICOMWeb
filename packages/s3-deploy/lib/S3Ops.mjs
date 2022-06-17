@@ -11,10 +11,16 @@ const octetStream = "application/octet-stream";
 const multipartRelated = "multipart/related";
 const imagejpeg = "image/jpeg";
 
+/** Key patterns to not cache */
+const noCachePattern = /(index.html)|(studies$)|(theme\/)|(^[a-zA-Z0-9\-_]+\.js)|(config\/)/;
+
+
 class S3Ops {
-  constructor(config, name) {
+
+  constructor(config, name, options) {
     this.group = configGroup(config, name);
     this.config = config;
+    this.options = options;
   }
 
   get client() {
@@ -94,6 +100,11 @@ class S3Ops {
     const Metadata = this.fileToMetadata(file, hash);
     const ContentEncoding = this.fileToContentEncoding(file);
     const fileName = this.toFile(dir, file);
+    const isNoCacheKey = Key.match(noCachePattern);
+    const CacheControl = isNoCacheKey ? "no-cache" : undefined;
+    if( isNoCacheKey ) {
+      console.log("no-cache set on", Key);
+    }
     const Body = fs.createReadStream(fileName);
     const command = new PutObjectCommand({
       Body,
@@ -101,13 +112,17 @@ class S3Ops {
       ContentType,
       ContentEncoding,
       Key,
+      CacheControl,
       Metadata,
       ContentSize,
     });
     console.log("uploading", file, ContentType, ContentEncoding, Key, ContentSize, Metadata, this.group.Bucket);
+    if( this.options.dryRun ) {
+      console.log("Dry run - no upload", Key);
+      return;
+    }
     try {
       await this.client.send(command);
-      // console.log("Success", file);
     } catch (error) {
       console.log("Error sending", file, error);
     } finally {
