@@ -2,6 +2,7 @@ import ConfigPoint from "config-point";
 import { staticWadoConfig } from "@radical/static-wado-util";
 import studiesMain from "./studiesMain.js";
 import clientMain from "./clientMain.js";
+import themeMain from "./themeMain.js";
 
 // Define the generic configuration in the base config
 ConfigPoint.extendConfiguration("staticWadoConfig", {
@@ -43,11 +44,17 @@ const { deployConfig } = ConfigPoint.register({
       },
       {
         command: "client",
-        argument: ["<string>", "Study UID to deploy"],
         helpShort: "deploydicomweb client",
         helpDescription: "Deploy client files to the cloud",
         main: clientMain,
       },
+      {
+        command: "theme",
+        helpShort: "deploydicomweb theme",
+        helpDescription: "Deploy updated theme files to the cloud",
+        main: themeMain,
+      },
+
       // {
       //   command: "continuous",
       //   helpShort: "deploydicomweb continuous",
