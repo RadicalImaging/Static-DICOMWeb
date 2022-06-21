@@ -28,6 +28,11 @@ const { deployConfig } = ConfigPoint.register({
         defaultValue: false,
       },
       {
+        key: "-d, --deployments <listvalue...>",
+        description: "List of deployments from configuration to deploy to. Separated by space.",
+        defaultValue: undefined,
+      },
+      {
         key: "-v, --verbose",
         description: "Write verbose output",
         defaultValue: false,

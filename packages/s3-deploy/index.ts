@@ -7,6 +7,9 @@ import staticWadoUtil from '@radical/static-wado-util';
 const defaults = Object.create(awsConfig);
 await staticWadoUtil.loadConfiguration(defaults, process.argv)
 
+const app = new cdk.App();
+console.log('env setup', defaults.s3Env);
+
 /**
  * This stack relies on getting the domain name from CDK context.
  * Use 'cdk synth -c domain=mystaticsite.com -c subdomain=www'
@@ -20,27 +23,35 @@ await staticWadoUtil.loadConfiguration(defaults, process.argv)
  * }
 **/
 class MyStaticSiteStack extends cdk.Stack {
-    constructor(parent: cdk.App, name: string, props: cdk.StackProps) {
+    constructor(parent: cdk.App, name: string, props: cdk.StackProps, deployment: any) {
         super(parent, name, props);
 
-        new StaticSite(this, 'StaticSite', defaults);
+        new StaticSite(this, deployment.name, deployment);
     }
 }
 
-const app = new cdk.App();
+function createDeployment(deployment) {
+    new MyStaticSiteStack(app, `${deployment.name}-deployment`, {
+        /**
+         * This is required for our use of hosted-zone lookup.
+         *
+         * Lookups do not work at all without an explicit environment
+         * specified; to use them, you must specify env.
+         * @see https://docs.aws.amazon.com/cdk/latest/guide/environments.html
+         */
+        env: defaults.s3Env,
+    }, 
+    deployment
+    );
+}
 
-console.log('env setup', defaults.s3Env);
-
-new MyStaticSiteStack(app, 'MyStaticSite', {
-    /**
-     * This is required for our use of hosted-zone lookup.
-     *
-     * Lookups do not work at all without an explicit environment
-     * specified; to use them, you must specify env.
-     * @see https://docs.aws.amazon.com/cdk/latest/guide/environments.html
-     */
-    env: defaults.s3Env,
-});
+const { deployments } = defaults;
+if (deployments) {
+    deployments.forEach((deployment) => createDeployment(deployment));
+} else {
+    const deployment = Object.assign(Object.create(defaults),  {name: "StaticSite"});
+    createDeployment(deployment);
+}
 
 console.log('Doing the synth now');
 app.synth();

@@ -1,0 +1,38 @@
+{
+  staticWadoConfig: {
+    deployments: [
+      {
+        name: 'ohif-only',
+        clientDir: '~/ohif',
+        clientGroup: {
+          Bucket: 'oo-s3cl-1234567',
+        },
+        // Website: dxxxxxxxxxxx.cloudfront.net
+      },
+      {
+        name: 'dicomweb-only',
+        rootDir: '~/dicomweb',
+        rootGroup: {
+          Bucket: 'do-s3cl-1234567',
+        },
+        // Website: dxxxxxxxxxxx.cloudfront.net
+      },
+      {
+        name: 'ohif-with-dicomweb',
+        clientDir: '~/ohif',
+        rootDir: '~/dicomweb',
+        clientGroup: {
+          Bucket: 'ob-s3cl-1234567',
+        },
+        rootGroup: {
+          Bucket: 'db-s3cl-1234567',
+        },
+        // Website: dxxxxxxxxxxx.cloudfront.net
+      },
+    ],
+    s3Env: {
+      account: '123456789012',
+      region: 'us-east-2',
+    },
+  },
+}

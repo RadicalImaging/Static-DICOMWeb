@@ -1,23 +1,10 @@
 #!/usr/bin/env node
-import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
-import * as cloudfront_origins from 'aws-cdk-lib/aws-cloudfront-origins';
-import * as iam from 'aws-cdk-lib/aws-iam';
-import { CfnOutput, RemovalPolicy, Stack } from 'aws-cdk-lib';
+import { CfnOutput, Stack } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { handleHomeRelative, configGroup } from '@radical/static-wado-util';
-import { Function, FunctionCode, FunctionEventType } from 'aws-cdk-lib/aws-cloudfront';
-
-const cors = [
-  {
-    allowedMethods: [
-      s3.HttpMethods.GET,
-      s3.HttpMethods.HEAD,
-    ],
-    allowedOrigins: ['*'],
-    allowedHeaders: ['*'],
-  },
-]
+import clientSite from './clientSite.js';
+import rootSite from './rootSite.js';
 
 /**
  * Static site infrastructure, which deploys site content to an S3 bucket.
@@ -28,55 +15,39 @@ const cors = [
 export class StaticSite extends Construct {
   constructor(parent: Stack, name: string, props: any) {
     super(parent, name);
-    const clientGroup = configGroup(props,"client");
-    const rootGroup = configGroup(props,"root");
 
-    const { Bucket: ohifName } = clientGroup;
-    const { Bucket: dicomwebName } = rootGroup;
+    console.log("props:", props);
+    if ( !props.clientGroup && !props.rootGroup ) {
+      throw new Error("No clientGroup or rootGroup declared in deployment");
+    }
 
-    // const zone = route53.HostedZone.fromLookup(this, 'Zone', { domainName: props.domainName });
-    // const siteDomain = props.siteSubDomain + '.' + props.domainName;
-    const cloudfrontOAI = new cloudfront.OriginAccessIdentity(this, 'cloudfront-OAI', {
+    const cloudfrontOAI = new cloudfront.OriginAccessIdentity(this, `${name}-OAI`, {
       comment: `OAI for ${name}`
     });
 
-    // new CfnOutput(this, 'Site', { value: 'https://' + siteDomain });
+    let clientDistProps;
+    if (props.clientGroup) {
+      const clientGroup = configGroup(props,"client");
+      console.log("clientGroup:", clientGroup);
+      clientDistProps = clientSite(this,name,cloudfrontOAI,clientGroup);
+    } else {
+      console.log("no clientGroup specified for deployment:", name);
+    }
+  
+    let rootDistProps;
+    if (props.rootGroup) {
+      const rootGroup = configGroup(props,"root");
+      console.log("rootGroup:", rootGroup);
+      rootDistProps = rootSite(this,name,cloudfrontOAI,rootGroup);
+    } else {
+      console.log("no rootGroup specified for deployment:", name);
+    }
 
-    // Content bucket
-    const ohifBucket = new s3.Bucket(this, ohifName, {
-      bucketName: ohifName,
-      cors,
-      websiteIndexDocument: 'index.html',
-      websiteErrorDocument: 'error.html',
-      publicReadAccess: true,
-      removalPolicy: RemovalPolicy.DESTROY, // NOT recommended for production code
-      autoDeleteObjects: true, // NOT recommended for production code
-    });
-    new CfnOutput(this, 'OHIF BucketURL', { value: ohifBucket.bucketWebsiteUrl});
+    const defaultDistProps = clientDistProps || rootDistProps;
+    const additionalDistProps = (clientDistProps && rootDistProps) ? { "/dicomweb/*": rootDistProps } : undefined;
 
-    const dicomwebBucket = new s3.Bucket(this, dicomwebName, {
-      bucketName: dicomwebName,
-      cors,
-      websiteIndexDocument: 'index.json',
-      websiteErrorDocument: 'error.html',
-      publicReadAccess: true,
-      removalPolicy: RemovalPolicy.DESTROY, // NOT recommended for production code
-      autoDeleteObjects: true, // NOT recommended for production code
-    });
-    new CfnOutput(this, 'DICOMweb BucketURL', { value: dicomwebBucket.bucketWebsiteUrl});
-
-    // Grant access to cloudfront
-    ohifBucket.addToResourcePolicy(new iam.PolicyStatement({
-      actions: ['s3:GetObject'],
-      resources: [ohifBucket.arnForObjects('*')],
-      principals: [new iam.CanonicalUserPrincipal(cloudfrontOAI.cloudFrontOriginAccessIdentityS3CanonicalUserId)]
-    }));
-    
-    dicomwebBucket.addToResourcePolicy(new iam.PolicyStatement({
-      actions: ['s3:GetObject'],
-      resources: [dicomwebBucket.arnForObjects('*')],
-      principals: [new iam.CanonicalUserPrincipal(cloudfrontOAI.cloudFrontOriginAccessIdentityS3CanonicalUserId)]
-    }));
+    // const zone = route53.HostedZone.fromLookup(this, 'Zone', { domainName: props.domainName });
+    // const siteDomain = props.siteSubDomain + '.' + props.domainName;
     
     // TLS certificate
     // const certificate = new acm.DnsValidatedCertificate(this, 'SiteCertificate', {
@@ -86,63 +57,16 @@ export class StaticSite extends Construct {
     // });
     // new CfnOutput(this, 'Certificate', { value: certificate.certificateArn });
 
-    const myResponseHeadersPolicy = new cloudfront.ResponseHeadersPolicy(this, 'ResponseHeadersPolicy', {
-      responseHeadersPolicyName: 'AllowDICOMwebRequests',
-      comment: 'Allow prefetch for DICOMweb with authorization and quotes in content-type',
-      corsBehavior: {
-        accessControlAllowCredentials: false,
-        accessControlAllowHeaders: ['*'],
-        accessControlAllowMethods: ['GET', 'OPTIONS', 'HEAD'],
-        accessControlAllowOrigins: ['*'],
-        originOverride: true,
-      },
-      customHeadersBehavior: {
-        customHeaders: [
-          { header: 'Cross-Origin-Embedder-Policy', value: 'require-corp', override: true },
-          { header: 'Cross-Origin-Opener-Policy', value: 'same-origin', override: true },
-        ],
-      },
-      securityHeadersBehavior: {
-        // contentSecurityPolicy: { contentSecurityPolicy: "script-src: unsafe-eval", override: true },
-        contentTypeOptions: { override: true },
-      },
-    });
 
-    const rewriteFunction = new Function(this, 'RouteRedirectFunction', {
-      code: FunctionCode.fromInline(`
-        function handler(event) {
-          var request = event.request;
-      
-          if (!request.uri.includes('.')) {
-              request.uri = '/index.html';
-          } 
-      
-          return request;
-        }`
-      )});
 
     // CloudFront distribution
-    const distribution = new cloudfront.Distribution(this, 'StaticDICOMWeb', {
+    const distribution = new cloudfront.Distribution(this, `${name}`, {
       // certificate: certificate,
       // domainNames: [siteDomain],
       enableIpv6: true,
-      defaultBehavior: {
-        origin: new cloudfront_origins.S3Origin(ohifBucket, {originAccessIdentity: cloudfrontOAI}),
-        allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
-        responseHeadersPolicy: myResponseHeadersPolicy,
-        functionAssociations: [{
-          function: rewriteFunction,
-          eventType: FunctionEventType.VIEWER_REQUEST,
-        }],
-      },
-      additionalBehaviors: {
-        "/dicomweb/*": {
-          origin: new cloudfront_origins.S3Origin(dicomwebBucket, {originAccessIdentity: cloudfrontOAI}),
-          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
-          responseHeadersPolicy: myResponseHeadersPolicy,
-        },
-      },
-    })
+      defaultBehavior: defaultDistProps,
+      additionalBehaviors: additionalDistProps,
+    });
 
   
     new CfnOutput(this, 'DistributionId', { value: distribution.distributionId });
@@ -156,7 +80,7 @@ export class StaticSite extends Construct {
 
     
     // Deploy site contents to S3 bucket
-    const clientDir = handleHomeRelative(clientGroup.dir || './site-contents');
+    const clientDir = handleHomeRelative(props.clientDir || './site-contents');
     new CfnOutput(this, 'clientDir', { value: clientDir } );
   }
 }
