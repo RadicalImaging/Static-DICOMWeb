@@ -12,9 +12,12 @@ function configureBaseProgram(configuration) {
 const addOptions = (cmd, options) => {
   if (options) {
     options.forEach((optionConfig) => {
-      const { key, description, defaultValue, choices, isRequired } = optionConfig;
+      const { key, description, defaultValue, choices, isRequired, customParser } = optionConfig;
       const option = cmd.createOption(key, description);
       option.default(defaultValue);
+      if (customParser) {
+        option.argParser(customParser);
+      }
       if (isRequired) {
         option.makeOptionMandatory();
       }

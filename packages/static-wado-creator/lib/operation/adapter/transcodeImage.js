@@ -4,66 +4,109 @@ const getImageInfo = require("./getImageInfo");
 
 const transcodeOp = {
   none: 0,
-  decodeOnly: 1,
-  encodeOnly: 2,
+  decode: 1,
+  encode: 2,
   transcode: 3, // decode and then encode
 };
 
 /**
- * Static mapping for transcoding decoders
+ * Static mapping for transcoding decoder destination names/uids - currently only lei, jls and jls-lossy appear to work.
  */
-const transcodeMap = {
-  "1.2.840.10008.1.2": {
+const transcodeDestinationMap = {
+  lei: {
+    transferSyntaxUid: "1.2.840.10008.1.2.1",
+    transcodeOp: transcodeOp.none
+  },
+  jls: {
     transferSyntaxUid: "1.2.840.10008.1.2.4.80",
-    transcodeOp: transcodeOp.transcode,
+    transcodeOp: transcodeOp.encode,
+  },
+  "jls-lossy": {
+    transferSyntaxUid: "1.2.840.10008.1.2.4.81",
+    transcodeOp: transcodeOp.encode,
+  },
+  jp2: {
+    transferSyntaxUid: "1.2.840.10008.1.2.4.90",
+    transcodeOp: transcodeOp.encode,
+  },
+  "jp2-lossy": {
+    transferSyntaxUid: "1.2.840.10008.1.2.4.91",
+    transcodeOp: transcodeOp.encode,
+  },
+};
+
+const transcodeSourceMap = {
+  "1.2.840.10008.1.2": {
+    transcodeOp: transcodeOp.decode,
     alias: "uncompressed",
   },
   "1.2.840.10008.1.2.1": {
-    transferSyntaxUid: "1.2.840.10008.1.2.4.80",
-    transcodeOp: transcodeOp.transcode,
+    transcodeOp: transcodeOp.none,
     alias: "uncompressed",
   },
   "1.2.840.10008.1.2.2": {
-    transferSyntaxUid: "1.2.840.10008.1.2.1",
-    transcodeOp: transcodeOp.decodeOnly,
+    transcodeOp: transcodeOp.decode,
     alias: "uncompressed",
   },
   "1.2.840.10008.1.2.4.57": {
-    transferSyntaxUid: "1.2.840.10008.1.2.4.80",
-    transcodeOp: transcodeOp.transcode,
+    transcodeOp: transcodeOp.decode,
     alias: "jpeglossless",
   },
   "1.2.840.10008.1.2.4.70": {
-    transferSyntaxUid: "1.2.840.10008.1.2.4.80",
-    transcodeOp: transcodeOp.transcode,
+    transcodeOp: transcodeOp.decode,
     alias: "jpeglossless",
   },
   "1.2.840.10008.1.2.4.90": {
-    transferSyntaxUid: "1.2.840.10008.1.2.4.80",
-    transcodeOp: transcodeOp.transcode,
+    transcodeOp: transcodeOp.decode,
     alias: "jp2",
   },
   "1.2.840.10008.1.2.4.91": {
-    transferSyntaxUid: "1.2.840.10008.1.2.4.80",
-    transcodeOp: transcodeOp.transcode,
+    transcodeOp: transcodeOp.decode,
     alias: "jp2",
   },
   "1.2.840.10008.1.2.5": {
-    transferSyntaxUid: "1.2.840.10008.1.2.4.80",
-    transcodeOp: transcodeOp.transcode,
+    transcodeOp: transcodeOp.decode,
     alias: "rle",
   },
 };
 
 /**
- * Return a existing transcoder for the given transferSyntaxUid. Otherwise it returns undefined.
+ * Get an existing destination transcoder from destination map. 
+ *
+ * @param {*} id Destination type to compress to 
+ * @returns A partial transcoder definition. Otherwise it returns undefined.
+ */
+function getDestinationTranscoder(id) {
+  const destinationTranscoderEntry = Object.entries(transcodeDestinationMap).find(([key, value]) => key === id || value.transferSyntaxUid === id);
+  if (destinationTranscoderEntry) {
+    return destinationTranscoderEntry[1];
+  }
+  return undefined;
+}
+
+/**
+ * Return a merged source and destination transcoder for the given transferSyntaxUid. Otherwise it returns undefined.
  *
  * @param {*} transferSyntaxUid
  * @returns
  */
-function getTranscoder(transferSyntaxUid) {
-  return transcodeMap[transferSyntaxUid];
+function getTranscoder(transferSyntaxUid, { contentType, verbose }) {
+  if (verbose) {
+    console.log(`getTranscoder for ${transferSyntaxUid}`);
+  }
+  const sourceTranscoder = transcodeSourceMap[transferSyntaxUid];
+  const destinationTranscoder = getDestinationTranscoder(contentType);
+  if (!sourceTranscoder || !destinationTranscoder) {
+    return undefined;
+  }
+  
+  return {
+    transferSyntaxUid: destinationTranscoder.transferSyntaxUid,
+    transcodeOp: sourceTranscoder.transcodeOp | destinationTranscoder.transcodeOp, // eslint-disable-line no-bitwise
+    alias: sourceTranscoder.alias,
+  };
 }
+
 
 /**
  * Tell whether given id contain transferSyntaxUid which can be transcoded or not.
@@ -77,8 +120,7 @@ function shouldTranscodeImageFrame(id, options) {
 
   function isValidTranscoder() {
     const { transferSyntaxUid } = id;
-    const transcoder = getTranscoder(transferSyntaxUid);
-
+    const transcoder = getTranscoder(transferSyntaxUid, options);
     return transcoder && transcoder.transferSyntaxUid && options.recompress.includes(transcoder.alias);
   }
 
@@ -99,7 +141,7 @@ function shouldThumbUseTranscoded(id, options) {
 
   function isValidTranscoder() {
     const { transferSyntaxUid } = id;
-    const transcoder = getTranscoder(transferSyntaxUid);
+    const transcoder = getTranscoder(transferSyntaxUid, options);
     const result = transcoder && transcoder.transferSyntaxUid && options.recompress.includes(transcoder.alias) && options.recompressThumb.includes(transcoder.alias);
 
     return result;
@@ -136,7 +178,7 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
     };
   }
 
-  const transcoder = getTranscoder(id.transferSyntaxUid);
+  const transcoder = getTranscoder(id.transferSyntaxUid, options);
 
   // last chance to prevent transcoding
   if (targetId.transferSyntaxUid !== transcoder.transferSyntaxUid) {
@@ -147,7 +189,9 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
     };
   }
 
-  console.log("Transcoding to", transcoder.transferSyntaxUid);
+  if (options.verbose) {
+    console.log("Transcoding to", transcoder.transferSyntaxUid);
+  }
   const imageInfo = getImageInfo(dataSet);
   let done = false;
   let processResultMsg = "";
@@ -161,14 +205,14 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
 
         processResultMsg = `Transcoding finished`;
         break;
-      case transcodeOp.encodeOnly:
+      case transcodeOp.encode:
         transcodeLog(options, `Encoding image to \x1b[43m${targetId.transferSyntaxUid}\x1b[0m`);
 
         result = await dicomCodec.encode(imageFrame, imageInfo, targetId.transferSyntaxUid);
 
         processResultMsg = `Encoding finished`;
         break;
-      case transcodeOp.decodeOnly:
+      case transcodeOp.decode:
         transcodeLog(options, `Decoding image from \x1b[43m${id.transferSyntaxUid}\x1b[0m`);
         result = await dicomCodec.decode(imageFrame, imageInfo, id.transferSyntaxUid);
 
@@ -217,7 +261,7 @@ function transcodeId(id, options) {
   }
 
   const targetId = { ...id };
-  const { transferSyntaxUid } = getTranscoder(id.transferSyntaxUid);
+  const { transferSyntaxUid } = getTranscoder(id.transferSyntaxUid, options);
 
   targetId.transferSyntaxUid = transferSyntaxUid;
 
@@ -254,5 +298,6 @@ function transcodeMetadata(metadata, id, options) {
 exports.shouldTranscodeImageFrame = shouldTranscodeImageFrame;
 exports.shouldThumbUseTranscoded = shouldThumbUseTranscoded;
 exports.transcodeId = transcodeId;
+exports.getDestinationTranscoder = getDestinationTranscoder;
 exports.transcodeImageFrame = transcodeImageFrame;
 exports.transcodeMetadata = transcodeMetadata;

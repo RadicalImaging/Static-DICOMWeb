@@ -6,6 +6,7 @@ const rejectMain = require("./rejectMain");
 const instanceMain = require("./instanceMain");
 const groupMain = require("./groupMain");
 const metadataMain = require("./metadataMain");
+const compressionOptionParser = require("./util/compressionOptionParser");
 
 /**
  * Defines the basic configuration values for the dicomwebserver component.  See the README for more details.
@@ -30,8 +31,9 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       },
       {
         key: "-t, --content-type <type>",
-        description: "Content type",
-        defaultValue: null,
+        description: 'Destination type to compress to (choices: "jls", "lei", "jls-lossy" or DICOM Transfer Syntax UID - default: "jls")',
+        defaultValue: "jls",
+        customParser: compressionOptionParser,
       },
       {
         key: "-m, --maximum-inline-public-length <value>",
@@ -45,13 +47,13 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       },
       {
         key: "-r, --recompress <listvalue...>",
-        description: "List of types to recompress separated by comma",
+        description: "List of types to recompress separated by space",
         defaultValue: ["uncompressed", "jp2"],
         choices: ["uncompressed", "jp2", "jpeglossless", "rle", "none"],
       },
       {
         key: "--recompress-thumb <listvalue...>",
-        description: "List of types to recompress thumb separated by comma",
+        description: "List of types to recompress thumb separated by space",
         defaultValue: ["uncompressed", "jp2"],
         choices: ["uncompressed", "jp2", "jpeglossless", "rle", "none"],
       },

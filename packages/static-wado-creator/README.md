@@ -96,20 +96,20 @@ The options are:
   : Set the instances directory path (relative to dir) (default: "instances")
   
   -r, --recompress <listvalue...> 
-  : List of types to recompress separated by comma (choices: "uncompressed", "jp2", "jpeglossless", "rle", default: "uncompressed jp2")
+  : List of types to recompress separated by space (choices: "uncompressed", "jp2", "jpeglossless", "rle", default: "uncompressed jp2")
   [see](#to-recompress)
 
   --recompress-thumb <listvalue...> 
-  : List of types to recompress thumb separated by comma (choices: "uncompressed", "jp2", "jpeglossless", "rle", default: "uncompressed jp2")
+  : List of types to recompress thumb separated by space (choices: "uncompressed", "jp2", "jpeglossless", "rle", default: "uncompressed jp2")
   [see](#to-recompress-thumb)
   
   -s, --study
-  : Write study metadata - on provided instances only (TO FIX}, (default: true)
+  : Write study metadata - on provided instances only (TO FIX), (default: true)
   
   -t, --content-type <type>
-  : Content type (default: null)
+  : Destination type to compress to (choices: "jls", "lei", "jls-lossy" or DICOM Transfer Syntax UID - default: "jls")
   
-  -T, --colour-content-type <value>
+  -T, --colour-content-type <type>
   : Colour content type (default: null)
   
   -v, --verbose
@@ -178,20 +178,31 @@ mkdicomwebupdate -<delete/anonymize/patient/study/series/instance> <studyInstanc
 to delete the given item or to update the specified attribute contained in the given level.  Multiple mkdicomwebupdate commands may be run to perform updates on different attribute sets, or they may be grouped into a single file for bulk application.
 
 ### To recompress
-It allows commands to recompress data/metadata prior writing it to local. Currently, if recompress is activate the designed data types will be transcoded [see](#recompress-aliases-and-input-transfer-syntaxes).
+It allows commands to recompress data/metadata prior writing it to local. Currently, if recompress is active the designed data types will be transcoded [see](#recompress-aliases-and-input-transfer-syntaxes).
 
 By default the recompression occurs for incoming types: uncompressed, jp2
 ```
 mkdicomweb ./folderName
 ```
-It will recompress any existing data that transfers syntaxes are 1.2.840.10008.1.2.4.90, 1.2.840.10008.1.2.4.91, 1.2.840.10008.1.2, 1.2.840.10008.1.2.1 and 1.2.840.10008.1.2.2.
-
+It will recompress any existing data whose transfer syntaxes are 1.2.840.10008.1.2.4.90, 1.2.840.10008.1.2.4.91, 1.2.840.10008.1.2, 1.2.840.10008.1.2.1 and 1.2.840.10008.1.2.2.
 
 Define incoming types for recompression of: uncompressed,jp2,rle
 ```
 mkdicomweb  -r uncompressed jp2 rle ./folderName
 ```
-It will recompress any existing data that transfers syntaxes: 1.2.840.10008.1.2.4.90, 1.2.840.10008.1.2.4.91, 1.2.840.10008.1.2, 1.2.840.10008.1.2.1, 1.2.840.10008.1.2.2 and 1.2.840.10008.1.2.5 to transfer syntax 1.2.840.10008.1.2.4.80.
+It will recompress any existing data whose transfer syntaxes: 1.2.840.10008.1.2.4.90, 1.2.840.10008.1.2.4.91, 1.2.840.10008.1.2, 1.2.840.10008.1.2.1, 1.2.840.10008.1.2.2 and 1.2.840.10008.1.2.5 to transfer syntax 1.2.840.10008.1.2.4.80.
+
+By default the destination compression type for recompression: jls
+```
+mkdicomweb ./folderName
+```
+It will recompress any existing data whose transfer syntaxes are 1.2.840.10008.1.2.4.90, 1.2.840.10008.1.2.4.91, 1.2.840.10008.1.2, 1.2.840.10008.1.2.1 and 1.2.840.10008.1.2.2 to jls (transfer syntax 1.2.840.10008.1.2.4.80)
+
+Define destination type for uncompressed encoding: lei
+```
+mkdicomweb -t lei ./folderName
+```
+It will decode any existing data whose transfer syntaxes are 1.2.840.10008.1.2.4.90, 1.2.840.10008.1.2.4.91, 1.2.840.10008.1.2, 1.2.840.10008.1.2.1 and 1.2.840.10008.1.2.2 and store uncompressed as LEI (transfer syntax 1.2.840.10008.1.2.1)
 
 Force no recompression
 ```
