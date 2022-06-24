@@ -47,6 +47,8 @@
     "build": "tsc && yarn copyFiles",
     "deploy": "yarn build && yarn copyFiles && yarn deployOnly",
     "deployOnly": "cdk deploy -a build/index.js",
+    "synth": "yarn build && yarn copyFiles && yarn synthOnly",
+    "synthOnly": "cdk synth -a build/index.js",
     "watch": "tsc -w",
     "cdk": "cdk",
     "link:exec": "npm link",

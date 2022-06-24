@@ -1,8 +1,5 @@
-import DeployGroup from "./DeployGroup.mjs";
+import commonMain from "./commonMain.mjs";
 
 export default async function (options) {
-  console.log("Deploy updated themes", this.deployPlugin);
-  const deployer = new DeployGroup(this, "client", options);
-  await deployer.loadOps();
-  await deployer.store("theme");
+  await commonMain(this, "client", options, "theme");
 }
