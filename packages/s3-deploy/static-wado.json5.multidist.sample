@@ -1,21 +1,34 @@
 {
   staticWadoConfig: {
     deployments: [
+      // Each deployment is a separate distribution. After running yarn synth, you can deploy resources for 
+      // a single distribution using the name - ex:
+      //   yarn deploy ohif-only
+      // or deploy resources for all distributions using:
+      //   yarn deploy --all
+      // Once the distribution resources are created, you can use the ../static-wado-creator project
+      // to deploy / upload to a specific distribution by name - ex:
+      //   node bin/deploydicomweb.mjs client -d ohif-only
       {
         name: 'ohif-only',
         clientDir: '~/ohif',
         clientGroup: {
           Bucket: 'oo-s3cl-1234567',
         },
+        //   yarn deploy ohif-only
         // Website: dxxxxxxxxxxx.cloudfront.net
+        //   deploy client files: ../static-wado-creator - node bin/deploydicomweb.mjs client -d ohif-only
       },
       {
         name: 'dicomweb-only',
         rootDir: '~/dicomweb',
         rootGroup: {
+          path: "/dicomweb",
           Bucket: 'do-s3cl-1234567',
         },
+        //   yarn deploy dicomweb-only
         // Website: dxxxxxxxxxxx.cloudfront.net
+        //   deploy dicomweb files: ../static-wado-creator - node bin/deploydicomweb.mjs -d dicomweb-only
       },
       {
         name: 'ohif-with-dicomweb',
@@ -25,9 +38,36 @@
           Bucket: 'ob-s3cl-1234567',
         },
         rootGroup: {
+          path: "/dicomweb",
           Bucket: 'db-s3cl-1234567',
         },
+        //   yarn deploy ohif-with-dicomweb
         // Website: dxxxxxxxxxxx.cloudfront.net
+        //   deploy dicomweb files: ../static-wado-creator - node bin/deploydicomweb.mjs -d ohif-with-dicomweb
+        //   deploy client files: ../static-wado-creator - node bin/deploydicomweb.mjs -d ohif-with-dicomweb
+      },
+      {
+        // a secondary ohif deployment using the same DICOMweb backend
+        // you might wish to have different versions (clientDir), or update one then the other
+        // such as for production / test environments.
+        // note that only one distribution may be the creator of a bucket so the other uses the
+        // 'useExistingBucket' flag.
+        name: 'ohif2-with-dicomweb',
+        clientDir: '~/ohif',
+        rootDir: '~/dicomweb',
+        clientGroup: {
+          Bucket: 'ob2-s3cl-1234567',
+        },
+        rootGroup: {
+          path: "/dicomweb",
+          useExistingBucket: true,
+          Bucket: 'db-s3cl-1234567',
+        },
+        //   yarn deploy ohif2-with-dicomweb
+        // Website: dxxxxxxxxxxx.cloudfront.net
+        //   deploy dicomweb files (optional if already deployed by other distribution):
+        //     ../static-wado-creator - node bin/deploydicomweb.mjs -d ohif2-with-dicomweb
+        //   deploy client files: ../static-wado-creator - node bin/deploydicomweb.mjs -d ohif2-with-dicomweb
       },
     ],
     s3Env: {

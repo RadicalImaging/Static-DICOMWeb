@@ -1,22 +1,11 @@
 #!/usr/bin/env node
-import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as cloudfront_origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as iam from 'aws-cdk-lib/aws-iam';
-import { CfnOutput, RemovalPolicy } from 'aws-cdk-lib';
+import { CfnOutput } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { Function, FunctionCode, FunctionEventType } from 'aws-cdk-lib/aws-cloudfront';
-
-const cors = [
-  {
-    allowedMethods: [
-      s3.HttpMethods.GET,
-      s3.HttpMethods.HEAD,
-    ],
-    allowedOrigins: ['*'],
-    allowedHeaders: ['*'],
-  },
-]
+import getBucket from './getBucket.js';
 
 /**
  * Static site infrastructure, which deploys site content to an S3 bucket.
@@ -30,15 +19,7 @@ const clientSite = function(site: Construct, name: string, cloudfrontOAI: cloudf
   const { Bucket: ohifName } = props;
   
   // Content bucket
-  const ohifBucket = new s3.Bucket(site, ohifName, {
-    bucketName: ohifName,
-    cors,
-    websiteIndexDocument: 'index.html',
-    websiteErrorDocument: 'error.html',
-    publicReadAccess: true,
-    removalPolicy: RemovalPolicy.DESTROY, // NOT recommended for production code
-    autoDeleteObjects: true, // NOT recommended for production code
-  });
+  const ohifBucket = getBucket(site, ohifName, props);;
   new CfnOutput(site, 'OHIF BucketURL', { value: ohifBucket.bucketWebsiteUrl});
 
   // Grant access to cloudfront
