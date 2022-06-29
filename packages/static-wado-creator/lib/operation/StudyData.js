@@ -6,6 +6,7 @@ const Tags = require("../dictionary/Tags");
 const TagLists = require("../model/TagLists");
 const JSONWriter = require("../writer/JSONWriter");
 
+const {getValue, setValue, getList, setList} = Tags;
 const hasher = hashFactory();
 
 const getSeriesInstanceUid = (seriesInstance) =>
@@ -87,10 +88,10 @@ class StudyData {
         return true;
       }
       const info = deduplicatedTopFile[0];
-      if (!info || !info[Tags.DeduppedHash] || info[Tags.DeduppedType].Value[0] != "info") {
+      if (!info || getValue(info,Tags.DeduppedHash) || getValue(info,Tags.DeduppedType) != "info") {
         return true;
       }
-      const hashValue = info[Tags.DeduppedHash].Value[0];
+      const hashValue = getValue(info,Tags.DeduppedHash);
       return this.existingFiles[0].indexOf(hashValue) == -1;
     } catch (e) {
       console.log("Assume study metadata is dirty", e);
@@ -109,7 +110,7 @@ class StudyData {
       const reSop = recombined[Tags.SOPInstanceUID];
       if (!reSop || !reSop.Value) continue;
       if (sopInstanceUid && reSop.Value[0] !== sopInstanceUid) continue;
-      this.deduplicated[i][Tags.DeduppedType].Value[0] = "deleted";
+      setValue(this.deduplicated[i], Tags.DeduppedType,"deleted");
     }
   }
 
@@ -149,13 +150,13 @@ class StudyData {
     if (index < 0 || index >= this.deduplicated.length) {
       throw new Error(`Can't read index ${index}, out of bounds [0..${this.deduplicated.length})`);
     }
-    const refs = deduplicated[Tags.DeduppedRef];
+    const refs = getList(deduplicated,Tags.DeduppedRef);
     if (!refs) {
       console.log("No refs for", deduplicated);
       return deduplicated;
     }
     const ret = { ...deduplicated };
-    for (const hashKey of refs.Value) {
+    for (const hashKey of refs) {
       const item = await this.getOrLoadExtract(hashKey);
       this.assignUndefined(ret, item);
     }
@@ -163,7 +164,10 @@ class StudyData {
   }
 
   async addExtracted(callback, hashKey, item) {
-    if (this.extractData[hashKey]) return;
+    if (this.extractData[hashKey]) {
+      if( this.verbose ) console.log("Already have extracted", hashKey, getValue(item,Tags.DeduppedType));
+      return;
+    }
     await callback.bulkdata(this, hashKey, item);
     this.extractData[hashKey] = item;
   }
@@ -268,19 +272,18 @@ class StudyData {
       this.existingFiles.push(name);
       const listData = (Array.isArray(data) && data) || [data];
       listData.forEach((item) => {
-        const typeEl = item[Tags.DeduppedType];
-        const type = typeEl && typeEl.Value[0];
+        const type = getValue(item, Tags.DeduppedType);
         if (type == Tags.InstanceType) {
           this.internalAddDeduplicated(item, name);
         } else if (type == "info") {
-          const refs = item[Tags.DeduppedRef];
-          if (refs && refs.Value) {
-            refs.Value.forEach((hashValue) => {
+          const refs = getList(item,Tags.DeduppedRef);
+          if (refs) {
+            refs.forEach((hashValue) => {
               this.readHashes[hashValue] = `${hashValue}.gz`;
             });
           }
         } else {
-          const hashValue = item[Tags.DeduppedHash] && item[Tags.DeduppedHash].Value[0];
+          const hashValue = getValue(item,Tags.DeduppedHash);
           if (hashValue) {
             this.extractData[hashValue] = item;
           }
@@ -377,9 +380,8 @@ class StudyData {
   createInfo() {
     const data = {};
     const hashValue = hasher.hash(this.deduplicated);
-    data[Tags.DeduppedTag] = { vr: "CS", Value: [Tags.DeduppedCreator] };
-    data[Tags.DeduppedHash] = { vr: "CS", Value: [hashValue] };
-    data[Tags.DeduppedType] = { vr: "CS", Value: ["info"] };
+    setValue(data,Tags.DeduppedHash,hashValue);
+    setValue(data,Tags.DeduppedType,"info");
     return data;
   }
 
@@ -392,7 +394,7 @@ class StudyData {
   /** Writes the deduplicated group */
   async writeDeduplicatedGroup() {
     const data = this.createInfo();
-    const hashValue = data[Tags.DeduppedHash].Value[0];
+    const hashValue = getValue(data,Tags.DeduppedHash);
     console.log(
       "Writing deduplicated hash data set data with",
       Object.values(this.extractData).length,
@@ -400,10 +402,8 @@ class StudyData {
       this.deduplicated.length,
       "instance items"
     );
-    data[Tags.DeduppedRef] = {
-      vr: "CS",
-      Value: Object.keys(this.readHashes).filter(() => this.deduplicatedHashes[hashValue] == undefined),
-    };
+    setList(data,Tags.DeduppedRef,
+      Object.keys(this.readHashes).filter(() => this.deduplicatedHashes[hashValue] == undefined));
     await JSONWriter(this.deduplicatedPath, hashValue, [data, ...Object.values(this.extractData), ...this.deduplicated], { gzip: true, index: false });
   }
 }

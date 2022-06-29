@@ -9,7 +9,9 @@ const { PatientID, PatientName, IssuerOfPatientID } = Tags;
 const { StudyDescription, AccessionNumber, StudyInstanceUID, StudyDate, StudyTime } = Tags;
 const { SeriesDescription, SeriesNumber, SeriesInstanceUID, SeriesDate, SeriesTime } = Tags;
 
-const { DeduppedCreator, DeduppedTag, DeduppedHash, DeduppedRef, DeduppedType } = Tags;
+const { DeduppedHash, DeduppedRef, DeduppedType, } = Tags;
+
+const { pushList, getList, setValue, getValue } = Tags;
 
 const PatientQuery = [
   PatientID,
@@ -104,16 +106,14 @@ const ImageExtract = [
 ];
 
 const addHash = (data, type) => {
-  if (data[DeduppedHash] && data[DeduppedHash].Value) {
-    return data[DeduppedHash].Value[0];
+  const existing = getValue(data,DeduppedHash);
+  if (existing) {
+    return existing;
   }
 
   const hashValue = hasher.hash(data);
-  if (!data[DeduppedHash]) {
-    data[DeduppedTag] = { vr: "CS", Value: [DeduppedCreator] };
-    data[DeduppedHash] = { vr: "CS", Value: [hashValue] };
-    data[DeduppedType] = { vr: "CS", Value: [type] };
-  }
+  setValue(data, DeduppedHash, hashValue );
+  setValue(data, DeduppedType, type );
   return hashValue;
 };
 
@@ -141,11 +141,7 @@ const TagSets = {
     });
     const hashValue = addHash(ret, type);
     if (hashRef) {
-      if (!data[DeduppedRef]) {
-        data[DeduppedTag] = { vr: "CS", Value: [DeduppedCreator] };
-        data[DeduppedRef] = { vr: "CS", Value: [] };
-      }
-      data[DeduppedRef].Value.push(hashValue);
+      pushList(data,DeduppedRef,hashValue);
     }
     return ret;
   },
