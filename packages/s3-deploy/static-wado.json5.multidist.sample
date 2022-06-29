@@ -12,11 +12,13 @@
       {
         name: 'ohif-only',
         clientDir: '~/ohif',
+        domainName: 'example.dev',
+        siteSubDomain: 'ohif',
         clientGroup: {
           Bucket: 'oo-s3cl-1234567',
         },
         //   yarn deploy ohif-only
-        // Website: dxxxxxxxxxxx.cloudfront.net
+        // Website: ohif.example.dev
         //   deploy client files: ../static-wado-creator - node bin/deploydicomweb.mjs client -d ohif-only
       },
       {
