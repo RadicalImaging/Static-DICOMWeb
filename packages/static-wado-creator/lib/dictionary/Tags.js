@@ -46,7 +46,7 @@ const Tags = {
   DeduppedHash: {creator: DeduppedCreator, tag: "00091011"},
 
   // Type of hash instance
-  DeduppedType: "00091012",
+  DeduppedType: {creator: DeduppedCreator, tag: "00091012"},
   InstanceType: "instance",
   InfoType: "info",
 
