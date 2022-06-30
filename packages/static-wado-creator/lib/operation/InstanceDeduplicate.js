@@ -3,6 +3,8 @@ const JSONWriter = require("../writer/JSONWriter");
 const TagLists = require("../model/TagLists");
 const Tags = require("../dictionary/Tags");
 
+const {getValue, setValue} = Tags;
+
 const extractors = {
   patient: TagLists.PatientQuery,
   study: TagLists.StudyQuery,
@@ -19,30 +21,32 @@ const extractors = {
 async function deduplicateSingleInstance(id, imageFrame) {
   if (!imageFrame) return {};
   const studyData = await this.completeStudy.getCurrentStudyData(this, id);
-  const seriesUID = imageFrame[Tags.SeriesInstanceUID];
-  const sopUID = imageFrame[Tags.SOPInstanceUID];
+  const seriesUID = getValue(imageFrame,Tags.SeriesInstanceUID);
+  const sopUID = getValue(imageFrame,Tags.SOPInstanceUID);
   if (!sopUID) {
     console.warn("No sop instance UID in", imageFrame);
     return {};
   }
   if (studyData.sopExists(sopUID)) {
-    // console.log('SOP Instance UID', sopUID.Value[0], 'already exists, skipping');
+    if( this.verbose ) console.log('SOP Instance UID', sopUID, 'already exists, skipping');
     // TODO - allow replace as an option
     // Null value means skip writing this instance
     return null;
   }
+
+  if( this.verbose ) console.log('SOP Instance UID', sopUID, 'being added');
   const deduplicated = { ...imageFrame };
 
   if (!this.extractors) this.extractors = extractors;
   for (const key of Object.keys(this.extractors)) {
     const extracted = TagLists.extract(deduplicated, key, this.extractors[key], TagLists.RemoveExtract);
-    const hashKey = extracted[Tags.DeduppedHash].Value[0];
+    const hashKey = getValue(extracted,Tags.DeduppedHash);
     await studyData.addExtracted(this, hashKey, extracted);
   }
 
   // Restore the series and SOP UIDs
-  deduplicated[Tags.SeriesInstanceUID] = seriesUID;
-  deduplicated[Tags.SOPInstanceUID] = sopUID;
+  setValue(deduplicated, Tags.SeriesInstanceUID, seriesUID);
+  setValue(deduplicated, Tags.SOPInstanceUID, sopUID);
   TagLists.addHash(deduplicated, Tags.InstanceType);
 
   return deduplicated;
@@ -83,6 +87,7 @@ const InstanceDeduplicate = (options) =>
 
     if (!this.deduplicateSingleInstance) {
       this.deduplicateSingleInstance = deduplicateSingleInstance;
+      this.verbose = options.verbose;
     }
 
     const deduppedInstance = await this.deduplicateSingleInstance(id, imageFrame);
