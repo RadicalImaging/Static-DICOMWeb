@@ -10,7 +10,7 @@ const {getValue, setValue, getList, setList} = Tags;
 const hasher = hashFactory();
 
 const getSeriesInstanceUid = (seriesInstance) =>
-  seriesInstance[Tags.SeriesInstanceUID] && seriesInstance[Tags.SeriesInstanceUID].Value && seriesInstance[Tags.SeriesInstanceUID].Value[0];
+  getValue(seriesInstance,Tags.SeriesInstanceUID);
 
 /**
  * StudyData contains information about the grouped study data.  It is used to create
@@ -105,11 +105,11 @@ class StudyData {
     this.newInstancesAdded += 1;
     for (let i = 0; i < this.deduplicated.length; i++) {
       const recombined = await this.recombine(i);
-      const reSeries = recombined[Tags.SeriesInstanceUID];
-      if (!reSeries || !reSeries.Value || reSeries.Value[0] !== seriesInstanceUid) continue;
-      const reSop = recombined[Tags.SOPInstanceUID];
-      if (!reSop || !reSop.Value) continue;
-      if (sopInstanceUid && reSop.Value[0] !== sopInstanceUid) continue;
+      const reSeriesUid = getValue(recombined,Tags.SeriesInstanceUID);
+      if (reSeriesUid !== seriesInstanceUid) continue;
+      const reSop = getValue(recombined,Tags.SOPInstanceUID);
+      if (!reSop) continue;
+      if (reSop !== sopInstanceUid) continue;
       setValue(this.deduplicated[i], Tags.DeduppedType,"deleted");
     }
   }
@@ -192,8 +192,7 @@ class StudyData {
       // console.log('Not adding', hashValue, 'because the hash exists');
       return false;
     }
-    const sopUID = data[Tags.SOPInstanceUID];
-    const sopValue = (sopUID && sopUID.Value && sopUID.Value[0]) || sopUID;
+    const sopValue = getValue(data,Tags.SOPInstanceUID);
     const sopIndex = this.sopInstances[sopValue];
     if (!sopValue) {
       console.warn("No sop value in", filename, "reading", data);
@@ -300,7 +299,7 @@ class StudyData {
 
     for (let i = 0; i < this.numberOfInstances; i++) {
       const seriesInstance = await this.recombine(i);
-      const type = seriesInstance[Tags.DeduppedType].Value[0];
+      const type = getValue(seriesInstance,Tags.DeduppedType);
       if (type == "deleted") {
         console.log("Skipping", type);
         continue;
@@ -338,7 +337,7 @@ class StudyData {
       numberOfInstances += instances.length;
       numberOfSeries += 1;
       seriesList.push(seriesQuery);
-      const modality = seriesQuery[Tags.Modality].Value[0];
+      const modality = getValue(seriesQuery,Tags.Modality);
       if (modalitiesInStudy.indexOf(modality) == -1) modalitiesInStudy.push(modality);
       await JSONWriter(seriesPath, "metadata", instances, {
         gzip: true,
@@ -404,7 +403,13 @@ class StudyData {
     );
     setList(data,Tags.DeduppedRef,
       Object.keys(this.readHashes).filter(() => this.deduplicatedHashes[hashValue] == undefined));
-    await JSONWriter(this.deduplicatedPath, hashValue, [data, ...Object.values(this.extractData), ...this.deduplicated], { gzip: true, index: false });
+    const deduplicatedList = [data, ...Object.values(this.extractData), ...this.deduplicated];
+    // const naturalList = deduplicatedList.map(Tags.naturalizeDataset);
+    // // console.log("naturalList=", JSON.stringify(naturalList,null,2));
+    // console.log("Going to write study data", naturalList.length);
+    // await JSONWriter(this.deduplicatedPath, hashValue, naturalList, { gzip: true, index: false });
+    await JSONWriter(this.deduplicatedPath, hashValue, deduplicatedList, { gzip: true, index: false });
+    console.log("Wrote naturalized dataset");
   }
 }
 

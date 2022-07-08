@@ -74,7 +74,7 @@ const filterItem = (key, queryParams, study) => {
   const valueElem = study[key] || study[altKey];
   if (!valueElem) return false;
   if (valueElem.vr == "DA") return compareDateRange(testValue, valueElem.Value[0]);
-  const value = valueElem.Value;
+  const value = valueElem.Value ?? valueElem;
   return !!compareValues(testValue, value);
 };
 

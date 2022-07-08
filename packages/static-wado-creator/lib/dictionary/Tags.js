@@ -1,4 +1,7 @@
 const dataDictionary = require("./dataDictionary");
+const dcmjs = require("dcmjs");
+
+const { naturalizeDataset, denaturalizeDataset} = dcmjs.data.DicomMetaDictionary
 
 /** Find the actual tag for a private value */
 const findPrivate = (item, tagObject, create) => {
@@ -50,6 +53,8 @@ const Tags = {
   InstanceType: "instance",
   InfoType: "info",
 
+  naturalizeDataset, denaturalizeDataset,
+  
   setValue: (item, tag, value) => {
     const actualTag = findPrivate(item,tag,true);
     item[actualTag] = { Value: Array.isArray(value) ? value : [value] };

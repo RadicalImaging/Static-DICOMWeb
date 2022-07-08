@@ -14,7 +14,7 @@ const { imageFrameUtils } = require("../util");
  * @returns
  */
 function createImage(transferSyntax, decodedPixelData, metadata, canvas, options = {}) {
-  const dataSet = dcmjs.data.DicomMetaDictionary.naturalizeDataset(metadata);
+  const dataSet = dcmjs.data.DicomMetaDictionary.naturalizeDataset(JSON.parse(JSON.stringify(metadata)));
   const imageFrame = imageFrameUtils.get.fromDataset(dataSet, decodedPixelData);
 
   const { convertFloatPixelDataToInt, targetBuffer } = options;
