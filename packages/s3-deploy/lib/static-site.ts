@@ -5,6 +5,7 @@ import { Construct } from 'constructs';
 import { handleHomeRelative, configGroup } from '@radical/static-wado-util';
 import clientSite from './clientSite.js';
 import rootSite from './rootSite.js';
+import { getSiteInfo, configureDomain } from './configureHostedZone.js';
 
 /**
  * Static site infrastructure, which deploys site content to an S3 bucket.
@@ -46,23 +47,13 @@ export class StaticSite extends Construct {
     const defaultDistProps = clientDistProps || rootDistProps;
     const additionalDistProps = (clientDistProps && rootDistProps) ? { "/dicomweb/*": rootDistProps } : undefined;
 
-    // const zone = route53.HostedZone.fromLookup(this, 'Zone', { domainName: props.domainName });
-    // const siteDomain = props.siteSubDomain + '.' + props.domainName;
-    
-    // TLS certificate
-    // const certificate = new acm.DnsValidatedCertificate(this, 'SiteCertificate', {
-    //   domainName: siteDomain,
-    //   hostedZone: zone,
-    //   region: 'us-east-1', // Cloudfront only checks this region for certificates.
-    // });
-    // new CfnOutput(this, 'Certificate', { value: certificate.certificateArn });
-
-
+    const siteInfo = getSiteInfo(this, name, props);
+    const siteDomain = siteInfo?[siteInfo.siteDomain]:undefined;
 
     // CloudFront distribution
     const distribution = new cloudfront.Distribution(this, `${name}`, {
-      // certificate: certificate,
-      // domainNames: [siteDomain],
+      certificate: siteInfo?.certificate,
+      domainNames: siteDomain,
       enableIpv6: true,
       defaultBehavior: defaultDistProps,
       additionalBehaviors: additionalDistProps,
@@ -70,14 +61,11 @@ export class StaticSite extends Construct {
 
   
     new CfnOutput(this, 'DistributionId', { value: distribution.distributionId });
-    new CfnOutput(this, 'DistributionDomainName', { value: distribution.distributionDomainName} );
-    // // Route53 alias record for the CloudFront distribution
-    // new route53.ARecord(this, 'SiteAliasRecord', {
-    //   recordName: siteDomain,
-    //   target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(distribution)),
-    //   zone
-    // });
 
+    if (siteInfo) {
+      configureDomain(this, name, siteInfo.siteDomain, siteInfo.zone, distribution);
+    }
+    new CfnOutput(this, 'DistributionDomainName', { value: siteInfo?siteInfo.siteDomain:distribution.distributionDomainName });
     
     // Deploy site contents to S3 bucket
     const clientDir = handleHomeRelative(props.clientDir || './site-contents');
