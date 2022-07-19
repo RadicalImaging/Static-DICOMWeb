@@ -289,7 +289,7 @@ function transcodeMetadata(metadata, id, options) {
   const result = { ...metadata };
 
   if (result[Tags.AvailableTransferSyntaxUID]) {
-    result[Tags.AvailableTransferSyntaxUID].Value = [transcodedId.transferSyntaxUid];
+    Tags.setValue(result,Tags.AvailableTransferSyntaxUID, transcodedId.transferSyntaxUid);
   }
 
   return result;

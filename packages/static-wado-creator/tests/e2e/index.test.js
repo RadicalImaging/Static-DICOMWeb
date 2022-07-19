@@ -89,6 +89,6 @@ describe("index", () => {
     }
 
     objJuno["00181310"].vr.must.eql("US");
-    objJuno["00181310"].Value.must.eql([0, 512, 192, 0]);
+    Tags.getValue(objJuno,"00181310").must.eql([0, 512, 192, 0]);
   });
 });

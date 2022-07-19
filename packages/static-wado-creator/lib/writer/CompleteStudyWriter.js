@@ -47,12 +47,12 @@ const CompleteStudyWriter = (options) => {
     const studyQuery = await studyData.writeMetadata();
 
     const allStudies = await JSONReader(options.directoryName, "studies/index.json.gz", []);
-    if (!studyQuery[Tags.StudyInstanceUID] || !studyQuery[Tags.StudyInstanceUID].Value) {
+    const studyUID = Tags.getValue(studyQuery,Tags.StudyInstanceUID);
+    if (!studyUID) {
       console.error("studyQuery=", studyQuery);
       throw new Error("Study query has null studyUID");
     }
-    const studyUID = studyQuery[Tags.StudyInstanceUID].Value[0];
-    const studyIndex = allStudies.findIndex((item) => item[Tags.StudyInstanceUID].Value[0] == studyUID);
+    const studyIndex = allStudies.findIndex((item) => Tags.getValue(item,Tags.StudyInstanceUID) == studyUID);
     if (studyIndex == -1) {
       allStudies.push(studyQuery);
     } else {
