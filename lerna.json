@@ -1,11 +1,18 @@
 {
   "version": "fixed",
-  "packages": ["packages/*"],
+  "packages": [
+    "packages/*"
+  ],
   "npmClient": "yarn",
   "useWorkspaces": true,
   "command": {
     "publish": {
-      "ignoreChanges": ["*.md", "*.yml", "*.spec.js", "*.test.js"],
+      "ignoreChanges": [
+        "*.md",
+        "*.yml",
+        "*.spec.js",
+        "*.test.js"
+      ],
       "message": "chore(release): publish",
       "verifyAccess": false
     },

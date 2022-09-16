@@ -10,4 +10,4 @@ function isJPEGBaseline8BitColor(imageFrame, _transferSyntax) {
   return response;
 }
 
-module.exports = isJPEGBaseline8BitColor;
+export default isJPEGBaseline8BitColor;

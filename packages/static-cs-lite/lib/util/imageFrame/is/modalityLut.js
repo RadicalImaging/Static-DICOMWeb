@@ -7,4 +7,4 @@ function modalityLut(sopClassUid) {
   ); // XRF
 }
 
-module.exports = modalityLut;
+export default modalityLut;

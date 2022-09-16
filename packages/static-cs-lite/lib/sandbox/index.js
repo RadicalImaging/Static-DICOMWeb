@@ -1,4 +1,4 @@
-const createBrowser = require("jsdom-context-require");
+import createBrowser  from "jsdom-context-require";
 
 /**
  * CS lite sandbox
@@ -25,4 +25,4 @@ function setUpEnvSandbox() {
   return { csCore, context, canvas: context.window.document.querySelector("canvas") };
 }
 
-module.exports = setUpEnvSandbox;
+export default setUpEnvSandbox;

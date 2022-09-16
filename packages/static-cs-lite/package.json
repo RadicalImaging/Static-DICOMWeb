@@ -49,5 +49,8 @@
     "dcmjs": "^0.19.6",
     "jsdom": "^19.0.0",
     "jsdom-context-require": "^4.0.4"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3"
   }
 }

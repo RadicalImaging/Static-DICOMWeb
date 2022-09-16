@@ -1,6 +1,6 @@
 /* eslint-disable no-param-reassign */
-const dcmjs = require("dcmjs");
-const { imageFrameUtils } = require("../util");
+import dcmjs from "dcmjs";
+import { imageFrameUtils } from "../util";
 
 /**
  * Creates CornerstoneCore image object for already decodedPixel data.
@@ -152,4 +152,4 @@ function createImage(transferSyntax, decodedPixelData, metadata, canvas, options
   return image;
 }
 
-module.exports = createImage;
+export default createImage;
