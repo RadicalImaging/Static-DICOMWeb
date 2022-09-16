@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
-const { mkdicomwebConfig } = require("../lib");
-const { configureProgram } = require("../lib/program");
+import { mkdicomwebConfig, configureProgram } from "@radicalimaging/static-wado-creator";
 
 // Configure program commander
 configureProgram(mkdicomwebConfig).then(() => {

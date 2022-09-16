@@ -1,4 +1,4 @@
-const { Stats } = require("@radical/static-wado-util");
+const { Stats } = require("@radicalimaging/static-wado-util");
 /* eslint "no-param-reassign": "off" */
 
 const handler = {

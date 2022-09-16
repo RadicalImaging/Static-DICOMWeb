@@ -1,7 +1,7 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import fs from "fs";
 import mime from "mime-types";
-import { configGroup } from "@radical/static-wado-util";
+import { configGroup } from "@radicalimaging/static-wado-util";
 import { ConfigPoint } from "config-point";
 
 const compressedRe = /((\.br)|(\.gz))$/;

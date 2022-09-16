@@ -1,5 +1,5 @@
 {
-  "name": "static-dicomweb",
+  "name": "static-dicomweb-root",
   "private": true,
   "engines": {
     "node": ">=14.18.1",
@@ -26,12 +26,15 @@
     "prettier-eslint": "^13.0.0"
   },
   "dependencies": {
-    "husky": "^7.0.4"
+    "husky": "^7.0.4",
+    "json5": "^2.2.1",
+    "json5-writer": "^0.2.0"
   },
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
+    "clean": "lerna run clean --parallel --stream",
     "test": "lerna run test --parallel --stream",
     "test:ci": "yarn run test",
     "build": "lerna run build --stream",

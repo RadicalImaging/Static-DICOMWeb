@@ -1,4 +1,4 @@
-const { program } = require("@radical/static-wado-util");
+const { program } = require("@radicalimaging/static-wado-util");
 const { getDestinationTranscoder } = require("../operation/adapter/transcodeImage");
 
 module.exports = function compressionOptionParser(value) { 

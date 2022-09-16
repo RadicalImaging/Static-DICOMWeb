@@ -32,6 +32,8 @@
         // Website: dxxxxxxxxxxx.cloudfront.net
         //   deploy dicomweb files: ../static-wado-creator - node bin/deploydicomweb.mjs -d dicomweb-only
       },
+
+
       {
         name: 'ohif-with-dicomweb',
         clientDir: '~/ohif',
@@ -48,6 +50,7 @@
         //   deploy dicomweb files: ../static-wado-creator - node bin/deploydicomweb.mjs -d ohif-with-dicomweb
         //   deploy client files: ../static-wado-creator - node bin/deploydicomweb.mjs -d ohif-with-dicomweb
       },
+
       {
         // a secondary ohif deployment using the same DICOMweb backend
         // you might wish to have different versions (clientDir), or update one then the other

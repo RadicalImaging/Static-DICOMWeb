@@ -1,5 +1,5 @@
 const ConfigPoint = require("config-point");
-const { staticWadoConfig } = require("@radical/static-wado-util");
+const { staticWadoConfig } = require("@radicalimaging/static-wado-util");
 const createMain = require("./createMain");
 const deleteMain = require("./deleteMain");
 const rejectMain = require("./rejectMain");

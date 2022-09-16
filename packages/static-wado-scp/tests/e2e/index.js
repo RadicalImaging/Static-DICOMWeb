@@ -1,3 +1,3 @@
-xdescribe("@radical/static-wado-scp", () => {
+xdescribe("@radicalimaging/static-wado-scp", () => {
   test.todo("needs tests");
 });

@@ -1,15 +1,11 @@
 {
-  "name": "@radical/static-wado-util",
-  "version": "0.6.2",
+  "name": "@radicalimaging/static-wado-util",
+  "version": "0.6.3",
   "description": "Utils for other packages.",
   "publishConfig": {
     "access": "public"
   },
-  "keywords": [
-    "commander",
-    "StaticWado"
-  ],
-  "author": "Rodolfo Ladeira <rodolfo2611@gmail.com>",
+  "author": "Rodolfo Ladeira <rodolfo2611@gmail.com>, Radical Imaging",
   "contributors": [
     "Bill Wallace <bill.wallace@radicalimaging.com>"
   ],
@@ -28,25 +24,49 @@
   },
   "homepage": "https://github.com/OHIF/static-wado#readme",
   "license": "ISC",
-  "main": "lib/index.js",
-  "directories": {
-    "lib": "lib"
-  },
-  "files": [
-    "lib"
-  ],
+  "main": "dist/index.js",
+  "module": "lib/index.ts",
+  "files": ["dist"],
   "dependencies": {
     "commander": "^9.0.0",
-    "config-point": "^0.4.6",
+    "config-point": "0.5.0",
     "json5": "^2.2.1",
-    "json5-writer": "noahsug/json5-writer",
-    "must": "^0.13.4"
+    "json5-writer": "^0.2.0"
   },
   "scripts": {
-    "test": "jest --config ./jest.config.js",
-    "build": "echo \"No build yet\" && exit 0",
+    "clean": "rimraf dist",
+    "dev": "cross-env NODE_ENV=development webpack --config .webpack/webpack.dev.js --watch --debug --output-pathinfo",
+    "dev:dicom-pdf": "yarn run dev",
     "link:exec": "npm link",
+    "build": "cross-env NODE_ENV=production webpack --config .webpack/webpack.prod.js",
+    "test": "jest --config ./jest.config.js",
+    "build:package": "yarn run build",
+    "start": "yarn run dev",
     "lint": "npx eslint --color \"*(bin|lib)/**/*.{js,mjs}\"",
     "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
+  },
+  "devDependencies": {
+    "@babel/core": "^7.5.0",
+    "@babel/plugin-proposal-class-properties": "^7.5.0",
+    "@babel/plugin-proposal-object-rest-spread": "^7.5.5",
+    "@babel/plugin-syntax-dynamic-import": "^7.2.0",
+    "@babel/plugin-transform-arrow-functions": "^7.2.0",
+    "@babel/plugin-transform-regenerator": "^7.4.5",
+    "@babel/plugin-transform-runtime": "^7.5.0",
+    "@babel/preset-env": "^7.5.0",
+    "@babel/preset-react": "^7.0.0",
+    "@babel/preset-typescript": "^7.18.6",
+    "babel-eslint": "^8.0.3",
+    "babel-loader": "^8.0.0-beta.4",
+    "babel-plugin-inline-react-svg": "^2.0.1",
+    "clean-webpack-plugin": "^4.0.0",
+    "copy-webpack-plugin": "^10.2.0",
+    "cross-env": "^7.0.3",
+    "dotenv": "^14.1.0",
+    "eslint": "^5.0.1",
+    "eslint-loader": "^2.0.0",
+    "webpack": "^5.50.0",
+    "webpack-cli": "^4.7.2",
+    "webpack-merge": "^5.7.3"
   }
 }

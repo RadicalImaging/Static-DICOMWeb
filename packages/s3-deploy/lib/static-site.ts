@@ -2,7 +2,7 @@
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import { CfnOutput, Stack } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import { handleHomeRelative, configGroup } from '@radical/static-wado-util';
+import { handleHomeRelative, configGroup } from '@radicalimaging/static-wado-util';
 import clientSite from './clientSite.js';
 import rootSite from './rootSite.js';
 import { getSiteInfo, configureDomain } from './configureHostedZone.js';

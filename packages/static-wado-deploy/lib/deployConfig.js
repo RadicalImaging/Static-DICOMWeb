@@ -1,5 +1,5 @@
 import ConfigPoint from "config-point";
-import { staticWadoConfig } from "@radical/static-wado-util";
+import { staticWadoConfig } from "@radicalimaging/static-wado-util";
 import studiesMain from "./studiesMain.js";
 import clientMain from "./clientMain.js";
 import themeMain from "./themeMain.js";

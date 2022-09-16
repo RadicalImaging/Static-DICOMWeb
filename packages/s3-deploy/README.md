@@ -1,4 +1,4 @@
-# `@radical/s3-deploy`
+# `@radicalimaging/s3-deploy`
 
 The s3-deploy project provides a utility to provision and configure one or more static AWS S3 sites with CloudFront distribution front-ends.
 

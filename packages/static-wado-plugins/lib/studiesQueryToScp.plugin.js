@@ -1,6 +1,6 @@
 const ConfigPoint = require("config-point");
 const dcmjsDimse = require("dcmjs-dimse");
-const { aeConfig, assertions } = require("@radical/static-wado-util");
+const { aeConfig, assertions } = require("@radicalimaging/static-wado-util");
 
 const { Client } = dcmjsDimse;
 const { CFindRequest } = dcmjsDimse.requests;

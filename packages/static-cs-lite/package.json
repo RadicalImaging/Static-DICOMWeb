@@ -1,5 +1,5 @@
 {
-  "name": "@radical/static-cs-lite",
+  "name": "@radicalimaging/static-cs-lite",
   "version": "0.0.2",
   "description": "Cornerstone core lite version that runs on server side",
   "publishConfig": {
@@ -28,17 +28,19 @@
   },
   "homepage": "https://github.com/OHIF/static-wado#readme",
   "license": "ISC",
-  "main": "lib/index.js",
-  "directories": {
-    "lib": "lib"
-  },
+  "main": "dist/index.js",
+  "module": "lib/index.ts",
   "files": [
-    "lib"
+    "dist"
   ],
   "scripts": {
-    "test": "jest --config ./jest.config.js",
-    "build": "echo \"No build yet\" && exit 0",
+    "clean": "rimraf dist",
+    "dev": "cross-env NODE_ENV=development webpack --config .webpack/webpack.dev.js --watch --debug --output-pathinfo",
     "link:exec": "npm link",
+    "build": "cross-env NODE_ENV=production webpack --config .webpack/webpack.prod.js",
+    "test": "jest --config ./jest.config.js",
+    "build:package": "yarn run build",
+    "start": "yarn run dev",
     "lint": "npx eslint --color \"*(bin|lib)/**/*.{js,mjs}\"",
     "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
   },

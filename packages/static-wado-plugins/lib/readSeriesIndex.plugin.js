@@ -1,5 +1,5 @@
 const ConfigPoint = require("config-point");
-const { JSONReader } = require("@radical/static-wado-util");
+const { JSONReader } = require("@radicalimaging/static-wado-util");
 
 const { readSeriesIndex } = ConfigPoint.register({
   readSeriesIndex: {

@@ -1,4 +1,4 @@
-import { plugins } from "@radical/static-wado-plugins";
+import { plugins } from "@radicalimaging/static-wado-plugins";
 /**
  * Class that knows how to handle DICOMweb deployments.
  * Assumptions are that files are deployed to an archiving file system like S3 that stores items in multiple locations for safety,

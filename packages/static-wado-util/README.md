@@ -1,4 +1,4 @@
-# `@radical/static-wado-util`
+# `@radicalimaging/static-wado-util`
 
 Util and common code shared between packages. 
 It includes a factory to node commander package. It is a complete solution for command-line programs (i.e static-wado packages commands). 
@@ -13,7 +13,7 @@ View root development section [development](../../README.md#development)
 ## Usage
 
 ```
-const staticWadoUtil = require('@radical/static-wado-util');
+const staticWadoUtil = require('@radicalimaging/static-wado-util');
 
 staticWadoUtil.configureProgram(configuration);
 ```
