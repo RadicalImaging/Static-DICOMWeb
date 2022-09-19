@@ -1,13 +1,10 @@
 const StaticWado = require("./StaticWado");
 const adaptProgramOpts = require("./util/adaptProgramOpts");
 
-module.exports = function createMain(options, program) {
+module.exports = function createMain(options) {
   const finalOptions = adaptProgramOpts(options, {
     ...this,
-    isInstance: true,
-    isGroup: false,
-    isStudyData: false,
   });
   const importer = new StaticWado(finalOptions);
-  return importer.executeCommand(program.args);
+  return importer.reindex();
 };

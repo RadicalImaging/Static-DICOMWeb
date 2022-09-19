@@ -4,6 +4,7 @@ const dicomParser = require("dicom-parser");
 const fs = require("fs");
 const path = require("path");
 const { dirScanner } = require("@radicalimaging/static-wado-util");
+const { JSONReader } = require("@radicalimaging/static-wado-util");
 const asyncIterableToBuffer = require("./operation/adapter/asyncIterableToBuffer");
 const getDataSet = require("./operation/getDataSet");
 const InstanceDeduplicate = require("./operation/InstanceDeduplicate");
@@ -19,6 +20,7 @@ const ThumbnailWriter = require("./writer/ThumbnailWriter");
 const ThumbnailService = require("./operation/ThumbnailService");
 const DeleteStudy = require("./DeleteStudy");
 const RejectInstance = require("./RejectInstance");
+const JSONWriter = require("./writer/JSONWriter");
 
 function setStudyData(studyData) {
   this.studyData = studyData;
@@ -201,6 +203,25 @@ class StaticWado {
   async close() {
     await this.callback.completeStudy();
     Stats.OverallStats.summarize("Completed Study Processing");
+  }
+
+  async reindex() {
+    const { directoryName } = this.options;
+    const studiesDir = `${directoryName}/studies/`;
+
+    console.log("Re-indexing", studiesDir);
+    const dirs = await fs.promises.readdir(studiesDir);
+    const studies = [];
+    for (const dir of dirs) {
+      const study = await JSONReader(`${studiesDir}/${dir}`, "index.json.gz", null);
+      if (study === null) {
+        console.log("No study found in", dir);
+        continue;
+      }
+      console.log("Adding study", dir);
+      studies.push(...study);
+    }
+    return JSONWriter(directoryName, "studies", studies);
   }
 }
 module.exports = StaticWado;
