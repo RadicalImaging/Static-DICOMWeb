@@ -3,39 +3,39 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
-## [0.6.4](https://github.com/OHIF/static-wado/compare/@radical/static-wado-scp@0.6.3...@radical/static-wado-scp@0.6.4) (2022-04-04)
+## [0.6.4](https://github.com/OHIF/static-wado/compare/@radicalimaging/static-wado-scp@0.6.3...@radicalimaging/static-wado-scp@0.6.4) (2022-04-04)
 
-**Note:** Version bump only for package @radical/static-wado-scp
-
-
-
-
-
-## [0.6.3](https://github.com/OHIF/static-wado/compare/@radical/static-wado-scp@0.6.2...@radical/static-wado-scp@0.6.3) (2022-03-14)
-
-**Note:** Version bump only for package @radical/static-wado-scp
+**Note:** Version bump only for package @radicalimaging/static-wado-scp
 
 
 
 
 
-## [0.6.2](https://github.com/OHIF/static-wado/compare/@radical/static-wado-scp@0.6.1...@radical/static-wado-scp@0.6.2) (2022-03-04)
+## [0.6.3](https://github.com/OHIF/static-wado/compare/@radicalimaging/static-wado-scp@0.6.2...@radicalimaging/static-wado-scp@0.6.3) (2022-03-14)
 
-**Note:** Version bump only for package @radical/static-wado-scp
-
-
-
-
-
-## [0.6.1](https://github.com/OHIF/static-wado/compare/@radical/static-wado-scp@0.6.0...@radical/static-wado-scp@0.6.1) (2022-03-04)
-
-**Note:** Version bump only for package @radical/static-wado-scp
+**Note:** Version bump only for package @radicalimaging/static-wado-scp
 
 
 
 
 
-# [0.6.0](https://github.com/OHIF/static-wado/compare/@radical/static-wado-scp@0.5.1...@radical/static-wado-scp@0.6.0) (2022-03-03)
+## [0.6.2](https://github.com/OHIF/static-wado/compare/@radicalimaging/static-wado-scp@0.6.1...@radicalimaging/static-wado-scp@0.6.2) (2022-03-04)
+
+**Note:** Version bump only for package @radicalimaging/static-wado-scp
+
+
+
+
+
+## [0.6.1](https://github.com/OHIF/static-wado/compare/@radicalimaging/static-wado-scp@0.6.0...@radicalimaging/static-wado-scp@0.6.1) (2022-03-04)
+
+**Note:** Version bump only for package @radicalimaging/static-wado-scp
+
+
+
+
+
+# [0.6.0](https://github.com/OHIF/static-wado/compare/@radicalimaging/static-wado-scp@0.5.1...@radicalimaging/static-wado-scp@0.6.0) (2022-03-03)
 
 
 ### Bug Fixes

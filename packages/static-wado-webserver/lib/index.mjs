@@ -1,6 +1,6 @@
 import express from "express";
 import dicomWebServerConfig from "./dicomWebServerConfig.mjs";
-import "@radical/static-wado-plugins";
+import "@radicalimaging/static-wado-plugins";
 import "regenerator-runtime";
 
 import setRoutes from "./routes/index.mjs";

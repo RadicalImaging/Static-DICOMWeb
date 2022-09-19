@@ -1,16 +1,15 @@
 const path = require("path");
 const fs = require("fs");
 const hashFactory = require("node-object-hash");
-const { JSONReader } = require("@radical/static-wado-util");
+const { JSONReader } = require("@radicalimaging/static-wado-util");
 const Tags = require("../dictionary/Tags");
 const TagLists = require("../model/TagLists");
 const JSONWriter = require("../writer/JSONWriter");
 
-const {getValue, setValue, getList, setList} = Tags;
+const { getValue, setValue, getList, setList } = Tags;
 const hasher = hashFactory();
 
-const getSeriesInstanceUid = (seriesInstance) =>
-  getValue(seriesInstance,Tags.SeriesInstanceUID);
+const getSeriesInstanceUid = (seriesInstance) => getValue(seriesInstance, Tags.SeriesInstanceUID);
 
 /**
  * StudyData contains information about the grouped study data.  It is used to create
@@ -88,10 +87,10 @@ class StudyData {
         return true;
       }
       const info = deduplicatedTopFile[0];
-      if (!info || getValue(info,Tags.DeduppedHash) || getValue(info,Tags.DeduppedType) != "info") {
+      if (!info || getValue(info, Tags.DeduppedHash) || getValue(info, Tags.DeduppedType) != "info") {
         return true;
       }
-      const hashValue = getValue(info,Tags.DeduppedHash);
+      const hashValue = getValue(info, Tags.DeduppedHash);
       return this.existingFiles[0].indexOf(hashValue) == -1;
     } catch (e) {
       console.log("Assume study metadata is dirty", e);
@@ -105,12 +104,12 @@ class StudyData {
     this.newInstancesAdded += 1;
     for (let i = 0; i < this.deduplicated.length; i++) {
       const recombined = await this.recombine(i);
-      const reSeriesUid = getValue(recombined,Tags.SeriesInstanceUID);
+      const reSeriesUid = getValue(recombined, Tags.SeriesInstanceUID);
       if (reSeriesUid !== seriesInstanceUid) continue;
-      const reSop = getValue(recombined,Tags.SOPInstanceUID);
+      const reSop = getValue(recombined, Tags.SOPInstanceUID);
       if (!reSop) continue;
       if (reSop !== sopInstanceUid) continue;
-      setValue(this.deduplicated[i], Tags.DeduppedType,"deleted");
+      setValue(this.deduplicated[i], Tags.DeduppedType, "deleted");
     }
   }
 
@@ -150,7 +149,7 @@ class StudyData {
     if (index < 0 || index >= this.deduplicated.length) {
       throw new Error(`Can't read index ${index}, out of bounds [0..${this.deduplicated.length})`);
     }
-    const refs = getList(deduplicated,Tags.DeduppedRef);
+    const refs = getList(deduplicated, Tags.DeduppedRef);
     if (!refs) {
       console.log("No refs for", deduplicated);
       return deduplicated;
@@ -165,7 +164,7 @@ class StudyData {
 
   async addExtracted(callback, hashKey, item) {
     if (this.extractData[hashKey]) {
-      if( this.verbose ) console.log("Already have extracted", hashKey, getValue(item,Tags.DeduppedType));
+      if (this.verbose) console.log("Already have extracted", hashKey, getValue(item, Tags.DeduppedType));
       return;
     }
     await callback.bulkdata(this, hashKey, item);
@@ -192,7 +191,7 @@ class StudyData {
       // console.log('Not adding', hashValue, 'because the hash exists');
       return false;
     }
-    const sopValue = getValue(data,Tags.SOPInstanceUID);
+    const sopValue = getValue(data, Tags.SOPInstanceUID);
     const sopIndex = this.sopInstances[sopValue];
     if (!sopValue) {
       console.warn("No sop value in", filename, "reading", data);
@@ -275,14 +274,14 @@ class StudyData {
         if (type == Tags.InstanceType) {
           this.internalAddDeduplicated(item, name);
         } else if (type == "info") {
-          const refs = getList(item,Tags.DeduppedRef);
+          const refs = getList(item, Tags.DeduppedRef);
           if (refs) {
             refs.forEach((hashValue) => {
               this.readHashes[hashValue] = `${hashValue}.gz`;
             });
           }
         } else {
-          const hashValue = getValue(item,Tags.DeduppedHash);
+          const hashValue = getValue(item, Tags.DeduppedHash);
           if (hashValue) {
             this.extractData[hashValue] = item;
           }
@@ -299,7 +298,7 @@ class StudyData {
 
     for (let i = 0; i < this.numberOfInstances; i++) {
       const seriesInstance = await this.recombine(i);
-      const type = getValue(seriesInstance,Tags.DeduppedType);
+      const type = getValue(seriesInstance, Tags.DeduppedType);
       if (type == "deleted") {
         console.log("Skipping", type);
         continue;
@@ -337,7 +336,7 @@ class StudyData {
       numberOfInstances += instances.length;
       numberOfSeries += 1;
       seriesList.push(seriesQuery);
-      const modality = getValue(seriesQuery,Tags.Modality);
+      const modality = getValue(seriesQuery, Tags.Modality);
       if (modalitiesInStudy.indexOf(modality) == -1) modalitiesInStudy.push(modality);
       await JSONWriter(seriesPath, "metadata", instances, {
         gzip: true,
@@ -379,8 +378,8 @@ class StudyData {
   createInfo() {
     const data = {};
     const hashValue = hasher.hash(this.deduplicated);
-    setValue(data,Tags.DeduppedHash,hashValue);
-    setValue(data,Tags.DeduppedType,"info");
+    setValue(data, Tags.DeduppedHash, hashValue);
+    setValue(data, Tags.DeduppedType, "info");
     return data;
   }
 
@@ -393,7 +392,7 @@ class StudyData {
   /** Writes the deduplicated group */
   async writeDeduplicatedGroup() {
     const data = this.createInfo();
-    const hashValue = getValue(data,Tags.DeduppedHash);
+    const hashValue = getValue(data, Tags.DeduppedHash);
     console.log(
       "Writing deduplicated hash data set data with",
       Object.values(this.extractData).length,
@@ -401,8 +400,11 @@ class StudyData {
       this.deduplicated.length,
       "instance items"
     );
-    setList(data,Tags.DeduppedRef,
-      Object.keys(this.readHashes).filter(() => this.deduplicatedHashes[hashValue] == undefined));
+    setList(
+      data,
+      Tags.DeduppedRef,
+      Object.keys(this.readHashes).filter(() => this.deduplicatedHashes[hashValue] == undefined)
+    );
     const deduplicatedList = [data, ...Object.values(this.extractData), ...this.deduplicated];
     // const naturalList = deduplicatedList.map(Tags.naturalizeDataset);
     // // console.log("naturalList=", JSON.stringify(naturalList,null,2));

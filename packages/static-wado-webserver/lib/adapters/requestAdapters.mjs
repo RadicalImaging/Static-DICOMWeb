@@ -28,7 +28,7 @@ export const thumbnailMap = (req, res, next) => {
 /**
  * Handles returning thumbnail jpeg
  */
- export const multipartMap = (req, res, next) => {
+export const multipartMap = (req, res, next) => {
   res.setHeader("content-type", "multipart/related");
   next();
 };

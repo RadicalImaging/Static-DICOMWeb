@@ -1,5 +1,5 @@
-const { Stats } = require("@radical/static-wado-util");
-const { JSONReader } = require("@radical/static-wado-util");
+const { Stats } = require("@radicalimaging/static-wado-util");
+const { JSONReader } = require("@radicalimaging/static-wado-util");
 const JSONWriter = require("./JSONWriter");
 const StudyData = require("../operation/StudyData");
 const Tags = require("../dictionary/Tags");
@@ -47,12 +47,12 @@ const CompleteStudyWriter = (options) => {
     const studyQuery = await studyData.writeMetadata();
 
     const allStudies = await JSONReader(options.directoryName, "studies/index.json.gz", []);
-    const studyUID = Tags.getValue(studyQuery,Tags.StudyInstanceUID);
+    const studyUID = Tags.getValue(studyQuery, Tags.StudyInstanceUID);
     if (!studyUID) {
       console.error("studyQuery=", studyQuery);
       throw new Error("Study query has null studyUID");
     }
-    const studyIndex = allStudies.findIndex((item) => Tags.getValue(item,Tags.StudyInstanceUID) == studyUID);
+    const studyIndex = allStudies.findIndex((item) => Tags.getValue(item, Tags.StudyInstanceUID) == studyUID);
     if (studyIndex == -1) {
       allStudies.push(studyQuery);
     } else {

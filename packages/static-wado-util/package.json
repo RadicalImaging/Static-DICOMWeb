@@ -1,5 +1,5 @@
 {
-  "name": "@radical/static-wado-util",
+  "name": "@radicalimaging/static-wado-util",
   "version": "0.6.2",
   "description": "Utils for other packages.",
   "publishConfig": {
@@ -37,7 +37,7 @@
   ],
   "dependencies": {
     "commander": "^9.0.0",
-    "config-point": "^0.4.6",
+    "config-point": "^0.5.0",
     "json5": "^2.2.1",
     "json5-writer": "noahsug/json5-writer",
     "must": "^0.13.4"

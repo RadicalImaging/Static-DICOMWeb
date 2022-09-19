@@ -1,5 +1,5 @@
 {
-  "name": "@radical/static-wado-webserver",
+  "name": "@radicalimaging/static-wado-webserver",
   "version": "0.6.5",
   "description": "Webserver to serve a static-wado repo",
   "publishConfig": {
@@ -52,10 +52,10 @@
       "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
    },
   "dependencies": {
-    "@radical/static-wado-creator": "^0.6.4",
-    "@radical/static-wado-plugins": "^0.6.2",
-    "@radical/static-wado-util": "^0.6.2",
-    "config-point": "^0.4.6",
+    "@radicalimaging/static-wado-creator": "^0.6.4",
+    "@radicalimaging/static-wado-plugins": "^0.6.2",
+    "@radicalimaging/static-wado-util": "^0.6.2",
+    "config-point": "^0.5.0",
     "cors": "^2.8.5",
     "dcmjs": "^0.19.6",
     "dcmjs-dimse": "^0.0.15",

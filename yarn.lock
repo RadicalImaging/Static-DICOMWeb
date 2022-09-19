@@ -1821,6 +1821,14 @@
     pirates "^4.0.5"
     source-map-support "^0.5.16"
 
+"@babel/runtime-corejs2@^7.17.8":
+  version "7.19.2"
+  resolved "https://registry.yarnpkg.com/@babel/runtime-corejs2/-/runtime-corejs2-7.19.2.tgz#73121693f93ccd8847f790f4250dd8a74e892c4b"
+  integrity sha512-XofFIUXoVSuIabaED6ZNzvQ5iFzwQ3rnflnJTlMfmaZ9MHi+fmPk0iAwA6J6+8tC2UVshfyWPxIDmTKR+fRofA==
+  dependencies:
+    core-js "^2.6.12"
+    regenerator-runtime "^0.13.4"
+
 "@babel/runtime@^7.14.6", "@babel/runtime@^7.8.4":
   version "7.17.8"
   resolved "https://registry.yarnpkg.com/@babel/runtime/-/runtime-7.17.8.tgz#3e56e4aff81befa55ac3ac6a0967349fd1c5bca2"
@@ -4344,10 +4352,10 @@ config-chain@^1.1.12:
     ini "^1.3.4"
     proto-list "~1.2.1"
 
-config-point@^0.4.6:
-  version "0.4.6"
-  resolved "https://registry.yarnpkg.com/config-point/-/config-point-0.4.6.tgz#8858f9bfb21d0e46c95a64a55feb08ee4710e2e8"
-  integrity sha512-ibKNIwa+5P3VZbO4DgESnwi0GNHKaJTbWVF0t262TX/cTdiSFc8Hw1uafxM92Cud3XfGJVxgjjaDcP1YYl+V5Q==
+config-point@^0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/config-point/-/config-point-0.5.0.tgz#d71836fe4e67b77802e95635d96edb9fae734c9f"
+  integrity sha512-IUXJrVNBtJiUgeseLYE7Lpz9/7qA/EMvi2Mr8h5fUelQ9q6wl7hHmsv1kCcWZAcq0pWF6+43GP+5z2uA02ufYA==
   dependencies:
     "@babel/runtime" "^7.14.6"
     json5 "^2.2.0"
@@ -4498,7 +4506,7 @@ core-js-compat@^3.20.2, core-js-compat@^3.21.0:
     browserslist "^4.19.1"
     semver "7.0.0"
 
-core-js@^2.6.5:
+core-js@^2.6.12, core-js@^2.6.5:
   version "2.6.12"
   resolved "https://registry.yarnpkg.com/core-js/-/core-js-2.6.12.tgz#d9333dfa7b065e347cc5682219d6f690859cc2ec"
   integrity sha512-Kb2wC0fvsWfQrgk8HU5lW6U/Lcs8+9aaYcy4ZFc6DDlo4nZ7n70dEgE5rtR0oG6ufKDUnrwfWL1mXR5ljDatrQ==
@@ -4621,6 +4629,17 @@ dcmjs@^0.19.5, dcmjs@^0.19.6:
   dependencies:
     "@babel/polyfill" "^7.8.3"
     "@babel/runtime" "^7.8.4"
+    gl-matrix "^3.1.0"
+    lodash.clonedeep "^4.5.0"
+    loglevelnext "^3.0.1"
+    ndarray "^1.0.19"
+
+dcmjs@^0.27.0:
+  version "0.27.0"
+  resolved "https://registry.yarnpkg.com/dcmjs/-/dcmjs-0.27.0.tgz#2662818c8b20494e366583e6dd3577c20d04d6ff"
+  integrity sha512-26wtatOLh+0b0aFy9iOg7PdOLG9EHevn9nEOn7Aoo5l7P9aFAMZ3XAa9Q+NULzLE2Q7DcIf2TQvfyVtdzhQzeg==
+  dependencies:
+    "@babel/runtime-corejs2" "^7.17.8"
     gl-matrix "^3.1.0"
     lodash.clonedeep "^4.5.0"
     loglevelnext "^3.0.1"

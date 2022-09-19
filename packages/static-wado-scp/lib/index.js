@@ -1,8 +1,8 @@
-const { Stats } = require("@radical/static-wado-util");
-const StaticWado = require("@radical/static-wado-creator");
+const { Stats } = require("@radicalimaging/static-wado-util");
+const StaticWado = require("@radicalimaging/static-wado-creator");
 const dcmjsDimse = require("dcmjs-dimse");
 const dcmjs = require("dcmjs");
-const { plugins } = require("@radical/static-wado-plugins");
+const { plugins } = require("@radicalimaging/static-wado-plugins");
 const dicomWebScpConfig = require("./dicomWebScpConfig");
 
 const { Server, Scp, Dataset } = dcmjsDimse;

@@ -1,7 +1,7 @@
 import fs from "fs";
-import { configGroup, handleHomeRelative } from "@radical/static-wado-util";
+import { configGroup, handleHomeRelative } from "@radicalimaging/static-wado-util";
 import path from "path";
-import { plugins } from "@radical/static-wado-plugins";
+import { plugins } from "@radicalimaging/static-wado-plugins";
 
 /**
  * Deployment class.

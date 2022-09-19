@@ -9,9 +9,9 @@ const { PatientID, PatientName, IssuerOfPatientID } = Tags;
 const { StudyDescription, AccessionNumber, StudyInstanceUID, StudyDate, StudyTime } = Tags;
 const { SeriesDescription, SeriesNumber, SeriesInstanceUID, SeriesDate, SeriesTime } = Tags;
 
-const { DeduppedHash, DeduppedRef, DeduppedType, } = Tags;
+const { DeduppedHash, DeduppedRef, DeduppedType } = Tags;
 
-const { pushList, getList, setValue, getValue } = Tags;
+const { pushList, setValue, getValue } = Tags;
 
 const PatientQuery = [
   PatientID,
@@ -106,14 +106,14 @@ const ImageExtract = [
 ];
 
 const addHash = (data, type) => {
-  const existing = getValue(data,DeduppedHash);
+  const existing = getValue(data, DeduppedHash);
   if (existing) {
     return existing;
   }
 
   const hashValue = hasher.hash(data);
-  setValue(data, DeduppedHash, hashValue );
-  setValue(data, DeduppedType, type );
+  setValue(data, DeduppedHash, hashValue);
+  setValue(data, DeduppedType, type);
   return hashValue;
 };
 
@@ -141,7 +141,7 @@ const TagSets = {
     });
     const hashValue = addHash(ret, type);
     if (hashRef) {
-      pushList(data,DeduppedRef,hashValue);
+      pushList(data, DeduppedRef, hashValue);
     }
     return ret;
   },

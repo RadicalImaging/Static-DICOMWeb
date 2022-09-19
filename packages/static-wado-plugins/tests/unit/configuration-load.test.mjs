@@ -2,7 +2,7 @@ import must from "must";
 
 import { plugins } from "../../lib/index.js";
 
-describe("@radical/static-wado-plugins", () => {
+describe("@radicalimaging/static-wado-plugins", () => {
   beforeAll(() => import(plugins["readSeriesIndex"]));
 
   it("config has default values", () => {

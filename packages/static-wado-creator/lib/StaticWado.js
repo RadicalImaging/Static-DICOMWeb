@@ -1,9 +1,9 @@
 const dicomCodec = require("@cornerstonejs/dicom-codec");
-const { Stats, handleHomeRelative } = require("@radical/static-wado-util");
+const { Stats, handleHomeRelative } = require("@radicalimaging/static-wado-util");
 const dicomParser = require("dicom-parser");
 const fs = require("fs");
 const path = require("path");
-const { dirScanner } = require("@radical/static-wado-util");
+const { dirScanner } = require("@radicalimaging/static-wado-util");
 const asyncIterableToBuffer = require("./operation/adapter/asyncIterableToBuffer");
 const getDataSet = require("./operation/getDataSet");
 const InstanceDeduplicate = require("./operation/InstanceDeduplicate");

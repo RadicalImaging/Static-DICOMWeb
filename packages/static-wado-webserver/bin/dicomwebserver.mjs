@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { dicomWebServerConfig } from "../lib/index.mjs";
-import "@radical/static-wado-plugins";
+import "@radicalimaging/static-wado-plugins";
 import configureProgram from "../lib/program/index.mjs";
 
 // Configure program commander

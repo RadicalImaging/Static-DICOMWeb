@@ -1,7 +1,7 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import fs from "fs";
 import mime from "mime-types";
-import { configGroup } from "@radical/static-wado-util";
+import { configGroup } from "@radicalimaging/static-wado-util";
 import { ConfigPoint } from "config-point";
 
 const compressedRe = /((\.br)|(\.gz))$/;
@@ -14,9 +14,7 @@ const imagejpeg = "image/jpeg";
 /** Key patterns to not cache */
 const noCachePattern = /(index.html)|(studies$)|(theme\/)|(^[a-zA-Z0-9\-_]+\.js)|(config\/)/;
 
-
 class S3Ops {
-
   constructor(config, name, options) {
     this.group = configGroup(config, name);
     this.config = config;
@@ -102,7 +100,7 @@ class S3Ops {
     const fileName = this.toFile(dir, file);
     const isNoCacheKey = Key.match(noCachePattern);
     const CacheControl = isNoCacheKey ? "no-cache" : undefined;
-    if( isNoCacheKey ) {
+    if (isNoCacheKey) {
       console.log("no-cache set on", Key);
     }
     const Body = fs.createReadStream(fileName);
@@ -117,7 +115,7 @@ class S3Ops {
       ContentSize,
     });
     console.log("uploading", file, ContentType, ContentEncoding, Key, ContentSize, Metadata, this.group.Bucket);
-    if( this.options.dryRun ) {
+    if (this.options.dryRun) {
       console.log("Dry run - no upload", Key);
       return;
     }

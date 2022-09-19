@@ -1,5 +1,5 @@
 const ConfigPoint = require("config-point");
-const { JSONReader, qidoFilter } = require("@radical/static-wado-util");
+const { JSONReader, qidoFilter } = require("@radicalimaging/static-wado-util");
 
 const { studiesQueryByIndex } = ConfigPoint.register({
   studiesQueryByIndex: {

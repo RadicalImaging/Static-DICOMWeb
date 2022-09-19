@@ -15,7 +15,7 @@ const transcodeOp = {
 const transcodeDestinationMap = {
   lei: {
     transferSyntaxUid: "1.2.840.10008.1.2.1",
-    transcodeOp: transcodeOp.none
+    transcodeOp: transcodeOp.none,
   },
   jls: {
     transferSyntaxUid: "1.2.840.10008.1.2.4.80",
@@ -71,9 +71,9 @@ const transcodeSourceMap = {
 };
 
 /**
- * Get an existing destination transcoder from destination map. 
+ * Get an existing destination transcoder from destination map.
  *
- * @param {*} id Destination type to compress to 
+ * @param {*} id Destination type to compress to
  * @returns A partial transcoder definition. Otherwise it returns undefined.
  */
 function getDestinationTranscoder(id) {
@@ -99,14 +99,13 @@ function getTranscoder(transferSyntaxUid, { contentType, verbose }) {
   if (!sourceTranscoder || !destinationTranscoder) {
     return undefined;
   }
-  
+
   return {
     transferSyntaxUid: destinationTranscoder.transferSyntaxUid,
     transcodeOp: sourceTranscoder.transcodeOp | destinationTranscoder.transcodeOp, // eslint-disable-line no-bitwise
     alias: sourceTranscoder.alias,
   };
 }
-
 
 /**
  * Tell whether given id contain transferSyntaxUid which can be transcoded or not.
@@ -289,7 +288,7 @@ function transcodeMetadata(metadata, id, options) {
   const result = { ...metadata };
 
   if (result[Tags.AvailableTransferSyntaxUID]) {
-    Tags.setValue(result,Tags.AvailableTransferSyntaxUID, transcodedId.transferSyntaxUid);
+    Tags.setValue(result, Tags.AvailableTransferSyntaxUID, transcodedId.transferSyntaxUid);
   }
 
   return result;

@@ -47,7 +47,7 @@ HashDataWriter.createHashPath = (data, options = {}) => {
   const { mimeType } = options;
   const isRaw = ArrayBuffer.isView(data);
   const extension = isRaw ? (mimeType && extensions[mimeType]) || "" : ".json";
-  const hashValue = Tags.getValue(data,Tags.DeduppedHash) || hasher.hash(data);
+  const hashValue = Tags.getValue(data, Tags.DeduppedHash) || hasher.hash(data);
 
   return {
     // Use string concat as this value is used for the BulkDataURI which needs forward slashes

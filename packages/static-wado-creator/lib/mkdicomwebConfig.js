@@ -1,9 +1,10 @@
 const ConfigPoint = require("config-point");
-const { staticWadoConfig } = require("@radical/static-wado-util");
+const { staticWadoConfig } = require("@radicalimaging/static-wado-util");
 const createMain = require("./createMain");
 const deleteMain = require("./deleteMain");
 const rejectMain = require("./rejectMain");
 const instanceMain = require("./instanceMain");
+const indexMain = require("./indexMain");
 const groupMain = require("./groupMain");
 const metadataMain = require("./metadataMain");
 const compressionOptionParser = require("./util/compressionOptionParser");
@@ -113,6 +114,11 @@ const { mkdicomwebConfig } = ConfigPoint.register({
           "Make DICOMweb query and metadata from binary Part 10 DICOM files.  Does a full read of\n" +
           "deduplicated files each time a study instance UID is found, and only updates those studies\n" +
           "having at least one ",
+      },
+      {
+        command: "index",
+        main: indexMain,
+        helpDescription: "Recreate the index for the DICOMweb data.",
       },
       {
         command: "instance",

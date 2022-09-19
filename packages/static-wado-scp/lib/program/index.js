@@ -1,4 +1,4 @@
-const staticWadoUtil = require("@radical/static-wado-util");
+const staticWadoUtil = require("@radicalimaging/static-wado-util");
 const { DcmjsDimseScp, Server, loadPlugins } = require("..");
 const packageJson = require("../../package.json");
 

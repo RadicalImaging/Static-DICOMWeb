@@ -5,4 +5,4 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 
 ## 0.0.2 (2022-04-04)
 
-**Note:** Version bump only for package @radical/static-cs-lite
+**Note:** Version bump only for package @radicalimaging/static-cs-lite

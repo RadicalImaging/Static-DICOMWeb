@@ -1,13 +1,13 @@
 import must from "must";
 
 import ConfigPoint from "config-point";
-import { loadConfiguration } from "@radical/static-wado-util";
+import { loadConfiguration } from "@radicalimaging/static-wado-util";
 import { dicomWebServerConfig } from "../../lib/index.mjs";
-import {plugins} from "@radical/static-wado-plugins";
+import {plugins} from "@radicalimaging/static-wado-plugins";
 
 import "regenerator-runtime";
 
-describe("@radical/static-wado-webserver", () => {
+describe("@radicalimaging/static-wado-webserver", () => {
   beforeAll(() => import(plugins["readSeriesIndex"]));
 
   const params = { rootDir: ".." };

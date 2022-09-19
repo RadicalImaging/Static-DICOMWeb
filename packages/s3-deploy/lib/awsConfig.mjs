@@ -1,5 +1,5 @@
 import ConfigPoint from "config-point";
-import { staticWadoConfig } from "@radical/static-wado-util";
+import { staticWadoConfig } from "@radicalimaging/static-wado-util";
 import S3Ops from "./S3Ops.mjs";
 
 const { awsConfig, awsHandlers } = ConfigPoint.register({
