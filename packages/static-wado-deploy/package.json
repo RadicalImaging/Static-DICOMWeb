@@ -29,11 +29,7 @@
   },
   "homepage": "https://github.com/OHIF/static-wado#readme",
   "license": "ISC",
-  "main": "lib/index.js",
-  "directories": {
-    "lib": "lib",
-    "bin": "bin"
-  },
+  "main": "lib/index.mjs",
   "files": [
     "bin",
     "lib"
@@ -52,10 +48,10 @@
     "verbose": true
   },
   "dependencies": {
+    "@radicalimaging/s3-deploy": "^0.6.1",
     "@radicalimaging/static-wado-plugins": "^0.6.3",
     "@radicalimaging/static-wado-util": "^0.6.1",
-    "@radicalimaging/s3-deploy": "^0.6.1",
-    "config-point": "^0.5.0"
+    "config-point": "0.5.1"
   },
   "devDependencies": {
     "must": "^0.13.4",

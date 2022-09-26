@@ -4498,10 +4498,10 @@ config-chain@^1.1.12:
     ini "^1.3.4"
     proto-list "~1.2.1"
 
-config-point@^0.5.0:
-  version "0.5.0"
-  resolved "https://registry.yarnpkg.com/config-point/-/config-point-0.5.0.tgz#d71836fe4e67b77802e95635d96edb9fae734c9f"
-  integrity sha512-IUXJrVNBtJiUgeseLYE7Lpz9/7qA/EMvi2Mr8h5fUelQ9q6wl7hHmsv1kCcWZAcq0pWF6+43GP+5z2uA02ufYA==
+config-point@0.5.1:
+  version "0.5.1"
+  resolved "https://registry.yarnpkg.com/config-point/-/config-point-0.5.1.tgz#43c09b961f8e8f1741c14559b828b7dd31358bce"
+  integrity sha512-rYjSVBL6Glob/ZY4/rrF4ScZtJx+nxxhTKQHqHgzwd/kZBwCG2bfRbo9m7sngrAQR0WnGIsVo7pBzr9l8j3vbA==
   dependencies:
     "@babel/runtime" "^7.14.6"
     json5 "^2.2.0"
