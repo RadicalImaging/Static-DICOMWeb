@@ -2,7 +2,7 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import fs from "fs";
 import mime from "mime-types";
 import { configGroup } from "@radicalimaging/static-wado-util";
-import { ConfigPoint } from "config-point";
+import ConfigPoint from "config-point";
 
 const compressedRe = /((\.br)|(\.gz))$/;
 const indexRe = /\/index\.json$/;
@@ -10,6 +10,7 @@ const indexRe = /\/index\.json$/;
 const octetStream = "application/octet-stream";
 const multipartRelated = "multipart/related";
 const imagejpeg = "image/jpeg";
+const applicationDicom = "application/dicom";
 
 /** Key patterns to not cache */
 const noCachePattern = /(index.html)|(studies$)|(theme\/)|(^[a-zA-Z0-9\-_]+\.js)|(config\/)/;
@@ -23,6 +24,7 @@ class S3Ops {
 
   get client() {
     if (!this._client) {
+      console.log("S3 client config:", this.group);
       this._client = new S3Client(this.group);
     }
     return this._client;
@@ -64,6 +66,7 @@ class S3Ops {
     const src = (compressed && file.substring(0, file.length - 3)) || file;
     return (
       mime.lookup(src) ||
+      (src.indexOf(".dcm") !== -1 && applicationDicom) ||
       (src.indexOf("bulkdata") !== -1 && octetStream) ||
       (src.indexOf(".raw") !== -1 && octetStream) ||
       (src.indexOf("frames") !== -1 && multipartRelated) ||

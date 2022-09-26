@@ -36,6 +36,7 @@ const Tags = {
   RawMinTag: "x00000000",
   RawFirstBodyTag: "x00080000",
   RawTransferSyntaxUID: "x00020010",
+  RawSopInstanceUID: "x00080018",
 
   // This one isn't defined in the dataDictionary
   AvailableTransferSyntaxUID: "00083002",

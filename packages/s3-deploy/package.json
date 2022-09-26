@@ -30,17 +30,11 @@
   "homepage": "https://github.com/Radical/static-dicomweb#readme",
   "license": "ISC",
   "main": "lib/index.js",
-  "directories": {
-    "bin": "bin",
-    "lib": "lib"
-  },
   "files": [
-    "bin",
-    "lib"
+    "index.ts",
+    "lib",
+    "build"
   ],
-  "bin": {
-    "mkdicomwebdeploy": "bin/mkdicomwebdeploy.mjs"
-  },
   "scripts": {
     "copyFiles": "cp -R lib build",
     "test": "jest --config ./jest.config.cjs",

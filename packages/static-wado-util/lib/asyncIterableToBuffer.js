@@ -1,4 +1,4 @@
-const { Stats } = require("@radicalimaging/static-wado-util");
+const { Stats } = require("./stats");
 /* eslint "no-param-reassign": "off" */
 
 const handler = {
@@ -103,7 +103,7 @@ const asyncIteratorToBuffer = async (readable) => {
   const chunks = [];
   for await (const chunk of readable) {
     chunks.push(chunk);
-    Stats.BufferStats.add("Read Async", `Read async buffer ${chunks.length}`, 1024);
+    Stats.BufferStats.add("Read Async", `Read async buffer ${chunks.length}`, 65536);
   }
   Stats.BufferStats.reset();
   return StreamingBuffer(chunks);

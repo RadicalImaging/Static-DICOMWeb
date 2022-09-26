@@ -41,8 +41,9 @@ const { deployConfig } = ConfigPoint.register({
 
     programs: [
       {
-        command: "studies",
-        helpShort: "deploydicomweb studies {studyUID}",
+        command: "studies [studyUID]",
+        arguments: ["studyUID"],
+        helpShort: "deploydicomweb studies [studyUID]",
         helpDescription: "Deploy DICOMweb files to the cloud",
         isDefault: true,
         main: studiesMain,

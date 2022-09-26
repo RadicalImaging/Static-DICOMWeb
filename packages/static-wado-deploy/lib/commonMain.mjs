@@ -3,7 +3,6 @@ import DeployGroup from "./DeployGroup.mjs";
 async function doDeploy(config, name, options, deployPlugin, storeOption) {
   const deployer = new DeployGroup(config, name, options, deployPlugin);
   await deployer.loadOps();
-  console.log("Loaded operations");
   await deployer.store(storeOption);
   console.log("Stored", storeOption);
 }

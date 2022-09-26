@@ -5,6 +5,7 @@ import { Construct } from 'constructs';
 import { handleHomeRelative, configGroup } from '@radicalimaging/static-wado-util';
 import clientSite from './clientSite.js';
 import rootSite from './rootSite.js';
+import uploadSite from './uploadSite.js';
 import { getSiteInfo, configureDomain } from './configureHostedZone.js';
 
 /**
@@ -44,8 +45,21 @@ export class StaticSite extends Construct {
       console.log("no rootGroup specified for deployment:", name);
     }
 
+    let uploadDistProps;
+    if (props.uploadGroup) {
+      const group = configGroup(props,"upload");
+      console.log("Upload Group:", group);
+      uploadDistProps = uploadSite(this,name,cloudfrontOAI,group);
+    } else {
+      console.log("no extra group specified for deployment:", name);
+    }
+
     const defaultDistProps = clientDistProps || rootDistProps;
     const additionalDistProps = (clientDistProps && rootDistProps) ? { "/dicomweb/*": rootDistProps } : undefined;
+    if( uploadDistProps && additionalDistProps) {
+      console.log("Adding mapping for", uploadDistProps);
+      additionalDistProps["/lei/*"] = uploadDistProps;
+    }
 
     const siteInfo = getSiteInfo(this, name, props);
     const siteDomain = siteInfo?[siteInfo.siteDomain]:undefined;
