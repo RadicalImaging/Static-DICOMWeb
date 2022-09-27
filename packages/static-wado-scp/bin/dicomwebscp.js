@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-const { dicomWebScpConfig } = require("../lib");
-const { configureProgram } = require("../lib/program");
+const { dicomWebScpConfig, configureProgram } = require("../lib");
 
 // Configure program commander
-configureProgram(dicomWebScpConfig).then((program) => program.main());
+configureProgram(dicomWebScpConfig).then(() => {
+  console.log("done");
+});

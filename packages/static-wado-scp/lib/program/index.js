@@ -1,18 +1,5 @@
 const staticWadoUtil = require("@radicalimaging/static-wado-util");
-const { DcmjsDimseScp, Server, loadPlugins } = require("..");
-const packageJson = require("../../package.json");
-
-function main() {
-  const port = this.dicomWebScpConfig.scpPort || 11112;
-
-  const server = new Server(DcmjsDimseScp);
-  server.on("networkError", (e) => {
-    console.log("Network error: ", e);
-  });
-  console.log("Starting server listen on port", port);
-  DcmjsDimseScp.setParams(this.dicomWebScpConfig);
-  server.listen(port, this.dicomWebScpConfig);
-}
+const loadPlugins = require("../loadPlugins");
 
 /**
  * Configure static-wado-scp commander program.
@@ -21,29 +8,11 @@ function main() {
  * @returns Program object
  */
 async function configureProgram(defaults) {
-  await staticWadoUtil.loadConfiguration(defaults, process.argv);
-
-  const { argumentsRequired = [], optionsRequired = [], helpShort, helpDescription } = defaults;
-
-  const configuration = {
-    argumentsList: [],
-    argumentsRequired,
-    helpDescription,
-    helpShort,
-    optionsList: [],
-    optionsRequired,
-    packageJson,
-    configurationFile: defaults.configurationFile,
-  };
-
-  const program = staticWadoUtil.configureProgram(configuration);
-
-  program.dicomWebScpConfig = defaults;
-  program.main = main;
-
-  loadPlugins(program.dicomWebScpConfig);
-
-  return program;
+  console.log("defaults=", defaults);
+  const configurationFile = await staticWadoUtil.loadConfiguration(defaults, process.argv);
+  console.log("Loaded configuration from", configurationFile);
+  loadPlugins(defaults);  
+  staticWadoUtil.configureCommands(defaults);
 }
 
-exports.configureProgram = configureProgram;
+module.exports = configureProgram;
