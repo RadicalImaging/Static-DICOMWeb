@@ -9,7 +9,8 @@ function main() {
   server.on("networkError", (e) => {
     console.log("Network error: ", e);
   });
-  console.log(`Starting server listen on port ${port}`);
+  console.log("Starting server listen on port", port);
+  DcmjsDimseScp.setParams(this.dicomWebScpConfig);
   server.listen(port, this.dicomWebScpConfig);
 }
 

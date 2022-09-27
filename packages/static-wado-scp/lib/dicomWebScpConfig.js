@@ -7,8 +7,10 @@ const { staticWadoConfig } = require("@radicalimaging/static-wado-util");
 const { dicomWebScpConfig } = ConfigPoint.register({
   dicomWebScpConfig: {
     configBase: staticWadoConfig,
-    isStudyData: true,
+    isInstance: false,
     isGroup: true,
+    isDeduplicate: true,
+    isStudyData: true,
     maximumInlinePrivateLength: 64,
     maximumInlinePublicLength: 128 * 1024 + 2,
     helpShort: "dicomwebscp",

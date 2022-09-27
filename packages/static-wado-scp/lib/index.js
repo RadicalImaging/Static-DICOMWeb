@@ -23,6 +23,14 @@ const PreferredTransferSyntax = [
   "1.2.840.10008.1.2",
 ];
 
+// TODO - make this come from the command line setup to allow for custom settings
+const defaultParams = {
+  isInstance: false,
+  isGroup: true,
+  isDeduplicate: true,
+  isStudyData: true,
+};
+
 const loadedPlugins = {};
 
 const loadPlugins = (options) => {
@@ -40,8 +48,11 @@ const loadPlugins = (options) => {
     });
 };
 
+let staticParams = {
+};
+
 class DcmjsDimseScp extends Scp {
-  constructor(socket, opts = {}) {
+  constructor(socket, opts = staticParams) {
     super(socket, opts);
     this.association = undefined;
     this.importer = new StaticWado(opts);
@@ -154,6 +165,7 @@ class DcmjsDimseScp extends Scp {
       const importDs = request.getDataset().getDenaturalizedDataset();
       const response = CStoreResponse.fromRequest(request);
       const params = {
+        ...defaultParams,
         TransferSyntaxUID: request.dataset.transferSyntaxUid,
       };
 
@@ -183,6 +195,10 @@ class DcmjsDimseScp extends Scp {
     this.sendAssociationReleaseResponse();
   }
 }
+
+DcmjsDimseScp.setParams = (params) => {
+  staticParams = params;
+};
 
 exports.dicomWebScpConfig = dicomWebScpConfig;
 exports.DcmjsDimseScp = DcmjsDimseScp;
