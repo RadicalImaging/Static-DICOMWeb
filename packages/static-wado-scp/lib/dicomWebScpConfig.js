@@ -38,6 +38,11 @@ const { dicomWebScpConfig } = ConfigPoint.register({
         defaultValue: ["uncompressed", "jp2"],
         choices: ["uncompressed", "jp2", "jpeglossless", "rle", "none"],
       },
+      {
+        key: "-p, --scp-port <scpPort>",
+        description: "Port number to run on",
+        defaultValue: 11112,
+      },
     ],
     programs: [
       {

@@ -2,6 +2,7 @@ import fs from "fs";
 import { configGroup, handleHomeRelative } from "@radicalimaging/static-wado-util";
 import path from "path";
 import { plugins } from "@radicalimaging/static-wado-plugins";
+import joinUri from "./joinUri.mjs";
 
 /**
  * Deployment class.
@@ -50,6 +51,34 @@ class DeployGroup {
       // await Promise.all(names.map((childName) => this.store(relativeName, childName)));
     } else {
       await this.ops.upload(this.baseDir, relativeName, null, lstat.size);
+    }
+  }
+
+  /**
+   * Retrieves the contents of uri into the local baseDir, preserving the original naming/directory structure
+   */
+  async retrieve(options = {}, parentDir = "", name = "") {
+    const { remoteUri } = options;
+    const fileName = joinUri(remoteUri, parentDir, name);
+    // URI syntax uses a slash at the end to distinguish directories from paths
+    const isDirectory = fileName[fileName.length - 1] == "/";
+    const relativeName = joinUri(parentDir, name);
+    console.log("relativeName", relativeName);
+    if (isDirectory) {
+      console.log("Reading directory", fileName);
+      const contents = await this.ops.dir(fileName);
+      if (!contents) {
+        console.log("Directory does not exist:", fileName);
+        return;
+      }
+      for (const item of contents) {
+        await this.retrieve(options, item.Key);
+      }
+    } else {
+      console.log("remoteUri", remoteUri);
+      console.log("relativeName", relativeName);
+      console.log("baseDir", this.baseDir);
+      await this.ops.retrieve(remoteUri, relativeName, this.baseDir);
     }
   }
 }

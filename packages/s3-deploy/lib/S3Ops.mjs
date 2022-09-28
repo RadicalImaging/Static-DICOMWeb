@@ -1,8 +1,10 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 import fs from "fs";
 import mime from "mime-types";
 import { configGroup } from "@radicalimaging/static-wado-util";
 import ConfigPoint from "config-point";
+import path from "path";
+import copyTo from "./copyTo.mjs";
 
 const compressedRe = /((\.br)|(\.gz))$/;
 const indexRe = /\/index\.json$/;
@@ -15,6 +17,9 @@ const applicationDicom = "application/dicom";
 /** Key patterns to not cache */
 const noCachePattern = /(index.html)|(studies$)|(theme\/)|(^[a-zA-Z0-9\-_]+\.js)|(config\/)/;
 
+// const prefixSlash = (str) => (str && str[0] !== "/" ? `/${str}` : str);
+const noPrefixSlash = (str) => (str && str[0] === "/" ? str.substring(1) : str);
+
 class S3Ops {
   constructor(config, name, options) {
     this.group = configGroup(config, name);
@@ -25,7 +30,7 @@ class S3Ops {
   get client() {
     if (!this._client) {
       console.log("S3 client config:", this.group);
-      this._client = new S3Client(this.group);
+      this._client = new S3Client({ region: this.group.region });
     }
     return this._client;
   }
@@ -89,6 +94,53 @@ class S3Ops {
   toFile(dir, file) {
     if (!dir) return file;
     return `${dir}/${file}`;
+  }
+
+  /** Retrieves the given s3 URI to the specified destination path */
+  async retrieve(remoteUri, Key, destDir, options = { force: false }) {
+    const bucketStart = 5;
+    const bucketEnd = remoteUri.indexOf("/", bucketStart+1);
+    const Bucket = remoteUri.substring(bucketStart, bucketEnd === -1 ? remoteUri.length : bucketEnd);
+    const command = new GetObjectCommand({
+      Bucket,
+      Key,
+    });
+    const destName = path.join(destDir, Key);
+    if (options?.force !== true && fs.existsSync(destName)) return destDir;
+
+    try {
+      const result = await this.client.send(command);
+      const { Body } = result;
+      await copyTo(Body, destName);
+      console.log("Done copyTo destDir");
+    } catch (e) {
+      console.log("Error retrieving", Bucket, Key, e);
+    }
+
+    return destDir;
+  }
+
+  async dir(s3Uri) {
+    console.log("lstat", s3Uri);
+    // TODO - better validation than this
+    const bucketStart = 5;
+    const bucketEnd = s3Uri.indexOf("/", bucketStart+1);
+    const Bucket = s3Uri.substring(bucketStart, bucketEnd);
+    const Prefix = noPrefixSlash(s3Uri.substring(bucketEnd));
+
+    const command = new ListObjectsV2Command({
+      Bucket,
+      Prefix,
+    });
+    try {
+      const result = await this.client.send(command);
+      console.log("result=", result);
+      return result?.Contents;
+    } catch (e) {
+      console.log("Error sending", Bucket, Key, e);
+      console.log("e=", e);
+      return null;
+    }
   }
 
   /**

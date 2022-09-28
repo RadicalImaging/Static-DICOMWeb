@@ -29,6 +29,7 @@ module.exports = function adaptProgramOpts(programOpts, defaults) {
     prependBulkDataUri,
     expandBulkDataUri,
     verbose,
+    scpPort,
   } = programOpts;
 
   return assignDefined(
@@ -50,6 +51,7 @@ module.exports = function adaptProgramOpts(programOpts, defaults) {
       pathInstances,
       removeDeduplicatedInstances,
       storeMultipartBulkData,
+      scpPort,
       prependBulkDataUri,
       expandBulkDataUri,
       verbose,
