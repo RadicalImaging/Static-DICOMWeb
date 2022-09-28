@@ -64,7 +64,7 @@
     "@radicalimaging/static-wado-util": "^0.6.2",
     "canvas": "^2.9.1",
     "config-point": "^0.5.1",
-    "dcmjs": "^0.27.0",
+    "dcmjs": "^0.28.0",
     "dicom-parser": "^1.8.13",
     "glob": "^7.2.0",
     "node-object-hash": "^2.3.10",

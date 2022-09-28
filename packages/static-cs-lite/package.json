@@ -44,7 +44,7 @@
   },
   "dependencies": {
     "cornerstone-core": "^2.6.1",
-    "dcmjs": "^0.19.6",
+    "dcmjs": "^0.28.0",
     "jsdom": "^19.0.0",
     "jsdom-context-require": "^4.0.4"
   }
