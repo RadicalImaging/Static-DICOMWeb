@@ -8,10 +8,9 @@ const loadPlugins = require("../loadPlugins");
  * @returns Program object
  */
 async function configureProgram(defaults) {
-  console.log("defaults=", defaults);
   const configurationFile = await staticWadoUtil.loadConfiguration(defaults, process.argv);
   console.log("Loaded configuration from", configurationFile);
-  loadPlugins(defaults);  
+  loadPlugins(defaults);
   staticWadoUtil.configureCommands(defaults);
 }
 
