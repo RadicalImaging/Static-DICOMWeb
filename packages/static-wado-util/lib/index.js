@@ -2,6 +2,7 @@ const { program, configureProgram, configureCommands } = require("./program");
 const { Stats } = require("./stats");
 exports.handleHomeRelative = require("./handleHomeRelative");
 exports.JSONReader = require("./reader/JSONReader");
+exports.NDJSONReader = require("./reader/NDJSONReader");
 exports.JSONWriter = require("./writer/JSONWriter");
 exports.dirScanner = require("./reader/dirScanner");
 exports.qidoFilter = require("./qidoFilter");

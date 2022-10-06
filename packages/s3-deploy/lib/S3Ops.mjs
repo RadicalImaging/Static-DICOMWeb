@@ -99,7 +99,7 @@ class S3Ops {
   /** Retrieves the given s3 URI to the specified destination path */
   async retrieve(remoteUri, Key, destDir, options = { force: false }) {
     const bucketStart = 5;
-    const bucketEnd = remoteUri.indexOf("/", bucketStart+1);
+    const bucketEnd = remoteUri.indexOf("/", bucketStart + 1);
     const Bucket = remoteUri.substring(bucketStart, bucketEnd === -1 ? remoteUri.length : bucketEnd);
     const command = new GetObjectCommand({
       Bucket,
@@ -124,7 +124,7 @@ class S3Ops {
     console.log("lstat", s3Uri);
     // TODO - better validation than this
     const bucketStart = 5;
-    const bucketEnd = s3Uri.indexOf("/", bucketStart+1);
+    const bucketEnd = s3Uri.indexOf("/", bucketStart + 1);
     const Bucket = s3Uri.substring(bucketStart, bucketEnd);
     const Prefix = noPrefixSlash(s3Uri.substring(bucketEnd));
 

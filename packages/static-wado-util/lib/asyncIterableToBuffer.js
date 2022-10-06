@@ -3,7 +3,8 @@ const { Stats } = require("./stats");
 
 const handler = {
   get(obj, key) {
-    const ikey = parseInt(key);
+    const isSymbol = typeof key == "symbol";
+    const ikey = isSymbol || parseInt(key);
     if (ikey == key) return obj.index_get(ikey);
     const handlerFunc = handler[key];
     if (handlerFunc && key != "get") return handlerFunc(obj, key);
@@ -15,6 +16,7 @@ const handler = {
   },
 
   length: (obj) => obj.combinedLength,
+  byteLength: (obj) => obj.combinedLength,
 };
 
 const StreamingFunctions = {

@@ -1,5 +1,5 @@
 // TODO review returning type of some methods
-const JSONWriter = require("../writer/JSONWriter");
+const { JSONWriter } = require("@radicalimaging/static-wado-util");
 const TagLists = require("../model/TagLists");
 const Tags = require("../dictionary/Tags");
 

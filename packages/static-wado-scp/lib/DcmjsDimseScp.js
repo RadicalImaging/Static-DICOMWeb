@@ -29,8 +29,7 @@ const defaultParams = {
   isStudyData: true,
 };
 
-let staticParams = {
-};
+let staticParams = {};
 
 class DcmjsDimseScp extends Scp {
   constructor(socket, opts = staticParams) {

@@ -1,5 +1,5 @@
 import { assertions } from "@radicalimaging/static-wado-util";
-import { qidoMap, otherJsonMap, thumbnailMap, multipartMap } from "../../adapters/requestAdapters.mjs";
+import { qidoMap, dicomMap, otherJsonMap, thumbnailMap, multipartIndexMap, multipartMap } from "../../adapters/requestAdapters.mjs";
 import { defaultPostController as postController } from "../../controllers/server/commonControllers.mjs";
 import { defaultNotFoundController as notFoundController } from "../../controllers/server/notFoundControllers.mjs";
 import { defaultGetProxyController } from "../../controllers/server/proxyControllers.mjs";
@@ -19,8 +19,10 @@ export default function setRoutes(routerExpress, params, dir) {
     thumbnailMap
   );
   routerExpress.get("/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames/:frames", multipartMap);
+  routerExpress.get("/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames", multipartIndexMap);
 
   routerExpress.get(["/studies", "/studies/:studyUID/series", "/studies/:studyUID/series/:seriesUID/instances"], qidoMap);
+  routerExpress.get("/studies/:studyUID/series/:seriesUID/instances/:sopUID", dicomMap);
   routerExpress.get("/studies/:studyUID/series/metadata", otherJsonMap);
 
   routerExpress.post(["/studies", "/studies/:studyUID/series", "/studies/:studyUID/series/:seriesUID/instances"], postController(params));

@@ -4,7 +4,7 @@ function configGroup(config, name) {
   console.log("dir for", name, dir);
   Object.defineProperty(group, "dir", { value: dir });
   Object.defineProperty(group, "name", { value: name });
-  if( !group.region ) {
+  if (!group.region) {
     // Set the region at the overall level
     group.region = config.region;
   }

@@ -26,10 +26,26 @@ export const thumbnailMap = (req, res, next) => {
 };
 
 /**
+ * Handles returning multipart/related DICOM
+ */
+export const dicomMap = (req, res, next) => {
+  res.setHeader("content-type", "multipart/related");
+  req.url = `${req.path}/index.mht.gz`;
+  next();
+};
+
+/**
  * Handles returning thumbnail jpeg
  */
 export const multipartMap = (req, res, next) => {
   res.setHeader("content-type", "multipart/related");
+  next();
+};
+
+/** Handles returning index multipart maps - used to return raw binary data in a directory, eg .../frames */
+export const multipartIndexMap = (req, res, next) => {
+  res.setHeader("content-type", "multipart/related");
+  req.url = `${req.path}/index.mht.gz`;
   next();
 };
 

@@ -1,6 +1,4 @@
-const { Stats } = require("@radicalimaging/static-wado-util");
-const { JSONReader } = require("@radicalimaging/static-wado-util");
-const JSONWriter = require("./JSONWriter");
+const { JSONReader, JSONWriter, Stats } = require("@radicalimaging/static-wado-util");
 const StudyData = require("../operation/StudyData");
 const Tags = require("../dictionary/Tags");
 

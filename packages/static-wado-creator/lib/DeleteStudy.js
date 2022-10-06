@@ -1,5 +1,5 @@
 const { JSONReader } = require("@radicalimaging/static-wado-util");
-const JSONWriter = require("./writer/JSONWriter");
+const { JSONWriter } = require("@radicalimaging/static-wado-util");
 const Tags = require("./dictionary/Tags");
 
 module.exports = (options) =>

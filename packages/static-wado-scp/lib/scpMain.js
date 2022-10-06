@@ -1,7 +1,8 @@
 const dcmjsDimse = require("dcmjs-dimse");
+
 const { Server } = dcmjsDimse;
-const DcmjsDimseScp = require("./DcmjsDimseScp");
 const { adaptProgramOpts } = require("@radicalimaging/static-wado-creator");
+const DcmjsDimseScp = require("./DcmjsDimseScp");
 
 module.exports = function scpMain(defaults) {
   const options = adaptProgramOpts(defaults, {
@@ -22,5 +23,4 @@ module.exports = function scpMain(defaults) {
   console.log("Starting server listen on port", port);
   DcmjsDimseScp.setParams(options);
   server.listen(port, options);
-}
-
+};

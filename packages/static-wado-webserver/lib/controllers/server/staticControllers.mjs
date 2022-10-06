@@ -7,6 +7,7 @@ export function indexingStaticController(staticFilesDir) {
     index: "index.json.gz",
     setHeaders: gzipHeaders,
     extensions: ["gz"],
+    maxAge: 3000,
     redirect: false,
     fallthrough: true,
   });

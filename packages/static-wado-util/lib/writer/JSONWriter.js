@@ -1,5 +1,5 @@
-const { Stats } = require("../stats");
 const path = require("path");
+const { Stats } = require("../stats");
 const WriteStream = require("./WriteStream");
 
 /** Writes out JSON files to the given file name.  Automatically GZips them, and adds the extension */

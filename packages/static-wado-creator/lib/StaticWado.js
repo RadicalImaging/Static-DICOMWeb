@@ -3,9 +3,7 @@ const { Stats, handleHomeRelative } = require("@radicalimaging/static-wado-util"
 const dicomParser = require("dicom-parser");
 const fs = require("fs");
 const path = require("path");
-const { dirScanner } = require("@radicalimaging/static-wado-util");
-const { JSONReader } = require("@radicalimaging/static-wado-util");
-const asyncIterableToBuffer = require("@radicalimaging/static-wado-util/lib/asyncIterableToBuffer");
+const { dirScanner, JSONReader, JSONWriter, asyncIterableToBuffer } = require("@radicalimaging/static-wado-util");
 const getDataSet = require("./operation/getDataSet");
 const InstanceDeduplicate = require("./operation/InstanceDeduplicate");
 const DeduplicateWriter = require("./writer/DeduplicateWriter");
@@ -20,7 +18,7 @@ const ThumbnailWriter = require("./writer/ThumbnailWriter");
 const ThumbnailService = require("./operation/ThumbnailService");
 const DeleteStudy = require("./DeleteStudy");
 const RejectInstance = require("./RejectInstance");
-const JSONWriter = require("./writer/JSONWriter");
+const RawDicomWriter = require("./writer/RawDicomWriter");
 
 function setStudyData(studyData) {
   this.studyData = studyData;
@@ -53,6 +51,7 @@ class StaticWado {
       reject: RejectInstance(this.options),
       delete: DeleteStudy(this.options),
       setStudyData,
+      rawDicomWriter: RawDicomWriter(this.options),
     };
   }
 
@@ -175,6 +174,8 @@ class StaticWado {
 
     // convert to DICOMweb MetaData and BulkData
     const result = await getDataSet(dataSet, generator, this.options);
+
+    await this.callback.rawDicomWriter?.(id, result, buffer);
 
     const transcodedMeta = transcodeMetadata(result.metadata, id, this.options);
     thumbnailService.generateThumbnails(id, dataSet, transcodedMeta, this.callback);
