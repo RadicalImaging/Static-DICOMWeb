@@ -15,7 +15,7 @@ That is basically it.  All of the other operations are on top of those four basi
 What you need to do is run the dicomweb scp and server components to accept incoming images and serve up the data, complete with the OHIF client.  This can be done with the following steps:
 
 1. Clone the OHIF Viewer project using `git clone https://github.com/OHIF/Viewers.git`
-2. Clone the static-wado project using `git clone https://github.com/OHIF/static-wado.git`
+2. Clone the static-wado project using `git clone git@github.com:RadicalImaging/Static-DICOMWeb.git`
 3. Run `yarn install` in both directories
 4. Build a copy of the OHIF viewer with: `APP_CONFIG=config/local_static.js yarn build`  
 5. Copy the build output to `~/ohif`  (from Viewers/platform/viewer/dist)
