@@ -158,10 +158,12 @@ There is currently no notification of what studies have been updated between sta
 ### To Serve Instances As a Web Server
 ```
 cd ~/dicomweb
-npx http-server -p 5000 -g --cors
+npx http-server -p 5000 -g --cors -e json
 ```
 
 The -g option serves up compressed files ending in .gz as compressed http streams.
+
+The -e option will mark json files as the default extension, so when requesting `GET dicomweb/studies/` the `./studies/index.json.gz` file will be served.
 
 ### To Create DICOM part 10 from DICOMweb files
 TODO
