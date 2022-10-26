@@ -38,7 +38,6 @@ class DeployGroup {
    */
   async store(parentDir = "", name = "") {
     const fileName = path.join(this.baseDir, parentDir, name);
-    // console.log('Doing lstat', fileName);
     const lstat = await fs.promises.lstat(fileName);
     const relativeName = (name && `${parentDir}/${name}`) || parentDir || "";
     console.log("relativeName", relativeName);

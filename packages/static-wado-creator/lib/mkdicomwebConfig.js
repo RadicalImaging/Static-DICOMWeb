@@ -26,15 +26,24 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         defaultValue: false,
       },
       {
+        key: "-d, --deployments <listvalue...>",
+        description: "List of deployments from configuration to deploy to. Separated by space.",
+        defaultValue: undefined,
+      },
+      {
         key: "-v, --verbose",
         description: "Write verbose output",
         defaultValue: false,
       },
       {
         key: "-t, --content-type <type>",
-        description: 'Destination type to compress to (choices: "jls", "lei", "jls-lossy" or DICOM Transfer Syntax UID - default: "jls")',
+        description: 'Destination type to compress to (choices: "jls", "lei", "jls-lossy", "jhc", "jxl" or DICOM Transfer Syntax UID - default: "jls")',
         defaultValue: "jls",
         customParser: compressionOptionParser,
+      },
+      {
+        key: "-e, --no-encapsulated-image-frame",
+        description: "Avoid encapsulating the image frame.  Writes with the extension and without multipart",
       },
       {
         key: "-m, --maximum-inline-public-length <value>",
@@ -50,7 +59,7 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         key: "-r, --recompress <listvalue...>",
         description: "List of types to recompress separated by space",
         defaultValue: ["uncompressed", "jp2"],
-        choices: ["uncompressed", "jp2", "jpeglossless", "rle", "none"],
+        choices: ["uncompressed", "jp2", "jpeglossless", "rle", "jph", "jls", "true", "none"],
       },
       {
         key: "--recompress-thumb <listvalue...>",

@@ -23,7 +23,7 @@ export default function setRoutes(routerExpress, params, dir) {
 
   routerExpress.get(["/studies", "/studies/:studyUID/series", "/studies/:studyUID/series/:seriesUID/instances"], qidoMap);
   routerExpress.get("/studies/:studyUID/series/:seriesUID/instances/:sopUID", dicomMap);
-  routerExpress.get("/studies/:studyUID/series/metadata", otherJsonMap);
+  routerExpress.get(["/studies/:studyUID/series/metadata", "/studies/:studyUID/metadataTree.json"], otherJsonMap);
 
   routerExpress.post(["/studies", "/studies/:studyUID/series", "/studies/:studyUID/series/:seriesUID/instances"], postController(params));
   // Handle the QIDO queries
