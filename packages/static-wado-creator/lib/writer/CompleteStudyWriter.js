@@ -1,6 +1,6 @@
 const { JSONReader, JSONWriter, Stats } = require("@radicalimaging/static-wado-util");
+const { Tags } = require("@radicalimaging/static-wado-util");
 const StudyData = require("../operation/StudyData");
-const Tags = require("../dictionary/Tags");
 
 /**
  * CompleteStudyWriter takes the deduplicated data values, all loaded into the study parameter,

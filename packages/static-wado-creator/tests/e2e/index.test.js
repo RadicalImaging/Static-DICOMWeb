@@ -1,6 +1,6 @@
 const fs = require("fs");
 const { execSync } = require("child_process");
-const { JSONReader } = require("@radicalimaging/static-wado-util");
+const { JSONReader, Tags } = require("@radicalimaging/static-wado-util");
 const must = require("must");
 
 // same level at package folder

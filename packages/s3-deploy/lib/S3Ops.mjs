@@ -7,7 +7,6 @@ import path from "path";
 import copyTo from "./copyTo.mjs";
 
 const compressedRe = /((\.br)|(\.gz))$/;
-const indexRe = /\/index\.[a-zA-Z]*$/;
 
 const octetStream = "application/octet-stream";
 const multipartRelated = "multipart/related";
@@ -50,7 +49,7 @@ class S3Ops {
       fileName = `${this.group.path}${fileName}`;
     }
     const indexPos = fileName.lastIndexOf("/index");
-    if (indexPos!==-1 && fileName.indexOf('/',indexPos+1)==-1) {
+    if (indexPos !== -1 && fileName.indexOf("/", indexPos + 1) == -1) {
       fileName = fileName.substring(0, indexPos);
     }
     if (fileName[0] == "/") {
@@ -137,7 +136,7 @@ class S3Ops {
       console.log("result=", result);
       return result?.Contents;
     } catch (e) {
-      console.log("Error sending", Bucket, Key, e);
+      console.log("Error sending", Bucket, s3Uri, e);
       console.log("e=", e);
       return null;
     }

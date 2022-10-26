@@ -1,5 +1,5 @@
 const fs = require("fs");
-const asyncIteratorToBuffer = require("../../lib/operation/adapter/asyncIterableToBuffer");
+const asyncIteratorToBuffer = require("../../lib/asyncIterableToBuffer");
 
 describe("asyncIterableToBuffer", () => {
   let dicomp10stream;

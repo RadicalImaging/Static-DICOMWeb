@@ -14,6 +14,8 @@ exports.configDiff = require("./update/configDiff");
 exports.configGroup = require("./configGroup.js");
 exports.updateConfiguration = require("./update/updateConfiguration");
 exports.asyncIterableToBuffer = require("./asyncIterableToBuffer");
+exports.Tags = require("./dictionary/Tags");
+exports.dataDictionary = require("./dictionary/dataDictionary");
 
 exports.configureProgram = configureProgram;
 exports.configureCommands = configureCommands;

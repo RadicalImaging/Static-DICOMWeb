@@ -5,24 +5,41 @@ const ExpandUriPath = require("./ExpandUriPath");
 const { MultipartHeader, MultipartAttribute } = require("./MultipartHeader");
 
 const ImageFrameWriter = (options) => {
-  const { verbose } = options;
+  const { verbose, encapsulatedImageFrame = true } = options;
 
   return async (id, index, imageFrame) => {
     const { transferSyntaxUid } = id;
     const type = uids[transferSyntaxUid] || uids.default;
-    const writeStream = WriteStream(id.imageFrameRootPath, `${1 + index}`, {
-      gzip: type.gzip,
-      mkdir: true,
-    });
+    const extension = type.extension;
     let content;
     if (imageFrame instanceof Uint8Array) {
       content = imageFrame;
     } else {
       content = Buffer.from(imageFrame.buffer);
     }
-    await WriteMultipart(writeStream, [new MultipartHeader("Content-Type", type.contentType, [new MultipartAttribute("transfer-syntax", transferSyntaxUid)])], content);
-    await writeStream.close();
-    if (verbose) console.log("Wrote image frame", id.sopInstanceUid, index + 1);
+
+    if (encapsulatedImageFrame || !extension) {
+      const writeStream = WriteStream(id.imageFrameRootPath, `${1 + index}`, {
+        gzip: type.gzip,
+        mkdir: true,
+      });
+      await WriteMultipart(
+        writeStream,
+        [new MultipartHeader("Content-Type", type.contentType, [new MultipartAttribute("transfer-syntax", transferSyntaxUid)])],
+        content
+      );
+      writeStream.close();
+      if (verbose) console.log("Wrote encapsulated image frame", id.sopInstanceUid, index + 1);
+    }
+    if (extension) {
+      const writeStreamSingle = WriteStream(id.imageFrameRootPath, `${1 + index}${extension}`, {
+        gzip: type.gzip,
+        mkdir: true,
+      });
+      await writeStreamSingle.write(content);
+      writeStreamSingle.close();
+      if (verbose) console.log("Wrote single part image frame", id.sopInstanceUid, index + 1);
+    }
     const includeSeries = true;
     return ExpandUriPath(id, `instances/${id.sopInstanceUid}/frames`, { includeSeries, ...options });
   };

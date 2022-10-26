@@ -1,4 +1,4 @@
-const dataDictionary = require("../dictionary/dataDictionary");
+const { dataDictionary } = require("@radicalimaging/static-wado-util");
 
 const getVR = (attr) => {
   if (attr.vr) {

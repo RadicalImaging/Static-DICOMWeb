@@ -1,3 +1,8 @@
+const extensions = {
+  "image/jphc": ".jhc",
+  "image/jpeg": ".jpeg",
+};
+
 /**
  * Maps QIDO queries for studies, series and instances to the index.json.gz file.
  */
@@ -13,6 +18,7 @@ export const qidoMap = (req, res, next) => {
 export const otherJsonMap = (req, res, next) => {
   res.setHeader("content-type", "application/json");
   req.url = `${req.path}.gz`;
+  console.log("otherJson", req.url);
   next();
 };
 
@@ -34,11 +40,30 @@ export const dicomMap = (req, res, next) => {
   next();
 };
 
+export const frameIdMap = (req) => {
+  const { frameID, DatastoreID, DICOMStudyID } = req.query;
+  return frameID && DatastoreID && `/studies/htj2k/${DatastoreID}/${DICOMStudyID}/${frameID}.jhc`;
+};
+
 /**
- * Handles returning thumbnail jpeg
+ * Handles returning frames
  */
 export const multipartMap = (req, res, next) => {
-  res.setHeader("content-type", "multipart/related");
+  const accept = req.header("accept") || "";
+  const queryAccept = req.query.accept;
+  const mappedFrame = frameIdMap(req);
+  const extension = extensions[queryAccept || accept];
+  console.log("Extension for accept", accept, extension);
+  if (mappedFrame) {
+    console.log("mappedFrame", mappedFrame, queryAccept || accept);
+    res.setHeader("content-type", queryAccept || accept);
+    req.url = mappedFrame;
+  } else if (extension) {
+    res.setHeader("content-type", queryAccept || accept);
+    req.url = `${req.path}${extension}`;
+  } else {
+    res.setHeader("content-type", "multipart/related");
+  }
   next();
 };
 

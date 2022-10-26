@@ -2,7 +2,7 @@ const hashFactory = require("node-object-hash");
 
 const hasher = hashFactory();
 const path = require("path");
-const Tags = require("../dictionary/Tags");
+const { Tags } = require("@radicalimaging/static-wado-util");
 const WriteStream = require("./WriteStream");
 const WriteMultipart = require("./WriteMultipart");
 const ExpandUriPath = require("./ExpandUriPath");

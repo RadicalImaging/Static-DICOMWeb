@@ -2,6 +2,7 @@ const { Stats } = require("@radicalimaging/static-wado-util");
 const StaticWado = require("@radicalimaging/static-wado-creator");
 const dcmjsDimse = require("dcmjs-dimse");
 const dcmjs = require("dcmjs");
+const { loadedPlugins } = require("./loadPlugins");
 
 const { Scp, Dataset } = dcmjsDimse;
 const { CEchoResponse, CStoreResponse, CFindResponse } = dcmjsDimse.responses;
@@ -103,6 +104,7 @@ class DcmjsDimseScp extends Scp {
     const dataset = request.getDataset();
     const { QueryRetrieveLevel } = dataset.elements;
     console.log("QueryRetrieveLevel", QueryRetrieveLevel);
+    // TODO - call loadPlugins pon the given level to see if they can be loaded
     const queryFunc = loadedPlugins[QueryRetrieveLevel];
 
     if (queryFunc && !this.cfindDisabled) {

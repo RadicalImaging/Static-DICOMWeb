@@ -1,5 +1,5 @@
 const dicomCodec = require("@cornerstonejs/dicom-codec");
-const Tags = require("../../dictionary/Tags");
+const { Tags } = require("@radicalimaging/static-wado-util");
 const getImageInfo = require("./getImageInfo");
 
 const transcodeOp = {
@@ -33,6 +33,10 @@ const transcodeDestinationMap = {
     transferSyntaxUid: "1.2.840.10008.1.2.4.91",
     transcodeOp: transcodeOp.encode,
   },
+  jhc: {
+    transferSyntaxUid: "1.2.840.10008.1.2.4.96",
+    transcodeOp: transcodeOp.encode,
+  },
 };
 
 const transcodeSourceMap = {
@@ -63,6 +67,10 @@ const transcodeSourceMap = {
   "1.2.840.10008.1.2.4.91": {
     transcodeOp: transcodeOp.decode,
     alias: "jp2",
+  },
+  "1.2.840.10008.1.2.4.96": {
+    transcodeOp: transcodeOp.decode,
+    alias: "jhc",
   },
   "1.2.840.10008.1.2.5": {
     transcodeOp: transcodeOp.decode,
@@ -113,14 +121,15 @@ function getTranscoder(transferSyntaxUid, { contentType, verbose }) {
  * @param {*} options runner options
  */
 function shouldTranscodeImageFrame(id, options) {
-  if (!options.recompress) {
+  const { recompress } = options;
+  if (!recompress) {
     return false;
   }
 
   function isValidTranscoder() {
     const { transferSyntaxUid } = id;
     const transcoder = getTranscoder(transferSyntaxUid, options);
-    return transcoder && transcoder.transferSyntaxUid && options.recompress.includes(transcoder.alias);
+    return transcoder && transcoder.transferSyntaxUid && (recompress.includes("true") || recompress.includes(transcoder.alias));
   }
 
   return isValidTranscoder();
