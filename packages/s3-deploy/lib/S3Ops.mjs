@@ -7,7 +7,7 @@ import path from "path";
 import copyTo from "./copyTo.mjs";
 
 const compressedRe = /((\.br)|(\.gz))$/;
-const indexRe = /\/index\.json$/;
+const indexRe = /\/index\.[a-zA-Z]*$/;
 
 const octetStream = "application/octet-stream";
 const multipartRelated = "multipart/related";
@@ -49,8 +49,8 @@ class S3Ops {
     if (this.group.path && this.group.path != "/") {
       fileName = `${this.group.path}${fileName}`;
     }
-    if (indexRe.test(fileName)) {
-      const indexPos = fileName.lastIndexOf("/index");
+    const indexPos = fileName.lastIndexOf("/index");
+    if (indexPos!==-1 && fileName.indexOf('/',indexPos+1)==-1) {
       fileName = fileName.substring(0, indexPos);
     }
     if (fileName[0] == "/") {
@@ -149,6 +149,7 @@ class S3Ops {
    */
   async upload(dir, file, hash, ContentSize) {
     const Key = this.fileToKey(file);
+    console.log("fileToKey", file, Key);
     const ContentType = this.fileToContentType(file);
     const Metadata = this.fileToMetadata(file, hash);
     const ContentEncoding = this.fileToContentEncoding(file);
