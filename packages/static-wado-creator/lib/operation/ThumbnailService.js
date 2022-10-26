@@ -4,10 +4,10 @@ const dicomCodec = require("@cornerstonejs/dicom-codec");
 const staticCS = require("@radicalimaging/static-cs-lite");
 const fs = require("fs");
 const { exec } = require("child_process");
+const { Tags } = require("@radicalimaging/static-wado-util");
 const decodeImage = require("./adapter/decodeImage");
 const { shouldThumbUseTranscoded } = require("./adapter/transcodeImage");
 const { isVideo } = require("../writer/VideoWriter");
-const Tags = require("../dictionary/Tags");
 
 /**
  * Return the middle index of given list

@@ -1,5 +1,5 @@
 /** Write raw video file */
-const Tags = require("../dictionary/Tags");
+const { Tags } = require("@radicalimaging/static-wado-util");
 const WriteStream = require("./WriteStream");
 
 const MPEG2 = "mpg";

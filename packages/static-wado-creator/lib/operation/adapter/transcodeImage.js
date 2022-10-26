@@ -1,5 +1,5 @@
 const dicomCodec = require("@cornerstonejs/dicom-codec");
-const Tags = require("../../dictionary/Tags");
+const { Tags } = require("@radicalimaging/static-wado-util");
 const getImageInfo = require("./getImageInfo");
 
 const transcodeOp = {

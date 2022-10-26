@@ -23,7 +23,11 @@ const ImageFrameWriter = (options) => {
         gzip: type.gzip,
         mkdir: true,
       });
-      await WriteMultipart(writeStream, [new MultipartHeader("Content-Type", type.contentType, [new MultipartAttribute("transfer-syntax", transferSyntaxUid)])], content);
+      await WriteMultipart(
+        writeStream,
+        [new MultipartHeader("Content-Type", type.contentType, [new MultipartAttribute("transfer-syntax", transferSyntaxUid)])],
+        content
+      );
       writeStream.close();
       if (verbose) console.log("Wrote encapsulated image frame", id.sopInstanceUid, index + 1);
     }

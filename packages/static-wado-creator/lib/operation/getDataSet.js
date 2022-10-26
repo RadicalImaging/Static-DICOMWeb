@@ -1,6 +1,6 @@
+const { Tags } = require("@radicalimaging/static-wado-util");
 const getVR = require("./getVR");
 const getValue = require("./getValue");
-const Tags = require("../dictionary/Tags");
 
 /**
  * Get dataset.

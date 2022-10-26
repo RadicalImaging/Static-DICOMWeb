@@ -17,4 +17,6 @@ const loadPlugins = (options) => {
     });
 };
 
+loadPlugins.loadedPlugins = loadedPlugins;
+
 module.exports = loadPlugins;

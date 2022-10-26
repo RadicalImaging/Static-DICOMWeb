@@ -1,5 +1,5 @@
 const hashFactory = require("node-object-hash");
-const Tags = require("../dictionary/Tags");
+const { Tags } = require("@radicalimaging/static-wado-util");
 
 /* eslint "no-param-reassign": "off" */
 

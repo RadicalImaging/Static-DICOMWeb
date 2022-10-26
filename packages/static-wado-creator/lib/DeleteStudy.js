@@ -1,6 +1,6 @@
 const { JSONReader } = require("@radicalimaging/static-wado-util");
 const { JSONWriter } = require("@radicalimaging/static-wado-util");
-const Tags = require("./dictionary/Tags");
+const { Tags } = require("@radicalimaging/static-wado-util");
 
 module.exports = (options) =>
   async function (studyInstanceUid) {

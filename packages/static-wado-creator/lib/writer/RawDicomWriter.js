@@ -1,7 +1,7 @@
+const { Tags } = require("@radicalimaging/static-wado-util");
 const WriteStream = require("./WriteStream");
 const WriteMultipart = require("./WriteMultipart");
 const { MultipartHeader } = require("./MultipartHeader");
-const Tags = require("../dictionary/Tags");
 
 const modalitiesToRawWrite = ["SEG", "SR"];
 

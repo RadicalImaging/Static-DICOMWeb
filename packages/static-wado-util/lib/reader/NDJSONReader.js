@@ -5,7 +5,7 @@ const handleHomeRelative = require("../handleHomeRelative");
 
 const NDJSONReader = async (dirSrc, name, def) => {
   const dir = handleHomeRelative(dirSrc);
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     try {
       const ret = [];
       const stream = fs.createReadStream(path.join(dir, name)).pipe(ndjson.parse());
@@ -14,8 +14,7 @@ const NDJSONReader = async (dirSrc, name, def) => {
     } catch (err) {
       if (def === undefined) {
         console.log("Couldn't read", dir, name, err);
-        reject("Couldn't read");
-        return;
+        throw new Error(`Couldn't read ${dir} ${name} ${err}`);
       }
       resolve(def);
     }

@@ -1,6 +1,6 @@
 const extensions = {
-  'image/jphc': '.jhc',
-  'image/jpeg': '.jpeg',
+  "image/jphc": ".jhc",
+  "image/jpeg": ".jpeg",
 };
 
 /**
@@ -43,7 +43,7 @@ export const dicomMap = (req, res, next) => {
 export const frameIdMap = (req) => {
   const { frameID, DatastoreID, DICOMStudyID } = req.query;
   return frameID && DatastoreID && `/studies/htj2k/${DatastoreID}/${DICOMStudyID}/${frameID}.jhc`;
-}
+};
 
 /**
  * Handles returning frames

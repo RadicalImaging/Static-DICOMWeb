@@ -2,7 +2,7 @@ const path = require("path");
 const fs = require("fs");
 const hashFactory = require("node-object-hash");
 const { JSONReader, JSONWriter } = require("@radicalimaging/static-wado-util");
-const Tags = require("../dictionary/Tags");
+const { Tags } = require("@radicalimaging/static-wado-util");
 const TagLists = require("../model/TagLists");
 
 const { getValue, setValue, getList, setList } = Tags;
