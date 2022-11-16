@@ -38,10 +38,10 @@
   "scripts": {
     "copyFiles": "cp -R lib build",
     "test": "jest --config ./jest.config.cjs",
-    "build": "tsc && yarn copyFiles",
-    "deploy": "yarn build && yarn copyFiles && yarn deployOnly",
+    "build": "yarn copyFiles && tsc",
+    "deploy": "yarn build && yarn deployOnly",
     "deployOnly": "cdk deploy -a build/index.js",
-    "synth": "yarn build && yarn copyFiles && yarn synthOnly",
+    "synth": "yarn build && yarn synthOnly",
     "synthOnly": "cdk synth -a build/index.js",
     "watch": "tsc -w",
     "cdk": "cdk",

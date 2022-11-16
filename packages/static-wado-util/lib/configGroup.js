@@ -8,6 +8,7 @@ function configGroup(config, name) {
     // Set the region at the overall level
     group.region = config.region;
   }
+  console.log("Group region is", group, group.region, config);
   return group;
 }
 

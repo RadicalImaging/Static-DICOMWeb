@@ -7,6 +7,7 @@ import path from "path";
 import copyTo from "./copyTo.mjs";
 
 const compressedRe = /((\.br)|(\.gz))$/;
+const indexRe = /\/index\.(json|mht)$/;
 
 const octetStream = "application/octet-stream";
 const multipartRelated = "multipart/related";
@@ -48,15 +49,15 @@ class S3Ops {
     if (this.group.path && this.group.path != "/") {
       fileName = `${this.group.path}${fileName}`;
     }
-    const indexPos = fileName.lastIndexOf("/index");
-    if (indexPos !== -1 && fileName.indexOf("/", indexPos + 1) == -1) {
+    if (indexRe.test(fileName)) {
+      const indexPos = fileName.lastIndexOf("/index");
       fileName = fileName.substring(0, indexPos);
     }
     if (fileName[0] == "/") {
       fileName = fileName.substring(1);
     }
     if (!fileName) {
-      throw new Error("No filename defined for", file);
+      throw new Error(`No filename defined for ${file}`);
     }
     return fileName;
   }
@@ -71,6 +72,7 @@ class S3Ops {
     return (
       mime.lookup(src) ||
       (src.indexOf(".dcm") !== -1 && applicationDicom) ||
+      (src.indexOf(".mht") !== -1 && multipartRelated) ||
       (src.indexOf("bulkdata") !== -1 && octetStream) ||
       (src.indexOf(".raw") !== -1 && octetStream) ||
       (src.indexOf("frames") !== -1 && multipartRelated) ||
