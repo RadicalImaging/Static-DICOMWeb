@@ -7,6 +7,7 @@ import clientSite from './clientSite.js';
 import rootSite from './rootSite.js';
 import uploadSite from './uploadSite.js';
 import { getSiteInfo, configureDomain } from './configureHostedZone.js';
+import createDocumentGroup from './createDocumentDb.js';
 
 /**
  * Static site infrastructure, which deploys site content to an S3 bucket.
@@ -36,6 +37,13 @@ export class StaticSite extends Construct {
       console.log("no clientGroup specified for deployment:", name);
     }
   
+    
+    if( props.indexGroup ) {
+      const group = configGroup(props,"index");
+      console.log("Index group", group);
+      createDocumentGroup(this,group);  
+    }
+
     let rootDistProps;
     if (props.rootGroup) {
       const rootGroup = configGroup(props,"root");

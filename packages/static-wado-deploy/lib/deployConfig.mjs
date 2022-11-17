@@ -1,7 +1,7 @@
 import ConfigPoint from "config-point";
 import { staticWadoConfig } from "@radicalimaging/static-wado-util";
-import studiesMain from "./studiesMain.js";
-import clientMain from "./clientMain.js";
+import studiesMain from "./studiesMain.mjs";
+import clientMain from "./clientMain.mjs";
 import themeMain from "./themeMain.js";
 
 // Define the generic configuration in the base config
@@ -45,6 +45,13 @@ const { deployConfig } = ConfigPoint.register({
         arguments: ["studyUID"],
         helpShort: "deploydicomweb studies [studyUID]",
         helpDescription: "Deploy DICOMweb files to the cloud",
+        options: [
+          {
+            key: "--no-index",
+            description: "Don't create or update the index files",
+            defaultValue: true,
+          },
+        ],
         isDefault: true,
         main: studiesMain,
       },
