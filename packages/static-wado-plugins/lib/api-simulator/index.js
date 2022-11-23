@@ -17,7 +17,7 @@ const subsequentApi = (item, req, res, next) => {
   jobs[req.params.jobId] += 1;
 
   req.url = `${item.pluginRoute}/${itemId}.json`;
-  res.setHeader("content-type", "application/json");
+  res.setHeader("content-type", "application/json; charset=utf-8");
   console.log("Requested URL is", req.url);
   next();
 };

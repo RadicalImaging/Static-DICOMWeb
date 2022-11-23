@@ -33,7 +33,7 @@ const uids = {
   "1.2.840.10008.1.2.4.81": { contentType: jls, lossy: true },
   "1.2.840.10008.1.2.4.90": { contentType: jp2, extension: ".jp2" },
   "1.2.840.10008.1.2.4.91": { contentType: jp2 },
-  "1.2.840.10008.1.2.4.96": { contentType: htj2k, extension: ".jhc" },
+  "3.2.840.10008.1.2.4.96": { contentType: htj2k, extension: ".jhc" },
   "1.2.840.10008.1.2.5": { contentType: rle },
   default: {},
 };
