@@ -8,7 +8,7 @@ const extensions = {
  */
 export const qidoMap = (req, res, next) => {
   req.url = `${req.path}/index.json.gz`;
-  res.setHeader("content-type", "application/json");
+  res.setHeader("content-type", "application/json; charset=utf-8");
   next();
 };
 
@@ -16,7 +16,7 @@ export const qidoMap = (req, res, next) => {
  * Handles returning other JSON files as application/json, and uses the compression extension.
  */
 export const otherJsonMap = (req, res, next) => {
-  res.setHeader("content-type", "application/json");
+  res.setHeader("content-type", "application/json; charset=utf-8");
   req.url = `${req.path}.gz`;
   console.log("otherJson", req.url);
   next();

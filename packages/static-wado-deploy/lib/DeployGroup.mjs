@@ -21,6 +21,10 @@ class DeployGroup {
     this.options = options;
     this.group = configGroup(config, groupName);
     this.baseDir = handleHomeRelative(this.group.dir);
+    if( this.group.index ) {
+      this.indexFullName = `studies/${this.group.index}.json.gz`;
+      config.indexFullName = this.indexFullName;
+    }
   }
 
   // Loads the ops

@@ -11,6 +11,7 @@ const indexRe = /\/index\.(json|mht)$/;
 
 const octetStream = "application/octet-stream";
 const multipartRelated = "multipart/related";
+const multipartRelatedDicom = "multipart/related";
 const imagejpeg = "image/jpeg";
 const applicationDicom = "application/dicom";
 
@@ -29,7 +30,6 @@ class S3Ops {
 
   get client() {
     if (!this._client) {
-      console.log("S3 client config:", this.group);
       this._client = new S3Client({ region: this.group.region });
     }
     return this._client;
@@ -42,6 +42,11 @@ class S3Ops {
    */
   fileToKey(file) {
     let fileName = file.replaceAll("\\", "/");
+    if( fileName===this.config.indexFullName ) {
+      console.log("Is index", fileName);
+      const lastSlash = fileName.lastIndexOf('/');
+      fileName=fileName.substring(0,lastSlash+1) + 'index.json.gz';
+    }
     if (compressedRe.test(fileName)) {
       fileName = fileName.substring(0, fileName.length - 3);
     }
@@ -72,7 +77,7 @@ class S3Ops {
     return (
       mime.lookup(src) ||
       (src.indexOf(".dcm") !== -1 && applicationDicom) ||
-      (src.indexOf(".mht") !== -1 && multipartRelated) ||
+      (src.indexOf(".mht") !== -1 && multipartRelatedDicom) ||
       (src.indexOf("bulkdata") !== -1 && octetStream) ||
       (src.indexOf(".raw") !== -1 && octetStream) ||
       (src.indexOf("frames") !== -1 && multipartRelated) ||
@@ -150,16 +155,12 @@ class S3Ops {
    */
   async upload(dir, file, hash, ContentSize) {
     const Key = this.fileToKey(file);
-    console.log("fileToKey", file, Key);
     const ContentType = this.fileToContentType(file);
     const Metadata = this.fileToMetadata(file, hash);
     const ContentEncoding = this.fileToContentEncoding(file);
     const fileName = this.toFile(dir, file);
     const isNoCacheKey = Key.match(noCachePattern);
     const CacheControl = isNoCacheKey ? "no-cache" : undefined;
-    if (isNoCacheKey) {
-      console.log("no-cache set on", Key);
-    }
     const Body = fs.createReadStream(fileName);
     const command = new PutObjectCommand({
       Body,

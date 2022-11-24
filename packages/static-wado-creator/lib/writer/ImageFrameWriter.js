@@ -29,7 +29,9 @@ const ImageFrameWriter = (options) => {
         content
       );
       writeStream.close();
-      if (verbose) console.log("Wrote encapsulated image frame", id.sopInstanceUid, index + 1);
+      if (verbose) {
+        console.log("Wrote encapsulated image frame", id.sopInstanceUid, index + 1, type.contentType);
+      }
     }
     if (extension) {
       const writeStreamSingle = WriteStream(id.imageFrameRootPath, `${1 + index}${extension}`, {
@@ -38,7 +40,7 @@ const ImageFrameWriter = (options) => {
       });
       await writeStreamSingle.write(content);
       writeStreamSingle.close();
-      if (verbose) console.log("Wrote single part image frame", id.sopInstanceUid, index + 1);
+      if (verbose) console.log("Wrote single part image frame", id.sopInstanceUid, index + 1, extension);
     }
     const includeSeries = true;
     return ExpandUriPath(id, `instances/${id.sopInstanceUid}/frames`, { includeSeries, ...options });
