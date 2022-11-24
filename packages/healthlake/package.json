@@ -1,0 +1,69 @@
+{
+  "name": "@radicalimaging/healthlakestore",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "Tool to upload Part 10 DICOM to Curie and download the result into static-dicomweb",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "StaticWado",
+    "DICOM",
+    "DICOMweb"
+  ],
+  "author": [
+    "Bill Wallace <bill.wallace@radicalimaging.com>, Radical Imaging"
+  ],
+  "engines": {
+    "node": ">=14.18.1",
+    "npm": ">=6.14.15",
+    "yarn": ">=1.22.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OHIF/static-wado",
+    "directory": "packages/static-wado-deploy"
+  },
+  "license": "ISC",
+  "main": "lib/index.js",
+  "directories": {
+    "lib": "lib",
+    "dist": "dist",
+    "bin": "bin"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "lib"
+  ],
+  "bin": {
+    "curiestore": "bin/healthlakestore.mjs"
+  },
+  "scripts": {
+    "dev": "cross-env NODE_ENV=development webpack --config .webpack/webpack.dev.js --watch --debug --output-pathinfo",
+    "dev:dicom-pdf": "yarn run dev",
+    "link:exec": "npm link",
+    "build": "cross-env NODE_ENV=production webpack --config .webpack/webpack.prod.js",
+    "test": "jest --config ./jest.config.js",
+    "build:package": "yarn run build",
+    "start": "yarn run dev",
+    "lint": "npx eslint --color \"*(bin|lib)/**/*.{js,mjs}\"",
+    "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
+  },
+  "jest": {
+    "verbose": true
+  },
+  "dependencies": {
+    "@radicalimaging/s3-deploy": "^0.6.4",
+    "@radicalimaging/static-wado-deploy": "^0.6.4",
+    "@radicalimaging/static-wado-plugins": "^0.6.3",
+    "@radicalimaging/static-wado-util": "^0.6.1",
+    "config-point": "^0.5.1",
+    "cross-env": "^7.0.3"
+  },
+  "devDependencies": {
+    "must": "^0.13.4",
+    "ts-jest": "^28.0.2",
+    "webpack-cli": "^5.0.0"
+  }
+}
