@@ -73,7 +73,14 @@ const { curieStoreConfig } = ConfigPoint.register({
         helpShort: "curiestore download {jobName/ID}",
         helpDescription: "Download the given jobID results into <dicomDir>/studies/<studyUID>/...",
         main: downloadCurieJobMain,
-      },
+        options: [
+          {
+            key: "-i, --download-images",
+            description: "Include images in the download",
+            defaultValue: false,
+          },
+        ],
+       },
 
       {
         command: "index",

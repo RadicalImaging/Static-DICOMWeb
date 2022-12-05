@@ -26,6 +26,19 @@ async function convertTreeMetadata(trees, baseDir) {
     const studyRecord = Object.assign({}, Patient.DICOM, Study.DICOM);
     studyRecord.StudyID = ImageSetID;
     studyRecord.DeviceUID = DatastoreID;
+    studyRecord.ModalitiesInStudy = [];
+    studyRecord.NumberOfStudyRelatedInstances = 0;
+    studyRecord.NumberOfStudyRelatedSeries = 0;
+    Object.values(Study.Series).forEach(series => {
+      const { Modality } = series.DICOM;
+      studyRecord.NumberOfStudyRelatedSeries += 1;
+      if( studyRecord.ModalitiesInStudy.indexOf(Modality)==-1 ) {
+        studyRecord.ModalitiesInStudy.push(Modality);
+      }
+      Object.values(series.Instances).forEach(instance => {
+        studyRecord.NumberOfStudyRelatedInstances += (instance.DICOM.NumberOfFrames || 1);
+      });
+    });
     const { StudyInstanceUID } = studyRecord;
     const studyDir = path.join(baseDir,"studies", StudyInstanceUID);
     const studyIndex = denaturalizeDataset(studyRecord);
@@ -41,31 +54,32 @@ async function convertTreeMetadata(trees, baseDir) {
 }
 
 async function getImageFrames(trees, baseDir) {
-  console.log("TODO - change the path mapping to standard DICOM paths")
   for(const tree of trees) {
-    console.log("Reading tree", tree);
     const studyTree = await JSONReader(path.dirname(tree), path.basename(tree));
-    const { DatastoreID, DICOMStudyID, Study } = studyTree;
+    const { DatastoreID, ImageSetID, Study } = studyTree;
     const { Series } = Study;
-    const htj2kDir = path.join(baseDir, "studies/htj2k", DatastoreID, DICOMStudyID);
-    fs.mkdirSync(htj2kDir,{recursive: true});
-    for(const singleSeries of Object.values(Series) ) {
-      const { Instances } = singleSeries;
-      if( !Instances ) continue;
-      for(const instance of Object.values(Instances) ) {
+    const { StudyInstanceUID:studyUID } = Study.DICOM;
+    const studyDir = path.join(baseDir, "studies", studyUID);
+    Object.values(Series).forEach(series => {
+      const { Instances } = series;
+      if( !Instances ) return;
+      const { SeriesInstanceUID: seriesUID } = series.DICOM;
+      const seriesDir = path.join(studyDir, "series", seriesUID);
+      Object.values(Instances).forEach(instance => {
         const { ImageFrames } = instance;
-        if( !ImageFrames ) continue;
-        const imageIds = ImageFrames.map(it => it.ID);
-        console.log("Fetching", imageIds.length, "images");
-        for (const id of imageIds) {
-          const file = path.join(htj2kDir,`${id}.jhc`)
-          const commandLine = `aws medical-imaging get-image-frame  --datastore-id "${DatastoreID}" --study-id ${DICOMStudyID} --image-frame-id ${id} --region us-east-1 ${file}`;
+        if( !ImageFrames ) return;
+        const { SOPInstanceUID: instanceUID } = instance.DICOM;
+        const framesDir = path.join(seriesDir, "instances", instanceUID, "frames");
+        fs.mkdirSync(framesDir, {recursive: true});
+        for( let frame=1; frame <= ImageFrames.length; frame++) {
+          const id = ImageFrames[frame-1].ID;
+          const file = path.join(framesDir, `${frame}.jhc`);
+          const commandLine = `aws medical-imaging get-image-frame  --datastore-id "${DatastoreID}" --study-id ${ImageSetID} --image-frame-id ${id} --region us-east-1 ${file}`;
           const resultsStr = execFileSync(commandLine, {shell:true}).toString();
           console.log(resultsStr);
-          console.log("Fetched htj2k", htj2kDir, id);            
         }
-      }
-    }
+      });
+    });
   }
 }
 
@@ -153,7 +167,8 @@ async function downloadCurie(jobName, config,name,options, deployer) {
   const trees = downloadTreeMetadata(group, imageSetIds, baseDir);
 
   await convertTreeMetadata(trees, baseDir);
-  if( config.retrieveHtj2k ) {
+  if( config.retrieveHtj2k || options.downloadImages ) {
+    console.log("Downloading images", baseDir);
     await getImageFrames(trees,baseDir);
   }
 

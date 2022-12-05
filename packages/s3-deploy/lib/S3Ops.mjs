@@ -16,7 +16,7 @@ const imagejpeg = "image/jpeg";
 const applicationDicom = "application/dicom";
 
 /** Key patterns to not cache */
-const noCachePattern = /(index.html)|(studies$)|(theme\/)|(^[a-zA-Z0-9\-_]+\.js)|(config\/)/;
+const noCachePattern = /(index.html)|(index.umd.js)|(studies$)|(theme\/)|(^[a-zA-Z0-9\-_]+\.js)|(config\/)/;
 
 // const prefixSlash = (str) => (str && str[0] !== "/" ? `/${str}` : str);
 const noPrefixSlash = (str) => (str && str[0] === "/" ? str.substring(1) : str);
@@ -60,6 +60,10 @@ class S3Ops {
     }
     if (fileName[0] == "/") {
       fileName = fileName.substring(1);
+    }
+    const extensionPos = fileName.lastIndexOf('.jhc');
+    if( extensionPos>0 ) {
+      fileName = fileName.substring(0,extensionPos);
     }
     if (!fileName) {
       throw new Error(`No filename defined for ${file}`);
