@@ -9,6 +9,7 @@ const assignDefined = (dest, src) => {
 };
 
 module.exports = function adaptProgramOpts(programOpts, defaults) {
+  console.log({ programOpts });
   const {
     maximumInlinePublicLength,
     maximumInlinePrivateLength,
@@ -21,7 +22,7 @@ module.exports = function adaptProgramOpts(programOpts, defaults) {
     recompressThumb,
     contentType,
     colourContentType,
-    dir: rootDir,
+    rootDir,
     pathDeduplicated,
     pathInstances,
     removeDeduplicatedInstances,
@@ -30,6 +31,11 @@ module.exports = function adaptProgramOpts(programOpts, defaults) {
     expandBulkDataUri,
     verbose,
     scpPort,
+    s3ClientDir,
+    s3RgBucket,
+    s3CgBucket,
+    s3EnvAccount,
+    s3EnvRegion,
   } = programOpts;
 
   return assignDefined(
@@ -55,6 +61,11 @@ module.exports = function adaptProgramOpts(programOpts, defaults) {
       prependBulkDataUri,
       expandBulkDataUri,
       verbose,
+      s3ClientDir,
+      s3RgBucket,
+      s3CgBucket,
+      s3EnvAccount,
+      s3EnvRegion,
     }
   );
 };

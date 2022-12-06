@@ -29,13 +29,17 @@
   },
   "homepage": "https://github.com/OHIF/static-wado#readme",
   "license": "ISC",
-  "main": "lib/index.mjs",
+  "main": "lib/index.js",
+  "directories": {
+    "lib": "lib",
+    "bin": "bin"
+  },
   "files": [
     "bin",
     "lib"
   ],
   "bin": {
-    "deploydicomweb": "bin/deployDicomWeb.mjs"
+    "deploydicomweb": "bin/deploydicomweb.mjs"
   },
   "scripts": {
     "test": "jest --config ./jest.config.js",

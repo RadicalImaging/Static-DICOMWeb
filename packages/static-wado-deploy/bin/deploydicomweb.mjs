@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import configureProgram from "../lib/program/index.mjs";
 import { deployConfig } from "../lib/index.mjs";
 

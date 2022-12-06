@@ -37,6 +37,27 @@ const { deployConfig } = ConfigPoint.register({
         description: "Write verbose output",
         defaultValue: false,
       },
+      {
+        key: "-s3cd, --s3-client-dir <s3ClientDir>",
+        description: "S3 client directory of static wado",
+        defaultValue: "~/ohif",
+      },
+      {
+        key: "-s3rgb, --s3-rg-bucket <s3RootGroupBucket>",
+        description: "S3 root group bucket of static wado",
+      },
+      {
+        key: "-s3cgb, --s3-cg-bucket <s3ClientGroupBucket>",
+        description: "S3 client group bucket of static wado",
+      },
+      {
+        key: "-s3ea, --s3-env-account <s3EnvAccount>",
+        description: "S3 account environment of static wado",
+      },
+      {
+        key: "-s3er, --s3-env-region <s3EnvRegion>",
+        description: "S3 region environment of static wado",
+      },
     ],
 
     programs: [

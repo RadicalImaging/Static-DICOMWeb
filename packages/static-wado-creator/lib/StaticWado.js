@@ -1,3 +1,6 @@
+const childProcess = require("child_process");
+const util = require("util");
+
 const dicomCodec = require("@cornerstonejs/dicom-codec");
 const { Stats, handleHomeRelative } = require("@radicalimaging/static-wado-util");
 const dicomParser = require("dicom-parser");
@@ -19,6 +22,8 @@ const ThumbnailService = require("./operation/ThumbnailService");
 const DeleteStudy = require("./DeleteStudy");
 const RejectInstance = require("./RejectInstance");
 const RawDicomWriter = require("./writer/RawDicomWriter");
+
+const exec = util.promisify(childProcess.exec);
 
 function setStudyData(studyData) {
   this.studyData = studyData;
@@ -203,6 +208,16 @@ class StaticWado {
 
   async close() {
     await this.callback.completeStudy();
+
+    if (this.options.isAutoDeployS3) {
+      const { s3ClientDir, s3RgBucket, s3CgBucket, s3EnvAccount, s3EnvRegion } = this.options;
+      const command = `deploydicomweb -s3cd "${s3ClientDir}" -s3rgb "${s3RgBucket}" -s3cgb "${s3CgBucket}" -s3ea "${s3EnvAccount}" -s3er "${s3EnvRegion}"`;
+      console.log({ command });
+      const { stdout, stderr } = await exec(command);
+
+      console.log("Rejected output:", stdout, stderr);
+    }
+
     Stats.OverallStats.summarize("Completed Study Processing");
   }
 

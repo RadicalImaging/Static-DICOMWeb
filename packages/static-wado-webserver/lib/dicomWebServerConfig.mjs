@@ -12,7 +12,7 @@ const { dicomWebServerConfig } = ConfigPoint.register({
     stowCommands: ["mkdicomweb"],
     helpDescription: "Serve up the static wado files and optionally a web client as a web server on the local machine.",
     clientDir: "~/ohif",
-    port: 5000,
+    port: 5001,
     corsOptions: {
       enabled: true,
       origin: ["http://localhost:3000"],
