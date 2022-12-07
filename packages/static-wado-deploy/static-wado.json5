@@ -1,0 +1,18 @@
+{
+    staticWadoConfig: {
+      clientDir: "~/ohif",
+      rootGroup: {
+        Bucket: 'rapid-dicom-viewer-data-s3',
+      },
+
+      clientGroup: {
+        Bucket: 'ohif-radical-002-mpr',
+      },
+      s3Env: {
+        account: '651841438645',
+        // account: '744036437957',
+        region: 'us-west-2',
+      },
+    },
+    // Website: d3t6nz73ql33tx.cloudfront.net
+}

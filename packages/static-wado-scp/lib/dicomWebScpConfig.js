@@ -9,7 +9,7 @@ const { dicomWebScpConfig } = ConfigPoint.register({
   dicomWebScpConfig: {
     configBase: staticWadoConfig,
     isInstance: false,
-    isAutoDeployS3: true,
+    isAutoDeployS3: false,
     isGroup: true,
     isDeduplicate: true,
     isStudyData: true,
@@ -21,7 +21,7 @@ const { dicomWebScpConfig } = ConfigPoint.register({
       {
         key: "-c, --clean",
         description: "Clean the outputs before generating/starting to write new values.",
-        defaultValue: false,
+        defaultValue: true,
       },
       {
         key: "-v, --verbose",
@@ -31,7 +31,7 @@ const { dicomWebScpConfig } = ConfigPoint.register({
       {
         key: "-t, --content-type <type>",
         description: "Destination type to compress to",
-        defaultValue: "1.2.840.10008.1.2.4.80",
+        defaultValue: "1.2.840.10008.1.2",
       },
       {
         key: "-r, --recompress <listvalue...>",
