@@ -2,7 +2,7 @@
     staticWadoConfig: {
       clientDir: "~/ohif",
       rootGroup: {
-        Bucket: 'rapid-dicom-viewer-data-s3',
+        Bucket: 'rapid-dicom-viewer-data-hp-test',
       },
 
       clientGroup: {

@@ -210,8 +210,8 @@ class StaticWado {
     await this.callback.completeStudy();
 
     if (this.options.isAutoDeployS3) {
-      const { s3ClientDir, s3RgBucket, s3CgBucket, s3EnvAccount, s3EnvRegion } = this.options;
-      const command = `deploydicomweb -s3cd "${s3ClientDir}" -s3rgb "${s3RgBucket}" -s3cgb "${s3CgBucket}" -s3ea "${s3EnvAccount}" -s3er "${s3EnvRegion}"`;
+      const { rootDir, s3ClientDir, s3RgBucket, s3CgBucket, s3EnvAccount, s3EnvRegion } = this.options;
+      const command = `deploydicomweb -rd "${rootDir}" -s3cd "${s3ClientDir}" -s3rgb "${s3RgBucket}" -s3cgb "${s3CgBucket}" -s3ea "${s3EnvAccount}" -s3er "${s3EnvRegion}"`;
       console.log({ command });
       const { stdout, stderr } = await exec(command);
 

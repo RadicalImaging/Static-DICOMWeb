@@ -33,6 +33,11 @@ const { deployConfig } = ConfigPoint.register({
         defaultValue: undefined,
       },
       {
+        key: "-rd, --root-dir <rootDir>",
+        description: "Root directory of static wado",
+        defaultValue: "~/dicomweb",
+      },
+      {
         key: "-v, --verbose",
         description: "Write verbose output",
         defaultValue: false,
