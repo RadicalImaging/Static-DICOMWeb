@@ -38,6 +38,14 @@ const { deployConfig } = ConfigPoint.register({
         defaultValue: "~/dicomweb",
       },
       {
+        key: "-cg, --customer-group <customerGroup>",
+        description: "Name of customer group",
+      },
+      {
+        key: "-cn, --customer-name <customerName>",
+        description: "Name of customer",
+      },
+      {
         key: "-v, --verbose",
         description: "Write verbose output",
         defaultValue: false,

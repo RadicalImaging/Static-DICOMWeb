@@ -4,14 +4,14 @@ export default function commonMain(config, name, options, storeF) {
   const deployments = config.deployments;
   console.log(`deployments=`, deployments);
   if (deployments) {
-    return Promise.all(deployments.map((deployment) => {
-      if (deployment[`${name}Group`] && (!options.deployments || options.deployments.includes(deployment.name))) {
-        return storeF(deployment, name, options, deployPlugin);
-      } else {
+    return Promise.all(
+      deployments.map((deployment) => {
+        if (deployment[`${name}Group`] && (!options.deployments || options.deployments.includes(deployment.name))) {
+          return storeF(deployment, name, options, deployPlugin);
+        }
         console.log("skipping deployment", deployment.name);
-      }
-    }));
-  } else {
-    return storeF(config, name, options, deployPlugin);
+      })
+    );
   }
+  return storeF(config, name, options, deployPlugin);
 }
