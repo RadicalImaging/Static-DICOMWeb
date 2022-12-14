@@ -44,7 +44,6 @@ class DeployGroup {
     const fileName = path.join(this.baseDir, parentDir, name);
     const lstat = await fs.promises.lstat(fileName);
     const relativeName = (name && `${parentDir}/${name}`) || parentDir || "";
-    console.log("relativeName", relativeName);
     if (lstat.isDirectory()) {
       console.log("Reading directory", fileName);
       const names = await fs.promises.readdir(fileName);

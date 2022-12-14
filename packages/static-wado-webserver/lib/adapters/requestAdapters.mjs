@@ -41,8 +41,9 @@ export const dicomMap = (req, res, next) => {
 };
 
 export const frameIdMap = (req) => {
-  const { frameID, DatastoreID, DICOMStudyID } = req.query;
-  return frameID && DatastoreID && `/studies/htj2k/${DatastoreID}/${DICOMStudyID}/${frameID}.jhc`;
+  // const { frameID, DatastoreID, DICOMStudyID } = req.query;
+  // return frameID && DatastoreID && `/studies/htj2k/${DatastoreID}/${DICOMStudyID}/${frameID}.jhc`;
+  return null;
 };
 
 /**

@@ -38,7 +38,7 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       {
         key: "-t, --content-type <type>",
         description: 'Destination type to compress to (choices: "jls", "lei", "jls-lossy", "jhc", "jxl" or DICOM Transfer Syntax UID - default: "jls")',
-        defaultValue: "jhc",
+        defaultValue: "jls",
         customParser: compressionOptionParser,
       },
       {
