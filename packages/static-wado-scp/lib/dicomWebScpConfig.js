@@ -9,7 +9,7 @@ const { dicomWebScpConfig } = ConfigPoint.register({
   dicomWebScpConfig: {
     configBase: staticWadoConfig,
     isInstance: false,
-    isAutoDeployS3: true,
+    isAutoDeployS3: false,
     isGroup: true,
     isDeduplicate: true,
     isStudyData: true,

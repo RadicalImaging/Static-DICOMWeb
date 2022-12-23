@@ -6,11 +6,12 @@ export default async function uploadMain(storeDirectory, config, name, options, 
   }
   if (options.s3RgBucket) {
     config.rootGroup.Bucket = options.s3RgBucket;
+    config.rootGroup.region = options.s3EnvRegion;
   }
   if (options.customerGroup && options.customerName) {
     config.rootGroup.path = `/${options.customerGroup}/${options.customerName}${config.rootGroup.path}`;
   }
-  if(!config.s3Env){
+  if (!config.s3Env) {
     config.s3Env = {};
   }
   if (options.s3EnvAccount) {
