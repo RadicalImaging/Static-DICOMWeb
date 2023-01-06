@@ -10,9 +10,55 @@ import pydicom
 import numpy as np
 import SimpleITK as sitk
 import argparse
+import time
+from pydicom.tag import Tag
 
 ISCHEMAVIEW_UID_PREFIX = "1.3.6.1.4.1.39822"
+RAPID_PRIVATE_TAG_FOR_ORG_SERIES_CONTEXT = (0x0029, 0x0010)
 
+start = time.time()
+
+def is_dicom_3Dable(filelist): # returns volume, and pydicom header/ds
+    for fn in filelist:
+    
+        ds = pydicom.dcmread(fn, stop_before_pixels = True)
+
+        print("DICOM Validation for Study/Series => %s/%s" % (ds.StudyInstanceUID, ds.SeriesInstanceUID))
+
+        if not ds.Modality in ['CT', 'MR', 'PET']:    
+            print("Modality check FAIL!!")       
+            return False
+        print("Modality check PASS!!")
+
+        if hasattr(ds, 'ImagePositionPatient'):
+            image_position = ds.ImagePositionPatient
+            # If there are 3 values in the ImagePositionPatient attribute, it is likely a 3D volume
+            if len(image_position) != 3:
+                print("IPP check FAIL!!")
+                return False
+        else:
+            print("IPP check FAIL!!")
+            return False
+        print("IPP check PASS!!")
+        
+        if not hasattr(ds, "InstanceNumber"):
+            print("Instance Number check FAIL!!")
+            return False
+        print("Instance Number check PASS!!")
+
+
+        # if hasattr(ds, 'NumberOfFrames'):
+        #     if ds.NumberOfFrames <= 1:
+        #         return False
+        # else:
+        #     if len(filelist) <= 1:
+        #         return False
+
+        # print("Nos Of Frames check PASS!!")    
+        
+        return True
+
+    return False
 
 def load_dicoms(filelist): # returns volume, and pydicom header/ds
 
@@ -108,9 +154,6 @@ def load_dicoms(filelist): # returns volume, and pydicom header/ds
     
     return sitk_volume, dcm_ds
         
-
-
-
 def export_dicoms(sitk_volume,
                   dcm_ds,
                   fn_prefix):
@@ -193,8 +236,6 @@ def export_dicoms(sitk_volume,
     return filenames
 
 
-
-
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(
@@ -236,11 +277,18 @@ if __name__ == "__main__":
             filenames.append(fn)
         break
 
+
+    dicom_validation = is_dicom_3Dable(filenames)
+    if not dicom_validation:
+        sys.exit(0)
+
     sitk_volume, dcm_ds = load_dicoms(filenames)
     
     seriesUID_orig_ = ''
+    seriesUID_orig = ''
     if hasattr(dcm_ds, "SeriesInstanceUID"):
-        seriesUID_orig_ = str(dcm_ds.SeriesInstanceUID) + "_"
+        seriesUID_orig = str(dcm_ds.SeriesInstanceUID)
+        seriesUID_orig_ = seriesUID_orig + "_"
     
     dcm_ds.SeriesDate = time.strftime("%Y%m%d")
     dcm_ds.SeriesTime = time.strftime("%H%M%S")
@@ -251,9 +299,15 @@ if __name__ == "__main__":
         if s.isnumeric():
             v = int(dcm_ds.SeriesNumber)
             if (v < 10):
-                sn = sn * 100
+                sn = v * 100
             else:
-                sn = sn * 10
+                sn = v * 10
+        else:
+            print("*****Series Number is not numeric value: " + s)
+    else:
+        print("****Series SeriesNumber does not exist")
+        sys.exit(0)
+
    
     sd = ''
     if hasattr(dcm_ds, 'SeriesDescription'):
@@ -290,10 +344,11 @@ if __name__ == "__main__":
                               outputDirection = sitk_volume_cor.GetDirection())
     
     
-    sn =  sn  + 1
+    sn = sn + 1
     dcm_ds.SeriesNumber = str(sn)
     dcm_ds.SeriesInstanceUID = pydicom.uid.generate_uid(prefix=ISCHEMAVIEW_UID_PREFIX+".")
     dcm_ds.SeriesDescription = sd + " (coronal reformat)"
+    dcm_ds.add_new(RAPID_PRIVATE_TAG_FOR_ORG_SERIES_CONTEXT, 'LO', seriesUID_orig)
 
     filenames2 = export_dicoms(sitk_volume_cor2, dcm_ds, os.path.join(outputDirName, seriesUID_orig_ + "cor"))
 
@@ -326,7 +381,12 @@ if __name__ == "__main__":
     dcm_ds.SeriesNumber = str(sn)
     dcm_ds.SeriesInstanceUID = pydicom.uid.generate_uid(prefix=ISCHEMAVIEW_UID_PREFIX+".")
     dcm_ds.SeriesDescription = sd + " (sagittal reformat)"
+    dcm_ds.add_new(RAPID_PRIVATE_TAG_FOR_ORG_SERIES_CONTEXT, 'LO', seriesUID_orig)
 
     filenames2 = export_dicoms(sitk_volume_sag2, dcm_ds, os.path.join(outputDirName, seriesUID_orig_ + "sag"))
     
+    end = time.time()
+    elapsed_time = end - start
+    print(f'Elapsed time: {elapsed_time} seconds')
     print("Done.")
+    sys.exit(0)
