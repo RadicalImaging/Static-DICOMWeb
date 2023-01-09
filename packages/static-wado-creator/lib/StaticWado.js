@@ -147,7 +147,10 @@ class StaticWado {
 
     let bulkDataIndex = 0;
     let imageFrameIndex = 0;
-    const thumbnailService = new ThumbnailService();
+    let thumbnailService = null;
+    if (this.options.geneateThumbnail) {
+      thumbnailService = new ThumbnailService();
+    }
 
     const generator = {
       bulkdata: async (bulkData, options) => {
@@ -161,16 +164,18 @@ class StaticWado {
         const currentImageFrameIndex = imageFrameIndex;
         imageFrameIndex += 1;
 
-        thumbnailService.queueThumbnail(
-          {
-            imageFrame: originalImageFrame,
-            transcodedImageFrame,
-            transcodedId,
-            id,
-            frameIndex: currentImageFrameIndex,
-          },
-          this.options
-        );
+        if (this.options.geneateThumbnail) {
+          thumbnailService.queueThumbnail(
+            {
+              imageFrame: originalImageFrame,
+              transcodedImageFrame,
+              transcodedId,
+              id,
+              frameIndex: currentImageFrameIndex,
+            },
+            this.options
+          );
+        }
 
         return this.callback.imageFrame(transcodedId, currentImageFrameIndex, transcodedImageFrame);
       },
@@ -183,7 +188,10 @@ class StaticWado {
     await this.callback.rawDicomWriter?.(id, result, buffer);
 
     const transcodedMeta = transcodeMetadata(result.metadata, id, this.options);
-    thumbnailService.generateThumbnails(id, dataSet, transcodedMeta, this.callback);
+
+    if (this.options.geneateThumbnail) {
+      thumbnailService.generateThumbnails(id, dataSet, transcodedMeta, this.callback);
+    }
 
     await this.callback.metadata(targetId, transcodedMeta);
 
