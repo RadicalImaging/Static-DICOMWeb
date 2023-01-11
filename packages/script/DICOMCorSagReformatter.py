@@ -11,7 +11,6 @@ import numpy as np
 import SimpleITK as sitk
 import argparse
 import time
-from pydicom.tag import Tag
 
 ISCHEMAVIEW_UID_PREFIX = "1.3.6.1.4.1.39822"
 RAPID_PRIVATE_TAG_FOR_ORG_SERIES_CONTEXT = (0x0029, 0x0010)
@@ -20,43 +19,54 @@ start = time.time()
 
 def is_dicom_3Dable(filelist): # returns volume, and pydicom header/ds
     for fn in filelist:
-    
-        ds = pydicom.dcmread(fn, stop_before_pixels = True)
+        try:
+            print("INFO (is_dicom_3Dable): Reading %s" % (fn))
 
-        print("DICOM Validation for Study/Series => %s/%s" % (ds.StudyInstanceUID, ds.SeriesInstanceUID))
+            ds = pydicom.dcmread(fn, stop_before_pixels = True)
 
-        if not ds.Modality in ['CT', 'MR', 'PET']:    
-            print("Modality check FAIL!!")       
-            return False
-        print("Modality check PASS!!")
+            print("DICOM Validation for Study/Series => %s/%s" % (ds.StudyInstanceUID, ds.SeriesInstanceUID))
 
-        if hasattr(ds, 'ImagePositionPatient'):
-            image_position = ds.ImagePositionPatient
-            # If there are 3 values in the ImagePositionPatient attribute, it is likely a 3D volume
-            if len(image_position) != 3:
+            if ds.ImageType in ['LOCALIZER', 'SCOUT']:    
+                print("ImageType check FAIL!!")       
+                return False
+            print("ImageType check PASS!!")
+
+            if not ds.Modality in ['CT', 'MR', 'PET']:    
+                print("Modality check FAIL!!")       
+                return False
+            print("Modality check PASS!!")
+
+            if hasattr(ds, 'ImagePositionPatient'):
+                image_position = ds.ImagePositionPatient
+                # If there are 3 values in the ImagePositionPatient attribute, it is likely a 3D volume
+                if len(image_position) != 3:
+                    print("IPP check FAIL!!")
+                    return False
+            else:
                 print("IPP check FAIL!!")
                 return False
-        else:
-            print("IPP check FAIL!!")
-            return False
-        print("IPP check PASS!!")
-        
-        if not hasattr(ds, "InstanceNumber"):
-            print("Instance Number check FAIL!!")
-            return False
-        print("Instance Number check PASS!!")
+            print("IPP check PASS!!")
+            
+            if not hasattr(ds, "InstanceNumber"):
+                print("Instance Number check FAIL!!")
+                return False
+            print("Instance Number check PASS!!")
 
 
-        # if hasattr(ds, 'NumberOfFrames'):
-        #     if ds.NumberOfFrames <= 1:
-        #         return False
-        # else:
-        #     if len(filelist) <= 1:
-        #         return False
+            # if hasattr(ds, 'NumberOfFrames'):
+            #     if ds.NumberOfFrames <= 1:
+            #         return False
+            # else:
+            #     if len(filelist) <= 1:
+            #         return False
 
-        # print("Nos Of Frames check PASS!!")    
-        
-        return True
+            # print("Nos Of Frames check PASS!!")        
+            return True
+
+        except Exception:
+            filelist.remove(fn)
+            print("ERROR (is_dicom_3Dable):Exception Occured while reading file =>%s" % (fn))
+            continue
 
     return False
 
@@ -69,7 +79,6 @@ def load_dicoms(filelist): # returns volume, and pydicom header/ds
     columns = None    
 
     for fn in filelist:
-        
         ds = pydicom.dcmread(fn, stop_before_pixels = True)
         if hasattr(ds, "InstanceNumber"):
             s = str(ds.InstanceNumber)
@@ -219,7 +228,7 @@ def export_dicoms(sitk_volume,
             file_meta.MediaStorageSOPClassUID = dcm_ds.SOPClassUID
             file_meta.MediaStorageSOPInstanceUID = dcm_ds.SOPInstanceUID
             file_meta.TransferSyntaxUID = pydicom.uid.ImplicitVRLittleEndian
-    
+            
             ds = pydicom.dataset.FileDataset(fn, dcm_ds,
                          file_meta=file_meta, preamble=b"\0" * 128)
             
@@ -274,9 +283,13 @@ if __name__ == "__main__":
     for [root, dirs, files] in os.walk(inputDirName):
         for f in files:
             fn = os.path.join(root, f)
-            filenames.append(fn)
+            if fn.endswith('.dcm'):
+                filenames.append(fn)
         break
-
+    
+    if len(filenames) == 0:
+        print("WARNING: No DICOM Files found in the folder => %s" % (inputDirName))
+        sys.exit(0)
 
     dicom_validation = is_dicom_3Dable(filenames)
     if not dicom_validation:
@@ -348,6 +361,7 @@ if __name__ == "__main__":
     dcm_ds.SeriesNumber = str(sn)
     dcm_ds.SeriesInstanceUID = pydicom.uid.generate_uid(prefix=ISCHEMAVIEW_UID_PREFIX+".")
     dcm_ds.SeriesDescription = sd + " (coronal reformat)"
+    dcm_ds.ImageType = "DERIVED\\SECONDARY\\CORONAL"
     dcm_ds.add_new(RAPID_PRIVATE_TAG_FOR_ORG_SERIES_CONTEXT, 'LO', seriesUID_orig)
 
     filenames2 = export_dicoms(sitk_volume_cor2, dcm_ds, os.path.join(outputDirName, seriesUID_orig_ + "cor"))
@@ -381,6 +395,7 @@ if __name__ == "__main__":
     dcm_ds.SeriesNumber = str(sn)
     dcm_ds.SeriesInstanceUID = pydicom.uid.generate_uid(prefix=ISCHEMAVIEW_UID_PREFIX+".")
     dcm_ds.SeriesDescription = sd + " (sagittal reformat)"
+    dcm_ds.ImageType = "DERIVED\\SECONDARY\\SAGITTAL"
     dcm_ds.add_new(RAPID_PRIVATE_TAG_FOR_ORG_SERIES_CONTEXT, 'LO', seriesUID_orig)
 
     filenames2 = export_dicoms(sitk_volume_sag2, dcm_ds, os.path.join(outputDirName, seriesUID_orig_ + "sag"))
