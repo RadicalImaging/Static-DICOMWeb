@@ -13,14 +13,19 @@ const getValue = require("./getValue");
  * @param {*} parentAttr Parent reference for sequence element tags.
  * @returns
  */
-async function getDataSet(dataSet, callback, options, parentAttr = undefined) {
+async function getDataSet(dataSet, callback, optionsOrig, parentAttr = undefined) {
   const metadata = {};
+  let options = optionsOrig;
 
   // iterate over dataSet attributes in order
   for (const tag in dataSet.elements) {
     // Raw versions have the x in front of them
     if (tag != Tags.RawTransferSyntaxUID && tag >= Tags.RawMinTag && tag < Tags.RawFirstBodyTag) {
       continue;
+    }
+    if (tag === Tags.RawSpecificCharacterSet) {
+      const SpecificCharacterSet = dataSet.string(tag);
+      options = { ...options, SpecificCharacterSet };
     }
     const attr = dataSet.elements[tag];
     /* eslint-disable-next-line no-use-before-define */

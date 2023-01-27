@@ -74,9 +74,9 @@ async function getImageFrames(trees, baseDir) {
         for( let frame=1; frame <= ImageFrames.length; frame++) {
           const id = ImageFrames[frame-1].ID;
           const file = path.join(framesDir, `${frame}.jhc`);
-          const commandLine = `aws medical-imaging get-image-frame  --datastore-id "${DatastoreID}" --study-id ${ImageSetID} --image-frame-id ${id} --region us-east-1 ${file}`;
-          const resultsStr = execFileSync(commandLine, {shell:true}).toString();
-          console.log(resultsStr);
+          const commandLine = `aws medical-imaging get-image-frame  --datastore-id "${DatastoreID}" --image-set-id ${ImageSetID} --image-frame-id ${id} --region us-east-1 ${file}`;
+          verboseLog("getting image frame", commandLine);
+          execFileSync(commandLine, {shell:true, stdio: 'inherit' });
         }
       });
     });
@@ -128,12 +128,13 @@ function downloadTreeMetadata(group, imageSetIds, baseDir) {
   const { datastoreId, } = group;
   const ret = [];
   for (const imageSetId of imageSetIds) {
-    const destFile = path.join(baseDir,"treeMetadata", datastoreId, `${imageSetId}.json`);
+    const destFile = path.join(baseDir,"treeMetadata", datastoreId, `${imageSetId}.json.gz`);
     if( !fs.existsSync(path.dirname(destFile))) {
       fs.mkdirSync(path.dirname(destFile), {recursive: true});
     }
-    const commandLine = `aws medical-imaging get-dicom-study-metadata  --datastore-id ${datastoreId} --study-id ${imageSetId} --region us-east-1 "${destFile}"`;
-    const resultsStr = execFileSync(commandLine, { shell: true, stdio: 'inherit' });
+    const commandLine = `aws medical-imaging get-image-set-metadata  --datastore-id ${datastoreId} --image-set-id ${imageSetId} --region us-east-1 "${destFile}"`;
+    verboseLog("Downloading tree metadata", commandLine);
+    execFileSync(commandLine, { shell: true, stdio: 'inherit' });
     console.log("Downloaded tree metadata to", destFile);
     ret.push(destFile);
   }
@@ -144,7 +145,7 @@ async function downloadCurie(jobName, config,name,options, deployer) {
   const { group, baseDir } = deployer;
   console.log("Initiating convert curie job", jobName, group, baseDir);
   const jobInfo = await readJobInfo(baseDir, jobName);
-  console.log("jobInfo=", jobInfo);
+  verboseLog("jobInfo=", jobInfo);
   const { jobId } = jobInfo;
 
   const jobProperties = await readJobProperties(jobInfo, group,jobId);
@@ -154,15 +155,16 @@ async function downloadCurie(jobName, config,name,options, deployer) {
   console.log("Job is completed", outputS3Uri);
   const remoteUri = group.outputS3Uri;
   const outputPath = outputS3Uri.substring(remoteUri.length+1);
-  console.log("remoteUri,outputPath", remoteUri, outputPath);
+  verboseLog("remoteUri,outputPath", remoteUri, outputPath);
 
   await deployer.retrieve({remoteUri},outputPath);
 
   const destinationDir = `${remoteUri}/${outputPath}`;
 
   const {success, failure} = await readSuccessFailure(baseDir, outputPath);
-  console.log("success file contents=", success, failure);
+  verboseLog("success file contents=", success, failure);
   const imageSetIds = extractImageSetIds(success);
+  verboseLog("imageSetIds", imageSetIds);
 
   const trees = downloadTreeMetadata(group, imageSetIds, baseDir);
 
@@ -175,6 +177,9 @@ async function downloadCurie(jobName, config,name,options, deployer) {
   return destinationDir;
 }
 
+let verboseLog = () => {};
+
 export default async function (jobName, options) {
+  verboseLog = console.log.bind(console);
   await commonMain(this, "upload", options, downloadCurie.bind(null,jobName));
 }

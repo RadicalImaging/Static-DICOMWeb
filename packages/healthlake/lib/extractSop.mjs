@@ -10,7 +10,7 @@ export default async function extractSop(file) {
     // Read dicomp10 stream into buffer
     const buffer = await asyncIterableToBuffer(dicomp10stream);
     // Parse it
-    const options = { TransferSyntaxUID: "1.2.840.10008.1.2" };
+    const options = { TransferSyntaxUID: "1.2.840.10008.1.2.1" };
     const dataSet = dicomParser.parseDicom(buffer, options);
     const sop = dataSet.string(RawSopInstanceUID);
     return sop;

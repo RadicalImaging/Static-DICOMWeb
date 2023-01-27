@@ -7,8 +7,6 @@ import extractSop from "./extractSop.mjs";
 
 export async function leiConvert(sourcePath, config, name, options, deployer) {
   const dirName = options.name || path.basename(sourcePath);
-  console.log("Options=", options.name);
-  console.log("dirName=", dirName);
   const destPath = `${deployer.baseDir}/lei/${dirName}`;
   if( !fs.existsSync(destPath)) {
     fs.mkdirSync(destPath,{recursive: true});

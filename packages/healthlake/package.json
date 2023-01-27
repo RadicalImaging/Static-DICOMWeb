@@ -25,15 +25,16 @@
     "directory": "packages/static-wado-deploy"
   },
   "license": "ISC",
-  "main": "lib/index.js",
+  "main": "build/@radicalimaging/healthlake.js",
+  "module": "build/@radicalimaging/healthlake.es.js",
   "directories": {
     "lib": "lib",
-    "dist": "dist",
+    "build": "build",
     "bin": "bin"
   },
   "files": [
     "bin",
-    "dist",
+    "build",
     "lib"
   ],
   "bin": {
@@ -43,7 +44,7 @@
     "dev": "cross-env NODE_ENV=development webpack --config .webpack/webpack.dev.js --watch --debug --output-pathinfo",
     "dev:dicom-pdf": "yarn run dev",
     "link:exec": "npm link",
-    "build": "cross-env NODE_ENV=production webpack --config .webpack/webpack.prod.js",
+    "build": "rollup -c",
     "test": "jest --config ./jest.config.js",
     "build:package": "yarn run build",
     "start": "yarn run dev",
@@ -63,7 +64,6 @@
   },
   "devDependencies": {
     "must": "^0.13.4",
-    "ts-jest": "^28.0.2",
-    "webpack-cli": "^5.0.0"
+    "ts-jest": "^28.0.2"
   }
 }
