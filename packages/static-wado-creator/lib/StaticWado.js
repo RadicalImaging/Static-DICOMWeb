@@ -36,7 +36,8 @@ class StaticWado {
       directoryName,
       deduplicatedRoot: path.join(directoryName, pathDeduplicated),
       deduplicatedInstancesRoot: path.join(directoryName, pathInstances),
-      TransferSyntaxUID: "1.2.840.10008.1.2",
+      // TODO - make this configurable and auto-detect by updating the parseDicom library
+      TransferSyntaxUID: "1.2.840.10008.1.2.1",
     };
     this.callback = {
       uids: IdCreator(this.options),
@@ -94,7 +95,7 @@ class StaticWado {
           await this.importBinaryDicom(dicomp10stream, { ...params, file });
           Stats.StudyStats.add("DICOM P10", "Parse DICOM P10 file");
         } catch (e) {
-          console.error("Couldn't process", file, e);
+          console.error("Couldn't process", file);
         }
       },
     });
@@ -123,7 +124,7 @@ class StaticWado {
     const studyInstanceUid = dataSet.string("x0020000d");
 
     if (!studyInstanceUid) {
-      console.log(`Can't import file ${params.file}`);
+      console.log("No study UID, can't import file", params.file, dataSet.elements);
       return undefined;
     }
 

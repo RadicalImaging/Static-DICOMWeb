@@ -41,8 +41,9 @@ export const dicomMap = (req, res, next) => {
 };
 
 export const frameIdMap = (req) => {
-  const { frameID, DatastoreID, DICOMStudyID } = req.query;
-  return frameID && DatastoreID && `/studies/htj2k/${DatastoreID}/${DICOMStudyID}/${frameID}.jhc`;
+  // const { frameID, DatastoreID, DICOMStudyID } = req.query;
+  // return frameID && DatastoreID && `/studies/htj2k/${DatastoreID}/${DICOMStudyID}/${frameID}.jhc`;
+  return null;
 };
 
 /**
@@ -53,9 +54,7 @@ export const multipartMap = (req, res, next) => {
   const queryAccept = req.query.accept;
   const mappedFrame = frameIdMap(req);
   const extension = extensions[queryAccept || accept];
-  console.log("Extension for accept", accept, extension);
   if (mappedFrame) {
-    console.log("mappedFrame", mappedFrame, queryAccept || accept);
     res.setHeader("content-type", queryAccept || accept);
     req.url = mappedFrame;
   } else if (extension) {

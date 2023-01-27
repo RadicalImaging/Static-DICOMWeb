@@ -28,7 +28,8 @@ async function dirScanner(input, options) {
       try {
         await options.callback(file);
       } catch (e) {
-        console.error("Couldn't process", file, e);
+        if( options.verbose ) console.warn("Exception", e);
+        console.error("Couldn't process", file);
       }
     }
   }

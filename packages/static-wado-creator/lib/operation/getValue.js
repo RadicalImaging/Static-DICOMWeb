@@ -1,10 +1,21 @@
 const extractImageFrames = require("./extractImageFrames");
 
-const getValueInlineString = (dataSet, attr) => [dataSet.string(attr.tag)];
+function decode_utf8(s, options) {
+  if( options?.SpecificCharacterSet === "ISO_IR 192") {
+    return decodeURIComponent(escape(s));
+  }
+  return s;
+}
 
-const getStrings = (dataSet, attr) => {
+/** Gets a value as a UTF-8 string - todo, make UTF-8 decode optional. */
+const getValueInlineString = (dataSet, attr, options) => [decode_utf8(dataSet.string(attr.tag), options)];
+
+const getStrings = (dataSet, attr, options) => {
   const ret = dataSet.string(attr.tag);
-  return (ret && ret.split(/\\/)) || undefined;
+  if( ret ) {
+    return ret.split(/\\/).map(decode_utf8, options);
+  }
+  return undefined;
 };
 
 const getValuePatientName = (dataSet, attr) => {
@@ -78,7 +89,7 @@ const getValueInlineAttributeTag = (dataSet, attr) => {
   return groupHexStr + elementHexStr;
 };
 
-const getValueInline = (dataSet, attr, vr) => {
+const getValueInline = (dataSet, attr, vr, options) => {
   if (attr.length == 0) {
     return [];
   }
@@ -86,7 +97,7 @@ const getValueInline = (dataSet, attr, vr) => {
   switch (vr) {
     case "AE":
     case "AS":
-      return getValueInlineString(dataSet, attr);
+      return getValueInlineString(dataSet, attr, options);
     case "AT":
       return getValueInlineAttributeTag(dataSet, attr);
     case "DS":
@@ -94,7 +105,7 @@ const getValueInline = (dataSet, attr, vr) => {
     case "CS":
     case "DA":
     case "DT":
-      return getValueInlineString(dataSet, attr);
+      return getValueInlineString(dataSet, attr, options);
     case "FL":
       return getValueInlineFloat(dataSet, attr);
     case "FD":
@@ -103,7 +114,7 @@ const getValueInline = (dataSet, attr, vr) => {
       return getValueInlineIntString(dataSet, attr);
     case "LO":
     case "LT":
-      return getValueInlineString(dataSet, attr);
+      return getValueInlineString(dataSet, attr, options);
     case "OB":
     case "OF":
     case "OW":
@@ -111,7 +122,7 @@ const getValueInline = (dataSet, attr, vr) => {
     case "PN":
       return getValuePatientName(dataSet, attr);
     case "SH":
-      return getValueInlineString(dataSet, attr);
+      return getValueInlineString(dataSet, attr, options);
     case "SL":
       return getValueInlineSignedLong(dataSet, attr);
     case "SS":
@@ -119,7 +130,7 @@ const getValueInline = (dataSet, attr, vr) => {
     case "ST":
     case "TM":
     case "UI":
-      return getValueInlineString(dataSet, attr);
+      return getValueInlineString(dataSet, attr, options);
     case "UL":
       return getValueInlineUnsignedLong(dataSet, attr);
     case "UN":
@@ -127,7 +138,7 @@ const getValueInline = (dataSet, attr, vr) => {
     case "US":
       return getValueInlineUnsignedShort(dataSet, attr);
     case "UT":
-      return getValueInlineString(dataSet, attr);
+      return getValueInlineString(dataSet, attr, options);
     default:
       return getValueInlineBinary(dataSet, attr);
   }
@@ -183,7 +194,7 @@ const getValue = async (dataSet, attr, vr, getDataSet, callback, options, parent
   }
   // non sequence item
   if (isValueInline(attr, options)) {
-    return getValueInline(dataSet, attr, vr);
+    return getValueInline(dataSet, attr, vr, options);
   }
   const binaryValue = dataSet.byteArray.slice(attr.dataOffset, attr.dataOffset + attr.length);
   const mimeType = attr.tag == "x00420011" && dataSet.string("x00420012");
