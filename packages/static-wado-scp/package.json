@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-scp",
-  "version": "0.6.6",
+  "version": "1.1.0",
   "description": "DimseScp server to connect to static-wado repo",
   "publishConfig": {
     "access": "public"
@@ -49,8 +49,8 @@
     "build": "echo \"No build yet\" && exit 0",
     "link:exec": "npm link",
     "lint": "npx eslint --color \"*(bin|lib)/**/*.{js,mjs}\"",
-      "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
-    },
+    "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
+  },
   "dependencies": {
     "@radicalimaging/static-wado-creator": "^0.6.4",
     "@radicalimaging/static-wado-plugins": "^0.6.2",

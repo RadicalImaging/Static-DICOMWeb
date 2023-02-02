@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-webserver",
-  "version": "0.6.5",
+  "version": "1.1.0",
   "description": "Webserver to serve a static-wado repo",
   "publishConfig": {
     "access": "public"
@@ -49,8 +49,8 @@
     "test": "jest --config ./jest.config.js",
     "build": "echo \"No build yet\" && exit 0",
     "lint": "npx eslint --color \"*(bin|lib)/**/*.{js,mjs}\"",
-      "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
-   },
+    "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
+  },
   "dependencies": {
     "@radicalimaging/static-wado-creator": "^0.6.4",
     "@radicalimaging/static-wado-plugins": "^0.6.2",
