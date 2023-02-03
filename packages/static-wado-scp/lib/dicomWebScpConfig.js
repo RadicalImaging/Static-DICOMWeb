@@ -12,7 +12,7 @@ const { dicomWebScpConfig } = ConfigPoint.register({
     isAutoDeployS3: false,
     geneateThumbnail: false,
     isGroup: true,
-    isDeduplicate: true,
+    isDeduplicate: false,
     isStudyData: true,
     maximumInlinePrivateLength: 64,
     maximumInlinePublicLength: 128 * 1024 + 2,

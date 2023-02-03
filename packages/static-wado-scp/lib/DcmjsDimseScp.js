@@ -26,7 +26,7 @@ const PreferredTransferSyntax = [
 const defaultParams = {
   isInstance: false,
   isGroup: true,
-  isDeduplicate: true,
+  isDeduplicate: false,
   isStudyData: true,
 };
 

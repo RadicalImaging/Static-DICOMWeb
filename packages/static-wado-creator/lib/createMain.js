@@ -6,7 +6,7 @@ module.exports = function createMain(options, program) {
     ...this,
     isInstance: false,
     isGroup: true,
-    isDeduplicate: true,
+    isDeduplicate: false,
     isStudyData: true,
   });
   const importer = new StaticWado(finalOptions);
