@@ -29,6 +29,7 @@ start = time.time()
 def is_dicom_3Dable(filelist): # returns volume, and pydicom header/ds
     for fn in filelist:
         try:
+            start = time.time()
             print("INFO (is_dicom_3Dable): Reading %s" % (fn))
 
             ds = pydicom.dcmread(fn, stop_before_pixels = True)
@@ -76,7 +77,9 @@ def is_dicom_3Dable(filelist): # returns volume, and pydicom header/ds
             filelist.remove(fn)
             print("ERROR (is_dicom_3Dable):Exception Occured while reading file =>%s" % (fn))
             continue
-
+        end = time.time()
+        elapsed_time = end - start
+        print("TIME Taken in secs (is_dicom_3Dable) : %s" % (elapsed_time))
     return False
 
 
@@ -128,7 +131,7 @@ class RPDReadDICOM(object):
         Output:
             List of tags (tag  + value) in a list
         '''
-        
+        start = time.time()    
 
         list_tags = []
     
@@ -141,6 +144,10 @@ class RPDReadDICOM(object):
             if tag.keyword == tagKeyword:
                 list_tags.append(tag)
         
+        end = time.time()
+        elapsed_time = end - start
+        print("TIME Taken in secs (find_tag_recursive) : %s" % (elapsed_time))
+
         return list_tags
 
 
@@ -160,6 +167,7 @@ class RPDReadDICOM(object):
             the read volume is in self.volume
         
         '''        
+        start = time.time()    
 
         self.dicom_files = dicom_files
 
@@ -768,9 +776,11 @@ class RPDReadDICOM(object):
         self.iop_list_np_orig = self.iop_list_np
         self.ipp_list_np_orig = self.ipp_list_np
 
+        end = time.time()
+        elapsed_time = end - start
+        print("TIME Taken in secs (read_from_list) : %s" % (elapsed_time))
+
         return NO_ERROR
-
-
                 
 
     def correctForGantryTilt(self) -> bool:
@@ -783,6 +793,7 @@ class RPDReadDICOM(object):
             The middle slice is used as reference that is not moving.
         '''
         
+        start = time.time()    
 
         if self.verbose_level >= 3:
             print("RPDPyDcm: checking for potential gantry-tilt induced slice offset ...")        
@@ -876,6 +887,10 @@ class RPDReadDICOM(object):
         origin1 = (origin1a[0], origin1a[1], origin1a[2])
         self.volume.SetOrigin(origin1)
         
+        end = time.time()
+        elapsed_time = end - start
+        print("TIME Taken in secs (correctForGantryTilt) : %s" % (elapsed_time))
+
         return self.gantry_tilt_correction_needed
 
 
@@ -899,7 +914,8 @@ class RPDReadDICOM(object):
                 Value 5: at least one slice thickness is < 0.1, can't continue
                 Value 6: two slice thickness groups, but not in x  and x/2 relation
         '''
-        
+        start = time.time()    
+         
         thickness_count = dict()
         thickness_minIdx = dict()
         thickness_maxIdx = dict()
@@ -971,7 +987,11 @@ class RPDReadDICOM(object):
             # more than 2 slice thickness groups
             return 4, thickness_loc
         
+
         thickness_list_sorted = sorted(thickness_list)
+        end = time.time()
+        elapsed_time = end - start
+        print("TIME Taken in secs (_analyze_if_half_and_full_thickness_slice) : %s" % (elapsed_time))
         
         if thickness_list_sorted[0] < 0.1:
             # at least one slice thickness is below < 0.1, can't continue
@@ -984,7 +1004,6 @@ class RPDReadDICOM(object):
         # all other combination were tested and excluded, so 
         # we must have two groups with x and x/2 relationship
         return 1, thickness_loc
-        
         
     def merge_half_and_full_thickness_slices(self, tolerance = 0.1):
         
@@ -1003,6 +1022,7 @@ class RPDReadDICOM(object):
             self.volume
             slice thickess, inter-slice distance, IPP and IOP lists
         '''
+        start = time.time()    
         
         # first, analyze if and what we can merge
         code, thickness_loc2 = self._analyze_if_half_and_full_thickness_slice(tolerance)
@@ -1263,6 +1283,10 @@ class RPDReadDICOM(object):
         ll = ["\tSlice {}: {:.3f}".format(*e) for e in enumerate(self.slice_thickness_list)]
         print('\n'.join(ll))
         
+        end = time.time()
+        elapsed_time = end - start
+        print("TIME Taken in secs (merge_half_and_full_thickness_slices) : %s" % (elapsed_time))
+
         return 1, thickness_loc3
 
         
@@ -1288,6 +1312,8 @@ class RPDReadDICOM(object):
 
         
         '''
+        start = time.time()    
+
         if merge_factor <= 1:
             return False
             
@@ -1365,7 +1391,11 @@ class RPDReadDICOM(object):
         self.iop_list_np = new_iop_list_np
         self.slice_thickness_list = [target_pz] * new_nz
         self.interslice_distance_list = [target_pz] * (new_nz-1)
-        
+
+        end = time.time()
+        elapsed_time = end - start
+        print("TIME Taken in secs (merge_slices) : %s" % (elapsed_time))
+
         return True
 
 
@@ -1383,7 +1413,7 @@ class RPDReadDICOM(object):
         
         Output: bool
         '''
-        
+
         # if None or empty
         if (self.iop_list_np is None) or \
            (len(self.iop_list_np) == 0):
@@ -1406,6 +1436,8 @@ def export_dicoms(sitk_volume,
                   fn_prefix,
                   verboseLevel):
     
+    start = time.time()    
+
     size1 = sitk_volume.GetSize()
                     
     filenames = []
@@ -1481,7 +1513,11 @@ def export_dicoms(sitk_volume,
     else:
         print("Don't know how to export RGB DICOMs yet!", file=sys.stderr)
         raise
-        
+
+    end = time.time()
+    elapsed_time = end - start
+    print("TIME Taken in secs (export_dicoms) : %s" % (elapsed_time))
+
     return filenames
 
 
@@ -1606,6 +1642,7 @@ if __name__ == "__main__":
 
     dicom_validation = is_dicom_3Dable(filenames)
     if not dicom_validation:
+        print("DICOM Validation FAILED!! Exiting!!")
         sys.exit(0)
 
     if args.verbose >= 1:
@@ -1667,9 +1704,15 @@ if __name__ == "__main__":
            sd = sd + " (RAPID Reformatted)"
            # sd = sd + " (RAPID MIP, axis %d, %.1fmm)" % (args.axis, args.mip_thickness)
 
+    start = time.time()    
+
     if args.flipZ:
        sitk_volume = sitk.Flip(sitk_volume, [False, False, True])
 
+    end = time.time()
+    elapsed_time = end - start
+    if(args.verbose >= 1):
+        print("******** TIME Taken in secs (FlipZ) : %s" % (elapsed_time))
 
     input_pix_x_spacing = sitk_volume.GetSpacing()[0]    
 
@@ -1745,6 +1788,9 @@ if __name__ == "__main__":
         new_size = [int(np.round(size1[0] / new_spacing[0] * spacing1[0])),
                     int(np.round(size1[1] / new_spacing[1] * spacing1[1])),
                     int(np.round(size1[2] / new_spacing[2] * spacing1[2])),]
+
+        start = time.time()    
+
         
         sitk_volume = sitk.Resample(sitk_volume, 
                                   size = new_size,
@@ -1759,13 +1805,19 @@ if __name__ == "__main__":
         size1 = sitk_volume.GetSize()
         spacing1 = sitk_volume.GetSpacing()
         
-        
+        end = time.time()
+        elapsed_time = end - start
+        if(args.verbose >= 1):
+            print("********TIME Taken in secs (Resample) : %s" % (elapsed_time))
+
 
     output_volume = sitk.Image([size1[0], size1[1], newNSlices], sitk_volume.GetPixelID())
     output_volume.SetSpacing([spacing1[0], spacing1[1], mip_thickness_eff])
     output_volume.SetOrigin(sitk_volume.GetOrigin())
     output_volume.SetDirection(sitk_volume.GetDirection())
     
+    start = time.time()    
+
     cntr1 = 0
     for output_slice in range(newNSlices):
 
@@ -1784,9 +1836,14 @@ if __name__ == "__main__":
         
         mip_image = sitk.MaximumProjection(slab_for_mip, projectionDimension=2)
     
-        output_volume =  sitk.Paste(output_volume, mip_image, destinationIndex=[0,0,output_slice], sourceIndex=[0,0,0], sourceSize=mip_image.GetSize())
+        #output_volume =  sitk.Paste(output_volume, mip_image, destinationIndex=[0,0,output_slice], sourceIndex=[0,0,0], sourceSize=mip_image.GetSize())
+        output_volume[:,:,output_slice] = mip_image
         cntr1 = cntr1 + mip_step_slices
 
+    end = time.time()
+    elapsed_time = end - start
+    if(args.verbose >= 1):
+        print("********TIME Taken in secs (output_slice) : %s" % (elapsed_time))
 
     if args.verbose >= 1:
         print("Writing output DICOM data to %s" % (outputDirName))
@@ -1824,6 +1881,7 @@ if __name__ == "__main__":
     # performance measurment for each computation
     end = time.time()
     elapsed_time = end - start
-    print(f'Elapsed time: {elapsed_time} seconds')
+    if(args.verbose >= 1):
+        print(f'Elapsed time: {elapsed_time} seconds')
        
     sys.exit(0)

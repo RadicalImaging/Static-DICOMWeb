@@ -9,7 +9,7 @@ module.exports = function scpMain(defaults) {
     ...this,
     isInstance: false,
     isGroup: true,
-    isDeduplicate: true,
+    isDeduplicate: false,
     isStudyData: true,
   });
 
