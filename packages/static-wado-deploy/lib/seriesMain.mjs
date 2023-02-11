@@ -7,7 +7,7 @@ export default async function (studyUID, seriesUID, options) {
   console.log("seriesUID=", seriesUID);
 
   const studySeriesDirectory = studyUID && seriesUID ? `studies/${studyUID}/series/${seriesUID}` : "studies";
-  const studySeriesIndexDirectory = studyUID && seriesUID ? `studies/${studyUID}/series` : "studies";
+  const studySeriesIndexDirectory = studyUID ? `studies/${studyUID}/series` : "studies";
 
   if (options.rootDir) {
     this.rootDir = options.rootDir;
