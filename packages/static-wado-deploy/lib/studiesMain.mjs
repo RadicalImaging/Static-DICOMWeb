@@ -26,7 +26,7 @@ export default async function (studyUID, options) {
     this.s3Env.region = options.s3EnvRegion;
   }
 
-  if(!options.indexonly){
+  if (!options.indexonly) {
     await commonMain(this, "root", options, uploadDeploy.bind(null, studyDirectory));
   }
   if (options.index) {

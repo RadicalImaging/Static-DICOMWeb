@@ -42,10 +42,10 @@ class S3Ops {
    */
   fileToKey(file) {
     let fileName = file.replaceAll("\\", "/");
-    if( fileName===this.config.indexFullName ) {
+    if (fileName === this.config.indexFullName) {
       console.log("Is index", fileName);
-      const lastSlash = fileName.lastIndexOf('/');
-      fileName=fileName.substring(0,lastSlash+1) + 'index.json.gz';
+      const lastSlash = fileName.lastIndexOf("/");
+      fileName = `${fileName.substring(0, lastSlash + 1)}index.json.gz`;
     }
     if (compressedRe.test(fileName)) {
       fileName = fileName.substring(0, fileName.length - 3);
