@@ -1,6 +1,7 @@
 import ConfigPoint from "config-point";
 import { staticWadoConfig } from "@radicalimaging/static-wado-util";
 import studiesMain from "./studiesMain.mjs";
+import seriesmain from "./seriesMain.mjs";
 import clientMain from "./clientMain.mjs";
 import themeMain from "./themeMain.js";
 
@@ -36,6 +37,11 @@ const { deployConfig } = ConfigPoint.register({
         key: "-rd, --root-dir <rootDir>",
         description: "Root directory of static wado",
         defaultValue: "~/dicomweb",
+      },
+      {
+        key: "-indexonly, --indexonly",
+        description: "upload only index file",
+        defaultValue: false,
       },
       {
         key: "-cg, --customer-group <customerGroup>",
@@ -88,6 +94,21 @@ const { deployConfig } = ConfigPoint.register({
         ],
         isDefault: true,
         main: studiesMain,
+      },
+      {
+        command: "series [studyUID] [seriesUID]",
+        arguments: ["studyUID", "seriesUID"],
+        helpShort: "deploydicomweb series [studyUID] [seriesUID]",
+        helpDescription: "Deploy DICOMweb files to the cloud",
+        options: [
+          {
+            key: "--no-index",
+            description: "Don't create or update the index files",
+            defaultValue: true,
+          },
+        ],
+        isDefault: true,
+        main: seriesmain,
       },
       {
         command: "client",

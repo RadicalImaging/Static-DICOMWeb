@@ -1,10 +1,13 @@
 import commonMain from "./commonMain.mjs";
 import uploadDeploy from "./uploadDeploy.mjs";
-import uploadIndex from "./uploadIndex.mjs";
+import uploadSeriesIndex from "./uploadSeriesIndex.mjs";
 
-export default async function (studyUID, options) {
+export default async function (studyUID, seriesUID, options) {
   console.log("studyUID=", studyUID);
-  const studyDirectory = studyUID ? `studies/${studyUID}` : "studies";
+  console.log("seriesUID=", seriesUID);
+
+  const studySeriesDirectory = studyUID && seriesUID ? `studies/${studyUID}/series/${seriesUID}` : "studies";
+  const studySeriesIndexDirectory = studyUID && seriesUID ? `studies/${studyUID}/series` : "studies";
 
   if (options.rootDir) {
     this.rootDir = options.rootDir;
@@ -27,12 +30,12 @@ export default async function (studyUID, options) {
   }
 
   if(!options.indexonly){
-    await commonMain(this, "root", options, uploadDeploy.bind(null, studyDirectory));
+    await commonMain(this, "root", options, uploadDeploy.bind(null, studySeriesDirectory));
   }
   if (options.index) {
-    console.log("Calling commonMain to create index");
-    await commonMain(this, "root", options, uploadIndex.bind(null, studyDirectory));
+    console.log("Calling commonMain to upload series Index");
+    await commonMain(this, "root", options, uploadSeriesIndex.bind(null, studySeriesIndexDirectory));
   } else {
-    console.log("NOT Calling commonMain to create index");
+    console.log("Not calling commonMain to not upload series Index");
   }
 }
