@@ -2094,7 +2094,7 @@
   resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-openjph/-/codec-openjph-2.4.1.tgz#bb86e03dd2da751a35033209371fde9da7e44f0d"
   integrity sha512-UCN0tnBw3tMbBbA3lzjYVT1JZt1qEBOz0wMUDRqgc8eSOMEzF3Nkaqp1X0mri4cTxO2vcigYkBftSe5SeI1eiQ==
 
-"@cornerstonejs/dicom-codec@^0.1.6":
+"@cornerstonejs/dicom-codec@>=0.1.6", "@cornerstonejs/dicom-codec@^0.1.6":
   version "0.1.6"
   resolved "https://registry.yarnpkg.com/@cornerstonejs/dicom-codec/-/dicom-codec-0.1.6.tgz#71608def727df97c086941ad919023638c29e6ee"
   integrity sha512-4CmB3Wqwf4bXNMAg7VI0v1eBVbFYw5b94ibaOx8XFT3gyLfYx8ISTqqGkyTF3/9QL7b6+WTd0A1FEhwdPHuBGw==
@@ -4849,13 +4849,15 @@ config-chain@^1.1.12:
     ini "^1.3.4"
     proto-list "~1.2.1"
 
-config-point@^0.5.1:
-  version "0.5.1"
-  resolved "https://registry.yarnpkg.com/config-point/-/config-point-0.5.1.tgz#43c09b961f8e8f1741c14559b828b7dd31358bce"
-  integrity sha512-rYjSVBL6Glob/ZY4/rrF4ScZtJx+nxxhTKQHqHgzwd/kZBwCG2bfRbo9m7sngrAQR0WnGIsVo7pBzr9l8j3vbA==
+config-point@>=0.5.1:
+  version "0.6.1"
+  resolved "https://registry.yarnpkg.com/config-point/-/config-point-0.6.1.tgz#6401c956e0f3f9beeb8e34da24626c484ceffc67"
+  integrity sha512-qLP/VycLWo8JolVYM/4Yo5t63CUd8FO+f5Dv5HLS/zs28T7FPWcjV5SgrSNsAL1TvFHhOugL8U7GJRafCTiuVg==
   dependencies:
     "@babel/runtime" "^7.14.6"
-    json5 "^2.2.0"
+    ion-js "^4.3.0"
+    jsbi "^4.3.0"
+    json5 "^2.2.2"
 
 confusing-browser-globals@^1.0.10:
   version "1.0.11"
@@ -6842,6 +6844,11 @@ interpret@^3.1.1:
   resolved "https://registry.yarnpkg.com/interpret/-/interpret-3.1.1.tgz#5be0ceed67ca79c6c4bc5cf0d7ee843dcea110c4"
   integrity sha512-6xwYfHbajpoF0xLW+iwLkhwgvLoZDfjYfoFNu8ftMoXINzwuymNLd9u/KmwtdT2GbR+/Cz66otEGEVVUHX9QLQ==
 
+ion-js@^4.3.0:
+  version "4.3.0"
+  resolved "https://registry.yarnpkg.com/ion-js/-/ion-js-4.3.0.tgz#ea511b94a3a555ac6e2e58832c7b66c41c302a0f"
+  integrity sha512-8yhU1yx6Uia109cMbiDQDQS0InGJj8BaXckjyaN+5vCzL0e8qEXzLVRy579TmNThBDq8IfUJfqe0565Syh+0JA==
+
 iota-array@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/iota-array/-/iota-array-1.0.0.tgz#81ef57fe5d05814cd58c2483632a99c30a0e8087"
@@ -7712,6 +7719,11 @@ js-yaml@^3.13.1:
     argparse "^1.0.7"
     esprima "^4.0.0"
 
+jsbi@^4.3.0:
+  version "4.3.0"
+  resolved "https://registry.yarnpkg.com/jsbi/-/jsbi-4.3.0.tgz#b54ee074fb6fcbc00619559305c8f7e912b04741"
+  integrity sha512-SnZNcinB4RIcnEyZqFPdGPVgrg2AcnykiBy0sHVJQKHYeaLUvi3Exj+iaPpLnFVkDPZIV4U0yvgC9/R4uEAZ9g==
+
 jscodeshift@^0.9.0:
   version "0.9.0"
   resolved "https://registry.yarnpkg.com/jscodeshift/-/jscodeshift-0.9.0.tgz#672025658e868a63e24d6a6f4c44af9edb6e55f3"
@@ -7863,7 +7875,7 @@ json5-writer@^0.2.0:
   dependencies:
     jscodeshift "^0.9.0"
 
-json5@2.x, json5@^2.1.2, json5@^2.2.0, json5@^2.2.1:
+json5@2.x, json5@^2.1.2, json5@^2.2.1:
   version "2.2.1"
   resolved "https://registry.yarnpkg.com/json5/-/json5-2.2.1.tgz#655d50ed1e6f95ad1a3caababd2b0efda10b395c"
   integrity sha512-1hqLFMSrGHRHxav9q9gNjJ5EXznIxGVO09xQRrwplcS8qs28pZ8s8hupZAmqDwZUmVZ2Qb2jnyPOWcDH8m8dlA==
@@ -7874,6 +7886,11 @@ json5@^1.0.1:
   integrity sha512-aKS4WQjPenRxiQsC93MNfjx+nbF4PAdYzmd/1JIj8HYzqfbu86beTuNgXDzPknWk0n0uARlyewZo4s++ES36Ow==
   dependencies:
     minimist "^1.2.0"
+
+json5@^2.2.2:
+  version "2.2.3"
+  resolved "https://registry.yarnpkg.com/json5/-/json5-2.2.3.tgz#78cd6f1a19bdc12b73db5ad0c61efd66c1e29283"
+  integrity sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==
 
 jsonc-parser@3.0.0:
   version "3.0.0"

@@ -52,10 +52,10 @@
     "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
   },
   "dependencies": {
-    "@radicalimaging/static-wado-creator": "^0.6.4",
-    "@radicalimaging/static-wado-plugins": "^0.6.2",
-    "@radicalimaging/static-wado-util": "^0.6.2",
-    "config-point": "^0.5.1",
+    "@radicalimaging/static-wado-creator": ">=1.1.0",
+    "@radicalimaging/static-wado-plugins": ">=1.1.0",
+    "@radicalimaging/static-wado-util": ">=1.1.0",
+    "config-point": ">=0.5.1",
     "cors": "^2.8.5",
     "dcmjs": "^0.28.0",
     "dcmjs-dimse": "^0.0.15",
