@@ -36,7 +36,9 @@ def is_dicom_3Dable(filelist): # returns volume, and pydicom header/ds
 
             print("DICOM Validation for Study/Series => %s/%s" % (ds.StudyInstanceUID, ds.SeriesInstanceUID))
 
-            if ds.ImageType in ['LOCALIZER', 'SCOUT', 'SECONDARY']:    
+            imageType = ds.ImageType
+            matches = ['LOCALIZER', 'SCOUT', 'SECONDARY']
+            if any( x in imageType for x in matches):    
                 print("ImageType check FAIL!!")       
                 return False
             print("ImageType check PASS!!")
