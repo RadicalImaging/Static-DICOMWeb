@@ -7,7 +7,7 @@ export function indexingStaticController(staticFilesDir) {
     index: "index.json.gz",
     setHeaders: gzipHeaders,
     extensions: ["gz"],
-    maxAge: 3000,
+    maxAge: 0,
     etag: false,
     redirect: false,
     fallthrough: true,
@@ -18,7 +18,7 @@ export function nonIndexingStaticController(staticFilesDir) {
   return express.static(staticFilesDir, {
     index: false,
     etag: false,
-    maxAge: 3500,
+    maxAge: 0,
     redirect: false,
     fallthrough: true,
   });

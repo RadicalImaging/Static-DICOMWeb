@@ -18,7 +18,7 @@ export const qidoMap = (req, res, next) => {
 export const otherJsonMap = (req, res, next) => {
   res.setHeader("content-type", "application/json; charset=utf-8");
   req.url = `${req.path}.gz`;
-  console.log("otherJson", req.url);
+  res.setHeader
   next();
 };
 

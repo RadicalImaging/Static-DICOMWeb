@@ -12,7 +12,6 @@ const initiateApi = (item, req, res) => {
 };
 
 const subsequentApi = (item, req, res, next) => {
-  console.log("Subsequent api", item.id, req.params.jobId);
   const itemId = jobs[req.params.jobId];
   jobs[req.params.jobId] += 1;
 

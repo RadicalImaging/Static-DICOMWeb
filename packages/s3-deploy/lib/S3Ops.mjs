@@ -14,6 +14,7 @@ const multipartRelated = "multipart/related";
 const multipartRelatedDicom = "multipart/related";
 const imagejpeg = "image/jpeg";
 const applicationDicom = "application/dicom";
+const ionType = "application/x-amzn-ion";
 
 /** Key patterns to not cache */
 const noCachePattern = /(index.html)|(index.js)|(index.umd.js)|(studies$)|(theme\/)|(^[a-zA-Z0-9\-_]+\.js)|(config\/)/;
@@ -86,6 +87,7 @@ class S3Ops {
       (src.indexOf(".raw") !== -1 && octetStream) ||
       (src.indexOf("frames") !== -1 && multipartRelated) ||
       (src.indexOf("thumbnail") !== -1 && imagejpeg) ||
+      (src.indexOf(".ion") !== -1 && ionType) ||
       "application/json"
     );
   }
@@ -131,7 +133,6 @@ class S3Ops {
   }
 
   async dir(s3Uri) {
-    console.log("lstat", s3Uri);
     // TODO - better validation than this
     const bucketStart = 5;
     const bucketEnd = s3Uri.indexOf("/", bucketStart + 1);
