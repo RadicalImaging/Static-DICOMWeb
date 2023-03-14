@@ -41,6 +41,7 @@ class StudyData {
     // The deduplicated hashes are just the hashes for individual items
     this.deduplicatedHashes = {};
     this.sopInstances = {};
+    this.instanceFiles = 0;
 
     // Used to track if new instances have been added.
     this.newInstancesAdded = 0;
@@ -58,7 +59,7 @@ class StudyData {
       await this.readDeduplicated(this.deduplicatedPath);
     }
     if (this.deduplicatedInstancesPath) {
-      await this.readDeduplicated(this.deduplicatedInstancesPath);
+      this.instanceFiles = await this.readDeduplicated(this.deduplicatedInstancesPath);
     }
   }
 
@@ -72,7 +73,7 @@ class StudyData {
    * a separate type of check.
    */
   get dirty() {
-    return this.newInstancesAdded > 0 || this.existingFiles.length > 1;
+    return this.newInstancesAdded > 0 || this.existingFiles.length > 1 || this.instanceFiles > 0;
   }
 
   async dirtyMetadata() {
@@ -239,11 +240,12 @@ class StudyData {
    * @param {*} deduplicatedDirectory
    */
   async readDeduplicated(deduplicatedDirectory) {
+    let readCount = 0;
     try {
       const files = await this.listJsonFiles(deduplicatedDirectory);
       if (!files || !files.length) {
         console.log("No deduplicated for", deduplicatedDirectory);
-        return;
+        return 0;
       }
       console.log("There are", files.length, "files to check");
       for (let i = 0; i < files.length; i++) {
@@ -252,12 +254,14 @@ class StudyData {
         if (this.readHashes[hash]) {
           continue;
         }
+        readCount += 1;
         await this.readDeduplicatedFile(deduplicatedDirectory, stat);
       }
       console.log("Done checking", deduplicatedDirectory);
     } catch (e) {
       // No-op console.log(e);
     }
+    return readCount;
   }
 
   async readDeduplicatedFile(dir, stat) {
@@ -386,6 +390,28 @@ class StudyData {
   removeGz(name) {
     const gzIndex = name.indexOf(".gz");
     return (gzIndex > 0 && name.substring(0, gzIndex)) || name;
+  }
+
+  async deleteInstancesReferenced() {
+    const deduplicatedDirectory = this.deduplicatedInstancesPath;
+    if( !fs.existsSync(deduplicatedDirectory) ) return;
+    console.log("Deleting instances referenced in", this.studyInstanceUid, this.deduplicatedInstancesPath);
+    const files = await this.listJsonFiles(deduplicatedDirectory);
+    console.log("There are", files.length, "files to check");
+    let deleteCount = 0;
+    for (let i = 0; i < files.length; i++) {
+      const stat = files[i];
+      const { hash } = stat;
+      if (this.readHashes[hash]) {
+        console.log("Deleting", stat.name);
+        fs.unlinkSync(path.join(deduplicatedDirectory,stat.name));
+        deleteCount += 1;
+      }
+    }
+    if( deleteCount===files.length ) {
+      console.log("Deleting instances directory", deduplicatedDirectory);
+      fs.rmdirSync(deduplicatedDirectory);
+    }
   }
 
   /** Writes the deduplicated group */

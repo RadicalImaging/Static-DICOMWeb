@@ -184,7 +184,7 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
   let result = {};
 
   if (!shouldTranscodeImageFrame(id, options)) {
-    console.log("Shouldn't transcode");
+    if( options.verbose ) console.log("Shouldn't transcode");
     return {
       id,
       imageFrame,

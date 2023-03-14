@@ -30,6 +30,8 @@ module.exports = function adaptProgramOpts(programOpts, defaults) {
     expandBulkDataUri,
     verbose,
     scpPort,
+    singlePartImage,
+    encapsulatedImage,
   } = programOpts;
 
   return assignDefined(
@@ -55,6 +57,8 @@ module.exports = function adaptProgramOpts(programOpts, defaults) {
       prependBulkDataUri,
       expandBulkDataUri,
       verbose,
+      encapsulatedImage: encapsulatedImage ?? singlePartImage!==true,
+      singlePartImage: singlePartImage ?? encapsulatedImage===false,
     }
   );
 };

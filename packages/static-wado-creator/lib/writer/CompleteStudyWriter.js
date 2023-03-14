@@ -26,6 +26,7 @@ const CompleteStudyWriter = (options) => {
       } else {
         console.log("Not writing new deduplicated data because it is clean:", studyData.studyInstanceUid);
       }
+      await studyData.deleteInstancesReferenced();
     }
 
     if (!options.isStudyData) {
