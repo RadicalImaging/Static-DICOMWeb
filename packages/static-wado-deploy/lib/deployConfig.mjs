@@ -2,6 +2,7 @@ import ConfigPoint from "config-point";
 import { staticWadoConfig } from "@radicalimaging/static-wado-util";
 import studiesMain from "./studiesMain.mjs";
 import clientMain from "./clientMain.mjs";
+import deduplicatedMain from "./deduplicatedMain.mjs";
 import themeMain from "./themeMain.js";
 
 // Define the generic configuration in the base config
@@ -37,6 +38,11 @@ const { deployConfig } = ConfigPoint.register({
         description: "Write verbose output",
         defaultValue: false,
       },
+      {
+        key: "-r, --retrieve",
+        description: "Retrieve the files instead of storing",
+        defaultValue: false,
+      },
     ],
 
     programs: [
@@ -60,6 +66,12 @@ const { deployConfig } = ConfigPoint.register({
         helpShort: "deploydicomweb client",
         helpDescription: "Deploy client files to the cloud",
         main: clientMain,
+      },
+      { 
+        command: "deduplicated <studyUID>",
+        helpShort: "Store deduplicated files",
+        helpDescription: "Stores the deduplicated files, allowing for later study updates",
+        main: deduplicatedMain,
       },
       {
         command: "theme",

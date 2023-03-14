@@ -1,9 +1,8 @@
-import { JSONReader, JSONWriter, handleHomeRelative } from "@radicalimaging/static-wado-util";
+import { JSONReader, JSONWriter, } from "@radicalimaging/static-wado-util";
 import DeployGroup from "./DeployGroup.mjs";
 
 /**
  * Reads the storeDirectory to get the index file, and adds that to the index directory
- * 
  */
 export default async function uploadIndex(storeDirectory, config, name, options, deployPlugin) {
   const deployer = new DeployGroup(config, name, options, deployPlugin);
@@ -12,8 +11,13 @@ export default async function uploadIndex(storeDirectory, config, name, options,
     console.log("No index defined in group", deployer.group);
     return;
   }
+
+  await deployer.loadOps();
   console.log("Starting to update indices for", storeDirectory, deployer);
   const { config: deployConfig } = deployer;
+
+  // console.log("Retrieve remote index", indexFullName);
+  // deployer.retrieve(options, deployConfig.rootDir, indexFullName);
 
   // Read the index file, or create a dummy one:
   const allStudies = await JSONReader(deployConfig.rootDir, indexFullName, []);
@@ -27,6 +31,5 @@ export default async function uploadIndex(storeDirectory, config, name, options,
     allStudies[allIndex] = studyItem;
   }
   await JSONWriter(deployConfig.rootDir, indexFullName, allStudies, { index: false });
-  await deployer.loadOps();
   await deployer.store(indexFullName);
 }

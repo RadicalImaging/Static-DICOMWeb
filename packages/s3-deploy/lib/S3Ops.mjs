@@ -22,6 +22,8 @@ const noCachePattern = /(index.html)|(index.js)|(index.umd.js)|(studies$)|(theme
 // const prefixSlash = (str) => (str && str[0] !== "/" ? `/${str}` : str);
 const noPrefixSlash = (str) => (str && str[0] === "/" ? str.substring(1) : str);
 
+const endsWith = (str,end) => str.length>=end.length && str.substring(str.length-end.length)===end;
+
 class S3Ops {
   constructor(config, name, options) {
     this.group = configGroup(config, name);
@@ -108,36 +110,67 @@ class S3Ops {
     return `${dir}/${file}`;
   }
 
+  remoteRelativeToUri(uri) {
+    if( !uri ) return;
+    if( uri.length > 5 && uri.substring(0,5)==='s3://' ) return uri;
+    return this.group.path ? 
+      `s3://${this.group.Bucket}${this.group.path}/${uri}` :
+      `s3://${this.group.Bucket}/${uri}`;
+  }
+
   /** Retrieves the given s3 URI to the specified destination path */
-  async retrieve(remoteUri, Key, destDir, options = { force: false }) {
+  async retrieve(uri, destFile, options = { force: false }) {
+    const remoteUri = this.remoteRelativeToUri(uri);
     const bucketStart = 5;
     const bucketEnd = remoteUri.indexOf("/", bucketStart + 1);
     const Bucket = remoteUri.substring(bucketStart, bucketEnd === -1 ? remoteUri.length : bucketEnd);
+    const Key = remoteUri.substring(bucketEnd + 1);
     const command = new GetObjectCommand({
       Bucket,
       Key,
     });
-    const destName = path.join(destDir, Key);
-    if (options?.force !== true && fs.existsSync(destName)) return destDir;
+    if (options?.force !== true && fs.existsSync(destFile)) {
+      console.log("Skipping", destFile);
+      return destFile;
+    }
+
+    if (this.options.dryRun) {
+      console.log("Dry run - no retrieve", Bucket, Key, destFile);
+      return "";
+    }
 
     try {
       const result = await this.client.send(command);
       const { Body } = result;
-      await copyTo(Body, destName);
+      await copyTo(Body, destFile);
       console.log("Done copyTo destDir");
     } catch (e) {
       console.log("Error retrieving", Bucket, Key, e);
     }
 
-    return destDir;
+    return destFile;
   }
 
-  async dir(s3Uri) {
-    // TODO - better validation than this
+  /** Gets a relative path from a response to the directory */
+  getPath(contentItem) {
+    return this.group.path ? contentItem.Key.substring(this.group.path.length) : contentItem.Key;
+  }
+
+  contentItemToFileName(contentItem) {
+    const s = this.getPath(contentItem);
+    if( endsWith(s,"thumbnail") ) return s;
+    if( endsWith(s,"/") ) return s + "index.json.gz";
+    if( endsWith(s,"/series") || endsWith(s,"/studies") || endsWith(s,"/instances") ) return s+"/index.json.gz";
+    if( endsWith(s,".gz") || endsWith(s,".jls")) return s;
+    return s + ".gz";
+  }
+
+  async dir(uri) {
+    const remoteUri = this.remoteRelativeToUri(uri);
     const bucketStart = 5;
-    const bucketEnd = s3Uri.indexOf("/", bucketStart + 1);
-    const Bucket = s3Uri.substring(bucketStart, bucketEnd);
-    const Prefix = noPrefixSlash(s3Uri.substring(bucketEnd));
+    const bucketEnd = remoteUri.indexOf("/", bucketStart + 1);
+    const Bucket = remoteUri.substring(bucketStart, bucketEnd);
+    const Prefix = noPrefixSlash(remoteUri.substring(bucketEnd));
 
     const command = new ListObjectsV2Command({
       Bucket,
@@ -145,12 +178,15 @@ class S3Ops {
     });
     try {
       const result = await this.client.send(command);
-      console.log("result=", result);
-      return result?.Contents;
+      return (result?.Contents || []).map(it => ({
+        ...it,
+        size: it.Size,
+        relativeUri: this.getPath(it),
+        fileName: this.contentItemToFileName(it),
+      }));
     } catch (e) {
-      console.log("Error sending", Bucket, s3Uri, e);
-      console.log("e=", e);
-      return null;
+      console.log("Error sending", Bucket, remoteUri, e);
+      return [];
     }
   }
 
