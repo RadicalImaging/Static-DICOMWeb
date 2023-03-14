@@ -5,8 +5,9 @@ module.exports = function createMain(options, program) {
   const finalOptions = adaptProgramOpts(options, {
     ...this,
     isInstance: false,
-    isGroup: false,
-    isStudyData: false,
+    isGroup: true,
+    isStudyData: true,
+    scanStudies: true,
   });
   const importer = new StaticWado(finalOptions);
   // Either do a scan or on specified studies

@@ -30,6 +30,7 @@ const CompleteStudyWriter = (options) => {
     }
 
     if (!options.isStudyData) {
+      if( options.verbose ) console.log("Not configured to write study metadata", studyData.studyInstanceUid);
       delete this.studyData;
       Stats.StudyStats.summarize();
       return;
@@ -37,11 +38,12 @@ const CompleteStudyWriter = (options) => {
 
     const isDirtyMetadata = await studyData.dirtyMetadata();
     if (!isDirtyMetadata) {
-      console.log("Study metadata", studyData.studyInstanceUid, "has clean metadata, not writing");
+      console.log("Study metadata", studyData.studyInstanceUid, "is clean.");
       delete this.studyData;
       Stats.StudyStats.summarize(`Study metadata ${studyData.studyInstanceUid} has clean metadata, not writing`);
       return;
     }
+    console.log("Writing study metadata", studyData.studyInstanceUid);
 
     const studyQuery = await studyData.writeMetadata();
 
