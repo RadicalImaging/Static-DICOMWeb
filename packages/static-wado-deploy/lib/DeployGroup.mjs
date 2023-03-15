@@ -21,7 +21,7 @@ class DeployGroup {
     this.options = options;
     this.group = configGroup(config, groupName);
     this.baseDir = handleHomeRelative(this.group.dir);
-    if( this.group.index ) {
+    if (this.group.index) {
       this.indexFullName = `studies/${this.group.index}.json.gz`;
       config.indexFullName = this.indexFullName;
     }
@@ -61,27 +61,35 @@ class DeployGroup {
    */
   async retrieve(options = {}, parentDir = "", name = "") {
     const { remoteUri } = options;
-    const fileName = joinUri(remoteUri, parentDir, name);
-    // URI syntax uses a slash at the end to distinguish directories from paths
-    const isDirectory = fileName[fileName.length - 1] == "/";
     const relativeName = joinUri(parentDir, name);
-    console.log("relativeName", relativeName);
-    if (isDirectory) {
-      console.log("Reading directory", fileName);
-      const contents = await this.ops.dir(fileName);
-      if (!contents) {
-        console.log("Directory does not exist:", fileName);
-        return;
-      }
-      for (const item of contents) {
-        await this.retrieve(options, item.Key);
-      }
-    } else {
-      console.log("remoteUri", remoteUri);
-      console.log("relativeName", relativeName);
-      console.log("baseDir", this.baseDir);
-      await this.ops.retrieve(remoteUri, relativeName, this.baseDir);
+    if (remoteUri) {
+      console.log("Retrieving specific URI", remoteUri);
+      await this.ops.retrieve(joinUri(remoteUri, relativeName), path.join(this.baseDir, relativeName));
+      return;
     }
+
+    // Doing a directory index here
+    console.log("Reading directory", relativeName);
+    const contents = await this.ops.dir(relativeName);
+    if (!contents) {
+      console.log("Directory does not exist:", relativeName);
+      return;
+    }
+    let skippedItems = 0;
+    let retrieved = 0;
+    for (const item of contents) {
+      // item is an object containing information about this object
+      if (!item.relativeUri) throw new Error("Nothing to retrieve");
+      const destName = path.join(this.baseDir, item.fileName);
+      if (fs.existsSync(destName)) {
+        console.log("Skipping", destName);
+        skippedItems += 1;
+        continue;
+      }
+      await this.ops.retrieve(item.relativeUri, destName);
+      retrieved += 1;
+    }
+    console.log("Retrieved", retrieved, "items to", this.baseDir, "and skipped", skippedItems);
   }
 }
 
