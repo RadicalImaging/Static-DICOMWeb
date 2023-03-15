@@ -1,13 +1,13 @@
 import commonMain from "./commonMain.mjs";
 import uploadDeploy from "./uploadDeploy.mjs";
 import uploadIndex from "./uploadIndex.mjs";
-import { retrieveF, retrieveMain } from "./retrieveDeploy.mjs";
+import retrieveDeploy from "./retrieveDeploy.mjs";
 
 export default async function (studyUID, options) {
   const studyDirectory = studyUID ? `studies/${studyUID}` : "studies";
   if( options.retrieve ) {
     console.log("Retrieve studyUID", studyUID);
-    await retrieveMain(this, "root", options, retrieveF.bind(null, studyDirectory));
+    await commonMain(this, "root", options, retrieveDeploy.bind(null, studyDirectory));
 
     return;
   }

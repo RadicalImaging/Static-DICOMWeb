@@ -13,7 +13,7 @@ export default async function uploadIndex(storeDirectory, config, name, options,
   }
 
   await deployer.loadOps();
-  console.log("Starting to update indices for", storeDirectory, deployer);
+  console.log("Starting to update indices for", storeDirectory);
   const { config: deployConfig } = deployer;
 
   // console.log("Retrieve remote index", indexFullName);
