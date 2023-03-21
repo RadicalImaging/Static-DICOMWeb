@@ -3,11 +3,12 @@ const path = require("path");
 function ScanStudy(options) {
   const { directoryName, deduplicatedRoot, deduplicatedInstancesRoot } = options;
 
-  return function run(dir, studyInstanceUid) {
+  return function scanStudy(studyInstanceUid) {
+    console.log("scanStudy", studyInstanceUid);
     const studyPath = path.join(directoryName, "studies", studyInstanceUid);
-    const deduplicatedPath = path.join(deduplicatedRoot, studyInstanceUid);
     const deduplicatedInstancesPath = path.join(deduplicatedInstancesRoot, studyInstanceUid);
-    console.log("Scanning", dir, studyInstanceUid);
+    const deduplicatedPath = path.join(deduplicatedRoot, studyInstanceUid);
+    console.log("Importing", studyInstanceUid, studyPath, deduplicatedInstancesPath, deduplicatedPath);
     return this.completeStudy.getCurrentStudyData(this, {
       studyPath,
       deduplicatedPath,

@@ -2084,15 +2084,15 @@
   resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-little-endian/-/codec-little-endian-0.0.6.tgz#6eef1d100f2c3a944555aec5ce89029d02dd009a"
   integrity sha512-W0okvChe8dsb7h8/VRHd+2qSztvKdfD90bw2CbQf68P2yGg5huOo02rfvKkhpq7a0omQkk/4YrkAY6o0SEFPrg==
 
-"@cornerstonejs/codec-openjpeg@^0.2.1", "@cornerstonejs/codec-openjpeg@^1.2.1":
-  version "1.2.1"
-  resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-openjpeg/-/codec-openjpeg-1.2.1.tgz#41484a309905642ffb1b1dc8e6a1d35c7decedb0"
-  integrity sha512-wXUN8Aji1ZwLwSQCiESCZLBfhSB3ZH9VxOQfXCOAyWz3CYaFZN7XJDmEQeUeO4jlOpbwRWFULIsCuP7cs4klHQ==
+"@cornerstonejs/codec-openjpeg@>=1.2.1", "@cornerstonejs/codec-openjpeg@^0.2.1", "@cornerstonejs/codec-openjpeg@^1.2.1":
+  version "1.2.2"
+  resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-openjpeg/-/codec-openjpeg-1.2.2.tgz#f0b524235b5551426b46db197a37b06f8ac805d7"
+  integrity sha512-b1O7lZacKXelgeV9n8XWZ7pTw3i4Bq4qQ26G5ahBjWoOw4QNcCrb5hPxWBxNB/I8AoNbJxAe+lyLtyQGfdrTbw==
 
-"@cornerstonejs/codec-openjph@^2.4.1":
-  version "2.4.1"
-  resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-openjph/-/codec-openjph-2.4.1.tgz#bb86e03dd2da751a35033209371fde9da7e44f0d"
-  integrity sha512-UCN0tnBw3tMbBbA3lzjYVT1JZt1qEBOz0wMUDRqgc8eSOMEzF3Nkaqp1X0mri4cTxO2vcigYkBftSe5SeI1eiQ==
+"@cornerstonejs/codec-openjph@>=2.4.1", "@cornerstonejs/codec-openjph@^2.4.1":
+  version "2.4.2"
+  resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-openjph/-/codec-openjph-2.4.2.tgz#e96721d56f6ec96f7f95c16321d88cc8467d8d81"
+  integrity sha512-lgdvBvvNezleY+4pIe2ceUsJzlZe/0PipdeubQ3vZZOz3xxtHHMR1XFCl4fgd8gosR8COHuD7h6q+MwgrwBsng==
 
 "@cornerstonejs/dicom-codec@>=0.1.6", "@cornerstonejs/dicom-codec@^0.1.6":
   version "0.1.6"
@@ -3439,13 +3439,6 @@
     glob "^8.0.3"
     is-reference "1.2.1"
     magic-string "^0.27.0"
-
-"@rollup/plugin-json@^5.0.2":
-  version "5.0.2"
-  resolved "https://registry.yarnpkg.com/@rollup/plugin-json/-/plugin-json-5.0.2.tgz#d7dbbac62ff74064876b3e5d0d863cb3ad1e7cdb"
-  integrity sha512-D1CoOT2wPvadWLhVcmpkDnesTzjhNIQRWLsc3fA49IFOP2Y84cFOOJ+nKGYedvXHKUsPeq07HR4hXpBBr+CHlA==
-  dependencies:
-    "@rollup/pluginutils" "^5.0.1"
 
 "@rollup/plugin-json@^6.0.0":
   version "6.0.0"
@@ -5012,10 +5005,10 @@ core-js-compat@^3.25.1:
   dependencies:
     browserslist "^4.21.4"
 
-core-js@^2.6.12, core-js@^2.6.5:
-  version "2.6.12"
-  resolved "https://registry.yarnpkg.com/core-js/-/core-js-2.6.12.tgz#d9333dfa7b065e347cc5682219d6f690859cc2ec"
-  integrity sha512-Kb2wC0fvsWfQrgk8HU5lW6U/Lcs8+9aaYcy4ZFc6DDlo4nZ7n70dEgE5rtR0oG6ufKDUnrwfWL1mXR5ljDatrQ==
+core-js@^2.6.12, core-js@^2.6.5, core-js@^3.29.1:
+  version "3.29.1"
+  resolved "https://registry.yarnpkg.com/core-js/-/core-js-3.29.1.tgz#40ff3b41588b091aaed19ca1aa5cb111803fa9a6"
+  integrity sha512-+jwgnhg6cQxKYIIjGtAHq2nwUOolo9eoFZ4sHfUH09BLXBgxnH4gA0zEd+t+BO2cNB8idaBtZFcFTRjQJRJmAw==
 
 core-util-is@~1.0.0:
   version "1.0.3"
@@ -5135,22 +5128,10 @@ dcmjs@^0.19.5:
     loglevelnext "^3.0.1"
     ndarray "^1.0.19"
 
-dcmjs@^0.28.0:
-  version "0.28.0"
-  resolved "https://registry.yarnpkg.com/dcmjs/-/dcmjs-0.28.0.tgz#75e2f8dd253dee7b1ae8b80fc17f12d5f1a09705"
-  integrity sha512-YlOw77lxL6d87SwwlQgD8zhqBXwpNWCrGORPvOG8BMOTjaDeXxaHWagFxLYVUHdDBt1uf2mJuCEASPPjIWEvpQ==
-  dependencies:
-    "@babel/runtime-corejs2" "^7.17.8"
-    gl-matrix "^3.1.0"
-    lodash.clonedeep "^4.5.0"
-    loglevelnext "^3.0.1"
-    ndarray "^1.0.19"
-    pako "^2.0.4"
-
-dcmjs@^0.29.0:
-  version "0.29.0"
-  resolved "https://registry.yarnpkg.com/dcmjs/-/dcmjs-0.29.0.tgz#f670a8f1ce8c92008bb64c301a1a77ce6a76e804"
-  integrity sha512-dEEm5DzU5Rx6i+6dDMur41ihFAVz+eTObnj7PIsvmseJeprk+cil/sOeaoFUqPaITapOYjnb7v22rprTtPCTnQ==
+dcmjs@^0.29.5:
+  version "0.29.5"
+  resolved "https://registry.yarnpkg.com/dcmjs/-/dcmjs-0.29.5.tgz#3e2311fc47aafc70f21e236ad89e2ff9ba6589fd"
+  integrity sha512-CcLo3pwitf9JhhvW3/icCraxUhaIKJRyOys9XJlBBDn5TQskyJzxgveLKejcryHn4DooqlJPeMuM4ixdPFEERQ==
   dependencies:
     "@babel/runtime-corejs2" "^7.17.8"
     gl-matrix "^3.1.0"
@@ -9821,17 +9802,10 @@ rimraf@~2.6.2:
   dependencies:
     glob "^7.1.3"
 
-rollup@^3.11.0:
-  version "3.11.0"
-  resolved "https://registry.yarnpkg.com/rollup/-/rollup-3.11.0.tgz#89c487441b18b7c689a0c9aa4221e03b87535461"
-  integrity sha512-+uWPPkpWQ2H3Qi7sNBcRfhhHJyUNgBYhG4wKe5wuGRj2m55kpo+0p5jubKNBjQODyPe6tSBE3tNpdDwEisQvAQ==
-  optionalDependencies:
-    fsevents "~2.3.2"
-
-rollup@^3.6.0:
-  version "3.6.0"
-  resolved "https://registry.yarnpkg.com/rollup/-/rollup-3.6.0.tgz#2bff14b8680747fbb0228d102607d6a6e21859d7"
-  integrity sha512-qCgiBeSu2/AIOKWGFMiRkjPlGlcVwxAjwpGKQZOQYng+83Hip4PjrWHm7EQX1wnrvRqfTytEihRRfLHdX+hR4g==
+rollup@>=3.6.0, rollup@^3.11.0, rollup@^3.6.0:
+  version "3.20.0"
+  resolved "https://registry.yarnpkg.com/rollup/-/rollup-3.20.0.tgz#ce7bd88449a776b9f75bf4e35959e25fbd3f51b1"
+  integrity sha512-YsIfrk80NqUDrxrjWPXUa7PWvAfegZEXHuPsEZg58fGCdjL1I9C1i/NaG+L+27kxxwkrG/QEDEQc8s/ynXWWGQ==
   optionalDependencies:
     fsevents "~2.3.2"
 
@@ -10710,20 +10684,10 @@ typedarray@^0.0.6:
   resolved "https://registry.yarnpkg.com/typedarray/-/typedarray-0.0.6.tgz#867ac74e3864187b1d3d47d996a78ec5c8830777"
   integrity sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
 
-"typescript@^3 || ^4":
-  version "4.8.3"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.3.tgz#d59344522c4bc464a65a730ac695007fdb66dd88"
-  integrity sha512-goMHfm00nWPa8UvR/CPSvykqf6dVV8x/dp0c5mFTMTIu0u0FlGWRioyy7Nn0PGAdHxpJZnuO/ut+PpQ8UiHAig==
-
-typescript@^3.9.3:
-  version "3.9.10"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.10.tgz#70f3910ac7a51ed6bef79da7800690b19bf778b8"
-  integrity sha512-w6fIxVE/H1PkLKcCPsFqKE7Kv7QUwhU8qQY2MueZXWx5cPZdwFupLgKK3vntcK98BtNHZtAF4LA/yl2a7k8R6Q==
-
-typescript@^4.6.2:
-  version "4.6.3"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.6.3.tgz#eefeafa6afdd31d725584c67a0eaba80f6fc6c6c"
-  integrity sha512-yNIatDa5iaofVozS/uQJEl3JRWLKKGJKh6Yaiv0GLGSuhpFJe7P3SbHZ8/yjAHRQwKRoA6YZqlfjXWmVzoVSMw==
+typescript@>=5.0.2, "typescript@^3 || ^4", typescript@^3.9.3, typescript@^5.0.2:
+  version "5.0.2"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.0.2.tgz#891e1a90c5189d8506af64b9ef929fca99ba1ee5"
+  integrity sha512-wVORMBGO/FAs/++blGNeAVdbNKtIh1rbBL2EyQ1+J9lClJ93KiiKe8PmFIVdXhHcyv44SL9oglmfeSsndo0jRw==
 
 uglify-js@^3.1.4:
   version "3.15.3"

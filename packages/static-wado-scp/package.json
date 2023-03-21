@@ -56,7 +56,7 @@
     "@radicalimaging/static-wado-plugins": ">=1.1.0",
     "@radicalimaging/static-wado-util": ">=1.1.0",
     "config-point": ">=0.5.1",
-    "dcmjs": "^0.28.0",
+    "dcmjs": "^0.29.5",
     "dcmjs-dimse": "^0.0.15"
   },
   "devDependencies": {

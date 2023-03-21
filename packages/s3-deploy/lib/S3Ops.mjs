@@ -1,7 +1,7 @@
 import { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 import fs from "fs";
 import mime from "mime-types";
-import { configGroup } from "@radicalimaging/static-wado-util";
+import { configGroup, endsWith } from "@radicalimaging/static-wado-util";
 import ConfigPoint from "config-point";
 import path from "path";
 import copyTo from "./copyTo.mjs";
@@ -21,8 +21,6 @@ const noCachePattern = /(index.html)|(index.js)|(index.umd.js)|(studies$)|(theme
 
 // const prefixSlash = (str) => (str && str[0] !== "/" ? `/${str}` : str);
 const noPrefixSlash = (str) => (str && str[0] === "/" ? str.substring(1) : str);
-
-const endsWith = (str,end) => str.length>=end.length && str.substring(str.length-end.length)===end;
 
 class S3Ops {
   constructor(config, name, options) {

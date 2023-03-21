@@ -4,6 +4,7 @@ import studiesMain from "./studiesMain.mjs";
 import clientMain from "./clientMain.mjs";
 import deduplicatedMain from "./deduplicatedMain.mjs";
 import themeMain from "./themeMain.js";
+import updateConsistency from "./updateConsistencyMain.mjs";
 
 // Define the generic configuration in the base config
 ConfigPoint.extendConfiguration("staticWadoConfig", {
@@ -43,6 +44,16 @@ const { deployConfig } = ConfigPoint.register({
         description: "Retrieve the files instead of storing",
         defaultValue: false,
       },
+      {
+        key: "--retries <retries>",
+        description: "Set how many retries before failing",
+        defaultValue: 25,
+      },
+      {
+        key: "--delay <delay>",
+        description: "Set the delay between retries",
+        defaultValue: 5000,
+      },
     ],
 
     programs: [
@@ -67,11 +78,17 @@ const { deployConfig } = ConfigPoint.register({
         helpDescription: "Deploy client files to the cloud",
         main: clientMain,
       },
-      { 
+      {
         command: "deduplicated <studyUID>",
         helpShort: "Store deduplicated files",
         helpDescription: "Stores the deduplicated files, allowing for later study updates",
         main: deduplicatedMain,
+      },
+      {
+        command: "update <studyUID>",
+        helpShort: "Update the studyUID in the cloud compared to local",
+        helpDescription: "Stores files from the imported/<studyUID> directory and upload them, making them eventually consistent",
+        main: updateConsistency,
       },
       {
         command: "theme",
@@ -79,12 +96,6 @@ const { deployConfig } = ConfigPoint.register({
         helpDescription: "Deploy updated theme files to the cloud",
         main: themeMain,
       },
-
-      // {
-      //   command: "continuous",
-      //   helpShort: "deploydicomweb continuous",
-      //   helpDescription: "Deploy DICOMweb files as the notifications arrive, to the Cloud",
-      // },
     ],
   },
 });

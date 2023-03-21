@@ -42,8 +42,20 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         customParser: compressionOptionParser,
       },
       {
-        key: "-e, --no-encapsulated-image-frame",
+        key: "--encapsulated-image",
         description: "Avoid encapsulating the image frame.  Writes with the extension and without multipart",
+      },
+      {
+        key: "-e, --no-encapsulated-image",
+        description: "Avoid encapsulating the image frame.  Writes with the extension and without multipart",
+      },
+      {
+        key: "--single-part-image",
+        description: "Writes single part image data",
+      },
+      {
+        key: "--no-single-part-image",
+        description: "Writes single part image data",
       },
       {
         key: "-m, --maximum-inline-public-length <value>",
@@ -145,7 +157,7 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         command: "metadata",
         arguments: ["input"],
         main: metadataMain,
-        helpDescription: "Write the metadata object (series and study details) from the deduplicated data.",
+        helpDescription: "Write the metadata object (series and study details) from the grouped deduplicated data.",
       },
       {
         command: "delete",

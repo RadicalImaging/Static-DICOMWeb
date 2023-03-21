@@ -16,6 +16,8 @@ exports.updateConfiguration = require("./update/updateConfiguration");
 exports.asyncIterableToBuffer = require("./asyncIterableToBuffer");
 exports.Tags = require("./dictionary/Tags");
 exports.dataDictionary = require("./dictionary/dataDictionary");
+exports.sleep = require("./sleep");
+exports.endsWith = require("./endsWith");
 
 exports.configureProgram = configureProgram;
 exports.configureCommands = configureCommands;

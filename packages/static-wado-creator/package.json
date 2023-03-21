@@ -42,11 +42,7 @@
     "lib"
   ],
   "bin": {
-    "mkdicomweb": "bin/mkdicomweb.js",
-    "mkdicomwebdeduplicated": "bin/mkdicomwebdeduplicated.js",
-    "mkdicomwebdeduplicatedgroup": "bin/mkdicomwebdeduplicatedgroup.js",
-    "mkdicomwebinstances": "bin/mkdicomwebinstances.js",
-    "mkdicomwebstudy": "bin/mkdicomwebstudy.js"
+    "mkdicomweb": "bin/mkdicomweb.js"
   },
   "scripts": {
     "test": "jest --config ./jest.config.js",
@@ -64,7 +60,7 @@
     "@radicalimaging/static-wado-util": ">=1.1.0",
     "canvas": "^2.9.1",
     "config-point": ">=0.5.1",
-    "dcmjs": "^0.28.0",
+    "dcmjs": "^0.29.5",
     "dicom-parser": "^1.8.13",
     "glob": "^7.2.0",
     "node-object-hash": "^2.3.10",

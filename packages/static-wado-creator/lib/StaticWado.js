@@ -104,14 +104,13 @@ class StaticWado {
   /**
    * Processes a study directory, matching up study instance UIDs.  Either processes the
    * deduplicated group directory or the instances directory, or the notifications directory.
-   * @param {*} params
+   * @param {*} options
    */
-  async processStudyDir(studyUids, params) {
-    return dirScanner(params[params.scanStudies], {
-      ...params,
-      recursive: false,
-      callback: (dir, name) => this.callback.scanStudy(dir, name),
-    });
+  async processStudyDir(studyUids, options) {
+    for(const studyUid of studyUids) {
+      const study = await this.callback.scanStudy(studyUid);
+      console.log("Processed study", study.studyInstanceUid);
+    }
   }
 
   async importBinaryDicom(dicomp10stream, params) {
@@ -194,9 +193,11 @@ class StaticWado {
    */
   async executeCommand(input) {
     if (this.options.scanStudies) {
+      console.log("Scanning study dir", input);
       // Scan one of the study directories - in this case, files is a set of study directories
       await this.processStudyDir(input, this.options);
     } else {
+      console.log("Scanning files", input);
       await this.processFiles(input, this.options);
     }
     await this.close();
