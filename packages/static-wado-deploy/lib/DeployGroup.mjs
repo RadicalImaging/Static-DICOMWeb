@@ -65,22 +65,31 @@ class DeployGroup {
     if (remoteUri) {
       console.log("Retrieving specific URI", remoteUri);
       await this.ops.retrieve(joinUri(remoteUri, relativeName), path.join(this.baseDir, relativeName));
-      return;
+      return { skippedItems: 0, retrieved: 1 };
     }
 
     // Doing a directory index here
     console.log("Reading directory", relativeName);
     const contents = await this.ops.dir(relativeName);
-    if (!contents) {
-      console.log("Directory does not exist:", relativeName);
-      return;
-    }
     let skippedItems = 0;
     let retrieved = 0;
+    if (!contents) {
+      console.log("Directory does not exist:", relativeName);
+      return { skippedItems, retrieved };
+    }
+    const { include=[] } = options;
     for (const item of contents) {
       // item is an object containing information about this object
       if (!item.relativeUri) throw new Error("Nothing to retrieve");
       const destName = path.join(this.baseDir, item.fileName);
+      if( include.length ) {
+        const foundItem = include.find(it => destName.indexOf(it)!==-1);
+        // Not skipped or retrieved, this is just out of scope
+        if( foundItem ) {
+          if( options.verbose ) console.log("Skipping", destName, "because it includes", foundItem);
+          continue;
+        }
+      }
       if (fs.existsSync(destName)) {
         console.log("Skipping", destName);
         skippedItems += 1;
@@ -90,6 +99,7 @@ class DeployGroup {
       retrieved += 1;
     }
     console.log("Retrieved", retrieved, "items to", this.baseDir, "and skipped", skippedItems);
+    return { skippedItems, retrieved };
   }
 }
 
