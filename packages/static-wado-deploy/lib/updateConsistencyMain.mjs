@@ -38,7 +38,7 @@ export async function eventuallyConsistent(config, deployment, studyUID, options
   await importDicom(config, deployment, studyUID, options);
 
   // Then write metadata files, which will group deduplicated single instance files and write metadata updates, only
-  // if the group files are need it, or the dirtyValidation above failed 
+  // if the group files are need it, or the dirtyValidation above failed
   await metadataDicom(config, deployment, studyUID, dirtyMetadata, options);
 
   // The store count will return the number of instances actually uploaded,
@@ -46,7 +46,7 @@ export async function eventuallyConsistent(config, deployment, studyUID, options
   const storeStudyCount = await uploadDicomWeb(config, deployment, studyUID, options);
 
   // Optionally store the deduplicated files for distributed eventually consistent updates
-  await storeDeduplicated(studyUID, options);
+  await storeDeduplicated(config, deployment, studyUID, options);
 
   return storeStudyCount;
 }
@@ -67,10 +67,11 @@ export default async function (studyUID, options) {
   const { retries, delay = 5000 } = options;
   const deployPlugin = this.deployPlugin;
   console.log("Store and upload consistent files to", deployPlugin);
-  const deployments = config.deployments;
+  const deployments = this.deployments;
   const deployment = deployments.find(it =>
     it.rootGroup && options.deployments.includes(it.name)
   );
+  if( !deployment ) throw new Error(`Deployment ${options.deployments} not found`);
 
   for (let retry = 0; retry < retries; retry++) {
     try {

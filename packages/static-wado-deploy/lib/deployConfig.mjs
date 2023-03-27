@@ -47,7 +47,7 @@ const { deployConfig } = ConfigPoint.register({
       {
         key: "--retries <retries>",
         description: "Set how many retries before failing",
-        defaultValue: 25,
+        defaultValue: 1,
       },
       {
         key: "--delay <delay>",

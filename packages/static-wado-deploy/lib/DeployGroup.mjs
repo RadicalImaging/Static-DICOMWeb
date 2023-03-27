@@ -20,6 +20,7 @@ class DeployGroup {
     this.groupName = groupName;
     this.options = options;
     this.group = configGroup(config, groupName);
+    if( !this.group ) throw new Error(`No group ${groupName}`);
     this.baseDir = handleHomeRelative(this.group.dir);
     if (this.group.index) {
       this.indexFullName = `studies/${this.group.index}.json.gz`;
@@ -44,16 +45,19 @@ class DeployGroup {
     const fileName = path.join(this.baseDir, parentDir, name);
     const lstat = await fs.promises.lstat(fileName);
     const relativeName = (name && `${parentDir}/${name}`) || parentDir || "";
+    let count = 0;
     if (lstat.isDirectory()) {
       console.log("Reading directory", fileName);
       const names = await fs.promises.readdir(fileName);
       for (const childName of names) {
-        await this.store(relativeName, childName);
+        count += await this.store(relativeName, childName);
       }
       // await Promise.all(names.map((childName) => this.store(relativeName, childName)));
     } else {
       await this.ops.upload(this.baseDir, relativeName, null, lstat.size);
+      count += 1;
     }
+    return count;
   }
 
   /**

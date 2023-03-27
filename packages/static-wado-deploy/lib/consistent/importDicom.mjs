@@ -3,16 +3,19 @@ import {execFileSync} from "node:child_process";
 import DeployGroup from "../DeployGroup.mjs";
 
 export default async function importDicom(config, deployment, studyUID, options) {
-  const deployer = new DeployGroup(config, "root", options, config.deployPlugin);
+  if( !deployment.part10Group ) {
+    console.log("Not uploading instances - no part10Group in ", deployment.name);
+    return;
+  }
+  const deployer = new DeployGroup(deployment, "part10", options, config.deployPlugin);
 
-  console.log("deploy=", deployer);
-
-  const directory = `c:/users/wayfa/dicomweb/instances/${studyUID}`;
-  debugger;
-  const args = ['instance', directory];
+  
+  const directory = `${deployer.baseDir}${deployer.group.path}/${studyUID}`;
+  console.log('*************************************');
+  console.log("Importing from", directory, deployer.group);
+  // TODO - add deployment to mkdicomweb
+  const args = ['mkdicomweb', 'instance', directory];
   if( options.delete ) args.push('--delete');
 
-  const output = execFileSync('mkdicomweb',args);
-
-  console.log(output);
+  execFileSync(args.join(' '), { shell: true, stdio: 'inherit' });
 }

@@ -31,6 +31,11 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         defaultValue: undefined,
       },
       {
+        key: "--delete",
+        description: "Delete the imported instances",
+        defaultValue: false,
+      },
+      {
         key: "-v, --verbose",
         description: "Write verbose output",
         defaultValue: false,

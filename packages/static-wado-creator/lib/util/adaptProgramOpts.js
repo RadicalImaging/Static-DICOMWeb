@@ -32,6 +32,7 @@ module.exports = function adaptProgramOpts(programOpts, defaults) {
     scpPort,
     singlePartImage,
     encapsulatedImage,
+    delete: deleteInstances,
   } = programOpts;
 
   return assignDefined(
@@ -59,6 +60,7 @@ module.exports = function adaptProgramOpts(programOpts, defaults) {
       verbose,
       encapsulatedImage: encapsulatedImage ?? singlePartImage!==true,
       singlePartImage: singlePartImage ?? encapsulatedImage===false,
+      delete: deleteInstances,
     }
   );
 };

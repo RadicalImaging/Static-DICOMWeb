@@ -414,15 +414,19 @@ class StudyData {
     if( !fs.existsSync(deduplicatedDirectory) ) return;
     console.log("Deleting instances referenced in", this.studyInstanceUid, this.deduplicatedInstancesPath);
     const files = await this.listJsonFiles(deduplicatedDirectory);
-    console.log("There are", files.length, "files to check");
+    console.log("Deleting", files.length, "files");
     let deleteCount = 0;
     for (let i = 0; i < files.length; i++) {
       const stat = files[i];
       const { hash } = stat;
       if (this.readHashes[hash]) {
-        console.log("Deleting", stat.name);
-        fs.unlinkSync(path.join(deduplicatedDirectory,stat.name));
-        deleteCount += 1;
+        console.log("Deleting", deduplicatedDirectory, stat.name);
+        try {
+          fs.unlinkSync(path.join(deduplicatedDirectory,stat.name));
+          deleteCount += 1;
+        } catch (e) {
+          console.log("Delete failed", e);
+        }
       }
     }
     if( deleteCount===files.length ) {

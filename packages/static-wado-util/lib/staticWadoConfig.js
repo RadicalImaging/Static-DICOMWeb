@@ -22,6 +22,9 @@ const { staticWadoConfig } = ConfigPoint.register({
           suffix: "json",
         },
       },
+      instanceGroup: {
+        path: "/instance",
+      },
       clientGroup: {
         path: "/",
         IndexDocument: {

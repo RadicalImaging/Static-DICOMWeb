@@ -4,5 +4,7 @@ export default async function uploadMain(storeDirectory, config, name, options, 
   const deployer = new DeployGroup(config, name, options, deployPlugin);
   await deployer.loadOps();
   console.log("uploadDeploy from", storeDirectory);
-  await deployer.store(storeDirectory);
+  const count = await deployer.store(storeDirectory);
+  console.log("Uploaded", count, "files");
+  return count;
 }
