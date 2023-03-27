@@ -29,21 +29,25 @@ export async function eventuallyConsistent(config, deployment, studyUID, options
   await retrieveIndexFilesRemote(config, deployment, studyUID, options);
 
   // Deduplicated files are only required for distributed concurrent updates to a single study
-  await retrieveDeduplicatedFilesRemote(studyUID, options);
+  await retrieveDeduplicatedFilesRemote(config, deployment, studyUID, options);
 
   const dirtyMetadata = await validateHashCodesIndex(studyDirectory, options);
-  // Import first, writing instance files as that allows deleting them as each one has instance files completed
-  // If anything got imported, this will automatically update the metadata, but note that things can be skipped 
-  // if they already exist
-  await importDicom(studyUID, options);
+
+  // Import first, writing instance files as that allows deleting them as each one has instance
+  // files completed.
+  await importDicom(config, deployment, studyUID, options);
+
   // Then write metadata files, which will group deduplicated single instance files and write metadata updates, only
   // if the group files are need it, or the dirtyValidation above failed 
-  await metadataDicom(studyUID, { options, dirtyMetadata });
+  await metadataDicom(config, deployment, studyUID, dirtyMetadata, options);
+
   // The store count will return the number of instances actually uploaded,
   // which is all we care about in the end as that indicates if this is a dirty update or not
-  const storeStudyCount = await uploadDicomWeb(studyUID, options);
+  const storeStudyCount = await uploadDicomWeb(config, deployment, studyUID, options);
+
   // Optionally store the deduplicated files for distributed eventually consistent updates
   await storeDeduplicated(studyUID, options);
+
   return storeStudyCount;
 }
 

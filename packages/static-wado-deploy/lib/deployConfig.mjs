@@ -3,7 +3,7 @@ import { staticWadoConfig } from "@radicalimaging/static-wado-util";
 import studiesMain from "./studiesMain.mjs";
 import clientMain from "./clientMain.mjs";
 import deduplicatedMain from "./deduplicatedMain.mjs";
-import themeMain from "./themeMain.js";
+import themeMain from "./themeMain.mjs";
 import updateConsistency from "./updateConsistencyMain.mjs";
 
 // Define the generic configuration in the base config

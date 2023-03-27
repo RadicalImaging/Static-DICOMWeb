@@ -77,7 +77,7 @@ class DeployGroup {
       console.log("Directory does not exist:", relativeName);
       return { skippedItems, retrieved };
     }
-    const { include=[] } = options;
+    const { include=[], force } = options;
     for (const item of contents) {
       // item is an object containing information about this object
       if (!item.relativeUri) throw new Error("Nothing to retrieve");
@@ -85,12 +85,12 @@ class DeployGroup {
       if( include.length ) {
         const foundItem = include.find(it => destName.indexOf(it)!==-1);
         // Not skipped or retrieved, this is just out of scope
-        if( foundItem ) {
+        if( !foundItem ) {
           if( options.verbose ) console.log("Skipping", destName, "because it includes", foundItem);
           continue;
         }
       }
-      if (fs.existsSync(destName)) {
+      if (fs.existsSync(destName) && !force) {
         console.log("Skipping", destName);
         skippedItems += 1;
         continue;

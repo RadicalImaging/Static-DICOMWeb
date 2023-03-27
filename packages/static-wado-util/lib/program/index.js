@@ -31,7 +31,6 @@ const addOptions = (cmd, options) => {
 };
 
 function configureCommands(config, configurationFile) {
-  // console.log("Configure commands for", config);
   const { programs: programsDefinition, options } = config;
 
   for (const item of programsDefinition) {
