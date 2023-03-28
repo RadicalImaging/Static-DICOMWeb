@@ -86,27 +86,26 @@ class StudyData {
 
   async dirtyMetadata() {
     if (this.dirty) {
-      console.log("dirtyMetadata::Group data is dirty");
+      console.verbose("dirtyMetadata::Group data is dirty");
       return true;
     }
     if( this.groupFiles>0 ) {
-      console.log("dirtyMetadata::Study level deduplicated doesn't match group files");
+      console.verbose("dirtyMetadata::Study level deduplicated doesn't match group files");
     }
     try {
       const studyFile = await JSONReader(this.studyPath, "index.json.gz", null);
       if (!studyFile) {
-        console.log("dirtyMetadata::studyIndex");
+        console.verbose("dirtyMetadata::studyIndex");
         return true;
       }
       const hashValue = getValue(studyFile, Tags.DeduppedHash);
       if( this.existingFiles[0].indexOf(hashValue) == -1 ) {
-        console.log("clean metadata");
         return false;
       }
-      console.log("dirtyMetadata::Dedupped hash missing");
+      console.verbose("dirtyMetadata::Dedupped hash missing");
       return true;
     } catch (e) {
-      console.log("dirtyMetadata::Exception, assume study metadata is dirty", e);
+      console.verbose("dirtyMetadata::Exception, assume study metadata is dirty", e);
       return true;
     }
   }
@@ -257,10 +256,10 @@ class StudyData {
     try {
       const files = await this.listJsonFiles(deduplicatedDirectory);
       if (!files || !files.length) {
-        console.log("No deduplicated for", deduplicatedDirectory);
+        console.verbose("No deduplicated for", deduplicatedDirectory);
         return 0;
       }
-      console.log("There are", files.length, "files to check");
+      console.verbose("There are", files.length, "files to check");
       for (let i = 0; i < files.length; i++) {
         const stat = files[i];
         const { hash } = stat;
@@ -270,7 +269,7 @@ class StudyData {
         readCount += 1;
         await this.readDeduplicatedFile(deduplicatedDirectory, stat);
       }
-      console.log("Done checking", deduplicatedDirectory);
+      console.verbose("Done checking", deduplicatedDirectory);
     } catch (e) {
       // No-op console.log(e);
     }

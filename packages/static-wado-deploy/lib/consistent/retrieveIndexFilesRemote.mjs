@@ -17,7 +17,6 @@ export default async function retrieveIndexFilesRemote(config, deployment, study
   // This will retrieve every index.json and metadata.json file, so no need to review individually
   retrieveF(storeDirectory, deployment, "root", {
     ...options,
-    force: true,
-    include: ['index.json', "metadata.json"],
+    include: ["index.json", "metadata.json"],
   }, config.deployPlugin);
 }

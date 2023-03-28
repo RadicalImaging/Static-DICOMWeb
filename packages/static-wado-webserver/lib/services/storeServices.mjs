@@ -16,20 +16,18 @@ const createCommandLine = (files, commandName) => files.reduce((p, c) => `${p} $
 export const storeFilesByStow = (files, params = {}) => {
   const { stowCommands = [], verbose = false } = params;
 
+
   const listFiles = Object.values(files).reduce((prev, curr) => prev.concat(curr), []);
-  if (verbose)
-    console.log(
-      "Storing files",
-      listFiles.map((item) => item.filepath)
-    );
+  console.verbose("Storing files", listFiles.map((item) => item.filepath));
 
   const promises = [];
   for (const commandName of stowCommands) {
     const command = createCommandLine(listFiles, commandName);
-    const commandPromise = exec(command);
-    commandPromise.then(({ stdout, stderr }) => console.log(stdout, stderr));
+    console.log("Store command", command);
+    const commandPromise = exec(command, { stdio: "inherit", shell: true });
     promises.push(commandPromise);
   }
+
   Promise.all(promises).then(() => {
     listFiles.forEach((item) => {
       const { filepath } = item;

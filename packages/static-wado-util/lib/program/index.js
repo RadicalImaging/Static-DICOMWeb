@@ -30,8 +30,16 @@ const addOptions = (cmd, options) => {
   }
 };
 
+function createVerboseLog(verbose) {
+  if( verbose ) {
+    console.verbose = (...arguments) => console.log.apply(console,arguments);
+  } else {
+    console.verbose = () => null;
+  }
+}
 function configureCommands(config, configurationFile) {
   const { programs: programsDefinition, options } = config;
+  createVerboseLog(options.verbose);
 
   for (const item of programsDefinition) {
     const { command, helpDescription, main, isDefault, options: subOptions } = item;
@@ -89,6 +97,8 @@ function configureProgram(configuration) {
 
   currentProgram.parse();
 
+  createVerboseLog(currentProgram.options.verbose);
+  
   return currentProgram;
 }
 

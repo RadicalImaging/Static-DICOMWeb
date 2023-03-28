@@ -3,8 +3,9 @@ import fs from "fs";
 import mime from "mime-types";
 import { configGroup, endsWith } from "@radicalimaging/static-wado-util";
 import ConfigPoint from "config-point";
-import path from "path";
 import copyTo from "./copyTo.mjs";
+import {execFileSync} from "node:child_process";
+
 
 const compressedRe = /((\.br)|(\.gz))$/;
 const indexRe = /\/index\.(json|mht)$/;
@@ -21,6 +22,7 @@ const noCachePattern = /(index.html)|(index.js)|(index.umd.js)|(studies$)|(theme
 
 // const prefixSlash = (str) => (str && str[0] !== "/" ? `/${str}` : str);
 const noPrefixSlash = (str) => (str && str[0] === "/" ? str.substring(1) : str);
+
 
 class S3Ops {
   constructor(config, name, options) {
@@ -116,6 +118,40 @@ class S3Ops {
       `s3://${this.group.Bucket}/${uri}`;
   }
 
+  checkExclude(Key, fileName, excludeExisting) {
+    return this.shouldSkip(excludeExisting[Key], fileName);
+  }
+
+  shouldSkip(item, fileName) {
+    if (!item) return false;
+    if (!fs.existsSync(fileName)) {
+      console.verbose("Doesn't exist, not skipping", fileName);
+      return false;
+    }
+    const info = fs.statSync(fileName);
+    if (item.size !== info.size) {
+      console.verbose("Size different", item.size, info.size);
+      return false;
+    }
+    // Files larger than a meg are compared ONLY on size
+    if (info.size > 1024 * 1024) return true;
+
+    if (fileName.indexOf("json") === -1) {
+      // Skip MD5 check everything but JSON files
+      return true;
+    }
+    const { ETag } = item;
+    const md5 = execFileSync(`md5sum "${fileName}"`, { shell: true });
+    for (let i = 1; i < ETag.length - 1; i++) {
+      if (md5[i] != ETag.charCodeAt(i)) {
+        // Leave this for now as there might be more file types needing specific encoding checks
+        console.log("md5 different at", i, md5[i], ETag.charCodeAt(i), ETag, md5.toString());
+        return false;
+      }
+    }
+    return true;
+  }
+
   /** Retrieves the given s3 URI to the specified destination path */
   async retrieve(uri, destFile, options = { force: false }) {
     const remoteUri = this.remoteRelativeToUri(uri);
@@ -192,7 +228,7 @@ class S3Ops {
    * Uploads file into the group s3 bucket.
    * Asynchronous
    */
-  async upload(dir, file, hash, ContentSize) {
+  async upload(dir, file, hash, ContentSize, excludeExisting = {}) {
     const Key = this.fileToKey(file);
     const ContentType = this.fileToContentType(file);
     const Metadata = this.fileToMetadata(file, hash);
@@ -200,6 +236,12 @@ class S3Ops {
     const fileName = this.toFile(dir, file);
     const isNoCacheKey = Key.match(noCachePattern);
     const CacheControl = isNoCacheKey ? "no-cache" : undefined;
+
+    if (this.checkExclude(Key, fileName, excludeExisting)) {
+      console.verbose("Already exists", Key, excludeExisting[Key].ETag);
+      return false;
+    }
+
     const Body = fs.createReadStream(fileName);
     const command = new PutObjectCommand({
       Body,
@@ -211,15 +253,18 @@ class S3Ops {
       Metadata,
       ContentSize,
     });
-    console.log("uploading", file, ContentType, ContentEncoding, Key, ContentSize, Metadata, this.group.Bucket);
+    console.verbose("uploading", file, ContentType, ContentEncoding, Key, ContentSize, Metadata, this.group.Bucket);
     if (this.options.dryRun) {
       console.log("Dry run - no upload", Key);
-      return;
+      // Pretend this uploaded - causes count to change
+      return true;
     }
     try {
       await this.client.send(command);
+      return true;
     } catch (error) {
       console.log("Error sending", file, error);
+      return false;
     } finally {
       await Body.close();
     }

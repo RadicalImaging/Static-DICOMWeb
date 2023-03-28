@@ -2,7 +2,6 @@ import { sleep } from "@radicalimaging/static-wado-util";
 
 import retrieveIndexFilesRemote from "./consistent/retrieveIndexFilesRemote.mjs";
 import retrieveDeduplicatedFilesRemote from "./consistent/retrieveDeduplicatedFilesRemote.mjs";
-import validateHashCodesIndex from "./consistent/validateHashCodesIndex.mjs";
 import importDicom from "./consistent/importDicom.mjs";
 import metadataDicom from "./consistent/metadataDicom.mjs";
 import uploadDicomWeb from "./consistent/uploadDicomWeb.mjs";
@@ -31,15 +30,13 @@ export async function eventuallyConsistent(config, deployment, studyUID, options
   // Deduplicated files are only required for distributed concurrent updates to a single study
   await retrieveDeduplicatedFilesRemote(config, deployment, studyUID, options);
 
-  const dirtyMetadata = await validateHashCodesIndex(studyDirectory, options);
-
   // Import first, writing instance files as that allows deleting them as each one has instance
   // files completed.
   await importDicom(config, deployment, studyUID, options);
 
   // Then write metadata files, which will group deduplicated single instance files and write metadata updates, only
   // if the group files are need it, or the dirtyValidation above failed
-  await metadataDicom(config, deployment, studyUID, dirtyMetadata, options);
+  await metadataDicom(config, deployment, studyUID, options);
 
   // The store count will return the number of instances actually uploaded,
   // which is all we care about in the end as that indicates if this is a dirty update or not
@@ -68,12 +65,11 @@ export default async function (studyUID, options) {
   const deployPlugin = this.deployPlugin;
   console.log("Store and upload consistent files to", deployPlugin);
   const deployments = this.deployments;
-  const deployment = deployments.find(it =>
-    it.rootGroup && options.deployments.includes(it.name)
-  );
-  if( !deployment ) throw new Error(`Deployment ${options.deployments} not found`);
+  const deployment = deployments.find((it) => it.rootGroup && options.deployments.includes(it.name));
+  if (!deployment) throw new Error(`Deployment ${options.deployments} not found`);
 
   for (let retry = 0; retry < retries; retry++) {
+    if (retry > 0) await sleep(delay);
     try {
       const consistentCount = await eventuallyConsistent(this, deployment, studyUID, options);
       if (consistentCount === 0) {
@@ -84,6 +80,5 @@ export default async function (studyUID, options) {
     } catch (e) {
       console.log("Error trying to make consistent:", e);
     }
-    await sleep(delay);
   }
 }
