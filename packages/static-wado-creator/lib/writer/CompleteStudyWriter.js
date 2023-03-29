@@ -31,7 +31,7 @@ const CompleteStudyWriter = (options) => {
 
     if (!options.isStudyData) {
       if( options.verbose ) console.log("Not configured to write study metadata", studyData.studyInstanceUid);
-      delete this.studyData;
+      if( options.notifications ) this.notificationService.notifyStudy(studyData.studyInstanceUid);delete this.studyData;
       Stats.StudyStats.summarize();
       return;
     }
@@ -60,6 +60,7 @@ const CompleteStudyWriter = (options) => {
       allStudies[studyIndex] = studyQuery;
     }
     await JSONWriter(options.directoryName, "studies", allStudies);
+    if( options.notifications ) this.notificationService.notifyStudy(studyData.studyInstanceUid);
     delete this.studyData;
     Stats.StudyStats.summarize(`Wrote study metadata/query files for ${studyData.studyInstanceUid}`);
   }

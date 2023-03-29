@@ -30,21 +30,25 @@ const addOptions = (cmd, options) => {
   }
 };
 
-function createVerboseLog(verbose) {
-  if( verbose ) {
-    console.verbose = (...arguments) => console.log.apply(console,arguments);
-  } else {
-    console.verbose = () => null;
+function createVerboseLog(verbose, options) {
+  // eslint-disable-next-line no-shadow-restricted-names
+  console.verbose = (...arguments) => {
+    if (!verbose) return;
+    console.log.apply(console, arguments);
   }
 }
+
 function configureCommands(config, configurationFile) {
   const { programs: programsDefinition, options } = config;
-  createVerboseLog(options.verbose);
+  createVerboseLog(false);
 
   for (const item of programsDefinition) {
     const { command, helpDescription, main, isDefault, options: subOptions } = item;
     const cmdConfig = program.command(command, { isDefault }).description(helpDescription);
-    cmdConfig.action((...args) => main.call(config, ...args, configurationFile));
+    cmdConfig.action((...args) => {
+      createVerboseLog(args[args.length-2].verbose);
+      main.call(config, ...args, configurationFile);
+    });
     addOptions(cmdConfig, options);
     addOptions(cmdConfig, subOptions);
   }

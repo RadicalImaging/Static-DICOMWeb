@@ -19,6 +19,7 @@ const ThumbnailService = require("./operation/ThumbnailService");
 const DeleteStudy = require("./DeleteStudy");
 const RejectInstance = require("./RejectInstance");
 const RawDicomWriter = require("./writer/RawDicomWriter");
+const { NotificationService } = require("@radicalimaging/static-wado-util");
 
 function setStudyData(studyData) {
   this.studyData = studyData;
@@ -53,6 +54,7 @@ class StaticWado {
       delete: DeleteStudy(this.options),
       setStudyData,
       rawDicomWriter: RawDicomWriter(this.options),
+      notificationService: new NotificationService(this.options.notificationDir)
     };
   }
 
@@ -204,7 +206,7 @@ class StaticWado {
   }
 
   async close() {
-    await this.callback.completeStudy();
+    await this.callback.completeStudy(this.callback);
     Stats.OverallStats.summarize("Completed Study Processing");
   }
 

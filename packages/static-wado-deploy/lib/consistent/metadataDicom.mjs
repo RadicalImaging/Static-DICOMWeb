@@ -12,6 +12,12 @@ export default async function metadataDicom(config, deployment, studyUID, option
 
   // Todo - add deployment to mkdicomweb
   const args = ["mkdicomweb", "metadata", studyUID];
+  if (options.notifications === false) {
+    args.push('--no-notifications');
+  }
+  if (options.verbose) {
+    args.push("-v");
+  }
 
   execFileSync(args.join(" "), { shell: true, stdio: "inherit" });
 }

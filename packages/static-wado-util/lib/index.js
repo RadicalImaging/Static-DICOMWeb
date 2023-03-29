@@ -18,6 +18,7 @@ exports.Tags = require("./dictionary/Tags");
 exports.dataDictionary = require("./dictionary/dataDictionary");
 exports.sleep = require("./sleep");
 exports.endsWith = require("./endsWith");
+exports.NotificationService = require("./NotificationService");
 
 exports.configureProgram = configureProgram;
 exports.configureCommands = configureCommands;
