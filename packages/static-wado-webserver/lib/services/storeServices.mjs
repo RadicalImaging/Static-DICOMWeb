@@ -14,7 +14,7 @@ const createCommandLine = (files, commandName) => files.reduce((p, c) => `${p} $
  * @param {*} params
  */
 export const storeFilesByStow = (files, params = {}) => {
-  const { stowCommands = [], verbose = false } = params;
+  const { stowCommands = [], notificationCommand, verbose = false } = params;
 
 
   const listFiles = Object.values(files).reduce((prev, curr) => prev.concat(curr), []);
@@ -29,6 +29,12 @@ export const storeFilesByStow = (files, params = {}) => {
   }
 
   Promise.all(promises).then(() => {
+    if( notificationCommand ) {
+      console.warn("Executing notificationCommand", notificationCommand);
+      exec(notificationCommand, { stdio: "inherit", shell: true});
+    } else {
+      console.warn("*********** Not executing notification command");
+    }
     listFiles.forEach((item) => {
       const { filepath } = item;
       if (verbose) console.log("Unlinking", filepath);
