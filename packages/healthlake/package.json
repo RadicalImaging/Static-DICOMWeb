@@ -43,7 +43,7 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development webpack --config .webpack/webpack.dev.js --watch --debug --output-pathinfo",
     "dev:dicom-pdf": "yarn run dev",
-    "link:exec": "npm link",
+    "link:exec": "npm install -g && npm link",
     "build": "rollup -c",
     "test": "jest --config ./jest.config.js",
     "build:package": "yarn run build",

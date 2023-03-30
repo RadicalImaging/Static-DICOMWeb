@@ -30,8 +30,9 @@ const CompleteStudyWriter = (options) => {
     }
 
     if (!options.isStudyData) {
-      if( options.verbose ) console.log("Not configured to write study metadata", studyData.studyInstanceUid);
-      if( options.notifications ) this.notificationService.notifyStudy(studyData.studyInstanceUid);delete this.studyData;
+      console.verbose("Not configured to write study metadata", studyData.studyInstanceUid);
+      if( options.notifications ) this.notificationService.notifyStudy(studyData.studyInstanceUid);
+      delete this.studyData;
       Stats.StudyStats.summarize();
       return;
     }

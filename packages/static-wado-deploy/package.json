@@ -35,12 +35,12 @@
     "lib"
   ],
   "bin": {
-    "deploydicomweb": "bin/deployDicomWeb.mjs"
+    "deploydicomweb": "bin/deploydicomweb.mjs"
   },
   "scripts": {
     "test": "jest --config ./jest.config.js",
     "build": "echo \"No build yet\" && exit 0",
-    "link:exec": "npm link",
+    "link:exec": "npm install -g && npm link",
     "lint": "npx eslint --color \"*(bin|lib)/**/*.{js,mjs}\"",
     "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
   },
