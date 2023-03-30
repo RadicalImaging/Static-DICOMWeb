@@ -1,5 +1,5 @@
 import ConfigPoint from "config-point";
-import { deployConfig } from "../lib/index.mjs";
+import { deployConfig } from "@radicalimaging/static-wado-deploy";
 
 let deployers = {};
 

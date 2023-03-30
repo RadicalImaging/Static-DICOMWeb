@@ -1,7 +1,6 @@
 import { execSpawn } from "@radicalimaging/static-wado-util";
 
 export default function setRejectProxy(routerExpress, params) {
-  console.log("Registering post reject", params);
   routerExpress.post("/studies/:studyUID/series/:seriesUID/reject/:reason", async (req, res) => {
     const { studyUID, seriesUID, reason } = req.params;
     // TODO validate parameters

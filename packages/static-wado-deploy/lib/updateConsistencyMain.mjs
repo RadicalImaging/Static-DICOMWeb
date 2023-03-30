@@ -8,7 +8,7 @@ import storeDeduplicated from "./consistent/storeDeduplicated.mjs";
 
 /**
  * Make the study eventually consistent.
- * 
+ *
  * 1. Read the index files from remote
  *    1. Index files are study/series query, deduplicated, series metadata
  * 2. Read the deduplicated files from remote if configured
@@ -18,8 +18,6 @@ import storeDeduplicated from "./consistent/storeDeduplicated.mjs";
  *    1. Exit with code 0 when done
  */
 export async function eventuallyConsistent(config, deployment, studyUID, options) {
-  const studyDirectory = `studies/${studyUID}`;
-
   // The index files are required for all updates to a study.
   await retrieveIndexFilesRemote(config, deployment, studyUID, options);
 
@@ -52,10 +50,10 @@ export async function eventuallyConsistent(config, deployment, studyUID, options
  *    1. Periodically call the import process, with no retries
  *    2. When done, wait for previous import process
  *    3. Start a clean import process with 3 retries
- * 
+ *
  * It can be used by a single threaded (per studyUID) to import safely when steps 2 and 4.3 are skipped
  */
-export default async function (studyUID, options) {
+export default async function updateConsistencyMain(studyUID, options) {
   const { retries, delay = 5000 } = options;
   const deployPlugin = this.deployPlugin;
   console.log("Store and upload consistent files to", deployPlugin);
@@ -77,4 +75,7 @@ export default async function (studyUID, options) {
       console.log("Error trying to make consistent:", e);
     }
   }
+
+  notificationService.notifyStudy(studyUID);
+  return -1;
 }

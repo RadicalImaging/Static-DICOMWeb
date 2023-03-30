@@ -20,7 +20,7 @@ class DeployGroup {
     this.groupName = groupName;
     this.options = options;
     this.group = configGroup(config, groupName);
-    if( !this.group ) throw new Error(`No group ${groupName}`);
+    if (!this.group) throw new Error(`No group ${groupName}`);
     this.baseDir = handleHomeRelative(this.group.dir);
     if (this.group.index) {
       this.indexFullName = `studies/${this.group.index}.json.gz`;
@@ -60,7 +60,7 @@ class DeployGroup {
       return 0;
     }
 
-    if( await this.ops.upload(this.baseDir, relativeName, null, lstat.size, excludeExisting) ) {
+    if (await this.ops.upload(this.baseDir, relativeName, null, lstat.size, excludeExisting)) {
       count += 1;
     }
     return count;
@@ -68,7 +68,7 @@ class DeployGroup {
 
   async dir(uri) {
     const list = await this.ops.dir(uri);
-    return list.reduce( (acc,value) => {
+    return list.reduce((acc, value) => {
       acc[value.Key] = value;
       return acc;
     }, {});
@@ -95,25 +95,25 @@ class DeployGroup {
       console.log("Directory does not exist:", relativeName);
       return { skippedItems, retrieved };
     }
-    const { include=[], exclude=['temp'], force } = options;
+    const { include = [], exclude = ["temp"], force } = options;
     for (const item of contents) {
       // item is an object containing information about this object
       if (!item.relativeUri) throw new Error("Nothing to retrieve");
       const destName = path.join(this.baseDir, item.fileName);
-      if( include.length ) {
-        const foundItem = include.find(it => destName.indexOf(it)!==-1);
+      if (include.length) {
+        const foundItem = include.find((it) => destName.indexOf(it) !== -1);
         // Not skipped or retrieved, this is just out of scope
-        if( !foundItem ) {
+        if (!foundItem) {
           console.verbose("Skipping", destName, "because it includes", foundItem);
           continue;
         }
       }
-      const isExcluded = exclude.find(it => destName.indexOf(it)!==-1);
-      if( isExcluded ) {
+      const isExcluded = exclude.find((it) => destName.indexOf(it) !== -1);
+      if (isExcluded) {
         continue;
       }
       if (fs.existsSync(destName) && !force) {
-        if( this.ops.shouldSkip(item, destName) ) {
+        if (this.ops.shouldSkip(item, destName)) {
           console.verbose("Skipping", destName);
           skippedItems += 1;
           continue;

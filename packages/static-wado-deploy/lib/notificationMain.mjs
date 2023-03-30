@@ -1,8 +1,4 @@
 import { NotificationService } from "@radicalimaging/static-wado-util";
-import commonMain from "./commonMain.mjs";
-import uploadDeploy from "./uploadDeploy.mjs";
-import uploadIndex from "./uploadIndex.mjs";
-import retrieveDeploy from "./retrieveDeploy.mjs";
 import updateConsistency from "./updateConsistencyMain.mjs";
 
 /**
@@ -27,17 +23,17 @@ import updateConsistency from "./updateConsistencyMain.mjs";
  */
 export default async function (options) {
   const { notificationDir } = this;
-  if( !notificationDir ) {
+  if (!notificationDir) {
     console.warn("Please specify notificationDir in static-wado configuration");
     return -1;
   }
   const notificationService = new NotificationService(notificationDir);
   console.log("Using notification dir", notificationService.dir);
 
-  const updateFunction = (name,data) => {
+  const updateFunction = (name, data) => {
     const { StudyInstanceUID } = data;
-    updateConsistency.call(this,StudyInstanceUID, options);
-  }
+    updateConsistency.call(this, StudyInstanceUID, options);
+  };
 
   notificationService.scan(updateFunction, options);
 }

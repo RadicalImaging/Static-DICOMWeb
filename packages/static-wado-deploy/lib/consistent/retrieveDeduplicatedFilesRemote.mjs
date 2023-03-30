@@ -10,10 +10,13 @@ export default async function retrieveDeduplicatedFilesRemote(config, deployment
   const storeDirectory = `deduplicated/${studyUID}`;
 
   // This will retrieve deduplicated file, only if configured
-  retrieveF(storeDirectory, deployment, "deduplicated",
+  retrieveF(
+    storeDirectory,
+    deployment,
+    "deduplicated",
     {
       ...options,
     },
-    config.deployPlugin);
-
+    config.deployPlugin
+  );
 }

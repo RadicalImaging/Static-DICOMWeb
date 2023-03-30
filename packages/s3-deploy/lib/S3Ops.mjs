@@ -7,7 +7,6 @@ import { execFileSync } from "node:child_process";
 
 import copyTo from "./copyTo.mjs";
 
-
 const compressedRe = /((\.br)|(\.gz))$/;
 const indexRe = /\/index\.(json|mht)$/;
 
@@ -23,7 +22,6 @@ const noCachePattern = /(index.html)|(index.js)|(index.umd.js)|(studies$)|(theme
 
 // const prefixSlash = (str) => (str && str[0] !== "/" ? `/${str}` : str);
 const noPrefixSlash = (str) => (str && str[0] === "/" ? str.substring(1) : str);
-
 
 class S3Ops {
   constructor(config, name, options) {
@@ -48,8 +46,8 @@ class S3Ops {
     let fileName = file.replaceAll("\\", "/");
     if (fileName === this.config.indexFullName) {
       console.verbose("Is index", fileName);
-      const lastSlash = fileName.lastIndexOf('/');
-      fileName = fileName.substring(0, lastSlash + 1) + 'index.json.gz';
+      const lastSlash = fileName.lastIndexOf("/");
+      fileName = `${fileName.substring(0, lastSlash + 1)}index.json.gz`;
     }
     if (compressedRe.test(fileName)) {
       fileName = fileName.substring(0, fileName.length - 3);
@@ -65,7 +63,7 @@ class S3Ops {
     if (fileName[0] == "/") {
       fileName = fileName.substring(1);
     }
-    const extensionPos = fileName.lastIndexOf('.jhc');
+    const extensionPos = fileName.lastIndexOf(".jhc");
     if (extensionPos > 0) {
       fileName = fileName.substring(0, extensionPos);
     }
@@ -113,12 +111,9 @@ class S3Ops {
 
   remoteRelativeToUri(uri) {
     if (!uri) return;
-    if (uri.length > 5 && uri.substring(0, 5) === 's3://') return uri;
-    return this.group.path ?
-      `s3://${this.group.Bucket}${this.group.path}/${uri}` :
-      `s3://${this.group.Bucket}/${uri}`;
+    if (uri.length > 5 && uri.substring(0, 5) === "s3://") return uri;
+    return this.group.path ? `s3://${this.group.Bucket}${this.group.path}/${uri}` : `s3://${this.group.Bucket}/${uri}`;
   }
-
 
   shouldSkip(item, fileName) {
     if (!item) return false;
@@ -192,10 +187,10 @@ class S3Ops {
   contentItemToFileName(contentItem) {
     const s = this.getPath(contentItem);
     if (endsWith(s, "thumbnail")) return s;
-    if (endsWith(s, "/")) return s + "index.json.gz";
-    if (endsWith(s, "/series") || endsWith(s, "/studies") || endsWith(s, "/instances")) return s + "/index.json.gz";
+    if (endsWith(s, "/")) return `${s}index.json.gz`;
+    if (endsWith(s, "/series") || endsWith(s, "/studies") || endsWith(s, "/instances")) return `${s}/index.json.gz`;
     if (endsWith(s, ".gz") || endsWith(s, ".jls")) return s;
-    return s + ".gz";
+    return `${s}.gz`;
   }
 
   async dir(uri) {
@@ -205,8 +200,7 @@ class S3Ops {
     const Bucket = remoteUri.substring(bucketStart, bucketEnd);
     const Prefix = noPrefixSlash(remoteUri.substring(bucketEnd));
     let ContinuationToken;
-    let results = [];
-
+    const results = [];
 
     for (let continuation = 0; continuation < 1000; continuation++) {
       console.verbose("continuation", continuation, ContinuationToken);
@@ -218,18 +212,18 @@ class S3Ops {
       });
       try {
         const result = await this.client.send(command);
-        (result?.Contents || []).forEach(it => {
+        (result?.Contents || []).forEach((it) => {
           results.push({
             ...it,
             size: it.Size,
             relativeUri: this.getPath(it),
             fileName: this.contentItemToFileName(it),
-          })
+          });
         });
         if (!result.IsTruncated) {
           return results;
         }
-       ContinuationToken = result.NextContinuationToken;
+        ContinuationToken = result.NextContinuationToken;
         if (!ContinuationToken) {
           throw new Error("No continuation token");
         }

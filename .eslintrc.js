@@ -10,7 +10,7 @@ module.exports = {
   parserOptions: {
     ecmaVersion: 2021,
   },
-  ignorePatterns: [".eslintrc.js"],
+  ignorePatterns: [".eslintrc.js", "dist", "build", "node_modules", "rollup.config.js", "jest.config.js"],
   rules: {
     "import/no-named-as-default": 0,
     "no-param-reassign": "warn",

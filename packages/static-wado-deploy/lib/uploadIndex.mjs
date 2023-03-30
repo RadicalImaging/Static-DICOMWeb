@@ -1,4 +1,4 @@
-import { JSONReader, JSONWriter, } from "@radicalimaging/static-wado-util";
+import { JSONReader, JSONWriter } from "@radicalimaging/static-wado-util";
 import DeployGroup from "./DeployGroup.mjs";
 
 /**
@@ -24,7 +24,7 @@ export default async function uploadIndex(storeDirectory, config, name, options,
   const studyIndex = await JSONReader(deployConfig.rootDir, `${storeDirectory}/index.json.gz`);
   const studyItem = studyIndex[0] || studyIndex;
   const sop = studyItem["0020000D"].Value[0];
-  const allIndex = allStudies.findIndex(it => it["0020000D"].Value[0]===sop);
+  const allIndex = allStudies.findIndex((it) => it["0020000D"].Value[0] === sop);
   if (allIndex === -1) {
     allStudies.push(studyItem);
   } else {
