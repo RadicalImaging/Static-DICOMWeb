@@ -32,9 +32,9 @@ const addOptions = (cmd, options) => {
 
 function createVerboseLog(verbose, options) {
   // eslint-disable-next-line no-shadow-restricted-names
-  console.verbose = (...arguments) => {
+  console.verbose = (...args) => {
     if (!verbose) return;
-    console.log.apply(console, arguments);
+    console.log.apply(console, args);
   }
 }
 
