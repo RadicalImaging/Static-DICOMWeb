@@ -19,6 +19,7 @@ exports.dataDictionary = require("./dictionary/dataDictionary");
 exports.sleep = require("./sleep");
 exports.endsWith = require("./endsWith");
 exports.NotificationService = require("./NotificationService");
+exports.execSpawn = require("./execSpawn");
 
 exports.configureProgram = configureProgram;
 exports.configureCommands = configureCommands;

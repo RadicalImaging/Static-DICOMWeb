@@ -119,9 +119,6 @@ class S3Ops {
       `s3://${this.group.Bucket}/${uri}`;
   }
 
-  checkExclude(Key, fileName, excludeExisting) {
-    return this.shouldSkip(excludeExisting[Key], fileName);
-  }
 
   shouldSkip(item, fileName) {
     if (!item) return false;
@@ -134,7 +131,7 @@ class S3Ops {
       console.verbose("Size different", item.size, info.size);
       return false;
     }
-    // Files larger than a meg are compared ONLY on size
+    // Files larger than a mb are compared ONLY on size
     if (info.size > 1024 * 1024) return true;
 
     if (fileName.indexOf("json") === -1) {
@@ -257,7 +254,7 @@ class S3Ops {
     const isNoCacheKey = Key.match(noCachePattern);
     const CacheControl = isNoCacheKey ? "no-cache" : undefined;
 
-    if (this.checkExclude(Key, fileName, excludeExisting)) {
+    if (this.shouldSkip(excludeExisting[Key], fileName)) {
       console.verbose("Already exists", Key, excludeExisting[Key].ETag);
       return false;
     }

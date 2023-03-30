@@ -1,9 +1,6 @@
 /* eslint-disable import/prefer-default-export */
-import childProcess from "child_process";
-import util from "util";
 import fs from "fs";
-
-const exec = util.promisify(childProcess.exec);
+import { execSpawn } from "@radicalimaging/static-wado-util";
 
 const createCommandLine = (files, commandName) => files.reduce((p, c) => `${p} ${c.filepath}`, commandName);
 
@@ -16,24 +13,24 @@ const createCommandLine = (files, commandName) => files.reduce((p, c) => `${p} $
 export const storeFilesByStow = (files, params = {}) => {
   const { stowCommands = [], notificationCommand, verbose = false } = params;
 
-
   const listFiles = Object.values(files).reduce((prev, curr) => prev.concat(curr), []);
-  console.verbose("Storing files", listFiles.map((item) => item.filepath));
+  console.verbose(
+    "Storing files",
+    listFiles.map((item) => item.filepath)
+  );
 
   const promises = [];
   for (const commandName of stowCommands) {
     const command = createCommandLine(listFiles, commandName);
     console.log("Store command", command);
-    const commandPromise = exec(command, { stdio: "inherit", shell: true });
+    const commandPromise = execSpawn(command);
     promises.push(commandPromise);
   }
 
   Promise.all(promises).then(() => {
-    if( notificationCommand ) {
+    if (notificationCommand) {
       console.warn("Executing notificationCommand", notificationCommand);
-      exec(notificationCommand, { stdio: "inherit", shell: true});
-    } else {
-      console.warn("*********** Not executing notification command");
+      execSpawn(notificationCommand);
     }
     listFiles.forEach((item) => {
       const { filepath } = item;
