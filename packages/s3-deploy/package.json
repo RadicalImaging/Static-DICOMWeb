@@ -35,6 +35,10 @@
     "lib",
     "build"
   ],
+  "exports": {
+    ".": "./lib/index.js",
+    "./s3.plugin.mjs": "./lib/s3.plugin.mjs"
+  },
   "scripts": {
     "copyFiles": "cp -R lib build",
     "test": "jest --config ./jest.config.cjs",
