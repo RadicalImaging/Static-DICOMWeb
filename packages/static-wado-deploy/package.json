@@ -35,14 +35,14 @@
     "lib"
   ],
   "bin": {
-    "deploydicomweb": "bin/deployDicomWeb.mjs"
+    "deploydicomweb": "bin/deploydicomweb.mjs"
   },
   "scripts": {
     "test": "jest --config ./jest.config.js",
     "build": "echo \"No build yet\" && exit 0",
-    "link:exec": "npm link",
-    "lint": "npx eslint --color \"*(bin|lib)/**/*.{js,mjs}\"",
-    "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
+    "link:exec": "npm install -g && npm link",
+    "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
+    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
   },
   "jest": {
     "verbose": true
@@ -51,6 +51,7 @@
     "@radicalimaging/s3-deploy": ">=1.1.0",
     "@radicalimaging/static-wado-plugins": ">=1.1.0",
     "@radicalimaging/static-wado-util": ">=1.1.0",
+    "core-js": ">=3.23.3",
     "config-point": ">=0.5.1"
   },
   "devDependencies": {

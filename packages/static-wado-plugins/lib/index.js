@@ -12,7 +12,7 @@ ConfigPoint.extendConfiguration("plugins", {
   studiesQueryByIndex: "@radicalimaging/static-wado-plugins/lib/studiesQueryByIndex.plugin.js",
   studiesQueryToScp: "@radicalimaging/static-wado-plugins/lib/studiesQueryToScp.plugin.js",
   // The point of plugins is that they can be lazy loaded, so no need to load s3 if not being used.
-  s3Plugin: "@radicalimaging/s3-deploy/build/lib/s3.plugin.mjs",
+  s3Plugin: "@radicalimaging/s3-deploy/s3.plugin.mjs",
 });
 
 exports.plugins = plugins;

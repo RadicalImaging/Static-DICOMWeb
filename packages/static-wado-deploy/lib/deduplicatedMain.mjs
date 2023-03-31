@@ -1,6 +1,6 @@
 import commonMain from "./commonMain.mjs";
 import uploadDeploy from "./uploadDeploy.mjs";
-import retrieveDeploy from './retrieveDeploy.mjs';
+import retrieveDeploy from "./retrieveDeploy.mjs";
 
 export default async function (studyUID, options) {
   if (!studyUID) throw new Error("Must provide a studyUID to upload/download");

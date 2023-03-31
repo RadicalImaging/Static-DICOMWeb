@@ -3,7 +3,8 @@ import fs from "fs";
 import mime from "mime-types";
 import { configGroup, endsWith } from "@radicalimaging/static-wado-util";
 import ConfigPoint from "config-point";
-import path from "path";
+import { execFileSync } from "node:child_process";
+
 import copyTo from "./copyTo.mjs";
 
 const compressedRe = /((\.br)|(\.gz))$/;
@@ -43,10 +44,10 @@ class S3Ops {
    */
   fileToKey(file) {
     let fileName = file.replaceAll("\\", "/");
-    if( fileName===this.config.indexFullName ) {
-      console.log("Is index", fileName);
-      const lastSlash = fileName.lastIndexOf('/');
-      fileName=fileName.substring(0,lastSlash+1) + 'index.json.gz';
+    if (fileName === this.config.indexFullName) {
+      console.verbose("Is index", fileName);
+      const lastSlash = fileName.lastIndexOf("/");
+      fileName = `${fileName.substring(0, lastSlash + 1)}index.json.gz`;
     }
     if (compressedRe.test(fileName)) {
       fileName = fileName.substring(0, fileName.length - 3);
@@ -62,9 +63,9 @@ class S3Ops {
     if (fileName[0] == "/") {
       fileName = fileName.substring(1);
     }
-    const extensionPos = fileName.lastIndexOf('.jhc');
-    if( extensionPos>0 ) {
-      fileName = fileName.substring(0,extensionPos);
+    const extensionPos = fileName.lastIndexOf(".jhc");
+    if (extensionPos > 0) {
+      fileName = fileName.substring(0, extensionPos);
     }
     if (!fileName) {
       throw new Error(`No filename defined for ${file}`);
@@ -109,11 +110,40 @@ class S3Ops {
   }
 
   remoteRelativeToUri(uri) {
-    if( !uri ) return;
-    if( uri.length > 5 && uri.substring(0,5)==='s3://' ) return uri;
-    return this.group.path ? 
-      `s3://${this.group.Bucket}${this.group.path}/${uri}` :
-      `s3://${this.group.Bucket}/${uri}`;
+    if (!uri) return;
+    if (uri.length > 5 && uri.substring(0, 5) === "s3://") return uri;
+    return this.group.path ? `s3://${this.group.Bucket}${this.group.path}/${uri}` : `s3://${this.group.Bucket}/${uri}`;
+  }
+
+  shouldSkip(item, fileName) {
+    if (!item) return false;
+    if (!fs.existsSync(fileName)) {
+      console.verbose("Doesn't exist, not skipping", fileName);
+      return false;
+    }
+    const info = fs.statSync(fileName);
+    if (item.size !== info.size) {
+      console.verbose("Size different", item.size, info.size);
+      return false;
+    }
+    // Files larger than a mb are compared ONLY on size
+    if (info.size > 1024 * 1024) return true;
+
+    if (fileName.indexOf("json") === -1) {
+      // Skip MD5 check everything but JSON files
+      return true;
+    }
+    const { ETag } = item;
+    if (!ETag) return true;
+    const md5 = execFileSync(`md5sum "${fileName}"`, { shell: true });
+    for (let i = 1; i < ETag.length - 1; i++) {
+      if (md5[i] != ETag.charCodeAt(i)) {
+        // Leave this for now as there might be more file types needing specific encoding checks
+        console.log("md5 different at", i, md5[i], ETag.charCodeAt(i), ETag, md5.toString());
+        return false;
+      }
+    }
+    return true;
   }
 
   /** Retrieves the given s3 URI to the specified destination path */
@@ -128,7 +158,7 @@ class S3Ops {
       Key,
     });
     if (options?.force !== true && fs.existsSync(destFile)) {
-      console.log("Skipping", destFile);
+      console.verbose("Skipping", destFile);
       return destFile;
     }
 
@@ -141,7 +171,7 @@ class S3Ops {
       const result = await this.client.send(command);
       const { Body } = result;
       await copyTo(Body, destFile);
-      console.log("Done copyTo destDir");
+      console.verbose("Done copyTo destDir");
     } catch (e) {
       console.log("Error retrieving", Bucket, Key, e);
     }
@@ -156,11 +186,11 @@ class S3Ops {
 
   contentItemToFileName(contentItem) {
     const s = this.getPath(contentItem);
-    if( endsWith(s,"thumbnail") ) return s;
-    if( endsWith(s,"/") ) return s + "index.json.gz";
-    if( endsWith(s,"/series") || endsWith(s,"/studies") || endsWith(s,"/instances") ) return s+"/index.json.gz";
-    if( endsWith(s,".gz") || endsWith(s,".jls")) return s;
-    return s + ".gz";
+    if (endsWith(s, "thumbnail")) return s;
+    if (endsWith(s, "/")) return `${s}index.json.gz`;
+    if (endsWith(s, "/series") || endsWith(s, "/studies") || endsWith(s, "/instances")) return `${s}/index.json.gz`;
+    if (endsWith(s, ".gz") || endsWith(s, ".jls")) return s;
+    return `${s}.gz`;
   }
 
   async dir(uri) {
@@ -169,30 +199,47 @@ class S3Ops {
     const bucketEnd = remoteUri.indexOf("/", bucketStart + 1);
     const Bucket = remoteUri.substring(bucketStart, bucketEnd);
     const Prefix = noPrefixSlash(remoteUri.substring(bucketEnd));
+    let ContinuationToken;
+    const results = [];
 
-    const command = new ListObjectsV2Command({
-      Bucket,
-      Prefix,
-    });
-    try {
-      const result = await this.client.send(command);
-      return (result?.Contents || []).map(it => ({
-        ...it,
-        size: it.Size,
-        relativeUri: this.getPath(it),
-        fileName: this.contentItemToFileName(it),
-      }));
-    } catch (e) {
-      console.log("Error sending", Bucket, remoteUri, e);
-      return [];
+    for (let continuation = 0; continuation < 1000; continuation++) {
+      console.verbose("continuation", continuation, ContinuationToken);
+      const command = new ListObjectsV2Command({
+        Bucket,
+        Prefix,
+        MaxKeys: 25000,
+        ContinuationToken,
+      });
+      try {
+        const result = await this.client.send(command);
+        (result?.Contents || []).forEach((it) => {
+          results.push({
+            ...it,
+            size: it.Size,
+            relativeUri: this.getPath(it),
+            fileName: this.contentItemToFileName(it),
+          });
+        });
+        if (!result.IsTruncated) {
+          return results;
+        }
+        ContinuationToken = result.NextContinuationToken;
+        if (!ContinuationToken) {
+          throw new Error("No continuation token");
+        }
+      } catch (e) {
+        console.log("Error sending", Bucket, remoteUri, e);
+        return results;
+      }
     }
+    return results;
   }
 
   /**
    * Uploads file into the group s3 bucket.
    * Asynchronous
    */
-  async upload(dir, file, hash, ContentSize) {
+  async upload(dir, file, hash, ContentSize, excludeExisting = {}) {
     const Key = this.fileToKey(file);
     const ContentType = this.fileToContentType(file);
     const Metadata = this.fileToMetadata(file, hash);
@@ -200,6 +247,12 @@ class S3Ops {
     const fileName = this.toFile(dir, file);
     const isNoCacheKey = Key.match(noCachePattern);
     const CacheControl = isNoCacheKey ? "no-cache" : undefined;
+
+    if (this.shouldSkip(excludeExisting[Key], fileName)) {
+      console.verbose("Already exists", Key, excludeExisting[Key].ETag);
+      return false;
+    }
+
     const Body = fs.createReadStream(fileName);
     const command = new PutObjectCommand({
       Body,
@@ -211,15 +264,18 @@ class S3Ops {
       Metadata,
       ContentSize,
     });
-    console.log("uploading", file, ContentType, ContentEncoding, Key, ContentSize, Metadata, this.group.Bucket);
+    console.verbose("uploading", file, ContentType, ContentEncoding, Key, ContentSize, Metadata, this.group.Bucket);
     if (this.options.dryRun) {
       console.log("Dry run - no upload", Key);
-      return;
+      // Pretend this uploaded - causes count to change
+      return true;
     }
     try {
       await this.client.send(command);
+      return true;
     } catch (error) {
       console.log("Error sending", file, error);
+      return false;
     } finally {
       await Body.close();
     }

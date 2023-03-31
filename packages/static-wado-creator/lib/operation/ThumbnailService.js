@@ -3,8 +3,7 @@ const glob = require("glob");
 const dicomCodec = require("@cornerstonejs/dicom-codec");
 const staticCS = require("@radicalimaging/static-cs-lite");
 const fs = require("fs");
-const { exec } = require("child_process");
-const { Tags } = require("@radicalimaging/static-wado-util");
+const { Tags, execSpawn } = require("@radicalimaging/static-wado-util");
 const decodeImage = require("./adapter/decodeImage");
 const { shouldThumbUseTranscoded } = require("./adapter/transcodeImage");
 const { isVideo } = require("../writer/VideoWriter");
@@ -97,17 +96,7 @@ class ThumbnailService {
   }
 
   ffmpeg(input, output) {
-    exec(`ffmpeg -i "${input}" -vf  "thumbnail,scale=640:360" -frames:v 1 -f singlejpeg "${output}"`, (error, stdout, stderr) => {
-      if (error) {
-        console.log(`error: ${error.message}`);
-        return;
-      }
-      if (stderr) {
-        console.log(`stderr: ${stderr}`);
-        return;
-      }
-      console.log(`stdout: ${stdout}`);
-    });
+    execSpawn(`ffmpeg -i "${input}" -vf  "thumbnail,scale=640:360" -frames:v 1 -f singlejpeg "${output}"`);
   }
 
   /**

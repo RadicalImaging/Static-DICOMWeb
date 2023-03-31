@@ -30,14 +30,25 @@ const addOptions = (cmd, options) => {
   }
 };
 
+function createVerboseLog(verbose, options) {
+  // eslint-disable-next-line no-shadow-restricted-names
+  console.verbose = (...args) => {
+    if (!verbose) return;
+    console.log.apply(console, args);
+  }
+}
+
 function configureCommands(config, configurationFile) {
-  // console.log("Configure commands for", config);
   const { programs: programsDefinition, options } = config;
+  createVerboseLog(false);
 
   for (const item of programsDefinition) {
     const { command, helpDescription, main, isDefault, options: subOptions } = item;
     const cmdConfig = program.command(command, { isDefault }).description(helpDescription);
-    cmdConfig.action((...args) => main.call(config, ...args, configurationFile));
+    cmdConfig.action((...args) => {
+      createVerboseLog(args[args.length-2].verbose);
+      main.call(config, ...args, configurationFile);
+    });
     addOptions(cmdConfig, options);
     addOptions(cmdConfig, subOptions);
   }
@@ -52,7 +63,9 @@ function configureCommands(config, configurationFile) {
  * @returns Program object
  */
 function configureProgram(configuration) {
+  console.log("configureProgram started");
   const { argumentsRequired = [], optionsRequired = [], argumentsList = [], optionsList = [], packageJson = {} } = configuration;
+  createVerboseLog(false);
 
   program.version(packageJson.version);
   const currentProgram = configureBaseProgram(configuration);
@@ -90,6 +103,8 @@ function configureProgram(configuration) {
 
   currentProgram.parse();
 
+  createVerboseLog(currentProgram.options.verbose);
+  
   return currentProgram;
 }
 

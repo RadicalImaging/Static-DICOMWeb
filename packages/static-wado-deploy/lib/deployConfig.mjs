@@ -1,9 +1,10 @@
 import ConfigPoint from "config-point";
 import { staticWadoConfig } from "@radicalimaging/static-wado-util";
 import studiesMain from "./studiesMain.mjs";
+import notificationMain from "./notificationMain.mjs";
 import clientMain from "./clientMain.mjs";
 import deduplicatedMain from "./deduplicatedMain.mjs";
-import themeMain from "./themeMain.js";
+import themeMain from "./themeMain.mjs";
 import updateConsistency from "./updateConsistencyMain.mjs";
 
 // Define the generic configuration in the base config
@@ -47,7 +48,7 @@ const { deployConfig } = ConfigPoint.register({
       {
         key: "--retries <retries>",
         description: "Set how many retries before failing",
-        defaultValue: 25,
+        defaultValue: 1,
       },
       {
         key: "--delay <delay>",
@@ -87,8 +88,14 @@ const { deployConfig } = ConfigPoint.register({
       {
         command: "update <studyUID>",
         helpShort: "Update the studyUID in the cloud compared to local",
-        helpDescription: "Stores files from the imported/<studyUID> directory and upload them, making them eventually consistent",
+        helpDescription: "Stores files from the <part10>/<studyUID> directory and upload them, making them eventually consistent",
         main: updateConsistency,
+      },
+      {
+        command: "notification",
+        helpShort: "Scan for notifications",
+        helpDescription: "Scans for notifications to run the specified commands",
+        main: notificationMain,
       },
       {
         command: "theme",

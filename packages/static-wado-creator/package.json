@@ -47,9 +47,9 @@
   "scripts": {
     "test": "jest --config ./jest.config.js",
     "build": "echo \"No build yet\" && exit 0",
-    "link:exec": "npm link",
-    "lint": "npx eslint --color \"*(bin|lib)/**/*.{js,mjs}\"",
-    "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
+    "link:exec": "npm install -g && npm link",
+    "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
+    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
   },
   "jest": {
     "verbose": true
@@ -58,7 +58,7 @@
     "@cornerstonejs/dicom-codec": ">=0.1.6",
     "@radicalimaging/static-cs-lite": ">=0.0.3",
     "@radicalimaging/static-wado-util": ">=1.1.0",
-    "canvas": "^2.9.1",
+    "canvas": "^2.11.0",
     "config-point": ">=0.5.1",
     "dcmjs": "^0.29.5",
     "dicom-parser": "^1.8.13",

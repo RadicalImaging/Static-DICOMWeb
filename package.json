@@ -23,19 +23,20 @@
     "eslint-plugin-jest": "^26.1.0",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-prettier": "^4.0.0",
+    "husky": "^7.0.4",
     "jest": "^27.5.1",
     "lerna": "^5.4.2",
     "must": "^0.13.4",
     "prettier": "^2.5.1",
     "prettier-eslint": "^13.0.0",
     "rollup": "^3.11.0",
-    "husky": "^7.0.4",
     "webpack-cli": "^5.0.1"
   },
   "dependencies": {
     "@cornerstonejs/codec-openjpeg": "^1.2.1",
     "@cornerstonejs/codec-openjph": "^2.4.1",
-    "@cornerstonejs/dicom-codec": "^0.1.6"
+    "@cornerstonejs/dicom-codec": "^0.1.6",
+    "canvas": "^2.11.0"
   },
   "resolutions": {
     "core-js": "^3.29.1",

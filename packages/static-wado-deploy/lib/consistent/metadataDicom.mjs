@@ -1,3 +1,23 @@
-export default async function metadataDicom(studyUID, options, dirtyMetadata) {
-  console.log("Generating metadata dicom data", studyUID, dirtyMetadata);
+import { execFileSync } from "node:child_process";
+
+import DeployGroup from "../DeployGroup.mjs";
+
+export default async function metadataDicom(config, deployment, studyUID, options) {
+  const deployer = new DeployGroup(deployment, "root", options, config.deployPlugin);
+
+  const directory = `${deployer.baseDir}${deployer.group.path}/${studyUID}`;
+
+  console.log("*************************************");
+  console.log("Creating metadata for", directory);
+
+  // Todo - add deployment to mkdicomweb
+  const args = ["mkdicomweb", "metadata", studyUID];
+  if (options.notifications === false) {
+    args.push("--no-notifications");
+  }
+  if (options.verbose) {
+    args.push("-v");
+  }
+
+  execFileSync(args.join(" "), { shell: true, stdio: "inherit" });
 }

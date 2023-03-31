@@ -13,7 +13,6 @@ module.exports = function scpMain(defaults) {
     isStudyData: true,
   });
 
-  console.log("options=", options);
   const port = options.scpPort || 11112;
 
   const server = new Server(DcmjsDimseScp);

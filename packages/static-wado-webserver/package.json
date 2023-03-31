@@ -48,8 +48,9 @@
   "scripts": {
     "test": "jest --config ./jest.config.js",
     "build": "echo \"No build yet\" && exit 0",
-    "lint": "npx eslint --color \"*(bin|lib)/**/*.{js,mjs}\"",
-    "lint:fix": "npx eslint --fix --color \"*(bin|lib)/**/*.{js,mjs}\""
+    "link:exec": "npm install -g && npm link",
+    "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
+    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
   },
   "dependencies": {
     "@radicalimaging/static-wado-creator": ">=1.1.0",
