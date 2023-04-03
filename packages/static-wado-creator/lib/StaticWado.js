@@ -64,10 +64,8 @@ class StaticWado {
    *
    * @param {string} args listing the instances to remove (may remove entire series)
    */
-  async reject(args) {
-    args.forEach((removal) => {
-      this.callback.reject(removal);
-    });
+  async reject(studyUID, seriesUID, reason) {
+      this.callback.reject(studyUID, seriesUID, reason);
   }
 
   /**

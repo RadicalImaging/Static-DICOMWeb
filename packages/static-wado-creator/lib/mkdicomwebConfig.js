@@ -174,9 +174,9 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         helpDescription: "Delete the given study, series or instance (not yet implemented)",
       },
       {
-        command: "reject",
+        command: "reject <studyUID...>",
         main: rejectMain,
-        helpDescription: "Reject the specified series, specified as studies/<studyUID>/series/<seriesUID>",
+        helpDescription: "Reject the specified series",
       },
     ],
   },

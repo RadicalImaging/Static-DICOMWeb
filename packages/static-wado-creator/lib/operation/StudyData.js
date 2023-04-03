@@ -60,7 +60,10 @@ class StudyData {
     const info = studyDeduplicated[0];
     if( info ) {
       const hash = getValue(info,Tags.DeduppedHash);
+      console.log("Reading studies/<studyUID>/deduplicated/index.json.gz");
       this.readDeduplicatedData("index.json.gz", studyDeduplicated, hash);
+    } else {
+      console.log("No deduplicated/index.json to read in", this.studyPath, "/deduplicated/index.json.gz");
     }
     if (this.deduplicatedPath) {
       this.groupFiles = await this.readDeduplicated(this.deduplicatedPath);
@@ -111,7 +114,7 @@ class StudyData {
   }
 
   async reject(seriesInstanceUid, sopInstanceUid, reason) {
-    console.log("Rejecting series instance UID", seriesInstanceUid, "because", reason);
+    console.log("Rejecting", this.studyInstanceUid, seriesInstanceUid, "because", reason);
     // TODO - actually add a reject note...
     this.newInstancesAdded += 1;
     for (let i = 0; i < this.deduplicated.length; i++) {
