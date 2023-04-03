@@ -3,8 +3,8 @@ export default function commonMain(config, name, options, deploymentFunction) {
   console.log(`Deploy ${name}`, deployPlugin);
   const deployments = config.deployments;
   if (deployments) {
-    const deployment = deployments.find(deployment => deployment[`${name}Group`] && options.deployments.includes(deployment.name));
-    if ( !deployment ) {
+    const deployment = deployments.find((deployment) => deployment[`${name}Group`] && options.deployments.includes(deployment.name));
+    if (!deployment) {
       console.warn("Deployment", options.deployments, "not found containing", name, "Group");
       return -1;
     }
