@@ -53,6 +53,7 @@ const Tags = {
   // Type of hash instance
   DeduppedType: { creator: DeduppedCreator, tag: "00091012" },
   InstanceType: "instance",
+  DeletedType: "deleted",
   InfoType: "info",
 
   naturalizeDataset,

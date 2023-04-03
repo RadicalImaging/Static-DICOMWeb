@@ -58,8 +58,8 @@ class StudyData {
     this.groupFiles = 0;
     const studyDeduplicated = await JSONReader(this.studyPath, "deduplicated/index.json.gz", []);
     const info = studyDeduplicated[0];
-    if( info ) {
-      const hash = getValue(info,Tags.DeduppedHash);
+    if (info) {
+      const hash = getValue(info, Tags.DeduppedHash);
       console.log("Reading studies/<studyUID>/deduplicated/index.json.gz");
       this.readDeduplicatedData("index.json.gz", studyDeduplicated, hash);
     } else {
@@ -67,7 +67,7 @@ class StudyData {
     }
     if (this.deduplicatedPath) {
       this.groupFiles = await this.readDeduplicated(this.deduplicatedPath);
-      if( this.verbose ) console.log("Read groupFiles:", this.groupFiles);
+      console.verbose("Read groupFiles:", this.groupFiles);
     }
     if (this.deduplicatedInstancesPath) {
       this.instanceFiles = await this.readDeduplicated(this.deduplicatedInstancesPath);
@@ -114,7 +114,6 @@ class StudyData {
   }
 
   async reject(seriesInstanceUid, sopInstanceUid, reason) {
-    console.log("Rejecting", this.studyInstanceUid, seriesInstanceUid, "because", reason);
     // TODO - actually add a reject note...
     this.newInstancesAdded += 1;
     for (let i = 0; i < this.deduplicated.length; i++) {
@@ -123,7 +122,7 @@ class StudyData {
       if (reSeriesUid !== seriesInstanceUid) continue;
       const reSop = getValue(recombined, Tags.SOPInstanceUID);
       if (!reSop) continue;
-      if (reSop !== sopInstanceUid) continue;
+      if (sopInstanceUid && reSop !== sopInstanceUid) continue;
       setValue(this.deduplicated[i], Tags.DeduppedType, "deleted");
     }
   }
@@ -296,7 +295,7 @@ class StudyData {
     const listData = (Array.isArray(data) && data) || [data];
     listData.forEach((item) => {
       const type = getValue(item, Tags.DeduppedType);
-      if (type == Tags.InstanceType) {
+      if (type === Tags.InstanceType || type === Tags.DeletedType) {
         this.internalAddDeduplicated(item, name);
       } else if (type == "info") {
         const refs = getList(item, Tags.DeduppedRef);
@@ -322,7 +321,7 @@ class StudyData {
       const seriesInstance = await this.recombine(i);
       const type = getValue(seriesInstance, Tags.DeduppedType);
       if (type == "deleted") {
-        console.log("Skipping", type);
+        console.log("Skipping deleted instance", type, getValue(seriesInstance,Tags.SeriesInstanceUID));
         continue;
       }
       const seriesInstanceUid = getSeriesInstanceUid(seriesInstance);
@@ -357,8 +356,8 @@ class StudyData {
       };
       numberOfInstances += instances.length;
       numberOfSeries += 1;
-      seriesList.push(seriesQuery);
       const modality = getValue(seriesQuery, Tags.Modality);
+      seriesList.push(seriesQuery);
       if (modalitiesInStudy.indexOf(modality) == -1) modalitiesInStudy.push(modality);
       await JSONWriter(seriesPath, "metadata", instances, {
         gzip: true,
