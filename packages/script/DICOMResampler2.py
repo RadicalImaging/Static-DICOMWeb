@@ -20,6 +20,7 @@ NO_ERROR = 0
 INPUT_DATA_NOT_READABLE = -1
 INPUT_DATA_INVALID = -2
 WRITE_ERROR = -4
+WITHIN_THRESHOLD = 999
 #EXCEPTION = -5
 #INPUT_DATA_INVALID_SIZE = -7
 
@@ -56,16 +57,6 @@ def is_dicom_3Dable(filelist): # returns volume, and pydicom header/ds
                 print("Instance Number check FAIL!!")
                 return False
             print("Instance Number check PASS!!")
-
-
-            # if hasattr(ds, 'NumberOfFrames'):
-            #     if ds.NumberOfFrames <= 1:
-            #         return False
-            # else:
-            #     if len(filelist) <= 1:
-            #         return False
-
-            # print("Nos Of Frames check PASS!!")
             return True
 
         except Exception:
@@ -77,6 +68,34 @@ def is_dicom_3Dable(filelist): # returns volume, and pydicom header/ds
         print("TIME Taken in secs (is_dicom_3Dable) : %s" % (elapsed_time))
     return False
 
+def checkThreshold(filelist, threshold): # returns volume, and pydicom header/ds
+    for fn in filelist:
+        try:
+            start = time.time()
+            print("INFO (checkThreshold): Reading %s" % (fn))
+
+            ds = pydicom.dcmread(fn, stop_before_pixels = True)
+            if hasattr(ds, 'NumberOfFrames'):
+                no_of_frames = ds.NumberOfFrames
+                if no_of_frames <= threshold:
+                    print("Series has less frames (%s) than threshold (%s)!!" % (no_of_frames, threshold))
+                    return False
+                else:
+                    return True
+                    
+            if len(filelist) <= threshold:
+                return False
+
+            return True
+
+        except Exception:
+            filelist.remove(fn)
+            print("ERROR (checkThreshold):Exception Occured while reading file =>%s" % (fn))
+            continue
+        end = time.time()
+        elapsed_time = end - start
+        print("TIME Taken in secs (checkThreshold) : %s" % (elapsed_time))
+    return False
 
 def read_filelist(filelist_filename) -> List[str]:
    
@@ -1650,12 +1669,6 @@ if __name__ == "__main__":
         if len(filenames) == 0:
             print("Input directory %s does not contain any files" % (inputDirName), file=sys.stderr)
             sys.exit(INPUT_DATA_NOT_READABLE)
-            
-        dicom_validation = is_dicom_3Dable(filenames)
-        if not dicom_validation:
-            print("DICOM Validation FAILED!! Exiting!!")
-            sys.exit(0)
-
     else:
         
         if args.verbose >= 1:
@@ -1670,8 +1683,17 @@ if __name__ == "__main__":
             print("File %s is empty or not properly formatted" % (args.filelist), file=sys.stderr)
             sys.exit(INPUT_DATA_NOT_READABLE)
 
+    dicom_validation = is_dicom_3Dable(filenames)
+    if not dicom_validation:
+        print("DICOM Validation FAILED - 3Dable!! Exiting!!")
+        sys.exit(0)
+        
+    output_n_slices = args.number_of_slices
+    exceed_threshold = checkThreshold(filenames, output_n_slices)
+    if not exceed_threshold:
+        print("Series is within threshold. No further processing required!! Exiting!!")
+        sys.exit(WITHIN_THRESHOLD)
 
-    
     time0 = time.time()
     
     reader = RPDReadDICOM(working_directory = outputDirName,
@@ -1769,7 +1791,6 @@ if __name__ == "__main__":
     spacing1 = sitk_volume.GetSpacing()
 
     input_n_slices = size1[2]
-    output_n_slices = args.number_of_slices
     
     resampling_ratio = float(output_n_slices) / float(input_n_slices)
     
