@@ -30,6 +30,9 @@
   "homepage": "https://github.com/OHIF/static-wado#readme",
   "license": "ISC",
   "main": "lib/index.js",
+  "export": {
+    ".": "./lib/index.js"
+  },
   "directories": {
     "lib": "lib"
   },

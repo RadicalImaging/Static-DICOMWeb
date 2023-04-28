@@ -1,16 +1,23 @@
-const dataExtractor = /^(.*studies)?[\\/]?([^/\\]+)[\\/](series[\\/])?([^/\\]+)([\\/]instances[\\/]([^/\\]*))?$/;
+const dataExtractor = /^(.*studies)?[\\/]?([0-9.a-zA-Z]+)[\\/](series[\\/])?([0-9.a-zA-Z]+)([\\/]instances[\\/]([0-9.a-zA-Z]*))?$/;
 
 module.exports = (options) =>
-  async function (rejectPath, reason) {
-    console.log("Reject instance", rejectPath, reason);
-    const extracted = rejectPath.match(dataExtractor);
-    if (!extracted) {
-      console.log("Unable to reject", rejectPath, "because it isn't in the format studies/<studyUID>/series/<seriesUID>");
-      return;
+  async function rejectInstanceWithOptions(args) {
+    let studyInstanceUid = args[0];
+    let seriesInstanceUid;
+    let sopInstanceUid;
+    let reason = args[2] || 'REJECT';
+    const extracted = args[0].match(dataExtractor);
+    if (extracted) {
+      studyInstanceUid = extracted[2];
+      seriesInstanceUid = extracted[4];
+      sopInstanceUid = extracted[6];
+      console.log("Extracted", studyInstanceUid, seriesInstanceUid, sopInstanceUid, reason);
+    } else {
+      console.log("Not extracting from URL", studyInstanceUid, seriesInstanceUid, reason);
+      seriesInstanceUid = args[1];
     }
-    const [, , studyInstanceUid, , seriesInstanceUid, , sopInstanceUid] = extracted;
-    const studyData = await this.scanStudy("studies", studyInstanceUid);
-    if (options.verbose) console.log("Trying to reject", seriesInstanceUid, "because", reason);
+    const studyData = await this.scanStudy(studyInstanceUid);
+    console.verbose("Trying to reject", seriesInstanceUid, "because", reason);
     await studyData.reject(seriesInstanceUid, sopInstanceUid, reason);
     await studyData.writeDeduplicatedGroup();
     return studyData.writeMetadata();
