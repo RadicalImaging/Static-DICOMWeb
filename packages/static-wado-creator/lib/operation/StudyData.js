@@ -92,7 +92,7 @@ class StudyData {
       console.verbose("dirtyMetadata::Group data is dirty");
       return true;
     }
-    if( this.groupFiles>0 ) {
+    if (this.groupFiles > 0) {
       console.verbose("dirtyMetadata::Study level deduplicated doesn't match group files");
     }
     try {
@@ -102,7 +102,7 @@ class StudyData {
         return true;
       }
       const hashValue = getValue(studyFile, Tags.DeduppedHash);
-      if( this.existingFiles[0].indexOf(hashValue) == -1 ) {
+      if (this.existingFiles[0].indexOf(hashValue) == -1) {
         return false;
       }
       console.verbose("dirtyMetadata::Dedupped hash missing");
@@ -113,7 +113,7 @@ class StudyData {
     }
   }
 
-  async reject(seriesInstanceUid, sopInstanceUid, reason) {
+  async reject(seriesInstanceUid, sopInstanceUid /* , reason */) {
     // TODO - actually add a reject note...
     this.newInstancesAdded += 1;
     for (let i = 0; i < this.deduplicated.length; i++) {
@@ -321,7 +321,7 @@ class StudyData {
       const seriesInstance = await this.recombine(i);
       const type = getValue(seriesInstance, Tags.DeduppedType);
       if (type == "deleted") {
-        console.log("Skipping deleted instance", type, getValue(seriesInstance,Tags.SeriesInstanceUID));
+        console.log("Skipping deleted instance", type, getValue(seriesInstance, Tags.SeriesInstanceUID));
         continue;
       }
       const seriesInstanceUid = getSeriesInstanceUid(seriesInstance);
@@ -412,7 +412,7 @@ class StudyData {
 
   async deleteInstancesReferenced() {
     const deduplicatedDirectory = this.deduplicatedInstancesPath;
-    if( !fs.existsSync(deduplicatedDirectory) ) return;
+    if (!fs.existsSync(deduplicatedDirectory)) return;
     console.log("Deleting instances referenced in", this.studyInstanceUid, this.deduplicatedInstancesPath);
     const files = await this.listJsonFiles(deduplicatedDirectory);
     console.log("Deleting", files.length, "files");
@@ -423,14 +423,14 @@ class StudyData {
       if (this.readHashes[hash]) {
         console.log("Deleting", deduplicatedDirectory, stat.name);
         try {
-          fs.unlinkSync(path.join(deduplicatedDirectory,stat.name));
+          fs.unlinkSync(path.join(deduplicatedDirectory, stat.name));
           deleteCount += 1;
         } catch (e) {
           console.log("Delete failed", e);
         }
       }
     }
-    if( deleteCount===files.length ) {
+    if (deleteCount === files.length) {
       console.log("Deleting instances directory", deduplicatedDirectory);
       fs.rmdirSync(deduplicatedDirectory);
     }

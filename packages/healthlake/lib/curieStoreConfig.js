@@ -3,9 +3,8 @@ import { staticWadoConfig } from "@radicalimaging/static-wado-util";
 import uploadMain from "./uploadMain.js";
 import convertCurieMain from "./convertCurieMain.js";
 import leiMain from "./leiMain.js";
-import downloadCurieJobMain from "./downloadCurieJobMain.js"
+import downloadCurieJobMain from "./downloadCurieJobMain.js";
 import indexCurieMain from "./indexCurieMain.js";
-
 
 /**
  * Defines the basic configuration values for deploying to the cloud.
@@ -80,7 +79,7 @@ const { curieStoreConfig } = ConfigPoint.register({
             defaultValue: false,
           },
         ],
-       },
+      },
 
       {
         command: "index",
@@ -88,7 +87,6 @@ const { curieStoreConfig } = ConfigPoint.register({
         helpDescription: "Create an index of the locally downloaded data",
         main: indexCurieMain,
       },
-
 
       // {
       //   command: "continuous",

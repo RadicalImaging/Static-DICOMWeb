@@ -1,5 +1,5 @@
 function configGroup(config, name) {
-  if( !config[`${name}Group`]) return;
+  if (!config[`${name}Group`]) return;
   const group = { ...config[`${name}Group`] };
   const dir = config[`${name}Dir`] || config.rootDir;
   Object.defineProperty(group, "dir", { value: dir });

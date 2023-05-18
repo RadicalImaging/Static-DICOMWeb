@@ -18,7 +18,7 @@ class Stats {
     if (this.parent) this.parent.add(item, description, 0);
   }
 
-  summarize(msg = '') {
+  summarize(msg = "") {
     console.log(msg, this.description);
     Object.keys(this.stats).forEach((key) => {
       console.log(key, this.stats[key]);

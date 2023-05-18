@@ -5,7 +5,7 @@ const ExpandUriPath = require("./ExpandUriPath");
 const { MultipartHeader, MultipartAttribute } = require("./MultipartHeader");
 
 const ImageFrameWriter = (options) => {
-  const { verbose, encapsulatedImage, singlePartImage  } = options;
+  const { encapsulatedImage, singlePartImage } = options;
   return async (id, index, imageFrame) => {
     const { transferSyntaxUid } = id;
     const type = uids[transferSyntaxUid] || uids.default;
@@ -27,10 +27,8 @@ const ImageFrameWriter = (options) => {
         [new MultipartHeader("Content-Type", type.contentType, [new MultipartAttribute("transfer-syntax", transferSyntaxUid)])],
         content
       );
-      writeStream.close();
-      if (verbose) {
-        console.log("Wrote encapsulated image frame", id.sopInstanceUid, index + 1, type.contentType);
-      }
+      await writeStream.close();
+      console.verbose("Wrote encapsulated image frame", id.sopInstanceUid, index + 1, type.contentType);
     }
     if (extension && singlePartImage) {
       const writeStreamSingle = WriteStream(id.imageFrameRootPath, `${1 + index}${extension}`, {
@@ -38,8 +36,8 @@ const ImageFrameWriter = (options) => {
         mkdir: true,
       });
       await writeStreamSingle.write(content);
-      writeStreamSingle.close();
-      if (verbose) console.log("Wrote single part image frame", id.sopInstanceUid, index + 1, extension);
+      await writeStreamSingle.close();
+      console.verbose("Wrote single part image frame", id.sopInstanceUid, index + 1, extension);
     }
     const includeSeries = true;
     return ExpandUriPath(id, `instances/${id.sopInstanceUid}/frames`, { includeSeries, ...options });

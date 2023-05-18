@@ -4,6 +4,7 @@ const dicomParser = require("dicom-parser");
 const fs = require("fs");
 const path = require("path");
 const { dirScanner, JSONReader, JSONWriter, asyncIterableToBuffer } = require("@radicalimaging/static-wado-util");
+const { NotificationService } = require("@radicalimaging/static-wado-util");
 const getDataSet = require("./operation/getDataSet");
 const InstanceDeduplicate = require("./operation/InstanceDeduplicate");
 const DeduplicateWriter = require("./writer/DeduplicateWriter");
@@ -19,7 +20,6 @@ const ThumbnailService = require("./operation/ThumbnailService");
 const DeleteStudy = require("./DeleteStudy");
 const RejectInstance = require("./RejectInstance");
 const RawDicomWriter = require("./writer/RawDicomWriter");
-const { NotificationService } = require("@radicalimaging/static-wado-util");
 
 function setStudyData(studyData) {
   this.studyData = studyData;
@@ -54,7 +54,7 @@ class StaticWado {
       delete: DeleteStudy(this.options),
       setStudyData,
       rawDicomWriter: RawDicomWriter(this.options),
-      notificationService: new NotificationService(this.options.notificationDir)
+      notificationService: new NotificationService(this.options.notificationDir),
     };
   }
 
@@ -65,7 +65,7 @@ class StaticWado {
    * @param {string} args listing the instances to remove (may remove entire series)
    */
   async reject(studyUID, seriesUID, reason) {
-      this.callback.reject(studyUID, seriesUID, reason);
+    this.callback.reject(studyUID, seriesUID, reason);
   }
 
   /**
@@ -106,8 +106,8 @@ class StaticWado {
    * deduplicated group directory or the instances directory, or the notifications directory.
    * @param {*} options
    */
-  async processStudyDir(studyUids, options) {
-    for(const studyUid of studyUids) {
+  async processStudyDir(studyUids /* , options */) {
+    for (const studyUid of studyUids) {
       const study = await this.callback.scanStudy(studyUid);
       console.log("Processed study", study.studyInstanceUid);
     }
@@ -178,7 +178,7 @@ class StaticWado {
     await this.callback.rawDicomWriter?.(id, result, buffer);
 
     const transcodedMeta = transcodeMetadata(result.metadata, id, this.options);
-    thumbnailService.generateThumbnails(id, dataSet, transcodedMeta, this.callback);
+    await thumbnailService.generateThumbnails(id, dataSet, transcodedMeta, this.callback);
 
     await this.callback.metadata(targetId, transcodedMeta);
 

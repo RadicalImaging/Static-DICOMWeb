@@ -18,8 +18,10 @@ export default function setRoutes(routerExpress, params, dir) {
     ["/studies/:studyUID/thumbnail", "/studies/:studyUID/series/:seriesUID/thumbnail", "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/thumbnail"],
     thumbnailMap
   );
-  routerExpress.get(["/:ae/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames/:frames",
-    "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames/:frames"], multipartMap);
+  routerExpress.get(
+    ["/:ae/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames/:frames", "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames/:frames"],
+    multipartMap
+  );
   routerExpress.get("/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames", multipartIndexMap);
 
   routerExpress.get(["/:ae/studies", "/studies", "/studies/:studyUID/series", "/studies/:studyUID/series/:seriesUID/instances"], qidoMap);

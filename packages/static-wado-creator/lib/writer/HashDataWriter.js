@@ -20,7 +20,6 @@ const HashDataWriter =
   (options) =>
   async (id, key, data, additionalOptions = {}) => {
     const isRaw = ArrayBuffer.isView(data);
-    const { storeMultipartBulkData } = options;
     const { mimeType } = additionalOptions;
     // If the file has an extension, it should be directly accessible as that file type.
     const gzip = !isRaw || (data.length > 1024 && !mimeType);
@@ -31,7 +30,7 @@ const HashDataWriter =
       mkdir: true,
       gzip,
     });
-    if (isRaw && storeMultipartBulkData) {
+    if (isRaw) {
       await WriteMultipart(writeStream, [new MultipartHeader("Content-Type", "application/octet-stream")], rawData);
     } else {
       await writeStream.write(rawData);

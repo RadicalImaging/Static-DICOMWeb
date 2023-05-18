@@ -1,5 +1,7 @@
 function sleep(ms) {
-  return new Promise(resolveFunc => setTimeout(resolveFunc, ms));
+  return new Promise((resolveFunc) => {
+    setTimeout(resolveFunc, ms);
+  });
 }
 
-module.exports=sleep;
+module.exports = sleep;

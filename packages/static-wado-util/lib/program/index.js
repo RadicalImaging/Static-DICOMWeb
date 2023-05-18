@@ -30,12 +30,12 @@ const addOptions = (cmd, options) => {
   }
 };
 
-function createVerboseLog(verbose, options) {
+function createVerboseLog(verbose /* , options */) {
   // eslint-disable-next-line no-shadow-restricted-names
   console.verbose = (...args) => {
     if (!verbose) return;
-    console.log.apply(console, args);
-  }
+    console.log(console, ...args);
+  };
 }
 
 function configureCommands(config, configurationFile) {
@@ -46,7 +46,7 @@ function configureCommands(config, configurationFile) {
     const { command, helpDescription, main, isDefault, options: subOptions } = item;
     const cmdConfig = program.command(command, { isDefault }).description(helpDescription);
     cmdConfig.action((...args) => {
-      createVerboseLog(args[args.length-2].verbose);
+      createVerboseLog(args[args.length - 2].verbose);
       main.call(config, ...args, configurationFile);
     });
     addOptions(cmdConfig, options);
@@ -104,7 +104,7 @@ function configureProgram(configuration) {
   currentProgram.parse();
 
   createVerboseLog(currentProgram.options.verbose);
-  
+
   return currentProgram;
 }
 
