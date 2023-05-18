@@ -1,31 +1,32 @@
-import commonMain from "./commonMain.mjs";
+/* eslint-disable */
 import path from "path";
 import fs from "fs";
 import { dirScanner } from "@radicalimaging/static-wado-util";
-import {execFileSync} from "node:child_process";
+import { execFileSync } from "node:child_process";
+import commonMain from "./commonMain.mjs";
 import extractSop from "./extractSop.mjs";
 
 export async function leiConvert(sourcePath, config, name, options, deployer) {
   const dirName = options.name || path.basename(sourcePath);
   const destPath = `${deployer.baseDir}/lei/${dirName}`;
-  if( !fs.existsSync(destPath)) {
-    fs.mkdirSync(destPath,{recursive: true});
+  if (!fs.existsSync(destPath)) {
+    fs.mkdirSync(destPath, { recursive: true });
   }
 
-  let n=0;
+  n = 0;
   // Now, iterate over files in sourcePath
   await dirScanner(sourcePath, {
     recursive: true,
     callback: async (file) => {
       // Capture instanceUID
       const sopUID = await extractSop(file);
-      if( !sopUID ) return;
-      const destFileName = path.join(destPath,sopUID+'.dcm');
+      if (!sopUID) return;
+      const destFileName = path.join(destPath, `${sopUID}.dcm`);
       // Execute dcm2dcm <sourcePath> <destPath>/<dirName>/<uid>.dcm
-      execFileSync("dcm2dcm.bat", [file, destFileName], {stdio:'inherit'});
-      n++;
-    }
-  })
+      execFileSync("dcm2dcm.bat", [file, destFileName], { stdio: "inherit" });
+      n += 1;
+    },
+  });
   console.log("Converted", n, "files");
   return destPath;
 }
@@ -33,5 +34,5 @@ export async function leiConvert(sourcePath, config, name, options, deployer) {
 export default async function (sourcePath, options) {
   console.log("sourcePath=", sourcePath);
   console.log("options=", options.name);
-  await commonMain(this, "upload", options, leiConvert.bind(null,sourcePath));
+  await commonMain(this, "upload", options, leiConvert.bind(null, sourcePath));
 }

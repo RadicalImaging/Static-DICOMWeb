@@ -2,13 +2,13 @@ import must from "must";
 
 import ConfigPoint from "config-point";
 import { loadConfiguration } from "@radicalimaging/static-wado-util";
+import { plugins } from "@radicalimaging/static-wado-plugins";
 import { dicomWebServerConfig } from "../../lib/index.mjs";
-import {plugins} from "@radicalimaging/static-wado-plugins";
 
 import "regenerator-runtime";
 
 describe("@radicalimaging/static-wado-webserver", () => {
-  beforeAll(() => import(plugins["readSeriesIndex"]));
+  beforeAll(() => import(plugins.readSeriesIndex));
 
   const params = { rootDir: ".." };
 
@@ -18,14 +18,14 @@ describe("@radicalimaging/static-wado-webserver", () => {
   });
 
   it("loaded readSeriesIndex", async () => {
-    const imported = await import(plugins["readSeriesIndex"]);
-    const { generator } = imported.default || imported; 
+    const imported = await import(plugins.readSeriesIndex);
+    const { generator } = imported.default || imported;
     const readSeriesIndex = generator(params);
     must(readSeriesIndex).be.function();
   });
 
   it("loaded studiesQueryByIndex", async () => {
-    const { generator } = await import(plugins["studiesQueryByIndex"]);
+    const { generator } = await import(plugins.studiesQueryByIndex);
     const queryFunction = generator(params);
     must(queryFunction).be.function();
   });

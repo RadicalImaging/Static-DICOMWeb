@@ -1,21 +1,14 @@
 const WriteStream = require("./WriteStream");
 
-const ThumbnailWriter = (options) => {
-  const { verbose } = options;
+const ThumbnailWriter = () => async (filePath, fileName, thumbBuffer) => {
+  const writeStream = WriteStream(filePath, fileName, {
+    mkdir: true,
+  });
 
-  return async (filePath, fileName, thumbBuffer) => {
-    const writeStream = WriteStream(filePath, fileName, {
-      mkdir: true,
-    });
+  await writeStream.write(thumbBuffer);
 
-    await writeStream.write(thumbBuffer);
-
-    await writeStream.close();
-
-    if (verbose) {
-      console.log("Wrote thumbnail frame", filePath, fileName);
-    }
-  };
+  console.verbose("Wrote thumbnail frame", filePath, fileName);
+  return writeStream.close();
 };
 
 module.exports = ThumbnailWriter;

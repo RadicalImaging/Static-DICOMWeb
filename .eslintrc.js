@@ -28,6 +28,7 @@ module.exports = {
     "no-restricted-syntax": 0,
     "consistent-return": "warn",
     "prefer-destructuring": 0,
+    "no-plusplus": 0,
     "class-methods-use-this": 0,
     "node/no-unsupported-features/es-syntax": 0,
   },

@@ -1,11 +1,11 @@
 const dataExtractor = /^(.*studies)?[\\/]?([0-9.a-zA-Z]+)[\\/](series[\\/])?([0-9.a-zA-Z]+)([\\/]instances[\\/]([0-9.a-zA-Z]*))?$/;
 
-module.exports = (options) =>
+module.exports = () =>
   async function rejectInstanceWithOptions(args) {
     let studyInstanceUid = args[0];
     let seriesInstanceUid;
     let sopInstanceUid;
-    let reason = args[2] || 'REJECT';
+    const reason = args[2] || "REJECT";
     const extracted = args[0].match(dataExtractor);
     if (extracted) {
       studyInstanceUid = extracted[2];

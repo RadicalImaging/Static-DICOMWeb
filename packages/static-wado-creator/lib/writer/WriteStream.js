@@ -2,6 +2,8 @@ const fs = require("fs");
 const zlib = require("zlib");
 const path = require("path");
 
+let writeCount = 0;
+
 /** Create an optionally gzipped stream,
  * where the write operations are performed in order executed,
  * and don't require synchronization, only the 'close' operation
@@ -14,6 +16,14 @@ const WriteStream = (dir, nameSrc, options = {}) => {
 
   const tempName = path.join(dir, `tempFile-${Math.round(Math.random() * 1000000000)}`);
   const finalName = path.join(dir, name);
+  writeCount++;
+  if (writeCount > 10) {
+    console.log("Write count", tempName, finalName, writeCount);
+    if (writeCount > 100) {
+      console.error("Too many open writes", new Error());
+      throw new Error(`Write count too high ${writeCount} destination ${finalName}`);
+    }
+  }
   const rawStream = fs.createWriteStream(tempName);
   const closePromise = new Promise((resolve) => {
     rawStream.on("close", () => {
@@ -33,7 +43,8 @@ const WriteStream = (dir, nameSrc, options = {}) => {
   async function close() {
     await this.writeStream.end();
     await this.closePromise;
-    await fs.rename(tempName, finalName, () => true); // console.log('Renamed', tempName,finalName));
+    await fs.rename(tempName, finalName, () => true);
+    writeCount--;
   }
 
   return {

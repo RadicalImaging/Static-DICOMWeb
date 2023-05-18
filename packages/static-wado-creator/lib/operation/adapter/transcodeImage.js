@@ -100,7 +100,7 @@ function getDestinationTranscoder(id) {
  */
 function getTranscoder(transferSyntaxUid, { contentType, verbose }) {
   if (verbose) {
-    console.log('getTranscoder for', transferSyntaxUid, 'source to', contentType);
+    console.log("getTranscoder for", transferSyntaxUid, "source to", contentType);
   }
   const sourceTranscoder = transcodeSourceMap[transferSyntaxUid];
   const destinationTranscoder = getDestinationTranscoder(contentType);
@@ -123,7 +123,7 @@ function getTranscoder(transferSyntaxUid, { contentType, verbose }) {
 function shouldTranscodeImageFrame(id, options) {
   const { recompress } = options;
   if (!recompress) {
-    if( options.verbose ) console.log("Not transcoding because recompress not set");
+    if (options.verbose) console.log("Not transcoding because recompress not set");
     return false;
   }
 
@@ -133,8 +133,8 @@ function shouldTranscodeImageFrame(id, options) {
     return transcoder && transcoder.transferSyntaxUid && (recompress.includes("true") || recompress.includes(transcoder.alias));
   }
 
-  const ret  = isValidTranscoder();
-  if( !ret && options.verbose ) {
+  const ret = isValidTranscoder();
+  if (!ret && options.verbose) {
     console.log("Not transcoding");
   }
   return ret;
@@ -184,7 +184,7 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
   let result = {};
 
   if (!shouldTranscodeImageFrame(id, options)) {
-    if( options.verbose ) console.log("Shouldn't transcode");
+    if (options.verbose) console.log("Shouldn't transcode");
     return {
       id,
       imageFrame,
@@ -196,7 +196,7 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
 
   // last chance to prevent transcoding
   if (targetId.transferSyntaxUid !== transcoder.transferSyntaxUid) {
-     console.log("Image is already in", targetId.transferSyntaxUid, "not transcoding");
+    console.log("Image is already in", targetId.transferSyntaxUid, "not transcoding");
     return {
       id,
       imageFrame,
@@ -204,8 +204,8 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
     };
   }
 
-  if( options.verbose ) console.log("Transcoding to", transcoder.transferSyntaxUid);
-  
+  if (options.verbose) console.log("Transcoding to", transcoder.transferSyntaxUid);
+
   const imageInfo = getImageInfo(dataSet);
   let done = false;
   let processResultMsg = "";
@@ -304,7 +304,7 @@ function transcodeMetadata(metadata, id, options) {
 
   if (result[Tags.AvailableTransferSyntaxUID]) {
     Tags.setValue(result, Tags.AvailableTransferSyntaxUID, transcodedId.transferSyntaxUid);
-    if( this.verbose ) {
+    if (this.verbose) {
       console.log("Apply available tsuid", transcodeId.transferSyntaxUid);
     }
   }

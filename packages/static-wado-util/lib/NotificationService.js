@@ -26,7 +26,7 @@ class NotificationService {
    *
    * @param {Func} callback function taking the JSON object data.  If it throws, the failure funciton will be called
    * @param {number} options.delay - if defined will sleep the given length of time between scans.  Otherwise only one scan is performed.
-   * @param {number} options.retries - how many retries to apply 
+   * @param {number} options.retries - how many retries to apply
    * @returns a promise that can be awaited to wait until the end of the scan, or until shutdown is completed.
    */
   async scan(callback, options = {}) {
@@ -83,11 +83,14 @@ class NotificationService {
   /** Notifies on the given study */
   notifyStudy(studyUID, options = {}) {
     if (!this.dir) return;
-    this.notify({
-      ...options,
-      StudyInstanceUID: studyUID,
-      action: options.action || "update",
-    }, studyUID);
+    this.notify(
+      {
+        ...options,
+        StudyInstanceUID: studyUID,
+        action: options.action || "update",
+      },
+      studyUID
+    );
   }
 }
 

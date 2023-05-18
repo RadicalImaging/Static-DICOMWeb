@@ -18,7 +18,6 @@ export const qidoMap = (req, res, next) => {
 export const otherJsonMap = (req, res, next) => {
   res.setHeader("content-type", "application/json; charset=utf-8");
   req.url = `${req.path}.gz`;
-  res.setHeader
   next();
 };
 
@@ -40,11 +39,10 @@ export const dicomMap = (req, res, next) => {
   next();
 };
 
-export const frameIdMap = (req) => {
+export const frameIdMap = () =>
   // const { frameID, DatastoreID, DICOMStudyID } = req.query;
   // return frameID && DatastoreID && `/studies/htj2k/${DatastoreID}/${DICOMStudyID}/${frameID}.jhc`;
-  return null;
-};
+  null;
 
 /**
  * Handles returning frames

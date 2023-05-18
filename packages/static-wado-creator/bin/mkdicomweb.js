@@ -5,5 +5,5 @@ const { configureProgram } = require("../lib/program");
 
 // Configure program commander
 configureProgram(mkdicomwebConfig).then(() => {
-  console.log("done");
+  console.verbose("done");
 });

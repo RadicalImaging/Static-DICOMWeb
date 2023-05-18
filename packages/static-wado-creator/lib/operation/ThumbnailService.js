@@ -3,7 +3,7 @@ const glob = require("glob");
 const dicomCodec = require("@cornerstonejs/dicom-codec");
 const staticCS = require("@radicalimaging/static-cs-lite");
 const fs = require("fs");
-const { Tags, execSpawn } = require("@radicalimaging/static-wado-util");
+const { Tags, execSpawn, Stats } = require("@radicalimaging/static-wado-util");
 const decodeImage = require("./adapter/decodeImage");
 const { shouldThumbUseTranscoded } = require("./adapter/transcodeImage");
 const { isVideo } = require("../writer/VideoWriter");
@@ -100,7 +100,7 @@ class ThumbnailService {
   }
 
   /**
-   * Generates thumbnails for the levels: instances, series, study
+   * Generates thumbnails for the levels: instances, series, study.  This is asynchronous
    *
    * @param {*} dataSet
    * @param {*} metadata
@@ -116,7 +116,8 @@ class ThumbnailService {
         const { BulkDataURI } = pixelData;
         if (BulkDataURI?.indexOf("mp4")) {
           const mp4Path = path.join(itemId.sopInstanceRootPath, "pixeldata.mp4");
-          const thumbPath = path.join(itemId.sopInstanceRootPath, "thumbnail");
+          // Generate as rendered, as more back ends support that.
+          const thumbPath = path.join(itemId.sopInstanceRootPath, "rendered");
           console.log("MP4 - converting video format", mp4Path);
           this.ffmpeg(mp4Path, thumbPath);
         } else {
@@ -125,15 +126,23 @@ class ThumbnailService {
       } else {
         console.log("Series is of other type...", metadata[Tags.Modality]);
       }
-      return;
+      return null;
     }
-    internalGenerateThumbnail(imageFrame, dataSet, metadata, id.transferSyntaxUid, async (thumbBuffer) => {
-      if (thumbBuffer) {
-        await callback.thumbWriter(id.sopInstanceRootPath, this.thumbFileName, thumbBuffer);
+    return new Promise((resolve, reject) => {
+      internalGenerateThumbnail(imageFrame, dataSet, metadata, id.transferSyntaxUid, async (thumbBuffer) => {
+        try {
+          if (thumbBuffer) {
+            await callback.thumbWriter(id.sopInstanceRootPath, this.thumbFileName, thumbBuffer);
 
-        this.copySyncThumbnail(id.sopInstanceRootPath, id.seriesRootPath);
-        this.copySyncThumbnail(id.seriesRootPath, id.studyPath);
-      }
+            this.copySyncThumbnail(id.sopInstanceRootPath, id.seriesRootPath);
+            this.copySyncThumbnail(id.seriesRootPath, id.studyPath);
+            Stats.StudyStats.add("Thumbnail Write", `Write thumbnail ${this.thumbFileName}`, 100);
+          }
+          resolve(this.thumbFileName);
+        } catch (e) {
+          reject(e);
+        }
+      });
     });
   }
 

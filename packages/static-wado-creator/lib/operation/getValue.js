@@ -1,19 +1,19 @@
 const extractImageFrames = require("./extractImageFrames");
 
-function decode_utf8(s, options) {
-  if( options?.SpecificCharacterSet === "ISO_IR 192") {
+function decodeUtf8(s, options) {
+  if (options?.SpecificCharacterSet === "ISO_IR 192") {
     return decodeURIComponent(escape(s));
   }
   return s;
 }
 
 /** Gets a value as a UTF-8 string - todo, make UTF-8 decode optional. */
-const getValueInlineString = (dataSet, attr, options) => [decode_utf8(dataSet.string(attr.tag), options)];
+const getValueInlineString = (dataSet, attr, options) => [decodeUtf8(dataSet.string(attr.tag), options)];
 
 const getStrings = (dataSet, attr, options) => {
   const ret = dataSet.string(attr.tag);
-  if( ret ) {
-    return ret.split(/\\/).map(decode_utf8, options);
+  if (ret) {
+    return ret.split(/\\/).map(decodeUtf8, options);
   }
   return undefined;
 };

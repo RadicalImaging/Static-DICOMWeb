@@ -16,6 +16,5 @@ export default async function extractSop(file) {
     return sop;
   } catch (e) {
     console.log("File", file, "isn't DICOM", e);
-    return;
   }
 }
