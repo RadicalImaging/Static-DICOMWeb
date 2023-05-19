@@ -34,7 +34,7 @@ function createVerboseLog(verbose /* , options */) {
   // eslint-disable-next-line no-shadow-restricted-names
   console.verbose = (...args) => {
     if (!verbose) return;
-    console.log(console, ...args);
+    console.log(...args);
   };
 }
 

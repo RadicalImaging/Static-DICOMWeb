@@ -2074,27 +2074,37 @@
   resolved "https://registry.npmjs.org/@cornerstonejs/codec-charls/-/codec-charls-0.2.0.tgz"
   integrity sha512-yaU0PkbYoDk9YC6p+kub8Sp2XC6BBRpHowkj19jNkWypu26eAGTcJgJs3/Q54NIAumr8fGd412Fhk61BRVHs/w==
 
+"@cornerstonejs/codec-charls@^1.2.3":
+  version "1.2.3"
+  resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-charls/-/codec-charls-1.2.3.tgz#6952c420486822ac8404409ae0ed5a559aff6e25"
+  integrity sha512-qKUe6DN0dnGzhhfZLYhH9UZacMcudjxcaLXCrpxJImT/M/PQvZCT2rllu6VGJbWKJWG+dMVV2zmmleZcdJ7/cA==
+
 "@cornerstonejs/codec-libjpeg-turbo-8bit@^0.1.0":
   version "0.1.0"
   resolved "https://registry.npmjs.org/@cornerstonejs/codec-libjpeg-turbo-8bit/-/codec-libjpeg-turbo-8bit-0.1.0.tgz"
   integrity sha512-+CGgFflXPbzHs8YjOvzn/ZGRKw2BH6b2JvIHBTsdSLeWGZ+a8Ts72IQ5eKc+xr4nfzV8imc6JMcIKJR8fZoNyA==
+
+"@cornerstonejs/codec-libjpeg-turbo-8bit@^1.2.2":
+  version "1.2.2"
+  resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-libjpeg-turbo-8bit/-/codec-libjpeg-turbo-8bit-1.2.2.tgz#ae384b149d6655e3dd6e18b9891fab479ab5e144"
+  integrity sha512-aAUMK2958YNpOb/7G6e2/aG7hExTiFTASlMt/v90XA0pRHdWiNg5ny4S5SAju0FbIw4zcMnR0qfY+yW3VG2ivg==
 
 "@cornerstonejs/codec-little-endian@^0.0.6":
   version "0.0.6"
   resolved "https://registry.npmjs.org/@cornerstonejs/codec-little-endian/-/codec-little-endian-0.0.6.tgz"
   integrity sha512-W0okvChe8dsb7h8/VRHd+2qSztvKdfD90bw2CbQf68P2yGg5huOo02rfvKkhpq7a0omQkk/4YrkAY6o0SEFPrg==
 
-"@cornerstonejs/codec-openjpeg@>=1.2.1", "@cornerstonejs/codec-openjpeg@^0.2.1", "@cornerstonejs/codec-openjpeg@^1.2.1":
+"@cornerstonejs/codec-openjpeg@>=1.2.2", "@cornerstonejs/codec-openjpeg@^0.2.1", "@cornerstonejs/codec-openjpeg@^1.2.2":
   version "1.2.2"
   resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-openjpeg/-/codec-openjpeg-1.2.2.tgz#f0b524235b5551426b46db197a37b06f8ac805d7"
   integrity sha512-b1O7lZacKXelgeV9n8XWZ7pTw3i4Bq4qQ26G5ahBjWoOw4QNcCrb5hPxWBxNB/I8AoNbJxAe+lyLtyQGfdrTbw==
 
-"@cornerstonejs/codec-openjph@>=2.4.1", "@cornerstonejs/codec-openjph@^2.4.1":
+"@cornerstonejs/codec-openjph@>=2.4.2", "@cornerstonejs/codec-openjph@^2.4.2":
   version "2.4.2"
   resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-openjph/-/codec-openjph-2.4.2.tgz#e96721d56f6ec96f7f95c16321d88cc8467d8d81"
   integrity sha512-lgdvBvvNezleY+4pIe2ceUsJzlZe/0PipdeubQ3vZZOz3xxtHHMR1XFCl4fgd8gosR8COHuD7h6q+MwgrwBsng==
 
-"@cornerstonejs/dicom-codec@>=0.1.6", "@cornerstonejs/dicom-codec@^0.1.6":
+"@cornerstonejs/dicom-codec@>=0.1.6":
   version "0.1.6"
   resolved "https://registry.npmjs.org/@cornerstonejs/dicom-codec/-/dicom-codec-0.1.6.tgz"
   integrity sha512-4CmB3Wqwf4bXNMAg7VI0v1eBVbFYw5b94ibaOx8XFT3gyLfYx8ISTqqGkyTF3/9QL7b6+WTd0A1FEhwdPHuBGw==
@@ -2104,6 +2114,20 @@
     "@cornerstonejs/codec-libjpeg-turbo-8bit" "^0.1.0"
     "@cornerstonejs/codec-little-endian" "^0.0.6"
     "@cornerstonejs/codec-openjpeg" "^0.2.1"
+    browser-or-node "^2.0.0"
+    jpeg-lossless-decoder-js "^2.0.4"
+
+"@cornerstonejs/dicom-codec@^0.1.9":
+  version "0.1.9"
+  resolved "https://registry.yarnpkg.com/@cornerstonejs/dicom-codec/-/dicom-codec-0.1.9.tgz#60ed09f6764ca0780ba8d82792074f312be44b10"
+  integrity sha512-RW/hZBAsxRn/ki+ImZw5LYWMQs/LjYQJ+bT2OMq+xfqYkSda3Rz/Hof1Xw1KB6luU2PtfLBaDey8wV2hy26gdA==
+  dependencies:
+    "@cornerstonejs/codec-big-endian" "^0.1.0"
+    "@cornerstonejs/codec-charls" "^1.2.3"
+    "@cornerstonejs/codec-libjpeg-turbo-8bit" "^1.2.2"
+    "@cornerstonejs/codec-little-endian" "^0.0.6"
+    "@cornerstonejs/codec-openjpeg" "^1.2.2"
+    "@cornerstonejs/codec-openjph" "^2.4.2"
     browser-or-node "^2.0.0"
     jpeg-lossless-decoder-js "^2.0.4"
 

@@ -1,9 +1,8 @@
 const dicomCodec = require("@cornerstonejs/dicom-codec");
-const { Stats, handleHomeRelative } = require("@radicalimaging/static-wado-util");
+const { Stats, handleHomeRelative, dirScanner, JSONReader, JSONWriter, asyncIterableToBuffer, Tags } = require("@radicalimaging/static-wado-util");
 const dicomParser = require("dicom-parser");
 const fs = require("fs");
 const path = require("path");
-const { dirScanner, JSONReader, JSONWriter, asyncIterableToBuffer } = require("@radicalimaging/static-wado-util");
 const { NotificationService } = require("@radicalimaging/static-wado-util");
 const getDataSet = require("./operation/getDataSet");
 const InstanceDeduplicate = require("./operation/InstanceDeduplicate");
@@ -138,7 +137,7 @@ class StaticWado {
       params.file
     );
 
-    const targetId = transcodeId(id, this.options);
+    const targetId = transcodeId(id, this.options, dataSet.uint16(Tags.RawSamplesPerPixel));
 
     let bulkDataIndex = 0;
     let imageFrameIndex = 0;
