@@ -363,7 +363,8 @@ class StudyData {
         gzip: true,
         index: false,
       });
-      await JSONWriter(seriesPath, "series", [seriesQuery]);
+      // Write out a series singleton that has just the series response for a single series.
+      await JSONWriter(seriesPath, "series-singleton.json", [seriesQuery], {gzip:true, index:false});
       await JSONWriter(seriesPath, "instances", instancesQuery);
     }
 

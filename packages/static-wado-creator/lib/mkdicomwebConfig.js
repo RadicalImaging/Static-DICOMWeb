@@ -46,7 +46,7 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       },
       {
         key: "-t, --content-type <type>",
-        description: 'Destination type to compress to (choices: "jls", "lei", "jls-lossy", "jhc", "jxl" or DICOM Transfer Syntax UID - default: "jls")',
+        description: 'Destination type to compress to (choices: "jpeg", "jls", "lei", "jls-lossy", "jhc", "jxl" or DICOM Transfer Syntax UID - default: "jls")',
         defaultValue: "jls",
         customParser: compressionOptionParser,
       },
@@ -80,7 +80,13 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         key: "-r, --recompress <listvalue...>",
         description: "List of types to recompress separated by space",
         defaultValue: ["uncompressed", "jp2", "jls", "jll"],
-        choices: ["uncompressed", "jp2", "jpeglossless", "rle", "jph", "jls", "true", "none"],
+        choices: ["uncompressed", "jp2", "jpeg", "jpeglossless", "rle", "jph", "jls", "true", "none"],
+      },
+      {
+        key: "--recompress-color <listvalue...>",
+        description: "List of types to recompress for color images, separated by space",
+        defaultValue: ["uncompressed"],
+        choices: ["uncompressed", "jpeg", "jp2", "jpeglossless", "rle", "jph", "jls", "true", "none"],
       },
       {
         key: "--recompress-thumb <listvalue...>",
@@ -99,9 +105,9 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         defaultValue: false,
       },
       {
-        key: "-T, --colour-content-type <value>",
+        key: "-T, --color-content-type <value>",
         description: "Colour content type",
-        defaultValue: null,
+        defaultValue: "jpeg",
       },
       {
         key: "--path-deduplicated <path>",

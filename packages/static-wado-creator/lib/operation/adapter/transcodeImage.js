@@ -2,6 +2,8 @@ const dicomCodec = require("@cornerstonejs/dicom-codec");
 const { Tags } = require("@radicalimaging/static-wado-util");
 const getImageInfo = require("./getImageInfo");
 
+dicomCodec.setConfig("verbose: false");
+
 const transcodeOp = {
   none: 0,
   decode: 1,
@@ -37,6 +39,10 @@ const transcodeDestinationMap = {
     transferSyntaxUid: "3.2.840.10008.1.2.4.96",
     transcodeOp: transcodeOp.encode,
   },
+  jpeg: {
+    transferSyntaxUid: "1.2.840.10008.1.2.4.50",
+    transcodeOp: transcodeOp.encode,
+  },
 };
 
 const transcodeSourceMap = {
@@ -51,6 +57,10 @@ const transcodeSourceMap = {
   "1.2.840.10008.1.2.2": {
     transcodeOp: transcodeOp.decode,
     alias: "uncompressed",
+  },
+  "1.2.840.10008.1.2.4.50": {
+    transcodeOp: transcodeOp.decode,
+    alias: "jpeg",
   },
   "1.2.840.10008.1.2.4.57": {
     transcodeOp: transcodeOp.decode,
@@ -98,10 +108,8 @@ function getDestinationTranscoder(id) {
  * @param {*} transferSyntaxUid
  * @returns
  */
-function getTranscoder(transferSyntaxUid, { contentType, verbose }) {
-  if (verbose) {
-    console.log("getTranscoder for", transferSyntaxUid, "source to", contentType);
-  }
+function getTranscoder(transferSyntaxUid, { contentType: greyContentType, colorContentType }, samplesPerPixel) {
+  const contentType = samplesPerPixel===3 ? colorContentType : greyContentType;
   const sourceTranscoder = transcodeSourceMap[transferSyntaxUid];
   const destinationTranscoder = getDestinationTranscoder(contentType);
   if (!sourceTranscoder || !destinationTranscoder) {
@@ -120,22 +128,23 @@ function getTranscoder(transferSyntaxUid, { contentType, verbose }) {
  * @param {*} id object containing transferSyntaxUid
  * @param {*} options runner options
  */
-function shouldTranscodeImageFrame(id, options) {
-  const { recompress } = options;
+function shouldTranscodeImageFrame(id, options, samplesPerPixel) {
+  const { recompress: recompressGrey, recompressColor } = options;
+  const recompress = samplesPerPixel === 3 ? recompressColor : recompressGrey;
   if (!recompress) {
-    if (options.verbose) console.log("Not transcoding because recompress not set");
+    console.verbose("Not transcoding because recompress not set");
     return false;
   }
 
   function isValidTranscoder() {
     const { transferSyntaxUid } = id;
-    const transcoder = getTranscoder(transferSyntaxUid, options);
+    const transcoder = getTranscoder(transferSyntaxUid, options, samplesPerPixel);
     return transcoder && transcoder.transferSyntaxUid && (recompress.includes("true") || recompress.includes(transcoder.alias));
   }
 
   const ret = isValidTranscoder();
-  if (!ret && options.verbose) {
-    console.log("Not transcoding");
+  if (!ret) {
+    console.verbose("Not transcoding");
   }
   return ret;
 }
@@ -154,7 +163,8 @@ function shouldThumbUseTranscoded(id, options) {
 
   function isValidTranscoder() {
     const { transferSyntaxUid } = id;
-    const transcoder = getTranscoder(transferSyntaxUid, options);
+    // Ignore the samples per pixel for thumbnails
+    const transcoder = getTranscoder(transferSyntaxUid, options, "thumbnail");
     const result = transcoder && transcoder.transferSyntaxUid && options.recompress.includes(transcoder.alias) && options.recompressThumb.includes(transcoder.alias);
 
     return result;
@@ -183,8 +193,9 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
   let targetId = targetIdSrc;
   let result = {};
 
-  if (!shouldTranscodeImageFrame(id, options)) {
-    if (options.verbose) console.log("Shouldn't transcode");
+  const samplesPerPixel = dataSet.uint16(Tags.RawSamplesPerPixel);
+  if (!shouldTranscodeImageFrame(id, options, samplesPerPixel)) {
+    console.verbose("Shouldn't transcode");
     return {
       id,
       imageFrame,
@@ -192,11 +203,11 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
     };
   }
 
-  const transcoder = getTranscoder(id.transferSyntaxUid, options);
+  const transcoder = getTranscoder(id.transferSyntaxUid, options, samplesPerPixel);
 
   // last chance to prevent transcoding
   if (targetId.transferSyntaxUid !== transcoder.transferSyntaxUid) {
-    console.log("Image is already in", targetId.transferSyntaxUid, "not transcoding");
+    console.verbose("Image is already in", targetId.transferSyntaxUid, "not transcoding");
     return {
       id,
       imageFrame,
@@ -204,7 +215,7 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
     };
   }
 
-  if (options.verbose) console.log("Transcoding to", transcoder.transferSyntaxUid);
+  console.verbose("Transcoding to", transcoder.transferSyntaxUid);
 
   const imageInfo = getImageInfo(dataSet);
   let done = false;
@@ -269,13 +280,13 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
  * @param {*} options runner options.
  * @returns Transcoded id object
  */
-function transcodeId(id, options) {
-  if (!shouldTranscodeImageFrame(id, options)) {
+function transcodeId(id, options, samplesPerPixel) {
+  if (!shouldTranscodeImageFrame(id, options, samplesPerPixel)) {
     return id;
   }
 
   const targetId = { ...id };
-  const { transferSyntaxUid } = getTranscoder(id.transferSyntaxUid, options);
+  const { transferSyntaxUid } = getTranscoder(id.transferSyntaxUid, options, samplesPerPixel);
 
   targetId.transferSyntaxUid = transferSyntaxUid;
 
@@ -294,19 +305,18 @@ function transcodeId(id, options) {
  * @returns Transcoded metadata.
  */
 function transcodeMetadata(metadata, id, options) {
-  if (!shouldTranscodeImageFrame(id, options)) {
+  const samplesPerPixel = Tags.getValue(metadata, Tags.SamplesPerPixel);
+  if (!shouldTranscodeImageFrame(id, options, samplesPerPixel)) {
     return metadata;
   }
 
-  const transcodedId = transcodeId(id, options);
+  const transcodedId = transcodeId(id, options, samplesPerPixel);
 
   const result = { ...metadata };
 
   if (result[Tags.AvailableTransferSyntaxUID]) {
     Tags.setValue(result, Tags.AvailableTransferSyntaxUID, transcodedId.transferSyntaxUid);
-    if (this.verbose) {
-      console.log("Apply available tsuid", transcodeId.transferSyntaxUid);
-    }
+    console.verbose("Apply available tsuid", transcodeId.transferSyntaxUid);
   }
 
   return result;

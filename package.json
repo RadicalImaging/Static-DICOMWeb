@@ -33,17 +33,17 @@
     "webpack-cli": "^5.0.1"
   },
   "dependencies": {
-    "@cornerstonejs/codec-openjpeg": "^1.2.1",
-    "@cornerstonejs/codec-openjph": "^2.4.1",
-    "@cornerstonejs/dicom-codec": "^0.1.6",
+    "@cornerstonejs/codec-openjpeg": "^1.2.2",
+    "@cornerstonejs/codec-openjph": "^2.4.2",
+    "@cornerstonejs/dicom-codec": "^0.1.9",
     "canvas": "^2.11.0"
   },
   "resolutions": {
     "core-js": "^3.29.1",
     "rollup": ">=3.6.0",
     "typescript": ">=5.0.2",
-    "@cornerstonejs/codec-openjpeg": ">=1.2.1",
-    "@cornerstonejs/codec-openjph": ">=2.4.1"
+    "@cornerstonejs/codec-openjpeg": ">=1.2.2",
+    "@cornerstonejs/codec-openjph": ">=2.4.2"
   },
   "workspaces": [
     "packages/*"

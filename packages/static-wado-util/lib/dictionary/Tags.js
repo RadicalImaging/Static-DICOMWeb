@@ -38,6 +38,7 @@ const Tags = {
   RawTransferSyntaxUID: "x00020010",
   RawSopInstanceUID: "x00080018",
   RawSpecificCharacterSet: "x00080005",
+  RawSamplesPerPixel: "x00280002",
 
   // This one isn't defined in the dataDictionary
   AvailableTransferSyntaxUID: "00083002",
