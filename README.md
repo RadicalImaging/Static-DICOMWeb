@@ -1,4 +1,5 @@
-# `static-wado`
+# Static DICOMweb   aka `static-wado`
+
 
 The static wado project is a project to create a web-centric PACS system based on DICOMweb.  The project was started out of
 some scripts that converted binary DICOM files into static wado (DICOMweb) files, but has been extended to cover more
@@ -10,6 +11,21 @@ areas.  There are a few parts to the idea of "static" wado files:
 4. Store deduplicated data in a write once fashion for fast retrieves as well as efficient updates
 
 That is basically it.  All of the other operations are on top of those four basic principles.
+
+## AWS Setup
+If you are going to be deploying to AWS, you need to do these common steps, as described in AWS guides:
+
+1. Create an AWS account
+2. Issue yourself a set of of AWS programmatic access keys
+3. Download and install the AWS CLI and AWS CDK
+4. Store your AWS keys into the `~/.aws/credentials`
+5. Initialize CDK in the s3-deploy subdirectory using `cdk bootstrap` command
+6. Create a configuration storing your AWS storage.
+
+Note: NEVER store you aws keys in a public place, these give unfettered access to your account.
+
+### Separate or New AWS Accounts
+You need a separate static-dicomweb checkout directory for every AWS account you are trying to deploy to, as well as separate programmatic credentials and static-wado.json5 configuration.  The suggestion here is to create a docker deployment for running the deploy, and having permanent directories containing your OHIF, DICOMweb and configuration area that are permanently stored in separate locations.  It is a feature request to add this as an automatic setup so you can just run a simple docker start script.
 
 ## How to build a mini-PACS system with OHIF
 What you need to do is run the dicomweb scp and server components to accept incoming images and serve up the data, complete with the OHIF client.  This can be done with the following steps:
