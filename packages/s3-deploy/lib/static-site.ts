@@ -19,7 +19,6 @@ export class StaticSite extends Construct {
   constructor(parent: Stack, name: string, props: any) {
     super(parent, name);
 
-    console.log("props:", props);
     if ( !props.clientGroup && !props.rootGroup ) {
       throw new Error("No clientGroup or rootGroup declared in deployment");
     }
