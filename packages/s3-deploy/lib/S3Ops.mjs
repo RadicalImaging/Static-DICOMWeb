@@ -110,7 +110,7 @@ class S3Ops {
   }
 
   remoteRelativeToUri(uri) {
-    if (uri===undefined) return;
+    if (uri === undefined) return;
     if (uri.length > 5 && uri.substring(0, 5) === "s3://") return uri;
     return this.group.path ? `s3://${this.group.Bucket}${this.group.path}/${uri}` : `s3://${this.group.Bucket}/${uri}`;
   }
@@ -139,7 +139,7 @@ class S3Ops {
     for (let i = 1; i < ETag.length - 1; i++) {
       if (md5[i] != ETag.charCodeAt(i)) {
         // Leave this for now as there might be more file types needing specific encoding checks
-        console.log("md5 different at", i, md5[i], ETag.charCodeAt(i), ETag, md5.toString());
+        console.warn("md5 different at", i, md5[i], ETag.charCodeAt(i), ETag, md5.toString());
         return false;
       }
     }
@@ -158,7 +158,7 @@ class S3Ops {
       Key,
     });
     if (options?.force !== true && fs.existsSync(destFile)) {
-      console.verbose("Skipping", destFile);
+      console.info("Already exists", Key);
       return destFile;
     }
 
@@ -171,9 +171,9 @@ class S3Ops {
       const result = await this.client.send(command);
       const { Body } = result;
       await copyTo(Body, destFile);
-      console.verbose("Done copyTo destDir");
+      console.info("Retrieved", Key);
     } catch (e) {
-      console.log("Error retrieving", Bucket, Key, e);
+      console.warn("Error retrieving", Bucket, Key, e);
     }
 
     return destFile;
@@ -195,8 +195,8 @@ class S3Ops {
 
   async dir(uri) {
     const remoteUri = this.remoteRelativeToUri(uri);
-    if( !remoteUri ) {
-      throw new Error(`No remoteURI found for ${uri}`)
+    if (!remoteUri) {
+      throw new Error(`No remoteURI found for ${uri}`);
     }
     const bucketStart = 5;
     const bucketEnd = remoteUri.indexOf("/", bucketStart + 1);
@@ -243,6 +243,8 @@ class S3Ops {
    * Asynchronous
    */
   async upload(dir, file, hash, ContentSize, excludeExisting = {}) {
+    // Exclude the Mac garbage
+    if (file && file.indexOf(".DS_STORE") !== -1) return false;
     const Key = this.fileToKey(file);
     const ContentType = this.fileToContentType(file);
     const Metadata = this.fileToMetadata(file, hash);
@@ -252,7 +254,7 @@ class S3Ops {
     const CacheControl = isNoCacheKey ? "no-cache" : undefined;
 
     if (this.shouldSkip(excludeExisting[Key], fileName)) {
-      console.verbose("Already exists", Key, excludeExisting[Key].ETag);
+      console.info("Already exists", Key);
       return false;
     }
 
@@ -268,8 +270,9 @@ class S3Ops {
       ContentSize,
     });
     console.verbose("uploading", file, ContentType, ContentEncoding, Key, ContentSize, Metadata, this.group.Bucket);
+    console.info("Stored", Key);
     if (this.options.dryRun) {
-      console.log("Dry run - no upload", Key);
+      console.log("Dry run - not stored", Key);
       // Pretend this uploaded - causes count to change
       return true;
     }
