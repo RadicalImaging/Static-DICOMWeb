@@ -109,7 +109,7 @@ function getDestinationTranscoder(id) {
  * @returns
  */
 function getTranscoder(transferSyntaxUid, { contentType: greyContentType, colorContentType }, samplesPerPixel) {
-  const contentType = samplesPerPixel===3 ? colorContentType : greyContentType;
+  const contentType = samplesPerPixel === 3 ? colorContentType : greyContentType;
   const sourceTranscoder = transcodeSourceMap[transferSyntaxUid];
   const destinationTranscoder = getDestinationTranscoder(contentType);
   if (!sourceTranscoder || !destinationTranscoder) {
