@@ -25,6 +25,7 @@ const getBucket = function(site: Construct, name: string, props: any) {
       bucketName: name,
       cors,
       blockPublicAccess: { ignorePublicAcls: false, blockPublicAcls: false, restrictPublicBuckets: false, blockPublicPolicy: false, },
+      blockPublicAccess: { ignorePublicAcls: false, blockPublicAcls: false, restrictPublicBuckets: false, blockPublicPolicy: false, },
       removalPolicy: RemovalPolicy.DESTROY, // NOT recommended for production code
       autoDeleteObjects: true, // NOT recommended for production code
     });
