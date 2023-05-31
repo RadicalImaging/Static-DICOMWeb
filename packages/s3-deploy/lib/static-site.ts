@@ -27,11 +27,13 @@ export class StaticSite extends Construct {
       comment: `OAI for ${name}`
     });
 
-    let clientDistProps;
+    // Ordered, so get first value for primary, and then everything else
+    const distProps = new Map();
+    
     if (props.clientGroup) {
       const clientGroup = configGroup(props,"client");
       console.log("clientGroup:", clientGroup);
-      clientDistProps = clientSite(this,name,cloudfrontOAI,clientGroup);
+      distProps.set('/', clientSite(this,name,cloudfrontOAI,clientGroup));
     } else {
       console.log("no clientGroup specified for deployment:", name);
     }
@@ -43,31 +45,27 @@ export class StaticSite extends Construct {
       createDocumentGroup(this,group);  
     }
 
-    let rootDistProps;
     if (props.rootGroup) {
       const rootGroup = configGroup(props,"root");
       console.log("rootGroup:", rootGroup);
-      rootDistProps = rootSite(this,name,cloudfrontOAI,rootGroup);
+      distProps.set('/dicomweb/*',rootSite(this,name,cloudfrontOAI,rootGroup));
     } else {
       console.log("no rootGroup specified for deployment:", name);
     }
 
-    let uploadDistProps;
     if (props.uploadGroup) {
       const group = configGroup(props,"upload");
       console.log("Upload Group:", group);
-      uploadDistProps = uploadSite(this,name,cloudfrontOAI,group);
+      distProps.set('/lei/*',uploadSite(this,name,cloudfrontOAI,group));
     } else {
       console.log("no extra group specified for deployment:", name);
     }
 
-    const defaultDistProps = clientDistProps || rootDistProps;
-    const additionalDistProps = (clientDistProps && rootDistProps) ? { "/dicomweb/*": rootDistProps } : undefined;
-    if( uploadDistProps && additionalDistProps) {
-      console.log("Adding mapping for", uploadDistProps);
-      additionalDistProps["/lei/*"] = uploadDistProps;
-    }
-
+    // Split the distribution properties into the primary one (first added), and everything else
+    const distIterator = distProps.entries();
+    const [ , defaultDistProps] = distIterator.next().value;
+    const additionalDistProps = distProps.size>1 ? Object.fromEntries(distIterator) : undefined;
+    
     const siteInfo = getSiteInfo(this, name, props);
     const siteDomain = siteInfo?[siteInfo.siteDomain]:undefined;
 
@@ -78,6 +76,7 @@ export class StaticSite extends Construct {
       enableIpv6: true,
       defaultBehavior: defaultDistProps,
       additionalBehaviors: additionalDistProps,
+      httpVersion:  cloudfront.HttpVersion.HTTP3,
     });
 
   

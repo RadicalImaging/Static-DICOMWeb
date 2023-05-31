@@ -252,7 +252,7 @@ class S3Ops {
     const CacheControl = isNoCacheKey ? "no-cache" : undefined;
 
     if (this.shouldSkip(excludeExisting[Key], fileName)) {
-      console.verbose("Already exists", Key, excludeExisting[Key].ETag);
+      console.info("Exists", Key);
       return false;
     }
 
@@ -275,6 +275,7 @@ class S3Ops {
     }
     try {
       await this.client.send(command);
+      console.info("Uploaded", Key);
       return true;
     } catch (error) {
       console.log("Error sending", file, error);
