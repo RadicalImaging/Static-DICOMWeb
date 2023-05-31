@@ -1,16 +1,14 @@
 # Static DICOMweb   aka `static-wado`
 
-
-The static wado project is a project to create a web-centric PACS system based on DICOMweb.  The project was started out of
-some scripts that converted binary DICOM files into static wado (DICOMweb) files, but has been extended to cover more
-areas.  There are a few parts to the idea of "static" wado files:
+The static wado project is a project to create a web-centric PACS system based on DICOMweb.  
+The project was started out of some scripts that converted binary DICOM files into static wado (DICOMweb) files, but has been extended to cover more areas.  There are a few parts to the idea of "static" wado files:
 
 1. Store data organized by RESTful path in DICOMweb
 2. Separate data in separate objects organized by how it is accessed, NOT how it is provided
 3. Compress the data (gzip for JSON files and image compression for images)
 4. Store deduplicated data in a write once fashion for fast retrieves as well as efficient updates
-
-That is basically it.  All of the other operations are on top of those four basic principles.
+5. Deploy a cloud platform instance (only AWS has a plugin so far)
+6. Upload and download to and from the cloud platform
 
 ## AWS Setup
 If you are going to be deploying to AWS, you need to do these common steps, as described in AWS guides:
@@ -21,41 +19,48 @@ If you are going to be deploying to AWS, you need to do these common steps, as d
 4. Store your AWS keys into the `~/.aws/credentials`
 5. Initialize CDK in the s3-deploy subdirectory using `cdk bootstrap` command
 6. Create a configuration storing your AWS storage.
+7. From the s3-deploy sub-directory, run `yarn deploy <deploymentName>`
 
 Note: NEVER store you aws keys in a public place, these give unfettered access to your account.
 
 ### Separate or New AWS Accounts
 You need a separate static-dicomweb checkout directory for every AWS account you are trying to deploy to, as well as separate programmatic credentials and static-wado.json5 configuration.  The suggestion here is to create a docker deployment for running the deploy, and having permanent directories containing your OHIF, DICOMweb and configuration area that are permanently stored in separate locations.  It is a feature request to add this as an automatic setup so you can just run a simple docker start script.
 
-## How to build a mini-PACS system with OHIF
-What you need to do is run the dicomweb scp and server components to accept incoming images and serve up the data, complete with the OHIF client.  This can be done with the following steps:
+## Installing static DICOMweb
+To install, run:
 
-1. Clone the OHIF Viewer project using `git clone https://github.com/OHIF/Viewers.git`
-2. Clone the static-wado project using `git clone git@github.com:RadicalImaging/Static-DICOMWeb.git`
-3. Run `yarn install` in both directories
-4. Build a copy of the OHIF viewer with: `APP_CONFIG=config/local_static.js yarn build`  
-5. Copy the build output to `~/ohif`  (from Viewers/platform/viewer/dist)
-6. Install the dicomwebscp from static-wado/packages/static-wado-scp  with the command `npm install -g`
-7. Install the dicomwebserver from `static-wado/packages/static-wado-server` with the command `npm install -g`
-8. Start the SCP with `dicomwebscp`
-9. Start the web server with `dicomwebserver`
-10. Send in images to the AE  SCP@localhost:11112
-11. Display studies on the webpage http://localhost:5000
-12. Add a proxy service to add authentication and encryption to http://localhost:5000
-13. Configure your modalities to send to `SCP@<hostname>:11112`
+1. Clone the static-wado project using:  `git clone https://github.com/RadicalImaging/Static-DICOMWeb.git`
+2. Run:
+  * yarn install
+  * yarn build
+  * yarn link:exec
+3. This should install the commands 'dicomwebserver', 'mkdicomweb' and 'dicomwebscp' locally
+
+Store files using 
+`mkdicomweb create <DICOM-FILES>`
+
+Start the webserver with `dicomwebserver` and check that `http://localhost:5000/dicomweb/studies` returns a JSON study response.
+
+## How to run OHIF build in dicomwebserver
+
+* Install static DICOMweb to start with
+* Build OHIF with `APP_CONFIG=config/multiple.js yarn build`
+* Copy the `platform/viewer/dist` directory to `~/ohif/`
+* Start the DICOMwebserver using `dicomwebserver`
 
 This provides a very basic PACS system.
 
-## How to configure Static-Wado as a DICOM DIMSE Proxy
-For this configuration, the values   PACS for the AE name, 104 for the port number and pacs.hospital.com are used.  
-After installing global versions of the scp and web server, run the following steps:
+## How to run OHIF in dev mode against local DICOMweb
+Run the steps in the install instructions, including starting the webserver.
+Run `APP_CONFIG=config/multiple.js yarn start` to start the webserver.
 
-* Install the dcm4che toolkit (TODO - remove this requirement)
-* Create a directory `static-wado-proxy`
-* cd into that directory
-* Copy the ohif build output to ./ohif
+## How to configure Static-Wado as a DICOM DIMSE Proxy
+For this configuration, the AE name for the hospital AE is `PACS`, with port 104 at `pacs.hospital.com`  
+After following the basic install:
+
 * Create a static-wado.json5 file with the contents below (edit values as required)
 * Start in the current directory both the scp and web server  (dicomwebscp and dicomwebserver)
+* Install the dcm4che toolkit (this is only needed to send files back to your PACS server usign the dcmsnd command configured below)
 
 ```js
 {

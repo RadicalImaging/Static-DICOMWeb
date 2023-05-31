@@ -6,6 +6,7 @@ import { CfnOutput } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { Function, FunctionCode, FunctionEventType } from 'aws-cdk-lib/aws-cloudfront';
 import getBucket from './getBucket.js';
+import getResponseHeadersPolicy from './getResponseHeadersPolicy.js';
 
 /**
  * Static site infrastructure, which deploys site content to an S3 bucket.
@@ -13,14 +14,12 @@ import getBucket from './getBucket.js';
  * The site redirects from HTTP to HTTPS, using a CloudFront distribution,
  * Route53 alias record, and ACM certificate.
  */
-const clientSite = function(site: Construct, name: string, cloudfrontOAI: cloudfront.OriginAccessIdentity, props: any){
-  console.log("props:", props);
-
+const clientSite = function (site: Construct, name: string, cloudfrontOAI: cloudfront.OriginAccessIdentity, props: any) {
   const { Bucket: ohifName } = props;
-  
+
   // Content bucket
   const ohifBucket = getBucket(site, ohifName, props);;
-  new CfnOutput(site, 'OHIF BucketURL', { value: ohifBucket.bucketWebsiteUrl});
+  new CfnOutput(site, 'OHIF BucketURL', { value: ohifBucket.bucketWebsiteUrl });
 
   // Grant access to cloudfront
   ohifBucket.addToResourcePolicy(new iam.PolicyStatement({
@@ -28,28 +27,8 @@ const clientSite = function(site: Construct, name: string, cloudfrontOAI: cloudf
     resources: [ohifBucket.arnForObjects('*')],
     principals: [new iam.CanonicalUserPrincipal(cloudfrontOAI.cloudFrontOriginAccessIdentityS3CanonicalUserId)]
   }));
-  
-  const ohifResponseHeadersPolicy = new cloudfront.ResponseHeadersPolicy(site, `${name}-ohif-response-policy`, {
-    responseHeadersPolicyName: `${name}-ohif-rhp`,
-    comment: 'Cors headers for viewer',
-    corsBehavior: {
-      accessControlAllowCredentials: false,
-      accessControlAllowHeaders: ['*'],
-      accessControlAllowMethods: ['GET', 'OPTIONS', 'HEAD'],
-      accessControlAllowOrigins: ['*'],
-      originOverride: true,
-    },
-    customHeadersBehavior: {
-      customHeaders: [
-        { header: 'Cross-Origin-Embedder-Policy', value: 'require-corp', override: true },
-        { header: 'Cross-Origin-Opener-Policy', value: 'same-origin', override: true },
-      ],
-    },
-    securityHeadersBehavior: {
-      // contentSecurityPolicy: { contentSecurityPolicy: "script-src: unsafe-eval", override: true },
-      contentTypeOptions: { override: true },
-    },
-  });
+
+  const responseHeadersPolicy = getResponseHeadersPolicy(site,name,props);
 
   const rewriteFunction = new Function(site, `${name}-rf`, {
     code: FunctionCode.fromInline(`
@@ -62,16 +41,19 @@ const clientSite = function(site: Construct, name: string, cloudfrontOAI: cloudf
     
         return request;
       }`
-    )});
+    )
+  });
 
   return {
-    origin: new cloudfront_origins.S3Origin(ohifBucket, {originAccessIdentity: cloudfrontOAI}),
+    origin: new cloudfront_origins.S3Origin(ohifBucket, { originAccessIdentity: cloudfrontOAI }),
     allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
-    responseHeadersPolicy: ohifResponseHeadersPolicy,
-    functionAssociations: [{
-      function: rewriteFunction,
-      eventType: FunctionEventType.VIEWER_REQUEST,
-    }],
+    responseHeadersPolicy,
+    functionAssociations: [
+      {
+        function: rewriteFunction,
+        eventType: FunctionEventType.VIEWER_REQUEST,
+      }
+    ],
   };
 }
 

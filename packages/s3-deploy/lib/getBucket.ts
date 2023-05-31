@@ -24,9 +24,7 @@ const getBucket = function(site: Construct, name: string, props: any) {
     new s3.Bucket(site, name, {
       bucketName: name,
       cors,
-      websiteIndexDocument: 'index.json',
-      websiteErrorDocument: 'error.html',
-      publicReadAccess: true,
+      blockPublicAccess: { ignorePublicAcls: false, blockPublicAcls: false, restrictPublicBuckets: false, blockPublicPolicy: false, },
       blockPublicAccess: { ignorePublicAcls: false, blockPublicAcls: false, restrictPublicBuckets: false, blockPublicPolicy: false, },
       removalPolicy: RemovalPolicy.DESTROY, // NOT recommended for production code
       autoDeleteObjects: true, // NOT recommended for production code
