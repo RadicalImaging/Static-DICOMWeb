@@ -40,6 +40,7 @@ class DeployGroup {
    * asynchronous function
    * @params parentDir is the part of the path to include in the upload name
    * @params name is the item to add
+   * @throws exception when the file isnt found or it can't upload
    */
   async store(parentDir = "", name = "", excludeExisting = {}) {
     const fileName = path.join(this.baseDir, parentDir, name);
