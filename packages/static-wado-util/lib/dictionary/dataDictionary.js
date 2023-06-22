@@ -21970,7 +21970,7 @@ const TAG_DICT = {
   52009230: {
     tag: "(5200,9230)",
     vr: "SQ",
-    vm: "1",
+    vm: "1-n",
     name: "PerFrameFunctionalGroupsSequence",
   },
   54000100: { tag: "(5400,0100)", vr: "SQ", vm: "1", name: "WaveformSequence" },

@@ -60,6 +60,8 @@ const Tags = {
   naturalizeDataset,
   denaturalizeDataset,
 
+  singletons: new Set(),
+
   setValue: (item, tag, value) => {
     const actualTag = findPrivate(item, tag, true);
     item[actualTag] = { Value: Array.isArray(value) ? value : [value] };
@@ -117,6 +119,13 @@ const Tags = {
 Object.keys(dataDictionary).forEach((key) => {
   const value = dataDictionary[key];
   Tags[value.name] = key;
+  if (value.vm === "1") {
+    if( value.name==="PerFrameFunctionalGroupsSequence" ) {
+      console.error("Adding", value);
+      throw  new Error("Adding per frame");
+    }
+    Tags.singletons.add(value.name);
+  }
 });
 
 module.exports = Tags;

@@ -53,10 +53,14 @@ const getValueInlineSignedLong = (dataSet, attr) => {
 };
 
 const getValueInlineUnsignedLong = (dataSet, attr) => {
-  if (attr.length > 4) {
+  if (attr.length > 32) {
     return getValueInlineBinary(dataSet, attr);
   }
-  return [dataSet.uint32(attr.tag)];
+  const list = [];
+  for(let i=0; i<attr.length; i+=4) {
+    list.push(dataSet.uint32(attr.tag,i));
+  }
+  return list
 };
 
 const getValueInlineFloat = (dataSet, attr) => {
@@ -75,10 +79,14 @@ const getValueInlineIntString = (dataSet, attr) => getStrings(dataSet, attr).map
 const getValueInlineFloatString = (dataSet, attr) => getStrings(dataSet, attr).map((val) => parseFloat(val));
 
 const getValueInlineFloatDouble = (dataSet, attr) => {
-  if (attr.length > 8) {
+  if (attr.length > 64) {
     return getValueInlineBinary(dataSet, attr);
   }
-  return [dataSet.double(attr.tag)];
+  const list = [];
+  for(let i=0; i<attr.length; i+= 8) {
+    list.push(dataSet.double(attr.tag,i));
+  }
+  return list;
 };
 
 const getValueInlineAttributeTag = (dataSet, attr) => {
