@@ -1,12 +1,8 @@
 const path = require("path");
 const glob = require("glob");
-const dicomCodec = require("@cornerstonejs/dicom-codec");
-const staticCS = require("@radicalimaging/static-cs-lite");
 const fs = require("fs");
 const { Tags, execSpawn, Stats } = require("@radicalimaging/static-wado-util");
-const decodeImage = require("./adapter/decodeImage");
 const { shouldThumbUseTranscoded } = require("./adapter/transcodeImage");
-const { isVideo } = require("../writer/VideoWriter");
 
 /**
  * Return the middle index of given list
@@ -15,21 +11,6 @@ const { isVideo } = require("../writer/VideoWriter");
  */
 function getThumbIndex(listThumbs) {
   return Math.trunc(listThumbs / 2);
-}
-function internalGenerateThumbnail(originalImageFrame, dataset, metadata, transferSyntaxUid, doneCallback) {
-  decodeImage(originalImageFrame, dataset, transferSyntaxUid)
-    .then((decodeResult = {}) => {
-      if (isVideo(transferSyntaxUid)) {
-        console.log("Video data - no thumbnail generator yet");
-      } else {
-        const { imageFrame, imageInfo } = decodeResult;
-        const pixelData = dicomCodec.getPixelData(imageFrame, imageInfo, transferSyntaxUid);
-        staticCS.getRenderedBuffer(transferSyntaxUid, pixelData, metadata, doneCallback);
-      }
-    })
-    .catch((error) => {
-      console.log(`Error while generating thumbnail:: ${error}`);
-    });
 }
 
 /**
@@ -129,7 +110,7 @@ class ThumbnailService {
       return null;
     }
     return new Promise((resolve, reject) => {
-      internalGenerateThumbnail(imageFrame, dataSet, metadata, id.transferSyntaxUid, async (thumbBuffer) => {
+      callback.internalGenerateImage(imageFrame, dataSet, metadata, id.transferSyntaxUid, async (thumbBuffer) => {
         try {
           if (thumbBuffer) {
             await callback.thumbWriter(id.sopInstanceRootPath, this.thumbFileName, thumbBuffer);

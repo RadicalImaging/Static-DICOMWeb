@@ -13,7 +13,7 @@ const canvasImageToBuffer = require("../adapters/canvasImageToBuffer");
  * @param {*} doneCallback Callback method that is invoked once image is rendered
  */
 function getRenderedBuffer(transferSyntaxUid, decodedPixelData, metadata, doneCallback) {
-  const { csCore, canvas } = setUpEnv();
+  const { csCore, canvas, context } = setUpEnv();
 
   function doneRendering(customEvent = {}) {
     const { detail = {} } = customEvent;
@@ -24,7 +24,7 @@ function getRenderedBuffer(transferSyntaxUid, decodedPixelData, metadata, doneCa
     }
 
     const buffer = canvasImageToBuffer(enabledElement.canvas);
-    doneCallback(buffer);
+    doneCallback(buffer, enabledElement, canvas, context);
   }
 
   function failureRendering() {

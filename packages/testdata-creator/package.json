@@ -1,0 +1,52 @@
+{
+  "name": "@radicalimaging/testdata-creator",
+  "version": "0.0.1",
+  "description": "Test data creator",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "Test data creator",
+    "DICOM"
+  ],
+  "author": "Rodolfo Ladeira <rodolfo2611@gmail.com>",
+  "contributors": [
+    "Rodolfo Costa <rodolfo.costa@radicalimaging.com>"
+  ],
+  "engines": {
+    "node": ">=14.18.1",
+    "npm": ">=6.14.15",
+    "yarn": ">=1.22.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RadicalImaging/Static-DICOMWeb",
+    "directory": "packages/testdata-creator"
+  },
+  "bugs": {
+    "url": "https://github.com/RadicalImaging/Static-DICOMWeb/issues"
+  },
+  "homepage": "https://github.com/RadicalImaging/Static-DICOMWeb#readme",
+  "license": "ISC",
+  "main": "lib/index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "test": "jest --config ./jest.config.js",
+    "build": "echo \"No build yet\" && exit 0",
+    "link:exec": "npm link",
+    "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
+    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
+  },
+  "dependencies": {
+    "cornerstone-core": "^2.6.1",
+    "csv-reader": "^1.0.12",
+    "dcmjs": "^0.29.5",
+    "jsdom": "^19.0.0",
+    "jsdom-context-require": "^4.0.4"
+  }
+}
