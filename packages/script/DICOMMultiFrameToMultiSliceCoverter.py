@@ -9,6 +9,7 @@ import pydicom
 import numpy as np
 import os, sys, time
 import argparse
+from pydicom.dataset import FileDataset, FileMetaDataset
 
 # DICOM reader errors
 NO_ERROR = 0
@@ -18,23 +19,28 @@ INPUT_DATA_INVALID = -2
 WRITE_ERROR = -4
 
 def convert_multiframe_to_multislice(dicom_file, output_directory, verboseLevel):
+
     # Load the DICOM file
     ds = pydicom.dcmread(dicom_file)
     ds.remove_private_tags()
+
     # Extract pixel data from the DICOM file
     pixel_array = ds.pixel_array
-    
+
     # Determine the number of frames and slices
     if hasattr(ds, "NumberOfSlices"): num_slices = ds.NumberOfSlices
     if hasattr(ds, "NumberOfFrames"): num_slices = ds.NumberOfFrames
    
     # Extract the PerFrameFunctionalGroupsSequence
     per_frame_sequences = ds.PerFrameFunctionalGroupsSequence
-    orig_sopInstanceUID = ds.SOPInstanceUID
+    orig_sopInstanceUID = ds.SOPInstanceUID[:-10]
+
     # Create the output directory if it doesn't exist
     os.makedirs(output_directory, exist_ok=True)
+
     # Save each slice as a separate DICOM file
     for i in range(num_slices):
+
         # Set the output filename
         slice_sopInstanceUID = str(orig_sopInstanceUID) + f".{i+1}"
         filename = str(slice_sopInstanceUID) + ".dcm"
@@ -68,22 +74,22 @@ def convert_multiframe_to_multislice(dicom_file, output_directory, verboseLevel)
         slice_ds.PixelData = slice_data.tobytes()
         
         # Populate required values for file meta information
-        # file_meta = pydicom.dataset.FileMetaDataset()
-        file_meta = ds.file_meta
-        file_meta.MediaStorageSOPClassUID = "1.2.840.10008.5.1.4.1.1.2"
+        file_meta = pydicom.dataset.FileMetaDataset(ds.file_meta)
+        file_meta.MediaStorageSOPClassUID = slice_ds.SOPClassUID
         file_meta.MediaStorageSOPInstanceUID = slice_ds.SOPInstanceUID
+
         file_ds = pydicom.dataset.FileDataset(
             output_filename,
             slice_ds,
             file_meta=file_meta,
-            preamble=ds.preamble
+            preamble=b"\0" * 128
         )
-    
+
         if(verboseLevel >= 3):
             print("INFO:Writing %s" % (output_filename))
             
         try:
-            file_ds.save_as(output_filename)
+            pydicom.dcmwrite(output_filename, file_ds, write_like_original=False)
         except IOError as e:
             print("ERROR:File write error ({0}): {1}, {2}".format(e.errno, e.strerror, output_filename))
             sys.exit(WRITE_ERROR)
@@ -164,7 +170,6 @@ if __name__ == "__main__":
         break
 try:
     start = time.time()
-
     convert_multiframe_to_multislice(inputDicomFile, outputDirName, verboseLevel)
     end = time.time()
     elapsed_time = end - start
