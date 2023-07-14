@@ -100,8 +100,8 @@ function renderPointsToCanvas(
 ) {
   const size = 2;
 
-  function renderCross(canvas, centerPoint) {
-    const lineLength = 5 * size;
+  function renderCross(_canvas, centerPoint, _size, _styles) {
+    const lineLength = 5 * _size;
     const [x, y] = centerPoint;
     const pointsH = [
       [x - lineLength, y],
@@ -111,12 +111,12 @@ function renderPointsToCanvas(
       [x, y - lineLength],
       [x, y + lineLength],
     ];
-    renderLinesToCanvas(canvas, pointsH, size, styles);
-    renderLinesToCanvas(canvas, pointsV, size, styles);
+    renderLinesToCanvas(_canvas, pointsH, _size, _styles);
+    renderLinesToCanvas(_canvas, pointsV, _size, _styles);
   }
 
-  function renderSemiCross(canvas, centerPoint, styles) {
-    const lineLength = 5 * size;
+  function renderSemiCross(_canvas, centerPoint, _size, _styles) {
+    const lineLength = 5 * _size;
     const [x, y] = centerPoint;
     const pointsH = [
       [x - lineLength, y],
@@ -126,17 +126,17 @@ function renderPointsToCanvas(
       [x, y - lineLength],
       [x, y],
     ];
-    renderLinesToCanvas(canvas, pointsH, size, styles);
-    renderLinesToCanvas(canvas, pointsV, size, styles);
+    renderLinesToCanvas(_canvas, pointsH, _size, _styles);
+    renderLinesToCanvas(_canvas, pointsV, _size, _styles);
   }
 
   points.forEach((point) => {
     switch (strategy) {
       case "cross":
-        renderCross(canvas, point, styles);
+        renderCross(canvas, point, size, styles);
         break;
       case "semicross":
-        renderSemiCross(canvas, point, styles);
+        renderSemiCross(canvas, point, size, styles);
         break;
     }
     renderPointToCanvas(canvas, point, 2 * size, styles);
