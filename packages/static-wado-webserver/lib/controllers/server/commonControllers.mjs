@@ -14,15 +14,15 @@ import * as storeServices from "../../services/storeServices.mjs";
 export function defaultPostController(params) {
   return (req, res, next) => {
     const form = formidable({ multiples: true });
-    form.parse(req, (err, fields, files) => {
+    form.parse(req, async (err, fields, files) => {
       if (err) {
         console.log("Couldn't parse because", err);
         next(err);
         return;
       }
       try {
-        storeServices.storeFilesByStow(files, params);
-        console.log("Returning empty result - TODO, generate references");
+        const sopInfo = await storeServices.storeFilesByStow(files, params);
+        console.log("Returning empty result - TODO, generate references", sopInfo);
         res.status(200).json({});
       } catch (e) {
         console.log(e);

@@ -31,6 +31,11 @@ async function configureProgram(defaults = dicomWebServerConfig) {
       description: "Set output directory (to read from for serving files)",
       defaultValue: defaults.rootDir,
     },
+    {
+      key: "-p, --port <value>",
+      description: "Choose the port to run on",
+      defaultValue: defaults.port,
+    },
   ];
 
   const configuration = {
@@ -47,6 +52,7 @@ async function configureProgram(defaults = dicomWebServerConfig) {
   const opts = program.opts();
   program.dicomWebServerConfig = Object.assign(Object.create(defaults), opts);
   program.dicomWebServerConfig.rootDir = opts.dir;
+  program.dicomWebServerConfig.port = opts.port || 5000;
 
   program.main = main;
 
