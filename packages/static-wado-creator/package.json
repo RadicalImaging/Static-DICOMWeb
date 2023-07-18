@@ -56,8 +56,8 @@
   },
   "dependencies": {
     "@cornerstonejs/dicom-codec": ">=0.1.6",
-    "@radicalimaging/static-cs-lite": ">=1.2.0",
-    "@radicalimaging/static-wado-util": ">=1.2.0",
+    "@radicalimaging/static-cs-lite": ">=1.2.1",
+    "@radicalimaging/static-wado-util": ">=1.2.1",
     "canvas": "^2.11.0",
     "config-point": ">=0.5.1",
     "dcmjs": "^0.29.5",
