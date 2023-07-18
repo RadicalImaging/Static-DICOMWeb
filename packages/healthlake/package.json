@@ -1,7 +1,7 @@
 {
   "name": "@radicalimaging/healthlakestore",
   "type": "module",
-  "version": "0.0.1",
+  "version": "1.2.0",
   "description": "Tool to upload Part 10 DICOM to Curie and download the result into static-dicomweb",
   "publishConfig": {
     "access": "public"
@@ -56,10 +56,10 @@
   },
   "dependencies": {
     "dcmjs": "^0.29.5",
-    "@radicalimaging/s3-deploy": ">=1.1.0",
-    "@radicalimaging/static-wado-deploy": ">=1.1.0",
-    "@radicalimaging/static-wado-plugins": ">=1.1.0",
-    "@radicalimaging/static-wado-util": ">=1.1.0",
+    "@radicalimaging/s3-deploy": ">=1.2.0",
+    "@radicalimaging/static-wado-deploy": ">=1.2.0",
+    "@radicalimaging/static-wado-plugins": ">=1.2.0",
+    "@radicalimaging/static-wado-util": ">=1.2.0",
     "config-point": ">=0.5.1",
     "dicom-parser": "^1.8.13",
     "cross-env": "^7.0.3"

@@ -4914,11 +4914,6 @@ cssstyle@^2.3.0:
   dependencies:
     cssom "~0.3.6"
 
-csv-reader@^1.0.12:
-  version "1.0.12"
-  resolved "https://registry.npmjs.org/csv-reader/-/csv-reader-1.0.12.tgz"
-  integrity sha512-0AAgazKJUywtjvZbclNuovIiQY/WyvojWw15Y2k3kPixE+pDiOFnfg5FcH3CfDqqnrB2f3p5oPAc446EXD01Tw==
-
 dargs@^7.0.0:
   version "7.0.0"
   resolved "https://registry.npmjs.org/dargs/-/dargs-7.0.0.tgz"
