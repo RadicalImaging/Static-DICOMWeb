@@ -73,7 +73,7 @@ class StaticWado {
       setStudyData,
       rawDicomWriter: RawDicomWriter(this.options),
       notificationService: new NotificationService(this.options.notificationDir),
-      internalGenerateImage
+      internalGenerateImage,
     };
   }
 
@@ -206,11 +206,11 @@ class StaticWado {
   }
 
   static async getDataSet(dataSet, generator, params) {
-    return await getDataSet(dataSet, generator, params);
+    return getDataSet(dataSet, generator, params);
   }
 
   static internalGenerateImage(originalImageFrame, dataSet, metadata, transferSyntaxUid, doneCallback) {
-      return internalGenerateImage(originalImageFrame, dataSet, metadata, transferSyntaxUid, doneCallback)
+    return internalGenerateImage(originalImageFrame, dataSet, metadata, transferSyntaxUid, doneCallback);
   }
 
   /**

@@ -57,10 +57,11 @@
     "verbose": true
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.54.0",
+    "@aws-sdk/client-s3": "^3.374.0",
     "@radicalimaging/static-wado-plugins": ">=1.2.1",
     "@radicalimaging/static-wado-util": ">=1.2.1",
-    "aws-cdk-lib": "^2.81.0",
+    "aws-cdk": "^2.88.0",
+    "aws-cdk-lib": "^2.88.0",
     "config-point": ">=0.5.1",
     "constructs": "^10.0.94",
     "json5-writer": "^0.2.0",

@@ -96,7 +96,7 @@ class ThumbnailService {
       if (pixelData) {
         const { BulkDataURI } = pixelData;
         if (BulkDataURI?.indexOf("mp4")) {
-          const mp4Path = path.join(itemId.sopInstanceRootPath, "pixeldata.mp4");
+          const mp4Path = path.join(itemId.sopInstanceRootPath, "rendered/index.mp4");
           // Generate as rendered, as more back ends support that.
           const thumbPath = path.join(itemId.sopInstanceRootPath, "rendered");
           console.log("MP4 - converting video format", mp4Path);

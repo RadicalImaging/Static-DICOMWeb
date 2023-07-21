@@ -25,7 +25,7 @@ function setContextStyles(ctx, styles, styleKeys) {
     }
   });
 }
-function renderTextToCanvas(canvas, text, pos, styles = { textStyle: DEFAULT_STYLES.textStyle }) {
+function renderTextToCanvas(canvas, text, pos, size, styles = { textStyle: DEFAULT_STYLES.textStyle }) {
   const [x, y] = pos;
   const ctx = canvas.getContext("2d");
   setContextStyles(ctx, styles, ["textStyle"]);
@@ -89,46 +89,47 @@ function renderHLineToCanvas(canvas, position, width, height, styles = { lineSty
   };
 }
 
+function renderCross(canvas, centerPoint, size, styles) {
+  const lineLength = 5 * size;
+  const [x, y] = centerPoint;
+  const pointsH = [
+    [x - lineLength, y],
+    [x + lineLength, y],
+  ];
+  const pointsV = [
+    [x, y - lineLength],
+    [x, y + lineLength],
+  ];
+  renderLinesToCanvas(canvas, pointsH, size, styles);
+  renderLinesToCanvas(canvas, pointsV, size, styles);
+}
+
+function renderSemiCross(_canvas, centerPoint, _size, _styles) {
+  const lineLength = 5 * _size;
+  const [x, y] = centerPoint;
+  const pointsH = [
+    [x - lineLength, y],
+    [x, y],
+  ];
+  const pointsV = [
+    [x, y - lineLength],
+    [x, y],
+  ];
+  renderLinesToCanvas(_canvas, pointsH, _size, _styles);
+  renderLinesToCanvas(_canvas, pointsV, _size, _styles);
+}
+
 function renderPointsToCanvas(
   canvas,
   points,
   strategy,
+  size = 2,
   styles = {
     lineStyle: DEFAULT_STYLES.lineStyle,
     pointStyle: DEFAULT_STYLES.pointStyle,
   }
 ) {
-  const size = 2;
-
-  function renderCross(_canvas, centerPoint, _size, _styles) {
-    const lineLength = 5 * _size;
-    const [x, y] = centerPoint;
-    const pointsH = [
-      [x - lineLength, y],
-      [x + lineLength, y],
-    ];
-    const pointsV = [
-      [x, y - lineLength],
-      [x, y + lineLength],
-    ];
-    renderLinesToCanvas(_canvas, pointsH, _size, _styles);
-    renderLinesToCanvas(_canvas, pointsV, _size, _styles);
-  }
-
-  function renderSemiCross(_canvas, centerPoint, _size, _styles) {
-    const lineLength = 5 * _size;
-    const [x, y] = centerPoint;
-    const pointsH = [
-      [x - lineLength, y],
-      [x, y],
-    ];
-    const pointsV = [
-      [x, y - lineLength],
-      [x, y],
-    ];
-    renderLinesToCanvas(_canvas, pointsH, _size, _styles);
-    renderLinesToCanvas(_canvas, pointsV, _size, _styles);
-  }
+  console.log("renderPointsToCanvas size", size);
 
   points.forEach((point) => {
     switch (strategy) {
@@ -138,6 +139,8 @@ function renderPointsToCanvas(
       case "semicross":
         renderSemiCross(canvas, point, size, styles);
         break;
+      default:
+        throw new Error(`Unknown strategy ${strategy}`);
     }
     renderPointToCanvas(canvas, point, 2 * size, styles);
   });
@@ -151,14 +154,16 @@ function renderContentToCanvas(enabledElement, content, styles) {
   let result;
   switch (content.type) {
     case "text":
-      result = renderTextToCanvas(enabledElement.canvas, content.text, content.position, styles);
+      result = renderTextToCanvas(enabledElement.canvas, content.text, content.position, content.size, styles);
       break;
     case "hLine":
-      result = renderHLineToCanvas(enabledElement.canvas, content.position, content.width, content.height, styles);
+      result = renderHLineToCanvas(enabledElement.canvas, content.position, content.width, content.height * content.size, styles);
       break;
     case "points":
-      result = renderPointsToCanvas(enabledElement.canvas, content.points, content.strategy, styles);
+      result = renderPointsToCanvas(enabledElement.canvas, content.points, content.strategy, content.size, styles);
       break;
+    default:
+      throw new Error(`Unknown type ${content.type} in ${content}`);
   }
 
   return result;

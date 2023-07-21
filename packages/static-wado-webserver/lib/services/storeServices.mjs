@@ -5,10 +5,10 @@ import { execSpawn } from "@radicalimaging/static-wado-util";
 
 const createCommandLine = (files, commandName, params) => {
   let commandline = commandName;
-  commandline = commandline.replace(/<files>/, files.map(file => file.filepath).join(' '));
+  commandline = commandline.replace(/<files>/, files.map((file) => file.filepath).join(" "));
   commandline = commandline.replace(/<rootDir>/, path.resolve(params.rootDir));
   return commandline;
-}
+};
 
 /**
  * Save files using stow service, using the given stow command (from params)
@@ -43,6 +43,6 @@ export const storeFilesByStow = (files, params = {}) => {
       if (verbose) console.log("Unlinking", filepath);
       fs.unlink(filepath, () => null);
     });
-    return listFiles.map(it => it.filepath);
+    return listFiles.map((it) => it.filepath);
   });
 };
