@@ -32,7 +32,31 @@ def convert_multiframe_to_multislice(dicom_file, output_directory, verboseLevel)
     if hasattr(ds, "NumberOfFrames"): num_slices = ds.NumberOfFrames
    
     # Extract the PerFrameFunctionalGroupsSequence
-    per_frame_sequences = ds.PerFrameFunctionalGroupsSequence
+    if "SharedFunctionalGroupsSequence" in ds:
+        shared_sequence = ds.SharedFunctionalGroupsSequence
+    else:
+        raise ValueError("SharedFunctionalGroupsSequence not found in the DICOM file.")
+
+    if "PerFrameFunctionalGroupsSequence" in ds:
+        per_frame_sequences = ds.PerFrameFunctionalGroupsSequence
+    else:
+        raise ValueError("PerFrameFunctionalGroupsSequence not found in the DICOM file.")
+
+    if "PixelValueTransformationSequence" in shared_sequence[0]:
+         pixel_value_transformation_sequence = shared_sequence[0].PixelValueTransformationSequence
+    else:
+        raise ValueError("PixelValueTransformationSequence not found in the DICOM file.")
+    
+    if "PixelMeasuresSequence" in shared_sequence[0]:
+         pixel_measures_sequence = shared_sequence[0].PixelMeasuresSequence
+    else:
+        raise ValueError("PixelMeasuresSequence not found in the DICOM file.")
+
+    if "FrameVOILUTSequence" in shared_sequence[0]:
+         voi_lut_sequence = shared_sequence[0].FrameVOILUTSequence
+    else:
+        print("FrameVOILUTSequence not found in the DICOM file.")
+
     orig_sopInstanceUID = ds.SOPInstanceUID[:-10]
 
     # Create the output directory if it doesn't exist
@@ -63,11 +87,25 @@ def convert_multiframe_to_multislice(dicom_file, output_directory, verboseLevel)
         slice_ds.SOPClassUID = "1.2.840.10008.5.1.4.1.1.2"
         slice_ds.SOPInstanceUID = slice_sopInstanceUID 
 
+        # Following tags required for 3Dable data
         # Extract IPP and IOP from the PerFrameFunctionalGroupsSequence
         frame_sequence = per_frame_sequences[i]
         slice_ds.ImagePositionPatient = frame_sequence.PlanePositionSequence[0].ImagePositionPatient
         slice_ds.ImageOrientationPatient = frame_sequence.PlaneOrientationSequence[0].ImageOrientationPatient
         
+        slice_ds.PixelSpacing = pixel_measures_sequence[0].PixelSpacing
+        slice_ds.SliceThickness = pixel_measures_sequence[0].SliceThickness
+        
+        slice_ds.RescaleIntercept = pixel_value_transformation_sequence[0].RescaleIntercept
+        slice_ds.RescaleSlope = pixel_value_transformation_sequence[0].RescaleSlope
+        slice_ds.RescaleType = pixel_value_transformation_sequence[0].RescaleType
+
+        try:
+            slice_ds.WindowCenter = voi_lut_sequence[0].WindowCenter
+            slice_ds.WindowWidth = voi_lut_sequence[0].WindowWidth 
+        except:
+            print("WARN: WW/WL not found in DICOM File.")
+
         # Get the slice's pixel data from the pixel array
         slice_data = pixel_array[i]
         slice_ds.Rows, slice_ds.Columns = slice_data.shape
