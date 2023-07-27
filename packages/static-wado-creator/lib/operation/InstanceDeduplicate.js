@@ -18,7 +18,7 @@ const extractors = {
  * and then collects the deduplicate data into a list.
  * Whenever the study UID changes, a new event is fired to indicate the deduplicated data is ready.
  */
-async function deduplicateSingleInstance(id, imageFrame) {
+async function deduplicateSingleInstance(id, imageFrame, { force }) {
   if (!imageFrame) return {};
   const studyData = await this.completeStudy.getCurrentStudyData(this, id);
   const seriesUID = getValue(imageFrame, Tags.SeriesInstanceUID);
@@ -27,7 +27,7 @@ async function deduplicateSingleInstance(id, imageFrame) {
     console.warn("No sop instance UID in", imageFrame);
     return {};
   }
-  if (studyData.sopExists(sopUID)) {
+  if (!force && studyData.sopExists(sopUID)) {
     if (this.verbose) console.log("SOP Instance UID", sopUID, "already exists, skipping");
     // TODO - allow replace as an option
     // Null value means skip writing this instance
@@ -90,7 +90,7 @@ const InstanceDeduplicate = (options) =>
       this.verbose = options.verbose;
     }
 
-    const deduppedInstance = await this.deduplicateSingleInstance(id, imageFrame);
+    const deduppedInstance = await this.deduplicateSingleInstance(id, imageFrame, options);
     if (deduppedInstance) {
       // this refers to callee
       await this.deduplicated(id, deduppedInstance);

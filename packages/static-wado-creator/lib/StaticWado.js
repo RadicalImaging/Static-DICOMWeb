@@ -115,6 +115,7 @@ class StaticWado {
           Stats.StudyStats.add("DICOM P10", "Parse DICOM P10 file");
         } catch (e) {
           console.error("Couldn't process", file);
+          console.verbose("Error", e);
         }
       },
     });

@@ -129,20 +129,24 @@ function renderPointsToCanvas(
     pointStyle: DEFAULT_STYLES.pointStyle,
   }
 ) {
-  console.log("renderPointsToCanvas size", size);
-
-  points.forEach((point) => {
+  points.forEach((point, index) => {
+    const useStyles = { ...styles };
+    // Grab indexed values to allow assigning each point a different style.
+    Object.keys(styles).forEach((key) => {
+      const value = styles[key];
+      if (Array.isArray(value)) useStyles[key] = value[index % value.length];
+    });
     switch (strategy) {
       case "cross":
-        renderCross(canvas, point, size, styles);
+        renderCross(canvas, point, size, useStyles);
         break;
       case "semicross":
-        renderSemiCross(canvas, point, size, styles);
+        renderSemiCross(canvas, point, size, useStyles);
         break;
       default:
         throw new Error(`Unknown strategy ${strategy}`);
     }
-    renderPointToCanvas(canvas, point, 2 * size, styles);
+    renderPointToCanvas(canvas, point, 2 * size, useStyles);
   });
 }
 

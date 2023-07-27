@@ -34,6 +34,7 @@ async function dirScanner(input, options) {
       } catch (e) {
         if (options.verbose) console.warn("Exception", e);
         console.error("Couldn't process", file);
+        console.verbose("Error", e);
       }
     }
   }

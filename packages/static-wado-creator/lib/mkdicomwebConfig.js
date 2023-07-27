@@ -89,6 +89,11 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         choices: ["uncompressed", "jpeg", "jp2", "jpeglossless", "rle", "jph", "jls", "true", "none"],
       },
       {
+        key: "-f, --force",
+        description: "Force the update even if the SOP exists",
+        defaultValue: false,
+      },
+      {
         key: "--recompress-thumb <listvalue...>",
         description: "List of types to recompress thumb separated by space",
         defaultValue: ["uncompressed", "jp2"],
