@@ -194,8 +194,10 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
   let result = {};
 
   const samplesPerPixel = dataSet.uint16(Tags.RawSamplesPerPixel);
-  if (!shouldTranscodeImageFrame(id, options, samplesPerPixel)) {
+  const planarConfiguration = dataSet.uint16("x00280006");
+  if (!shouldTranscodeImageFrame(id, options, samplesPerPixel) || planarConfiguration === 1) {
     console.verbose("Shouldn't transcode");
+    console.log("Not transcoding");
     return {
       id,
       imageFrame,
