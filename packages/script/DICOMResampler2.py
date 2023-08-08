@@ -155,6 +155,8 @@ class RPDReadDICOM(object):
         self.verbose_level = verbose_level
         self.working_directory = ''
         self.is_enhanced_ct = None
+        self.is_inverted = False
+        self.axis = None
         if working_directory is not None:
             self.working_directory = working_directory
 
@@ -267,14 +269,14 @@ class RPDReadDICOM(object):
                 has_ipp = False
                 has_iop = False
                             
-                axis = 0
+                self.axis = 0
                 if hasattr(dcm1, 'ImageOrientationPatient'):
                     iop = getattr(dcm1, 'ImageOrientationPatient')
                     iop1 = np.array(iop[0:3])
                     iop2 = np.array(iop[3:6])
                     iop3 = np.cross(iop1, iop2)
     
-                    axis = np.argmax(abs(iop3))
+                    self.axis = np.argmax(abs(iop3))
                     has_iop = True
     
                 pos = 0
@@ -289,8 +291,8 @@ class RPDReadDICOM(object):
                 
                 if hasattr(dcm1, 'ImagePositionPatient'):
                     ipp = getattr(dcm1, 'ImagePositionPatient')
-                    if len(ipp) >= (axis+1):
-                        pos = float(ipp[axis])
+                    if len(ipp) >= (self.axis+1):
+                        pos = float(ipp[self.axis])
                         posDefined = True
                         has_position = True
                         has_ipp = True
@@ -663,15 +665,6 @@ class RPDReadDICOM(object):
                     slice_thickness_valid = True
                     self.slice_thickness_list = [float(list1[0].value)] * number_of_frames
                 
-                ipp_valid = False
-                list1 = self.find_tag_recursive(dcm1, 'ImagePositionPatient')
-                if len(list1) == number_of_frames:
-                    ipp_valid = True
-                    for i in range(number_of_frames):
-                        ipp = list(list1[i].value)
-                        self.ipp_list_np[i,:] = ipp
-                    
-                    self.volume_origin = self.ipp_list_np[0,:]
                         
                 iop_valid = False
                 list1 = self.find_tag_recursive(dcm1, 'ImageOrientationPatient')
@@ -683,7 +676,10 @@ class RPDReadDICOM(object):
                         iop1 = np.array(iop[0:3])
                         iop2 = np.array(iop[3:6])
                         iop3 = np.cross(iop1, iop2)
-                        
+
+                        if i == 0:
+                            self.axis = np.argmax(abs(iop3))
+                            
                         self.iop_list_np[i,0, :] = iop1
                         self.iop_list_np[i,1, :] = iop2
                         self.iop_list_np[i,2, :] = iop3
@@ -693,6 +689,29 @@ class RPDReadDICOM(object):
                     self.volume_direction[:,1] = self.iop_list_np[0,1, :]
                     self.volume_direction[:,2] = self.iop_list_np[0,2, :]
                 
+
+                ipp_valid = False
+                list1 = self.find_tag_recursive(dcm1, 'ImagePositionPatient')
+                if len(list1) == number_of_frames:
+                    ipp_valid = True
+                    for i in range(number_of_frames):
+                        ipp = list(list1[i].value)
+                        self.ipp_list_np[i,:] = ipp
+                    
+                    if self.axis is not None:
+                        if self.iop_list_np[0, 2, self.axis] > 0 and \
+                           self.ipp_list_np[0, self.axis] > self.ipp_list_np[-1, self.axis]:
+                            self.is_inverted = True
+                            self.volume_origin = self.ipp_list_np[-1,:]
+
+                        elif self.iop_list_np[0, 2, self.axis] < 0 and \
+                            self.ipp_list_np[0, self.axis] < self.ipp_list_np[-1, self.axis]:
+                            self.is_inverted = True
+                            self.volume_origin = self.ipp_list_np[-1,:]
+                        else:
+                            self.volume_origin = self.ipp_list_np[0,:]
+                    else:
+                        self.volume_origin = self.ipp_list_np[0,:]
 
                 if self.apply_rescale:
                     intercept = 0.0
@@ -723,6 +742,22 @@ class RPDReadDICOM(object):
             if self.header1 is None:
                 self.header1 = dcm1
                 
+            if is_enhanced_ct == False:
+                if ipp_valid and self.axis is not None:
+                    if self.iop_list_np[0, 2, self.axis] > 0 and \
+                       self.ipp_list_np[0, self.axis] > self.ipp_list_np[-1, self.axis]:
+                        self.is_inverted = True
+                        self.volume_origin = self.ipp_list_np[-1,:]
+
+                    elif self.iop_list_np[0, 2, self.axis] < 0 and \
+                         self.ipp_list_np[0, self.axis] < self.ipp_list_np[-1, self.axis]:
+                        self.is_inverted = True
+                        self.volume_origin = self.ipp_list_np[-1,:]
+                    else:
+                        self.volume_origin = self.ipp_list_np[0,:]
+                else:
+                    self.volume_origin = self.ipp_list_np[0,:]
+
 
             if is_enhanced_ct == False:
                 if iop_valid and ipp_valid:
@@ -748,8 +783,7 @@ class RPDReadDICOM(object):
 
         self.volume_is_rai = False
 
-        if len(table_position_list) > 1:
-            if(table_position_list[0] > table_position_list[-1]):
+        if self.is_inverted:
                 
                 if self.verbose_level >= 3:
                     print("Transforming data upside-down along the Z direction, because it was acquired in RAI coordinate space...")
@@ -761,7 +795,7 @@ class RPDReadDICOM(object):
                 table_position_list.reverse()
                 self.ipp_list_np = np.flip(self.ipp_list_np, 0)
                 self.iop_list_np = np.flip(self.iop_list_np, 0)          
-
+                self.volume_origin = self.ipp_list_np[0,:]
 
 
         # after reading all DICOM files, adjust slice thickness information
@@ -1589,7 +1623,7 @@ if __name__ == "__main__":
         "--series_number_offset",
         help="series number offset wrt the input DICOM series number (multiplied by multiplier) to constitute the output DICOM series",
         type = int,
-        choices=range(0, 99999),
+        # choices=range(0, 99999),
         default = None,
         action='store'
     )
@@ -1598,7 +1632,7 @@ if __name__ == "__main__":
         "--series_number_multiplier",
         help="series number multiplier of the input DICOM series number to constitute the output DICOM series (plus offset)",
         type = int,
-        choices=range(0, 9999),
+        # choices=range(0, 9999),
         default = None,
         action='store'
     )
@@ -1623,10 +1657,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "-ns",
         "--number_of_slices",
-        help="Target number of slices",
+        help="Target number of slices : between 1 to 32768",
         action='store',
         required = True,
-        choices=range(1, 32768),
+        # choices=range(1, 32768),
         type = int
     )
     parser.add_argument(
