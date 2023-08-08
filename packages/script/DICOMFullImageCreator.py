@@ -60,17 +60,7 @@ def is_dicom_3Dable(filelist): # returns volume, and pydicom header/ds
                 return False
             print("Instance Number check PASS!!")
 
-
-            # if hasattr(ds, 'NumberOfFrames'):
-            #     if ds.NumberOfFrames <= 1:
-            #         return False
-            # else:
-            #     if len(filelist) <= 1:
-            #         return False
-
-            # print("Nos Of Frames check PASS!!")        
             return True
-
         except Exception:
             filelist.remove(fn)
             print("ERROR (is_dicom_3Dable):Exception Occured while reading file =>%s" % (fn))
@@ -1659,10 +1649,10 @@ if __name__ == "__main__":
         sys.exit(0)
 
 
-    dicom_validation = is_dicom_3Dable(filenames)
-    if not dicom_validation:
-        print("DICOM Validation FAILED!! Exiting!!")
-        sys.exit(0)
+    # dicom_validation = is_dicom_3Dable(filenames)
+    # if not dicom_validation:
+    #     print("DICOM Validation FAILED!! Exiting!!")
+    #     sys.exit(0)
 
     if args.verbose >= 1:
         print("Reading input DICOM data from %s" % (inputDirName))
@@ -1735,7 +1725,7 @@ if __name__ == "__main__":
 
     start = time.time()    
 
-    if args.flipZ:
+    if (not reader.is_enhanced_ct) and (args.flipZ):
        sitk_volume = sitk.Flip(sitk_volume, [False, False, True])
 
     end = time.time()
