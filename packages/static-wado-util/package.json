@@ -39,7 +39,7 @@
     "commander": "^9.0.0",
     "config-point": "^0.5.1",
     "dcmjs": "^0.29.0",
-    "json5": "^2.2.1",
+    "json5": "^2.2.3",
     "json5-writer": "^0.2.0",
     "must": "^0.13.4",
     "ndjson": "^2.0.0"

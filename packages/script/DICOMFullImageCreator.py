@@ -24,7 +24,7 @@ EXCEPTION = -5
 INPUT_DATA_INVALID_SIZE = -7
 INPUT_DATA_INVALID_THICKNESS = -8
 
-start = time.time()
+start0 = time.time()
 
 def is_dicom_3Dable(filelist): # returns volume, and pydicom header/ds
     for fn in filelist:
@@ -67,7 +67,6 @@ def is_dicom_3Dable(filelist): # returns volume, and pydicom header/ds
             continue
         end = time.time()
         elapsed_time = end - start
-        print("TIME Taken in secs (is_dicom_3Dable) : %s" % (elapsed_time))
     return False
 
 
@@ -105,6 +104,7 @@ class RPDReadDICOM(object):
         self.verbose_level = verbose_level
         self.working_directory = ''
         self.is_enhanced_ct = None
+        self.is_reversed = False
         if working_directory is not None:
             self.working_directory = working_directory
 
@@ -120,8 +120,6 @@ class RPDReadDICOM(object):
         Output:
             List of tags (tag  + value) in a list
         '''
-        start = time.time()    
-
         list_tags = []
     
         for tag in ds:
@@ -133,10 +131,6 @@ class RPDReadDICOM(object):
             if tag.keyword == tagKeyword:
                 list_tags.append(tag)
         
-        end = time.time()
-        elapsed_time = end - start
-        print("TIME Taken in secs (find_tag_recursive) : %s" % (elapsed_time))
-
         return list_tags
 
 
@@ -335,7 +329,9 @@ class RPDReadDICOM(object):
                 # CTImageStorageClass 1.2.840.10008.5.1.4.1.1.2
                 # EnhancedCTImageStorageClass   1.2.840.10008.5.1.4.1.1.2.1
 
-                        
+                if (hasattr(dcm1, 'PatientPosition')) and (dcm1.PatientPosition in ['FFDR', 'FFDL', 'FFP', 'FFS']):
+                    self.is_reversed = True
+        
                 if hasattr(dcm1, 'ImageType'):            
                     image_type_str = str(getattr(dcm1, 'ImageType'))                
                     match1 = re.search("LOCALIZER|SCOUT", image_type_str)
@@ -765,10 +761,6 @@ class RPDReadDICOM(object):
         self.slice_thickness_list_orig = self.slice_thickness_list
         self.iop_list_np_orig = self.iop_list_np
         self.ipp_list_np_orig = self.ipp_list_np
-
-        end = time.time()
-        elapsed_time = end - start
-        print("TIME Taken in secs (read_from_list) : %s" % (elapsed_time))
 
         return NO_ERROR
                 
@@ -1395,7 +1387,6 @@ class RPDReadDICOM(object):
 
         end = time.time()
         elapsed_time = end - start
-        print("TIME Taken in secs (merge_slices) : %s" % (elapsed_time))
 
         return True
 
@@ -1649,10 +1640,10 @@ if __name__ == "__main__":
         sys.exit(0)
 
 
-    # dicom_validation = is_dicom_3Dable(filenames)
-    # if not dicom_validation:
-    #     print("DICOM Validation FAILED!! Exiting!!")
-    #     sys.exit(0)
+    dicom_validation = is_dicom_3Dable(filenames)
+    if not dicom_validation:
+        print("DICOM Validation FAILED!! Exiting!!")
+        sys.exit(0)
 
     if args.verbose >= 1:
         print("Reading input DICOM data from %s" % (inputDirName))
@@ -1721,17 +1712,9 @@ if __name__ == "__main__":
        (not args.series_description_prefix) and \
        (not args.series_description_suffix):
            sd = sd + " (RAPID Reformatted - %s)" % (args.mip_thickness)
-           # sd = sd + " (RAPID MIP, axis %d, %.1fmm)" % (args.axis, args.mip_thickness)
 
-    start = time.time()    
-
-    if (not reader.is_enhanced_ct) and (args.flipZ):
+    if (not reader.is_reversed) and (args.flipZ):
        sitk_volume = sitk.Flip(sitk_volume, [False, False, True])
-
-    end = time.time()
-    elapsed_time = end - start
-    if(args.verbose >= 1):
-        print("******** TIME Taken in secs (FlipZ) : %s" % (elapsed_time))
 
     input_pix_x_spacing = sitk_volume.GetSpacing()[0]    
 
@@ -1885,14 +1868,9 @@ if __name__ == "__main__":
         orientation_plane = 'SAGITTAL'
     else:
         orientation_plane = 'AXIAL'
-
-    # dcm_ds.ImageType = "DERIVED\\SECONDARY\\INTERPOLATED\\" + str(int(input_n_slices)) + "\\" + str(int(output_n_slices))
   
     dcm_ds.ImageType = "DERIVED\\SECONDARY\\" + orientation_plane + "\\SLAB"
  
-    # i.e. DERIVED\\SECONDARY\\CORONAL\\MIP_5.0
-
-
     filenames2 = export_dicoms(output_volume, 
                                dcm_ds, 
                                os.path.join(outputDirName, seriesUID_orig_ + "mip_a%d_t%.1f_s%.1f" % (args.axis, mip_thickness_orig, mip_step_orig)),
@@ -1903,7 +1881,7 @@ if __name__ == "__main__":
     
     # performance measurment for each computation
     end = time.time()
-    elapsed_time = end - start
+    elapsed_time = end - start0
     if(args.verbose >= 1):
         print(f'Elapsed time: {elapsed_time} seconds')
        

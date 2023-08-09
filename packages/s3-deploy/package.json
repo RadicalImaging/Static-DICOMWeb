@@ -57,7 +57,7 @@
     "@aws-sdk/signature-v4-crt": "^3.272.0",
     "@radicalimaging/static-wado-plugins": "^0.6.1",
     "@radicalimaging/static-wado-util": "^0.6.1",
-    "aws-cdk-lib": "^2.17.0",
+    "aws-cdk-lib": "^2.90.0",
     "config-point": "^0.5.1",
     "constructs": "^10.0.94",
     "json5-writer": "^0.2.0",
