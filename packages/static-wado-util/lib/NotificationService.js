@@ -19,7 +19,7 @@ class NotificationService {
     }
     this.dir = handleHomeRelative(dir);
     this.name = name;
-    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(this.dir, { recursive: true });
   }
 
   /**

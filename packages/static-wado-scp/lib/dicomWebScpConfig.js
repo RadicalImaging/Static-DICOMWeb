@@ -1,6 +1,7 @@
 const ConfigPoint = require("config-point");
 const { staticWadoConfig } = require("@radicalimaging/static-wado-util");
 const scpMain = require("./scpMain.js");
+const cstoreMain = require("./cstoreMain.js");
 
 /**
  * Defines the basic configuration values for the dicomwebserver component.  See the README for more details.
@@ -43,6 +44,10 @@ const { dicomWebScpConfig } = ConfigPoint.register({
         description: "Port number to run on",
         defaultValue: 11112,
       },
+      {
+        key: "-a, --ae <AEName@host:port>",
+        description: "Add an AE name as a destination AE",
+      },
     ],
     programs: [
       {
@@ -50,6 +55,12 @@ const { dicomWebScpConfig } = ConfigPoint.register({
         isDefault: true,
         main: scpMain,
         helpDescription: "Run a local SCP",
+      },
+      {
+        command: "cstore <destinationAE> <studyUIDs...>",
+        arguments: ["destinationAE", "studyUIDs"],
+        main: cstoreMain,
+        helpDescription: "C-Store to a specified back end",
       },
     ],
   },
