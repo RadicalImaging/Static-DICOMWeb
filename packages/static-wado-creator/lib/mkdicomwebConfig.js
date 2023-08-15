@@ -89,6 +89,11 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         choices: ["uncompressed", "jpeg", "jp2", "jpeglossless", "rle", "jph", "jls", "true", "none"],
       },
       {
+        key: "-f, --force",
+        description: "Force the update even if the SOP exists",
+        defaultValue: false,
+      },
+      {
         key: "--recompress-thumb <listvalue...>",
         description: "List of types to recompress thumb separated by space",
         defaultValue: ["uncompressed", "jp2"],
@@ -147,9 +152,9 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         arguments: ["input"],
         main: createMain,
         helpDescription:
-          "Make DICOMweb query and metadata from binary Part 10 DICOM files.  Does a full read of\n" +
-          "deduplicated files each time a study instance UID is found, and only updates those studies\n" +
-          "having at least one ",
+          "Make DICOMweb query and metadata from binary Part 10 DICOM files.  Does a full read\n" +
+          "of deduplicated files each time a study instance UID is found, and only updates\n" +
+          "those studies having at least one ",
       },
       {
         command: "index",

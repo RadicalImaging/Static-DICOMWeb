@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-webserver",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Webserver to serve a static-wado repo",
   "publishConfig": {
     "access": "public"
@@ -53,9 +53,9 @@
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
   },
   "dependencies": {
-    "@radicalimaging/static-wado-creator": ">=1.1.0",
-    "@radicalimaging/static-wado-plugins": ">=1.1.0",
-    "@radicalimaging/static-wado-util": ">=1.1.0",
+    "@radicalimaging/static-wado-creator": ">=1.2.1",
+    "@radicalimaging/static-wado-plugins": ">=1.2.1",
+    "@radicalimaging/static-wado-util": ">=1.2.1",
     "config-point": ">=0.5.1",
     "cors": "^2.8.5",
     "dcmjs": "^0.29.5",

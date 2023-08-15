@@ -1,4 +1,5 @@
 const dicomCodec = require("@cornerstonejs/dicom-codec");
+const staticCS = require("@radicalimaging/static-cs-lite");
 const { Stats, handleHomeRelative, dirScanner, JSONReader, JSONWriter, asyncIterableToBuffer, Tags } = require("@radicalimaging/static-wado-util");
 const dicomParser = require("dicom-parser");
 const fs = require("fs");
@@ -15,13 +16,31 @@ const HashDataWriter = require("./writer/HashDataWriter");
 const VideoWriter = require("./writer/VideoWriter");
 const { transcodeImageFrame, transcodeId, transcodeMetadata } = require("./operation/adapter/transcodeImage");
 const ThumbnailWriter = require("./writer/ThumbnailWriter");
+const decodeImage = require("./operation/adapter/decodeImage");
 const ThumbnailService = require("./operation/ThumbnailService");
 const DeleteStudy = require("./DeleteStudy");
 const RejectInstance = require("./RejectInstance");
 const RawDicomWriter = require("./writer/RawDicomWriter");
+const { isVideo } = require("./writer/VideoWriter");
 
 function setStudyData(studyData) {
   this.studyData = studyData;
+}
+
+function internalGenerateImage(originalImageFrame, dataset, metadata, transferSyntaxUid, doneCallback) {
+  decodeImage(originalImageFrame, dataset, transferSyntaxUid)
+    .then((decodeResult = {}) => {
+      if (isVideo(transferSyntaxUid)) {
+        console.log("Video data - no thumbnail generator yet");
+      } else {
+        const { imageFrame, imageInfo } = decodeResult;
+        const pixelData = dicomCodec.getPixelData(imageFrame, imageInfo, transferSyntaxUid);
+        staticCS.getRenderedBuffer(transferSyntaxUid, pixelData, metadata, doneCallback);
+      }
+    })
+    .catch((error) => {
+      console.log(`Error while generating thumbnail:: ${error}`);
+    });
 }
 
 class StaticWado {
@@ -54,6 +73,7 @@ class StaticWado {
       setStudyData,
       rawDicomWriter: RawDicomWriter(this.options),
       notificationService: new NotificationService(this.options.notificationDir),
+      internalGenerateImage,
     };
   }
 
@@ -95,6 +115,7 @@ class StaticWado {
           Stats.StudyStats.add("DICOM P10", "Parse DICOM P10 file");
         } catch (e) {
           console.error("Couldn't process", file);
+          console.verbose("Error", e);
         }
       },
     });
@@ -183,6 +204,14 @@ class StaticWado {
 
     // resolve promise with statistics
     return {};
+  }
+
+  static async getDataSet(dataSet, generator, params) {
+    return getDataSet(dataSet, generator, params);
+  }
+
+  static internalGenerateImage(originalImageFrame, dataSet, metadata, transferSyntaxUid, doneCallback) {
+    return internalGenerateImage(originalImageFrame, dataSet, metadata, transferSyntaxUid, doneCallback);
   }
 
   /**

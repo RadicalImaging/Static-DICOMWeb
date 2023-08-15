@@ -110,7 +110,7 @@ class S3Ops {
   }
 
   remoteRelativeToUri(uri) {
-    if (uri===undefined) return;
+    if (uri === undefined) return;
     if (uri.length > 5 && uri.substring(0, 5) === "s3://") return uri;
     return this.group.path ? `s3://${this.group.Bucket}${this.group.path}/${uri}` : `s3://${this.group.Bucket}/${uri}`;
   }
@@ -195,8 +195,8 @@ class S3Ops {
 
   async dir(uri) {
     const remoteUri = this.remoteRelativeToUri(uri);
-    if( !remoteUri ) {
-      throw new Error(`No remoteURI found for ${uri}`)
+    if (!remoteUri) {
+      throw new Error(`No remoteURI found for ${uri}`);
     }
     const bucketStart = 5;
     const bucketEnd = remoteUri.indexOf("/", bucketStart + 1);
