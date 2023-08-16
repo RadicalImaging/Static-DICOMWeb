@@ -4,15 +4,20 @@ const { JSONReader, qidoFilter } = require("@radicalimaging/static-wado-util");
 const { studiesQueryByIndex } = ConfigPoint.register({
   studiesQueryByIndex: {
     generator: (params) => {
-      let dataTime;
+      let dataTime = 0;
       let studiesData;
-      const dataLifetime = 60 * 1000;
+      const dataLifetime = 20 * 1000;
       const { rootDir } = params;
 
       const readStudies = async () => {
-        if (Date.now() - dataTime > dataLifetime) studiesData = null;
-        if (studiesData) return studiesData;
+        if (studiesData && Date.now() - dataTime > dataLifetime) {
+          studiesData = null;
+        }
+        if (studiesData) {
+          return studiesData;
+        }
         studiesData = await JSONReader(rootDir, "studies/index.json.gz");
+        dataTime = Date.now();
         return studiesData;
       };
 
@@ -20,7 +25,6 @@ const { studiesQueryByIndex } = ConfigPoint.register({
         const studies = await readStudies();
         if (studies) {
           const filteredStudies = qidoFilter(studies, queryKeys);
-          console.log("Found", filteredStudies.length, "from", studies.length);
           return filteredStudies;
         }
         console.log("Couldn't read studies data");

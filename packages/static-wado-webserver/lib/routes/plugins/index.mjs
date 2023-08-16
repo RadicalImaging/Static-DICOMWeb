@@ -17,7 +17,5 @@ export default async function setPlugins(routerExpress, params, pluginsKey = "pl
       const { setRoute } = pluginDefault[pluginItem.pluginName];
       setRoute(routerExpress, pluginItem);
     }
-  } else {
-    console.log("No plugins defined");
   }
 }

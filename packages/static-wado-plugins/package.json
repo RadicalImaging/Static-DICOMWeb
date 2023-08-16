@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-plugins",
-  "version": "1.2.0",
+  "version": "1.2.2",
   "description": "Plugins to support the static-wado project",
   "publishConfig": {
     "access": "public"
