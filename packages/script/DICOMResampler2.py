@@ -75,13 +75,14 @@ def checkThreshold(filelist, threshold): # returns volume, and pydicom header/ds
             print("INFO (checkThreshold): Reading %s" % (fn))
 
             ds = pydicom.dcmread(fn, stop_before_pixels = True)
-            if hasattr(ds, 'NumberOfFrames'):
-                no_of_frames = ds.NumberOfFrames
-                if no_of_frames <= threshold:
-                    print("Series has less frames (%s) than threshold (%s)!!" % (no_of_frames, threshold))
-                    return False
-                else:
-                    return True
+            if len(filelist) <= 1:
+                if hasattr(ds, 'NumberOfFrames'):
+                    no_of_frames = ds.NumberOfFrames
+                    if no_of_frames <= threshold:
+                        print("Series has less frames (%s) than threshold (%s)!!" % (no_of_frames, threshold))
+                        return False
+                    else:
+                        return True
                     
             if len(filelist) <= threshold:
                 return False
@@ -743,23 +744,6 @@ class RPDReadDICOM(object):
                 self.header1 = dcm1
                 
             if is_enhanced_ct == False:
-                if ipp_valid and self.axis is not None:
-                    if self.iop_list_np[0, 2, self.axis] > 0 and \
-                       self.ipp_list_np[0, self.axis] > self.ipp_list_np[-1, self.axis]:
-                        self.is_inverted = True
-                        self.volume_origin = self.ipp_list_np[-1,:]
-
-                    elif self.iop_list_np[0, 2, self.axis] < 0 and \
-                         self.ipp_list_np[0, self.axis] < self.ipp_list_np[-1, self.axis]:
-                        self.is_inverted = True
-                        self.volume_origin = self.ipp_list_np[-1,:]
-                    else:
-                        self.volume_origin = self.ipp_list_np[0,:]
-                else:
-                    self.volume_origin = self.ipp_list_np[0,:]
-
-
-            if is_enhanced_ct == False:
                 if iop_valid and ipp_valid:
                     if prev_slice_position is not None:
                         ipp_dif = ipp_np - prev_slice_position
@@ -780,8 +764,22 @@ class RPDReadDICOM(object):
                         self.interslice_distance_list.append(inter_slice_dist)
                 break
 
-
         self.volume_is_rai = False
+        if is_enhanced_ct == False:
+            if ipp_valid and self.axis is not None:
+                if self.iop_list_np[0, 2, self.axis] > 0 and \
+                    self.ipp_list_np[0, self.axis] > self.ipp_list_np[-1, self.axis]:
+                    self.is_inverted = True
+                    self.volume_origin = self.ipp_list_np[-1,:]
+
+                elif self.iop_list_np[0, 2, self.axis] < 0 and \
+                        self.ipp_list_np[0, self.axis] < self.ipp_list_np[-1, self.axis]:
+                    self.is_inverted = True
+                    self.volume_origin = self.ipp_list_np[-1,:]
+                else:
+                    self.volume_origin = self.ipp_list_np[0,:]
+            else:
+                self.volume_origin = self.ipp_list_np[0,:]
 
         if self.is_inverted:
                 
