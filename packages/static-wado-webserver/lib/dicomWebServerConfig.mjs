@@ -15,7 +15,7 @@ const { dicomWebServerConfig } = ConfigPoint.register({
     port: 5000,
     corsOptions: {
       enabled: true,
-      origin: ["http://localhost:3000"],
+      origin: true,
       // methods: ['GET', "PUT", "POST"],
       // allowedHeaders: ['Content-Type', 'Authorization'],
       // ... https://www.npmjs.com/package/cors#configuration-options
