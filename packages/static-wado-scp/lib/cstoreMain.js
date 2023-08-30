@@ -1,14 +1,9 @@
-const dcmjsDimse = require("dcmjs-dimse");
-
-const { Server } = dcmjsDimse;
 const { adaptProgramOpts } = require("@radicalimaging/static-wado-creator");
-const DcmjsDimseScp = require("./DcmjsDimseScp");
 
 /**
- * 
+ *
  */
 module.exports = function cstoreMain(destinationAe, studies, defaults) {
-  console.log("cstoreMain", destinationAe, studies);
   const options = adaptProgramOpts(defaults, {
     ...this,
     isInstance: false,
@@ -16,6 +11,5 @@ module.exports = function cstoreMain(destinationAe, studies, defaults) {
     isDeduplicate: true,
     isStudyData: true,
   });
-
-  
+  console.log("cstoreMain", destinationAe, studies, options);
 };
