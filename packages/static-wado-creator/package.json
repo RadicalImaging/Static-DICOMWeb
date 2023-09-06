@@ -63,7 +63,7 @@
     "dcmjs": "^0.29.5",
     "dicom-parser": "^1.8.13",
     "glob": "^7.2.0",
-    "node-object-hash": "^2.3.10",
+    "node-object-hash": "^3.0.0",
     "uuid": "^8.3.2"
   },
   "devDependencies": {

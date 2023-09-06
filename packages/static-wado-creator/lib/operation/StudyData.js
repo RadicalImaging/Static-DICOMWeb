@@ -6,7 +6,7 @@ const { Tags } = require("@radicalimaging/static-wado-util");
 const TagLists = require("../model/TagLists");
 
 const { getValue, setValue, getList, setList } = Tags;
-const hasher = hashFactory();
+const hasher = hashFactory.hasher();
 
 const getSeriesInstanceUid = (seriesInstance) => getValue(seriesInstance, Tags.SeriesInstanceUID);
 

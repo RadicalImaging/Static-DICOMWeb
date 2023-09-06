@@ -1,6 +1,6 @@
 const hashFactory = require("node-object-hash");
 
-const hasher = hashFactory();
+console.log("hashFactory=", hashFactory);
 const path = require("path");
 const { Tags } = require("@radicalimaging/static-wado-util");
 const WriteStream = require("./WriteStream");
@@ -14,6 +14,19 @@ const extensions = {
   "text/json": ".json",
   "application/xml+cda": ".cda.xml",
 };
+
+const baseHasher = hashFactory.hasher();
+const MAX_HASH = 1024*1024;
+
+const hasher = {
+  hash: (v) => {
+    if (v.byteLength > MAX_HASH) {
+      return baseHasher.hash(v.slice(0, MAX_HASH));
+    }
+    return baseHasher.hash(v);
+  },
+};
+
 
 /** Writes out JSON files to the given file name.  Automatically GZips them, and adds the extension */
 const HashDataWriter =
