@@ -198,8 +198,8 @@ class StaticWado {
     await this.callback.rawDicomWriter?.(id, result, buffer);
 
     const transcodedMeta = transcodeMetadata(result.metadata, id, this.options);
-    await thumbnailService.generateThumbnails(id, dataSet, transcodedMeta, this.callback);
-
+    await thumbnailService.generateThumbnails(id, dataSet, transcodedMeta, this.callback, this.options);
+    await thumbnailService.generateRendered(id, dataSet, transcodedMeta, this.callback, this.options);
     await this.callback.metadata(targetId, transcodedMeta);
 
     // resolve promise with statistics
