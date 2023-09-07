@@ -30,6 +30,16 @@ export const thumbnailMap = (req, res, next) => {
   next();
 };
 
+
+/**
+ * Handles returning rendered png
+ */
+export const renderedMap = (req, res, next) => {
+  res.setHeader("content-type", "image/png");
+  req.url = `${req.path}`;
+  next();
+};
+
 /**
  * Handles returning multipart/related DICOM
  */

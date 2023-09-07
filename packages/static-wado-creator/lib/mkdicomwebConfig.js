@@ -110,6 +110,20 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         defaultValue: false,
       },
       {
+        key: "--no-thumb",
+        description: "Skip thumbnail generation",
+      },
+      {
+        key: "--dcm2jpg",
+        description: "Use dcm2jpg for thumbnail image generation",
+        defaultValue: false,
+      },
+      {
+        key: "--rendered",
+        description: "Use dcm2jpg to generate a rendered PNG image",
+        defaultValue: false,
+      },
+      {
         key: "-T, --color-content-type <value>",
         description: "Colour content type",
         defaultValue: "jpeg",
