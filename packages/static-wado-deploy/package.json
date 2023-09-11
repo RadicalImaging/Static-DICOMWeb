@@ -1,7 +1,7 @@
 {
   "name": "@radicalimaging/static-wado-deploy",
   "type": "module",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "Library to deploy static wado created files to s3",
   "publishConfig": {
     "access": "public"
