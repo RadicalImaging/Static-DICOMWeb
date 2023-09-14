@@ -3,6 +3,7 @@ const { Stats } = require("./stats");
 exports.handleHomeRelative = require("./handleHomeRelative");
 exports.JSONReader = require("./reader/JSONReader");
 exports.NDJSONReader = require("./reader/NDJSONReader");
+exports.readBulkData = require("./reader/readBulkData");
 exports.JSONWriter = require("./writer/JSONWriter");
 exports.dirScanner = require("./reader/dirScanner");
 exports.qidoFilter = require("./qidoFilter");
