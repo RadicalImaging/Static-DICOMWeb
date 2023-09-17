@@ -158,7 +158,8 @@ class StudyData {
   /**
    * Create a full study instance data for instance at index
    */
-  async recombine(index) {
+  async recombine(indexOrSop) {
+    const index = typeof indexOrSop === "string" ? this.sopInstances[indexOrSop] : indexOrSop;
     const deduplicated = this.deduplicated[index];
     if (index < 0 || index >= this.deduplicated.length) {
       throw new Error(`Can't read index ${index}, out of bounds [0..${this.deduplicated.length})`);
@@ -460,6 +461,10 @@ class StudyData {
     // await JSONWriter(this.deduplicatedPath, hashValue, naturalList, { gzip: true, index: false });
     await JSONWriter(this.deduplicatedPath, hashValue, deduplicatedList, { gzip: true, index: false });
     console.log("Wrote naturalized dataset");
+  }
+
+  getSopUids() {
+    return Object.keys(this.sopInstances);
   }
 }
 
