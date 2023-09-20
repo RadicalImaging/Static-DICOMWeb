@@ -1,102 +1,74 @@
 # Static DICOMweb   aka `static-wado`
 
-The static wado project is a project to create a web-centric PACS system based on DICOMweb.  
-The project was started out of some scripts that converted binary DICOM files into static wado (DICOMweb) files, but has been extended to cover more areas.  There are a few parts to the idea of "static" wado files:
+The Static DICOMweb project is a project to create a web-centric PACS system optimized for DICOMweb.  
+The project was started out of some scripts that converted binary DICOM files into static wado (DICOMweb) files, but has been extended to cover additinal areas.  
 
-1. Store data organized by RESTful path in DICOMweb
-2. Separate data in separate objects organized by how it is accessed, NOT how it is provided
-3. Compress the data (gzip for JSON files and image compression for images)
-4. Store deduplicated data in a write once fashion for fast retrieves as well as efficient updates
-5. Deploy a cloud platform instance (only AWS has a plugin so far)
-6. Upload and download to and from the cloud platform
+The goals of the project are to:
+  1. Optimize serving of DICOMweb files needed for OHIF viewing
+    * Serve required DICOMweb files straight from disk
+    * Compress data files on disk to minimize storage
+  2. Support fully distributed, eventually consistent data model
+    * Incoming data can be distributed amongst any number of nodes
+    * Serving of data can be done by distributing the storage of data, with or without replication
+    * Network fault tolerance is supported by updating study data once network recovers
+  3. Deploy to a variety of cloud providers
+    * AWS is currently the only one supported
+    * Local current-machine provider is also done
+  4. Demonstrate enhanced metadata structures
+    * Easier to parse/understand than DICOMweb metadata
+    * Smaller than DICOMweb metadata, sometimes as small as 1/100th of the size
+    * Faster to parse/display first image
 
-## AWS Setup
-If you are going to be deploying to AWS, you need to do these common steps, as described in AWS guides:
+See [Design](./design.md) for more details on the general design of Static DICOMweb.
 
-1. Create an AWS account
-2. Issue yourself a set of of AWS programmatic access keys
-3. Download and install the AWS CLI and AWS CDK
-4. Store your AWS keys into the `~/.aws/credentials`
-5. Initialize CDK in the s3-deploy subdirectory using `cdk bootstrap` command
-6. Create a configuration storing your AWS storage.
-7. From the s3-deploy sub-directory, run `yarn deploy <deploymentName>`
+See [File Structure](./file-structure.md) for more details on the file structure used for static-dicomweb.
 
-Note: NEVER store you aws keys in a public place, these give unfettered access to your account.
+# General Installation
+There are two ways to install Static DICOMweb.  First, the command line tools are available published in npm.  This is easiest if you are just running locally.  The second option is to install from source code, locally.
+A third option is to run the tools and deployment in a docker container.
 
-### Separate or New AWS Accounts
-You need a separate static-dicomweb checkout directory for every AWS account you are trying to deploy to, as well as separate programmatic credentials and static-wado.json5 configuration.  The suggestion here is to create a docker deployment for running the deploy, and having permanent directories containing your OHIF, DICOMweb and configuration area that are permanently stored in separate locations.  It is a feature request to add this as an automatic setup so you can just run a simple docker start script.
+## NPM Install
+To install the command line tools, you need to have a current version of node and npm installed, then run:
 
-## Installing static DICOMweb
-To install, run:
-
-1. Clone the static-wado project using:  `git clone https://github.com/RadicalImaging/Static-DICOMWeb.git`
-2. Run:
-  * yarn install
-  * yarn build
-  * yarn link:exec
-3. This should install the commands 'dicomwebserver', 'mkdicomweb' and 'dicomwebscp' locally
-
-Store files using 
-`mkdicomweb create <DICOM-FILES>`
-
-Start the webserver with `dicomwebserver` and check that `http://localhost:5000/dicomweb/studies` returns a JSON study response.
-
-## How to run OHIF build in dicomwebserver
-
-* Install static DICOMweb to start with
-* Build OHIF with `APP_CONFIG=config/multiple.js yarn build`
-* Copy the `platform/viewer/dist` directory to `~/ohif/`
-* Start the DICOMwebserver using `dicomwebserver`
-
-This provides a very basic PACS system.
-
-## How to run OHIF in dev mode against local DICOMweb
-Run the steps in the install instructions, including starting the webserver.
-Run `APP_CONFIG=config/multiple.js yarn start` to start the webserver.
-
-## How to configure Static-Wado as a DICOM DIMSE Proxy
-For this configuration, the AE name for the hospital AE is `PACS`, with port 104 at `pacs.hospital.com`  
-After following the basic install:
-
-* Create a static-wado.json5 file with the contents below (edit values as required)
-* Start in the current directory both the scp and web server  (dicomwebscp and dicomwebserver)
-* Install the dcm4che toolkit (this is only needed to send files back to your PACS server usign the dcmsnd command configured below)
-
-```js
-{
-  staticWadoConfig: {
-    rootDir: ".",
-  },
-
-  // Configure a single AE as a proxy
-  aeConfig: {
-   PACS: {
-      description: "Your PACS system",
-      host: "pacs.hospital.com",
-      port: 104,
-    },
-  },
-
-  dicomWebScpConfig: {
-    studyQuery: "studiesQueryToScp",
-    queryAe: PACS,
-  },
-
-  // Configure the default studyQuery to be querying to the Scp
-  dicomWebServerConfig: {
-    studyQuery: "studiesQueryToScp",
-    // Default command plus dcmsnd to store incoming STOW-RS data to the PACS.
-    stowCommands: [null, "dcmsnd -L SCU PACS@pacs.hospital.com:104"],
-    queryAe: "PACS",
-    clientDir: "./ohif",
-  },
-}
+```bash
+npm install -g @radicalimaging/static-wado-creator
+npm install -g @radicalimaging/static-wado-deploy
+npm install -g @radicalimaging/static-wado-webserver
+npm install -g @radicalimaging/static-wado-scp
 ```
 
-## Configuration System
+Only the first one of these is required - the others are optional.
+
+## Source Install
+You can install locally using git, yarn, npm and node:
+
+```bash
+git clone https://github.com/RadicalImaging/Static-DICOMWeb.git static-wado
+cd static-wado
+yarn install
+yarn build
+yarn link:exec
+```
+
+## Docker Usage
+TODO
+
+# Using Static DICOMweb
+
+* [Convert DICOM Part 10 to/from DICOMweb](./packages/static-wado-creator/README.md)
+* [Deploy Static DICOMweb to AWS](./packages/s3-deploy/README.md)
+* [Deploy FlexView Accessible Static DICOMweb](./packages/s3-deploy/README.md)
+* [Storing Files to/from Cloud Server](./packages/static-wado-deploy/README.md)
+* [Run local DICOMweb webserver](./packages/static-wado-webserver/README.md)
+* [Run local SCP Server](./packages/static-wado-scp/README.md)
+* [Proxy DICOMweb to DICOM DIMSE](./packages/static-wado-webserver/dimse-proxy.md)
+* [Proxy Static DICOMweb to DICOMweb](./packages/static-wado-webserver/dicomweb-proxy.md)
+
+
+# Configuration System for Static DICOMweb
 The configuration system is based on a combination of [config-point](http://github.com/OHIF/config-point) and commander for the command line settings.  The config-point definitions allow mixing default configuration values, with custom settings files, and then over-riding values with command line settings.  There is a custom command line setting to load a specific additional configuration file, which is the `-c` setting, applied like this:
 ```
-mkdicomweb -c tests/static-wado-remote.json5
+mkdicomweb -c tests/static-wado-remote.json5 create ...
 ```
 Configuration files are JSON5 files, which allows for additional flexibility by adding comments and using more relaxed syntax.
 The default configuration file is the first one found of `./static-wado.json5` and `~/static-wado.json5`
@@ -143,113 +115,3 @@ The proxyAe is the AE name of a dimse service to fetch DICOM data from.  This de
 
 ### staticWadoAe
 The static wado AE name is the name that static-wado uses when running `dicomwebscp` as the SCP name.  As such, it provides both a C-Store as well as a C-Find SCP.  It is also the name of the SCU used for outgoing queries to the queryAe or the proxyAe.
-
-## Packages
-The packages are organized using lerna as a package manager, combined yarn.  Most packages provide commands in the bin directory which can be installed using `npm install -g`.
-The top level package is responsible for:
-- lint
-- test
-- build
-
-### `static-wado-creator`
-The creator package provides the functionality to convert objects to and from binary DICOM, as well as providing command line tools to invoke the library.
-
-### `static-wado-scp`
-The scp package provides a javascript based SCP, that stores C-Store data into the static data files.  In the future, it is expected to also convert from DICOMweb objects back into binary DICOM.
-
-### `static-wado-webserver`
-The webserver component is a very simple script that serves up the files, setting the appropriate content types and performing a limited amount of redirection.  This allows serving both the OHIF client as well as a dicomweb directory.
-
-Additionally, the webserver supports plugin modules to enable enhanced functionality, such as serving up filtered responses, or performing database queries to decide on object responses.
-
-### `static-wado-util`
-Utilities
-
-## Pre-requisites
-
-* NodeJS >=v14.18.1
-* NPM >=6.14.15
-* Yarn >=1.22.4
-
-## Development
-
-## Installation
-Install packages
-on root
-```
-yarn install
-```
-
-Ensure packages are linked (see below).
-
-## Package development
-To run package's binary see above.
-To develop changes for specific package see packages' documentation.
-
-### Tests
-There are two types of tests: unit and e2e.
-**Jest** is the test runner and **must** is used for matchers.
-
-Folder structure:
-packageName:
-     |
-     |____ e2e Here goes e2e tests
-     |____ unit Here goes unit tests
-
-
-### Running Tests
-
-> yarn run test
-
-A visual studio code build task is also included so you can run it from there with "Terminal->Run Build Task" (Shift+Command+B)
-
-
-## Linking packages
-Link all packages using yarn/lerna to link packages in the correct other.
-on root
-```
-yarn run link:exec
-```
-
-This will install packages globally on current global prefix, @see @link{https://docs.npmjs.com/cli/v8/commands/npm-link} and @see @link{https://docs.npmjs.com/cli/v8/commands/npm-prefix}, and, also bins will be generated inner ```{prefix}/bin/{name}```
-
-If process success a log message will be shown with binaries' path location.
-
-
-## Running binaries
-Firstly, ensure your binaries' path location is set on your computer path.
-Then you just run binary command (as usual on your command line) as described on each package's documentation.
-
-
-### Code quality
-Only lintted codes are pushed to remote. For that we use husky and pre-commit hook.
-For linting is set up eslint + prettier (for some formatting rules)
-
-You can run at any time the linters for all packages by:
-```
-  yarn run lint
-```
-
-or in case you want to also run eslint autofix
-
-```
-  yarn run lint:fix
-```
-
-## TODO (Looking for help here!!)
-
-* Create docker container to encapsulate build environment
-* Create test data (DICOM P10 and expected DICOMweb results) - Jordan working on this
-* Document API
-* Create CI + Publish to NPM
-* Fix Bugs
-* Enhance cli
-    * Add support for specifying bulkDataMinSize
-    * Add support for writing out DICOM P10 file
-* Enhance library
-    * Write out "info" file
-        * P10 Header
-        * Data needed to recreate original P10 instance
-* Create DICOMweb -> DICOM P10 tool
-* Add a set of tools to perform Patient and Study (QC) updates
-* Add a study/patient only database for query support
