@@ -88,3 +88,5 @@ To deploy the CloudFormation template (and synthesize if necessary):
 ```
 yarn deploy {deployment-name}
 ```
+
+At the end of hte deployment, the deploy will spit out a domain name used for your deployment.  It is recommended to store this in the JSON5 configuration file in a comment.
