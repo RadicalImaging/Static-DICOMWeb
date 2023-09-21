@@ -50,6 +50,8 @@
     "packages/*"
   ],
   "scripts": {
+    "docker:build": "docker build . -t radicalimaging/static-dicomweb:v0.5",
+    "docker:run": "docker run  --mount type=bind,source=c:/users/wayfa/dicomweb,target=/dicomweb -p 25080:5000 -p 25104:11112 -d radicalimaging/static-dicomweb:v0.5",
     "test": "lerna run test --parallel --stream",
     "test:ci": "yarn run test",
     "build": "lerna run build --stream",
