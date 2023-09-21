@@ -73,6 +73,6 @@
     "aws-cdk": "^2.96.2",
     "must": "^0.13.4",
     "rollup": "^3.6.0",
-    "typescript": "^5.0.2"
+    "typescript": "^5.2.2"
   }
 }

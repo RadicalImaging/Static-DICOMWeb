@@ -36,7 +36,8 @@
     "@cornerstonejs/codec-openjpeg": "^1.2.2",
     "@cornerstonejs/codec-openjph": "^2.4.2",
     "@cornerstonejs/dicom-codec": "^0.1.9",
-    "canvas": "^2.11.0"
+    "canvas": "^2.11.0",
+    "typescript": "^5.2.2"
   },
   "resolutions": {
     "core-js": "^3.29.1",
