@@ -22,7 +22,12 @@ const { mkdicomwebConfig } = ConfigPoint.register({
     isGroup: true,
     options: [
       {
-        key: "-c, --clean",
+        key: "-c <configFile.json5>",
+        description: "Use an alternate configuration file",
+        defaultValue: "~/static-wado.json5",
+      },
+      {
+        key: "--clean",
         description: "Clean the outputs before generating/starting to write new values.",
         defaultValue: false,
       },
