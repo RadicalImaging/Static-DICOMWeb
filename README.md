@@ -51,7 +51,41 @@ yarn link:exec
 ```
 
 ## Docker Usage
-TODO
+There are scripts in the root package to create a new docker deployment and to run it linking ports 25080 and 25104 to the DICOMweb and SCP endpoint.  To create/start this, run:
+
+```bash
+yarn docker:build
+yarn docker: run
+```
+
+You can also run a docker build directly for various purpose.  There are some general options that you might
+want to know first:
+
+### Persistent Data Sharing
+There are a number of shared directories and files used to configure various settings, added as bind mounts.
+
+```
+// Bind mount for DICOMweb directory
+--mount type=bind,source=/dicomweb,target=/dicomweb
+
+// Bind mount for DICOM input files
+--mount type=bind,source=/dicom,target=/dicom
+
+// Bind mount for AWS credentials
+--mount type=bind,source=/users/userName/.aws,target=/root/.aws,readonly
+
+// Bind mount for persistent storage of AWS configuration
+--mount type=bind,source=/dicomweb,target=/dicomweb
+
+```
+
+
+```bash
+// Deploy the default build image
+docker run  --mount type=bind,source=/dicomweb,target=/dicomweb -p 25080:5000 -p 25104:11112 -d braveheartsoftware/static-dicomweb:0.6 
+```
+
+That will result in an instance running on port 25080 for dicomweb, and DIMSE services on 25104.
 
 # Using Static DICOMweb
 
