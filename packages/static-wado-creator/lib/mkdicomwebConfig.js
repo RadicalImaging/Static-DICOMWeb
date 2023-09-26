@@ -4,6 +4,7 @@ const createMain = require("./createMain");
 const createPart10 = require("./createPart10");
 const deleteMain = require("./deleteMain");
 const rejectMain = require("./rejectMain");
+const queryMain = require("./queryMain");
 const instanceMain = require("./instanceMain");
 const indexMain = require("./indexMain");
 const groupMain = require("./groupMain");
@@ -63,6 +64,10 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       {
         key: "-e, --no-encapsulated-image",
         description: "Avoid encapsulating the image frame.  Writes with the extension and without multipart",
+      },
+      {
+        key: "--singlepart-bulkdata",
+        description: "Store bulkdata as single part data",
       },
       {
         key: "--single-part-image",
@@ -215,6 +220,11 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         command: "reject <studyUID...>",
         main: rejectMain,
         helpDescription: "Reject the specified series",
+      },
+      {
+        command: "query <url>",
+        main: queryMain,
+        helpDescription: "Performs DICOMweb query operations to update local deduplicated/metadata",
       },
     ],
   },
