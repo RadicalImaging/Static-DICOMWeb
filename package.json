@@ -36,7 +36,8 @@
     "@cornerstonejs/codec-openjpeg": "^1.2.2",
     "@cornerstonejs/codec-openjph": "^2.4.2",
     "@cornerstonejs/dicom-codec": "^0.1.9",
-    "canvas": "^2.11.0"
+    "canvas": "^2.11.0",
+    "typescript": "^5.2.2"
   },
   "resolutions": {
     "core-js": "^3.29.1",
@@ -49,6 +50,8 @@
     "packages/*"
   ],
   "scripts": {
+    "docker:build": "docker build . -t braveheartsoftware/static-dicomweb:0.6",
+    "docker:run": "docker run  --mount type=bind,source=c:/users/wayfa/dicomweb,target=/dicomweb -p 25080:5000 -p 25104:11112 -d braveheartsoftware/static-dicomweb:0.6",
     "test": "lerna run test --parallel --stream",
     "test:ci": "yarn run test",
     "build": "lerna run build --stream",
