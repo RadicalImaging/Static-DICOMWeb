@@ -16,18 +16,17 @@ const extensions = {
 };
 
 const baseHasher = hashFactory.hasher();
-const MAX_HASH = 1024*1024;
+const MAX_HASH = 1024 * 1024;
 
 const hasher = {
   hash: (v) => {
     const type = v.constructor?.name;
     if (type === "Buffer") {
-      return createHash('sha256').update(v).digest('hex');
+      return createHash("sha256").update(v).digest("hex");
     }
     return baseHasher.hash(v);
   },
 };
-
 
 /** Writes out JSON files to the given file name.  Automatically GZips them, and adds the extension */
 const HashDataWriter =

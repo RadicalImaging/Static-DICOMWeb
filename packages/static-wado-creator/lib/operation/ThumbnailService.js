@@ -132,26 +132,23 @@ class ThumbnailService {
       }
       return null;
     }
-    if( options.dcm2jpg ) {
-      return this.dcm2jpg(id.filename, id.imageFrameRootPath.replace(/frames/,"thumbnail"), {});
+    if (options.dcm2jpg) {
+      return this.dcm2jpg(id.filename, id.imageFrameRootPath.replace(/frames/, "thumbnail"), {});
     }
 
-    console.log("Using CS2 to generate thumbnails", id, options);
-
     await callback.internalGenerateImage(imageFrame, dataSet, metadata, id.transferSyntaxUid, async (thumbBuffer) => {
-        try {
-          if (thumbBuffer) {
-            await callback.thumbWriter(id.sopInstanceRootPath, this.thumbFileName, thumbBuffer);
+      try {
+        if (thumbBuffer) {
+          await callback.thumbWriter(id.sopInstanceRootPath, this.thumbFileName, thumbBuffer);
 
-            this.copySyncThumbnail(id.sopInstanceRootPath, id.seriesRootPath);
-            this.copySyncThumbnail(id.seriesRootPath, id.studyPath);
-            Stats.StudyStats.add("Thumbnail Write", `Write thumbnail ${this.thumbFileName}`, 100);
-          }
-          return this.thumbFileName;
-        } catch(e) {
-          console.log("Couldn't generate thumbnail", this.thumbFileName, e);
+          this.copySyncThumbnail(id.sopInstanceRootPath, id.seriesRootPath);
+          this.copySyncThumbnail(id.seriesRootPath, id.studyPath);
+          Stats.StudyStats.add("Thumbnail Write", `Write thumbnail ${this.thumbFileName}`, 100);
         }
-
+        return this.thumbFileName;
+      } catch (e) {
+        console.log("Couldn't generate thumbnail", this.thumbFileName, e);
+      }
     });
   }
 

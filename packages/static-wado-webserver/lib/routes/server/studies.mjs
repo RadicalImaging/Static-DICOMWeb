@@ -4,6 +4,7 @@ import { defaultPostController as postController } from "../../controllers/serve
 import { defaultNotFoundController as notFoundController } from "../../controllers/server/notFoundControllers.mjs";
 import { defaultGetProxyController } from "../../controllers/server/proxyControllers.mjs";
 import { indexingStaticController, nonIndexingStaticController } from "../../controllers/server/staticControllers.mjs";
+import byteRangeRequest from "../../controllers/server/byteRangeRequest.mjs";
 
 /**
  * Set studies (/studies) routes.
@@ -22,9 +23,17 @@ export default function setRoutes(routerExpress, params, dir) {
     ["/studies/:studyUID/rendered", "/studies/:studyUID/series/:seriesUID/rendered", "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/rendered"],
     renderedMap
   );
+
+  // Gets the frame metadata - adds support for byte range requests and single part
   routerExpress.get(
-    ["/:ae/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames/:frames", "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames/:frames"],
-    multipartMap
+    [
+      "/:ae/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames/:frames",
+      "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames/:frames",
+      "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/lossy/:frames",
+      "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/htj2k/:frames",
+      "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/jlsThumbnail/:frames",
+    ],
+    byteRangeRequest(params)
   );
   routerExpress.get("/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames", multipartIndexMap);
 

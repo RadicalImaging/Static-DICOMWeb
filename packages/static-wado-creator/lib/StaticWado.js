@@ -14,7 +14,7 @@ const IdCreator = require("./util/IdCreator");
 const ScanStudy = require("./operation/ScanStudy");
 const HashDataWriter = require("./writer/HashDataWriter");
 const VideoWriter = require("./writer/VideoWriter");
-const { transcodeImageFrame, transcodeId, transcodeMetadata } = require("./operation/adapter/transcodeImage");
+const { transcodeImageFrame, generateLossyImage, transcodeId, transcodeMetadata } = require("./operation/adapter/transcodeImage");
 const ThumbnailWriter = require("./writer/ThumbnailWriter");
 const decodeImage = require("./operation/adapter/decodeImage");
 const ThumbnailService = require("./operation/ThumbnailService");
@@ -171,11 +171,17 @@ class StaticWado {
         return this.callback.bulkdata(targetId, _bulkDataIndex, bulkData, options);
       },
       imageFrame: async (originalImageFrame) => {
-        const { imageFrame: transcodedImageFrame, id: transcodedId } = await transcodeImageFrame(id, targetId, originalImageFrame, dataSet, this.options);
+        const { imageFrame: transcodedImageFrame, decoded, id: transcodedId } = await transcodeImageFrame(id, targetId, originalImageFrame, dataSet, this.options);
 
+        const lossyImage = await generateLossyImage(id, decoded, this.options);
+        
         const currentImageFrameIndex = imageFrameIndex;
         imageFrameIndex += 1;
 
+        if( lossyImage ) {
+          await this.callback.imageFrame(lossyImage.id, currentImageFrameIndex, lossyImage.imageFrame);
+        }
+        
         thumbnailService.queueThumbnail(
           {
             imageFrame: originalImageFrame,

@@ -54,7 +54,7 @@ const getSeparator = (data) => {
   }
   const endSeparator = findIndexOfString(data, "\r\n", 0);
   if (!endSeparator) {
-    console.log("No end to separator", String(data.slice(0,55)));
+    console.log("No end to separator", String(data.slice(0, 55)));
     return null;
   }
   const separator = data.slice(0, endSeparator);

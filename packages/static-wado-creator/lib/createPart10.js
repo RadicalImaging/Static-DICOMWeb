@@ -13,7 +13,7 @@ const { DicomDict, DicomMetaDictionary } = dcmjs.data;
 const fileMetaInformationVersionArray = new Uint8Array(2);
 fileMetaInformationVersionArray[1] = 1;
 
-const createFmi = instance => {
+const createFmi = (instance) => {
   // Assume the TSUID is in the value 0
   const TransferSyntaxUID = Tags.getValue(instance, Tags.AvailableTransferSyntaxUID) || UncompressedLEIExplicit;
   const MediaStorageSOPClassUID = Tags.getValue(instance, Tags.MediaStorageSOPClassUID);
@@ -50,17 +50,17 @@ const readBulkDataValue = async (studyDir, instance, value) => {
 };
 
 const readBinaryData = async (dir, instance) => {
-  for(const tag of Object.keys(instance)) {
+  for (const tag of Object.keys(instance)) {
     const v = instance[tag];
-    if( v.BulkDataURI ) {
+    if (v.BulkDataURI) {
       await readBulkDataValue(dir, instance, v);
       continue;
     }
     if (!v.vr) {
       const value0 = v.Value?.[0];
       if (typeof value0 === "string") {
-        v.vr = 'LT';
-      } else { 
+        v.vr = "LT";
+      } else {
         console.log("Deleting", tag, v.Value, v);
         delete instance[tag];
       }
