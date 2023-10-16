@@ -5,8 +5,8 @@
  * @returns destination data buffer
  */
 function bilinear(src, dest) {
-  const { rows: srcRows, columns: srcColumns, data: srcData } = src;
-  const { rows, columns, data } = dest;
+  const { rows: srcRows, columns: srcColumns, pixelData: srcData } = src;
+  const { rows, columns, pixelData } = dest;
 
   const xSrc1Off = [];
   const xSrc2Off = [];
@@ -43,13 +43,47 @@ function bilinear(src, dest) {
     //   console.log("values", p00, p10, p01, p11);
     //   console.log("fractions", xFracInv, xFrac[x], yFracInv, yFrac);
 
-      data[yOff + x] = (p00 * xFracInv + p10 * xFrac[x]) * yFracInv + (p01 * xFracInv + p11 * xFrac[x]) * yFrac;
+      pixelData[yOff + x] = (p00 * xFracInv + p10 * xFrac[x]) * yFracInv + (p01 * xFracInv + p11 * xFrac[x]) * yFrac;
     }
   }
-  return data;
+  return pixelData;
+}
+
+
+/** Handle replicate scaling.  Use this function for samplesPerPixel>1 */
+function replicate(src, dest) {
+  const {
+    rows: srcRows,
+    columns: srcColumns,
+    pixelData: srcData,
+    samplesPerPixel = 1,
+  } = src;
+  const { rows, columns, pixelData } = dest;
+
+  const xSrc1Off = [];
+
+  // Precompute offsets
+  for (let x = 0; x < columns; x++) {
+    const xSrc = (x * (srcColumns - 1)) / (columns - 1);
+    xSrc1Off[x] = Math.floor(xSrc) * samplesPerPixel;
+  }
+
+  for (let y = 0; y < rows; y++) {
+    const ySrc = (y * (srcRows - 1)) / (rows - 1);
+    const ySrc1Off = Math.floor(ySrc) * srcColumns * samplesPerPixel;
+    const yOff = y * columns;
+
+    for (let x = 0; x < columns; x++) {
+      for (let sample = 0; sample < samplesPerPixel; sample++) {
+        pixelData[yOff + x + sample] = srcData[ySrc1Off + xSrc1Off[x] + sample];
+      }
+    }
+  }
+  return pixelData;
 }
 
 module.exports = {
   bilinear,
   default: bilinear,
+  replicate,
 };

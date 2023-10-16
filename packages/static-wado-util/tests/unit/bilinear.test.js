@@ -39,6 +39,6 @@ function createImage(columns, rows) {
   return {
     rows,
     columns,
-    data: new Uint16Array(columns * rows),
+    pixelData: new Uint16Array(columns * rows),
   };
 }

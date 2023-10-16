@@ -60,6 +60,11 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         description: "Generates a thumbnail for the alternate representation",
       },
       {
+        key: "--alternate-name <dir>",
+        description: "Uses a given sub directory name",
+        defaultValue: 'lossy',
+      },
+      {
         key: "-v, --verbose",
         description: "Write verbose output",
         defaultValue: false,

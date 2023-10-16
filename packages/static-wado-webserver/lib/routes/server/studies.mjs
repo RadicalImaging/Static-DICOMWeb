@@ -31,6 +31,8 @@ export default function setRoutes(routerExpress, params, dir) {
       "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames/:frames",
       "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/lossy/:frames",
       "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/htj2k/:frames",
+      "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/htj2kThumbnail/:frames",
+      "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/jls/:frames",
       "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/jlsThumbnail/:frames",
     ],
     byteRangeRequest(params)

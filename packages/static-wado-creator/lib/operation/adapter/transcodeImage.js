@@ -1,5 +1,5 @@
 const dicomCodec = require("@cornerstonejs/dicom-codec");
-const { Tags, bilinear } = require("@radicalimaging/static-wado-util");
+const { Tags, replicate } = require("@radicalimaging/static-wado-util");
 const getImageInfo = require("./getImageInfo");
 
 dicomCodec.setConfig("verbose: false");
@@ -187,40 +187,42 @@ function transcodeLog(options, msg, error = "") {
 }
 
 const beforeEncode = (options, encoder) => {
-  if( !options.lossy ) return;
-  console.log("encoder=", encoder);
-  encoder.setQuality?.(false,options.lossyQuality || 0.0002);
-  encoder.setNearLossless?.(options.lossyNearLossless || 2);
+  const lossy = !!options.lossy;
+  const quality = lossy ? 0.0002 : 0;
+  const delta = lossy ? 3 : 1;
+  // encoder.setQuality?.(!lossy, quality);
+  // encoder.setNearLossless?.(delta);
+  console.log("encoder=", encoder, lossy, quality, delta);
 };
 
 function scale(imageFrame, imageInfo) {
   const { rows, columns, bitsPerPixel, pixelRepresentation, samplesPerPixel } = imageInfo;
   let arrayConstructor = Float32Array;
   if (bitsPerPixel === 8) {
-    arrayConstructor = pixelRepresentation ? Uint8Array : Int8Array;
-  } else if (bitsPerPixel === 16) {
-    arrayConstructor = pixelRepresentation ? Uint16Array : Int16Array;
+    arrayConstructor = pixelRepresentation ? Int8Array : Uint8Array;
+  } else if (bitsPerPixel > 8 && bitsPerPixel <= 16) {
+    arrayConstructor = pixelRepresentation ? Int16Array : Uint16Array;
   }
   const src = {
-    data: imageFrame,
+    pixelData: new arrayConstructor(imageFrame.buffer),
     rows,
     columns,
     samplesPerPixel,
   };
   const dest = {
-    rows: 256,
-    columns: Math.round(256 * columns / rows),
+    rows: Math.round(rows/4),
+    columns: Math.round(columns/4),
     samplesPerPixel,
   };
-  dest.data = new arrayConstructor(dest.rows*dest.columns);
-  bilinear(src, dest);
-
+  dest.pixelData = new arrayConstructor(dest.rows*dest.columns*samplesPerPixel);
+  replicate(src, dest);
+  
   return {
-    imageFrame: dest.data,
+    imageFrame: dest.pixelData,
     imageInfo: {
       ...imageInfo,
-      ...dest,
-      data: null,
+      rows: dest.rows,
+      columns: dest.columns,
     },
   };
 }
@@ -236,37 +238,40 @@ async function generateLossyImage(id, decoded, options) {
   if( !options.alternate ) return;
   if( !decoded?.imageFrame ) return;
 
-  let { imageFrame, imageInfo } = decoded;
-  const lossyId = { 
-    ...id,
-    imageFrameRootPath: id.imageFrameRootPath.replace('frames', 'lossy'),
-    transferSyntaxUid: transcodeDestinationMap.jhc.transferSyntaxUid,
-  };
-  const subOptions = {
-    ...options,
-    lossy: true,
-  };
+  try {
+    let { imageFrame, imageInfo } = decoded;
+    const lossyId = { 
+      ...id,
+      imageFrameRootPath: id.imageFrameRootPath.replace('frames', options.alternateName),
+      transferSyntaxUid: transcodeDestinationMap.jhc.transferSyntaxUid,
+    };
+    const subOptions = {
+      ...options,
+      lossy: true,
+    };
 
-  if( options.alternateThumbnail && imageInfo.rows >= 512 ) {
-    const scaled = scale(imageFrame, imageInfo);
-    if( !scaled ) {
-      console.log("Couldn't scale");
-      return;
+    if (options.alternateThumbnail && imageInfo.rows >= 512) {
+      const scaled = scale(imageFrame, imageInfo);
+      if (!scaled) {
+        console.log("Couldn't scale");
+        return;
+      }
+      imageFrame = Buffer.from(scaled.imageFrame.buffer);
+      imageInfo = scaled.imageInfo;
     }
-    imageFrame = scaled.imageFrame;
-    imageInfo = scaled.imageInfo;
-  }
+    
+    if( options.alternate==="jls" ) {
+      lossyId.transferSyntaxUid = transcodeDestinationMap["jls-lossy"].transferSyntaxUid;
+    }
 
-  if( options.alternate==="jls" ) {
-    lossyId.transferSyntaxUid = transcodeDestinationMap["jls-lossy"].transferSyntaxUid;
+    const encodeOptions = {
+      beforeEncode: beforeEncode.bind(null, subOptions),
+    }
+    const lossyEncoding = await dicomCodec.encode(imageFrame, imageInfo, lossyId.transferSyntaxUid, encodeOptions);
+    return { id: lossyId, imageFrame: lossyEncoding.imageFrame };
+  } catch(e) {
+    console.warn("Unable to create alternate:",e);
   }
-
-  console.log("Generating lossy image from", imageFrame.length);
-  const encodeOptions = {
-    beforeEncode: beforeEncode.bind(null, subOptions),
-  }
-  const lossyEncoding = await dicomCodec.encode(imageFrame, imageInfo, lossyId.transferSyntaxUid, encodeOptions);
-  return { id: lossyId, imageFrame: lossyEncoding.imageFrame };
 }
 
 /**
@@ -358,7 +363,6 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
   }
 
   const _imageFrame = result.imageFrame ?? imageFrame;
-  console.log("_imageFrame=", _imageFrame.length);
 
   return {
     id: targetId,
