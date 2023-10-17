@@ -53,7 +53,7 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       {
         key: "--alternate <type>",
         description: "Generates an alternate representaton of the image generally in the /lossy sub-directory",
-        choices: ["jhc", "jls"],
+        choices: ["jhc", "jls", "jhcLossless", "jlsLossless"],
       },
       {
         key: "--alternate-thumbnail",

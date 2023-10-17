@@ -188,11 +188,11 @@ function transcodeLog(options, msg, error = "") {
 
 const beforeEncode = (options, encoder) => {
   const lossy = !!options.lossy;
-  const quality = lossy ? 0.0002 : 0;
-  const delta = lossy ? 3 : 1;
-  // encoder.setQuality?.(!lossy, quality);
-  // encoder.setNearLossless?.(delta);
-  console.log("encoder=", encoder, lossy, quality, delta);
+  const quality = lossy ? 0.00015 : -1;
+  const delta = lossy ? 3 : 0;
+  // First value is to encode as reversible lossless colour
+  encoder.setQuality?.(!lossy, quality);
+  encoder.setNearLossless?.(delta);
 };
 
 function scale(imageFrame, imageInfo) {
@@ -245,11 +245,8 @@ async function generateLossyImage(id, decoded, options) {
       imageFrameRootPath: id.imageFrameRootPath.replace('frames', options.alternateName),
       transferSyntaxUid: transcodeDestinationMap.jhc.transferSyntaxUid,
     };
-    const subOptions = {
-      ...options,
-      lossy: true,
-    };
-
+    
+    let lossy = true;
     if (options.alternateThumbnail && imageInfo.rows >= 512) {
       const scaled = scale(imageFrame, imageInfo);
       if (!scaled) {
@@ -262,12 +259,20 @@ async function generateLossyImage(id, decoded, options) {
     
     if( options.alternate==="jls" ) {
       lossyId.transferSyntaxUid = transcodeDestinationMap["jls-lossy"].transferSyntaxUid;
+    } else if( options.alternate==="jlsLossless") {
+      lossyId.transferSyntaxUid = transcodeDestinationMap["jls-lossy"].transferSyntaxUid;
+      lossy = false;
+    } else if( options.alternate==="jhcLossless") {
+      lossy = false;
     }
 
     const encodeOptions = {
-      beforeEncode: beforeEncode.bind(null, subOptions),
-    }
+      beforeEncode: beforeEncode.bind(null, {
+        lossy,
+      }),
+    };
     const lossyEncoding = await dicomCodec.encode(imageFrame, imageInfo, lossyId.transferSyntaxUid, encodeOptions);
+    console.log("Encoded alternate", lossyId.transferSyntaxUid, "of size", lossyEncoding.imageFrame.length);
     return { id: lossyId, imageFrame: lossyEncoding.imageFrame };
   } catch(e) {
     console.warn("Unable to create alternate:",e);
@@ -316,7 +321,11 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
   const imageInfo = getImageInfo(dataSet);
   let done = false;
   let processResultMsg = "";
-  const encodeOptions = { beforeEncode: beforeEncode.bind(null, options) };
+  const encodeOptions = { 
+    beforeEncode: beforeEncode.bind(null, {
+      lossy: options.lossy,
+    }),
+  };
   let decoded;
 
   try {
@@ -327,6 +336,7 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
         decoded = await dicomCodec.decode(imageFrame, imageInfo, id.transferSyntaxUid);
         result = await dicomCodec.encode(decoded.imageFrame, decoded.imageInfo, targetId.transferSyntaxUid, encodeOptions);
 
+        console.log("transcoded image to", targetId.transferSyntaxUid, "of size", result.imageFrame.length);
         processResultMsg = `Transcoding finished`;
         break;
       case transcodeOp.encode:
