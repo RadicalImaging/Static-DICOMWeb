@@ -160,7 +160,10 @@ class S3Ops {
     const ContentEncoding = this.fileToContentEncoding(file);
     const fileName = this.toFile(dir, file);
     const isNoCacheKey = Key.match(noCachePattern);
-    const CacheControl = isNoCacheKey ? "no-cache" : undefined;
+    // iOS17+ version having issues with cached images. It crashes the application
+    // https://developer.apple.com/forums/thread/737042
+    const CacheControl = "no-cache";
+    // const CacheControl = isNoCacheKey ? "no-cache" : undefined;
     const Body = fs.createReadStream(fileName);
     const command = new PutObjectCommand({
       Body,
