@@ -188,7 +188,7 @@ function transcodeLog(options, msg, error = "") {
 
 const beforeEncode = (options, encoder) => {
   const lossy = !!options.lossy;
-  const quality = lossy ? 0.00015 : -1;
+  const quality = lossy ? 0.002 : -1;
   const delta = lossy ? 3 : 0;
   // First value is to encode as reversible lossless colour
   encoder.setQuality?.(!lossy, quality);
@@ -235,8 +235,8 @@ function scale(imageFrame, imageInfo) {
  * In either case, saves it to <sopUID>/fsiz/frameNo as multipart related
  */
 async function generateLossyImage(id, decoded, options) {
-  if( !options.alternate ) return;
-  if( !decoded?.imageFrame ) return;
+  if (!options.alternate) return;
+  if (!decoded?.imageFrame) return;
 
   try {
     let { imageFrame, imageInfo } = decoded;
@@ -245,7 +245,7 @@ async function generateLossyImage(id, decoded, options) {
       imageFrameRootPath: id.imageFrameRootPath.replace('frames', options.alternateName),
       transferSyntaxUid: transcodeDestinationMap.jhc.transferSyntaxUid,
     };
-    
+
     let lossy = true;
     if (options.alternateThumbnail && imageInfo.rows >= 512) {
       const scaled = scale(imageFrame, imageInfo);
@@ -256,13 +256,13 @@ async function generateLossyImage(id, decoded, options) {
       imageFrame = Buffer.from(scaled.imageFrame.buffer);
       imageInfo = scaled.imageInfo;
     }
-    
-    if( options.alternate==="jls" ) {
+
+    if (options.alternate === "jls") {
       lossyId.transferSyntaxUid = transcodeDestinationMap["jls-lossy"].transferSyntaxUid;
-    } else if( options.alternate==="jlsLossless") {
-      lossyId.transferSyntaxUid = transcodeDestinationMap["jls-lossy"].transferSyntaxUid;
+    } else if (options.alternate === "jlsLossless") {
+      lossyId.transferSyntaxUid = transcodeDestinationMap.jls.transferSyntaxUid;
       lossy = false;
-    } else if( options.alternate==="jhcLossless") {
+    } else if (options.alternate === "jhcLossless") {
       lossy = false;
     }
 
@@ -273,6 +273,7 @@ async function generateLossyImage(id, decoded, options) {
     };
     const lossyEncoding = await dicomCodec.encode(imageFrame, imageInfo, lossyId.transferSyntaxUid, encodeOptions);
     console.log("Encoded alternate", lossyId.transferSyntaxUid, "of size", lossyEncoding.imageFrame.length);
+    // eslint-disable-next-line consistent-return
     return { id: lossyId, imageFrame: lossyEncoding.imageFrame };
   } catch(e) {
     console.warn("Unable to create alternate:",e);

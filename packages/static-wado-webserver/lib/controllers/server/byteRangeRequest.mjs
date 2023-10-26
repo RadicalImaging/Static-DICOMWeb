@@ -21,14 +21,19 @@ export default function byteRangeRequest(options) {
     // Better hope the range is a simple - range
     const bytes = range.substring(6).split('-');
     const path = `${baseDir}/${req.path}`;
-    if( !fs.existsSync(path) ) {
-        res.status(400).text("Not found");
-        return;
+    if (!fs.existsSync(path)) {
+      res.status(400).text("Not found");
+      return;
     }
-    console.log("Generating response from", bytes[0], "to", bytes[1], "for", path);
     const rawdata = await fs.promises.readFile(path);
+    const { length } = rawdata;
+    bytes[0] ||= 0;
+    bytes[1] ||= length;
+    bytes[1] = Math.min(bytes[1], length);
     const data = rawdata.slice(bytes[0], bytes[1]);
     res.setHeader("content-type", "multipart/related");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Range");
+    res.setHeader("Content-Range", `${bytes[0]}-${bytes[1]}/${length}`);
     res.status(206).send(data);
   }
 
