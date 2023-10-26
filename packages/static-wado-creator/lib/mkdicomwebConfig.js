@@ -46,6 +46,25 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         defaultValue: false,
       },
       {
+        key: "--lossy",
+        description: "Generate lossy instances instead of lossless",
+        defaultValue: false,
+      },
+      {
+        key: "--alternate <type>",
+        description: "Generates an alternate representaton of the image generally in the /lossy sub-directory",
+        choices: ["jhc", "jls", "jhcLossless", "jlsLossless"],
+      },
+      {
+        key: "--alternate-thumbnail",
+        description: "Generates a thumbnail for the alternate representation",
+      },
+      {
+        key: "--alternate-name <dir>",
+        description: "Uses a given sub directory name",
+        defaultValue: 'lossy',
+      },
+      {
         key: "-v, --verbose",
         description: "Write verbose output",
         defaultValue: false,
@@ -180,8 +199,7 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         command: "part10",
         arguments: ["studyUID"],
         main: createPart10,
-        helpDescription:
-          "Store the specified study as part 10 data",
+        helpDescription: "Store the specified study as part 10 data",
       },
       {
         command: "index",

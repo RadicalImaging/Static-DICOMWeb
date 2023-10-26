@@ -1890,22 +1890,22 @@
   resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-openjpeg/-/codec-openjpeg-1.2.2.tgz#f0b524235b5551426b46db197a37b06f8ac805d7"
   integrity sha512-b1O7lZacKXelgeV9n8XWZ7pTw3i4Bq4qQ26G5ahBjWoOw4QNcCrb5hPxWBxNB/I8AoNbJxAe+lyLtyQGfdrTbw==
 
-"@cornerstonejs/codec-openjph@>=2.4.2", "@cornerstonejs/codec-openjph@^2.4.2":
+"@cornerstonejs/codec-openjph@>=2.4.2", "@cornerstonejs/codec-openjph@>=2.4.3", "@cornerstonejs/codec-openjph@^2.4.3":
   version "2.4.2"
   resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-openjph/-/codec-openjph-2.4.2.tgz#e96721d56f6ec96f7f95c16321d88cc8467d8d81"
   integrity sha512-lgdvBvvNezleY+4pIe2ceUsJzlZe/0PipdeubQ3vZZOz3xxtHHMR1XFCl4fgd8gosR8COHuD7h6q+MwgrwBsng==
 
-"@cornerstonejs/dicom-codec@>=0.1.6", "@cornerstonejs/dicom-codec@^0.1.9":
-  version "0.1.9"
-  resolved "https://registry.npmjs.org/@cornerstonejs/dicom-codec/-/dicom-codec-0.1.9.tgz"
-  integrity sha512-RW/hZBAsxRn/ki+ImZw5LYWMQs/LjYQJ+bT2OMq+xfqYkSda3Rz/Hof1Xw1KB6luU2PtfLBaDey8wV2hy26gdA==
+"@cornerstonejs/dicom-codec@>=0.1.10":
+  version "0.1.10"
+  resolved "https://registry.yarnpkg.com/@cornerstonejs/dicom-codec/-/dicom-codec-0.1.10.tgz#1aaec2c7b98def95d52a02ebecb7572792c11f11"
+  integrity sha512-JKe3nBXTobLpCXmBOe1cwY0B83m4vVycL8NS5nfRoE2jKlPXFqyE65XCd1/VskVCE8Z7nTKjo5orgu1sJUnemQ==
   dependencies:
     "@cornerstonejs/codec-big-endian" "^0.1.0"
     "@cornerstonejs/codec-charls" "^1.2.3"
     "@cornerstonejs/codec-libjpeg-turbo-8bit" "^1.2.2"
     "@cornerstonejs/codec-little-endian" "^0.0.6"
     "@cornerstonejs/codec-openjpeg" "^1.2.2"
-    "@cornerstonejs/codec-openjph" "^2.4.2"
+    "@cornerstonejs/codec-openjph" "^2.4.3"
     browser-or-node "^2.0.0"
     jpeg-lossless-decoder-js "^2.0.4"
 
@@ -10804,15 +10804,10 @@ typedarray@^0.0.6:
   resolved "https://registry.npmjs.org/typedarray/-/typedarray-0.0.6.tgz"
   integrity "sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c= sha512-/aCDEGatGvZ2BIk+HmLf4ifCJFwvKFNb9/JeZPMulfgFracn9QFcAf5GO8B/mweUjSoblS5In0cWhqpfs/5PQA=="
 
-"typescript@>=3 < 6", typescript@>=5.0.2, typescript@^3.9.3, typescript@^5.0.2:
+"typescript@>=3 < 6", typescript@>=5.0.2, typescript@^3.9.3, typescript@^5.2.2:
   version "5.1.6"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.1.6.tgz#02f8ac202b6dad2c0dd5e0913745b47a37998274"
   integrity sha512-zaWCozRZ6DLEWAWFrVDz1H6FVXzUSfTy5FUMWsQlU8Ym5JP9eO4xkTIROFCQvhQf61z6O/G6ugw3SgAnvvm+HA==
-
-typescript@^5.2.2:
-  version "5.2.2"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.2.2.tgz#5ebb5e5a5b75f085f22bc3f8460fba308310fa78"
-  integrity sha512-mI4WrpHsbCIcwT9cF4FZvr80QUeKvsUsUvKDoR+X/7XHQH98xYD8YHZg7ANtz2GtZt/CBq2QJ0thkGJMHfqc1w==
 
 uglify-js@^3.1.4:
   version "3.15.3"

@@ -30,7 +30,6 @@ export const thumbnailMap = (req, res, next) => {
   next();
 };
 
-
 /**
  * Handles returning rendered png
  */
