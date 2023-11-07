@@ -45,6 +45,7 @@
     "build": "yarn copyFiles && npx tsc",
     "deploy": "yarn build && yarn deployOnly",
     "deployOnly": "cdk deploy -a build/index.js",
+    "destroy": "cdk destroy -a build/index.js",
     "synth": "yarn build && yarn synthOnly",
     "synthOnly": "cdk synth -a build/index.js",
     "watch": "npx tsc -w",

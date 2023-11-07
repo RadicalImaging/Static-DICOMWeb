@@ -20,7 +20,7 @@ const { dicomWebServerConfig } = ConfigPoint.register({
       // allowedHeaders: ['Content-Type', 'Authorization'],
       // ... https://www.npmjs.com/package/cors#configuration-options
     },
-    proxyAe: "CLEARCANVAS",
+    // proxyAe: "AE-NAME",
 
     webserverPlugins: [],
     options: [

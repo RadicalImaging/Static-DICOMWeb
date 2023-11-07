@@ -24,6 +24,15 @@ const noCachePattern = /(index.html)|(index.js)|(index.umd.js)|(studies$)|(theme
 // const prefixSlash = (str) => (str && str[0] !== "/" ? `/${str}` : str);
 const noPrefixSlash = (str) => (str && str[0] === "/" ? str.substring(1) : str);
 
+const extensionsToRemove = ['.mht', '.jhc'];
+
+const findExtensionToRemove = (name) => {
+  for( const testExtension of extensionsToRemove) {
+    const lastFound = name.lastIndexOf(testExtension);
+    if( lastFound!==-1 ) return lastFound;
+  }
+}
+
 class S3Ops {
   constructor(config, name, options) {
     this.group = configGroup(config, name);
@@ -64,7 +73,7 @@ class S3Ops {
     if (fileName[0] == "/") {
       fileName = fileName.substring(1);
     }
-    const extensionPos = fileName.lastIndexOf(".jhc");
+    const extensionPos = findExtensionToRemove(fileName);
     if (extensionPos > 0) {
       fileName = fileName.substring(0, extensionPos);
     }
