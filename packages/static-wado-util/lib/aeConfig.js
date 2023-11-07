@@ -13,8 +13,8 @@ const { aeConfig } = ConfigPoint.register({
       host: "localhost",
       port: 11113,
     },
-    CLEARCANVAS: {
-      description: "Test ClearCanvas System",
+    AE_PROXY_NAME: {
+      description: "Test AE Proxy Name System",
       host: "localhost",
       port: 11114,
     },

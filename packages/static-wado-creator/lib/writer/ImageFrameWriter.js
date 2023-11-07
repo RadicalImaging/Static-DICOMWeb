@@ -18,7 +18,7 @@ const ImageFrameWriter = (options) => {
     }
 
     if (encapsulatedImage || !extension) {
-      const writeStream = WriteStream(id.imageFrameRootPath, `${1 + index}`, {
+      const writeStream = WriteStream(id.imageFrameRootPath, `${1 + index}.mht`, {
         gzip: type.gzip,
         mkdir: true,
       });

@@ -25,7 +25,7 @@ const VideoWriter = () =>
   async function run(id, dataSet) {
     console.log(`Writing video  ${id.sopInstanceUid}`);
     const extension = VIDEO_TYPES[dataSet.string(Tags.RawTransferSyntaxUID)];
-    const filename = `pixeldata.${extension}`;
+    const filename = `/rendered/index.${extension}`;
     const writeStream = WriteStream(id.sopInstanceRootPath, filename, {
       mkdir: true,
     });
