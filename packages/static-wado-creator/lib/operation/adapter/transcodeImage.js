@@ -223,6 +223,8 @@ function scale(imageFrame, imageInfo) {
       ...imageInfo,
       rows: dest.rows,
       columns: dest.columns,
+      width: dest.columns,
+      height: dest.rows,
     },
   };
 }
