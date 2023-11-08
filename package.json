@@ -62,5 +62,9 @@
     "lint:fix": "lerna run lint:fix --parallel --stream",
     "postinstall": "git config core.hooksPath '.husky' && echo 'git hooks configured'",
     "reset:hooks": "git config core.hooksPath '.git' && echo 'git hooks was reset'"
+  },
+
+  "resolutions": {
+    "@cornerstonejs/codec-openjph": ">=2.4.3"
   }
 }
