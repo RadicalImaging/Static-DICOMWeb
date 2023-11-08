@@ -35,7 +35,7 @@
   "dependencies": {
     "@cornerstonejs/codec-openjpeg": ">=1.2.2",
     "@cornerstonejs/codec-openjph": ">=2.4.3",
-    "@cornerstonejs/dicom-codec": ">=0.1.10",
+    "@cornerstonejs/dicom-codec": ">=0.1.11",
     "canvas": "^2.11.0",
     "typescript": "^5.2.2"
   },

@@ -55,7 +55,7 @@
     "verbose": true
   },
   "dependencies": {
-    "@cornerstonejs/dicom-codec": ">=0.1.10",
+    "@cornerstonejs/dicom-codec": ">=0.1.11",
     "@radicalimaging/static-cs-lite": ">=1.2.1",
     "@radicalimaging/static-wado-util": ">=1.2.1",
     "canvas": "^2.11.0",
