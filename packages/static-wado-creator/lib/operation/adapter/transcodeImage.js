@@ -36,7 +36,7 @@ const transcodeDestinationMap = {
     transcodeOp: transcodeOp.encode,
   },
   jhc: {
-    transferSyntaxUid: "3.2.840.10008.1.2.4.96",
+    transferSyntaxUid: "1.2.840.10008.1.2.4.202",
     transcodeOp: transcodeOp.encode,
   },
   jpeg: {
@@ -83,6 +83,10 @@ const transcodeSourceMap = {
     alias: "jp2",
   },
   "3.2.840.10008.1.2.4.96": {
+    transcodeOp: transcodeOp.decode,
+    alias: "jhc",
+  },
+  "1.2.840.10008.1.2.4.202": {
     transcodeOp: transcodeOp.decode,
     alias: "jhc",
   },

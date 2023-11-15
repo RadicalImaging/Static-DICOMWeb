@@ -1895,10 +1895,10 @@
   resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-openjph/-/codec-openjph-2.4.3.tgz#91c5d4bf80d426ebbee781b73bff362dbbb1164f"
   integrity sha512-/wVqRypJX+CAVqR3pcpkZgoU5SuY07HgIXIRtMXjHwJ9AEmL2DJnVrN9bYVTsVlmnVKBi8dVpgjanh5DDCCt+Q==
 
-"@cornerstonejs/dicom-codec@>=0.1.11":
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/@cornerstonejs/dicom-codec/-/dicom-codec-1.0.1.tgz#76e524079bb4b5574ce8f63f623fc1ad9e282266"
-  integrity sha512-N7WLSAVJjamyafM1/3duJR5L7sRmxIq2hxq7jxPiyGXzoavlciHeHdFEBh72O0ysaKCXPLMgLfAfwuJV2rOtaw==
+"@cornerstonejs/dicom-codec@>=1.0.2":
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/@cornerstonejs/dicom-codec/-/dicom-codec-1.0.2.tgz#042ea141c355b2bd9b7052cb9b1b25e44f659994"
+  integrity sha512-A8fGBsAq14qgvHI0DBhgp9yQ9TdgA2Qdqn32GLTQkeiV4AoztkGLDYegzrKyy0rrnPZl1m6Dk6nW1UYsAyXKBg==
   dependencies:
     "@cornerstonejs/codec-big-endian" ">=0.1.0"
     "@cornerstonejs/codec-charls" ">=1.2.3"
