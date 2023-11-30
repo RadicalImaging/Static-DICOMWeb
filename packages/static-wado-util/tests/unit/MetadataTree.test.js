@@ -134,7 +134,7 @@ describe("MetadataTree", () => {
 
   it("Converts singleframe Image Series", async () => {
     if (!fs.existsSync(singleframePath)) {
-      console.log("No WSI items defined, not creating");
+      console.log("No singleframe items defined, not creating", singleframePath);
       return;
     }
     const json = await JSONReader(singleframeDir, "metadata.gz");
@@ -156,7 +156,7 @@ describe("MetadataTree", () => {
 
   it("Converts multiframe Image Series", async () => {
     if (!fs.existsSync(multiframePath)) {
-      console.log("No multiframe items defined, not creating");
+      console.log("No multiframe items defined, not creating", multiframePath);
       return;
     }
     const json = await JSONReader(multiframeDir, "metadata.gz");
@@ -177,7 +177,7 @@ describe("MetadataTree", () => {
 
   it("Converts large singleframe study", async () => {
     if (!fs.existsSync(largeSingleframeDir)) {
-      console.log("Large singleframe dir doesn't exist, not creating");
+      console.log("Large singleframe dir doesn't exist, not creating", largeSingleframeDir);
       return;
     }
     let jsonSize = 0;
