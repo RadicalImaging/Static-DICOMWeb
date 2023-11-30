@@ -8,5 +8,5 @@
 export default function isCorsEnabled(appConfig = {}) {
   const { corsOptions } = appConfig;
 
-  return !!corsOptions && corsOptions.enabled && corsOptions.origin?.length > 0;
+  return !!corsOptions && corsOptions.enabled && (corsOptions.origin === true || corsOptions.origin?.length > 0);
 }

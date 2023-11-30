@@ -1,12 +1,12 @@
 /* eslint-disable import/prefer-default-export */
 import fs from "fs";
 import path from "path";
-import { execSpawn } from "@radicalimaging/static-wado-util";
+import { execSpawn, handleHomeRelative } from "@radicalimaging/static-wado-util";
 
 const createCommandLine = (files, commandName, params) => {
   let commandline = commandName;
   commandline = commandline.replace(/<files>/, files.map((file) => file.filepath).join(" "));
-  commandline = commandline.replace(/<rootDir>/, path.resolve(params.rootDir));
+  commandline = commandline.replace(/<rootDir>/, path.resolve(handleHomeRelative(params.rootDir)));
   return commandline;
 };
 

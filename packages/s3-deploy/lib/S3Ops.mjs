@@ -14,6 +14,7 @@ const octetStream = "application/octet-stream";
 const multipartRelated = "multipart/related";
 const multipartRelatedDicom = "multipart/related";
 const imagejpeg = "image/jpeg";
+const pngType = "image/png";
 const applicationDicom = "application/dicom";
 const ionType = "application/x-amzn-ion";
 
@@ -89,6 +90,7 @@ class S3Ops {
       (src.indexOf("frames") !== -1 && multipartRelated) ||
       (src.indexOf("thumbnail") !== -1 && imagejpeg) ||
       (src.indexOf(".ion") !== -1 && ionType) ||
+      (src.indexOf("rendered") !== -1 && pngType) ||
       "application/json"
     );
   }

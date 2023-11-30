@@ -63,7 +63,6 @@ function configureCommands(config, configurationFile) {
  * @returns Program object
  */
 function configureProgram(configuration) {
-  console.log("configureProgram started");
   const { argumentsRequired = [], optionsRequired = [], argumentsList = [], optionsList = [], packageJson = {} } = configuration;
   createVerboseLog(false);
 

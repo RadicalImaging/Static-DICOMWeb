@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-creator",
-  "version": "1.2.2",
+  "version": "1.2.8",
   "description": "Library to convert DICOMP10 to DICOMweb format. Original upstream: https://github.com/chafey/dicomp10-to-dicomweb-js",
   "publishConfig": {
     "access": "public"
@@ -55,7 +55,7 @@
     "verbose": true
   },
   "dependencies": {
-    "@cornerstonejs/dicom-codec": ">=0.1.6",
+    "@cornerstonejs/dicom-codec": ">=1.0.2",
     "@radicalimaging/static-cs-lite": ">=1.2.1",
     "@radicalimaging/static-wado-util": ">=1.2.1",
     "canvas": "^2.11.0",
@@ -63,7 +63,7 @@
     "dcmjs": "^0.29.5",
     "dicom-parser": "^1.8.13",
     "glob": "^7.2.0",
-    "node-object-hash": "^2.3.10",
+    "node-object-hash": "^3.0.0",
     "uuid": "^8.3.2"
   },
   "devDependencies": {
