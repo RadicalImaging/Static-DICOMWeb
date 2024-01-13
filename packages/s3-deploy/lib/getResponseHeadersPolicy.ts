@@ -4,16 +4,18 @@ import { Construct } from 'constructs';
 let responseHeadersPolicy;
 const responseHeadersId = 'shared-dicomweb-policy';
 const responseHeadersName = 'static-wado-policy';
-const id = 'bb3e37b2-0b13-40eb-afb3-6072919a6c42';
 
 const getResponseHeadersPolicy = (site: Construct, name: string, props: any) => {
   if (responseHeadersPolicy) return responseHeadersPolicy;
-  console.log("Creating response headers policy", name, props);
   try {
     // responseHeadersPolicy = cloudfront.ResponseHeadersPolicy.fromResponseHeadersPolicyId(site, responseHeadersName, responseHeadersName);
     // responseHeadersPolicy = cloudfront.ResponseHeadersPolicy.fromResponseHeadersPolicyId(site, responseHeadersId, responseHeadersName);
     // responseHeadersPolicy = cloudfront.ResponseHeadersPolicy.fromResponseHeadersPolicyId(site, id, responseHeadersId);
-    responseHeadersPolicy = cloudfront.ResponseHeadersPolicy.fromResponseHeadersPolicyId(site, responseHeadersId, id);
+    const { responseHeadersPolicyGlobalId: id } =  props;
+    if( id ) {
+      console.log("Loading response headers policy", name, id);
+      responseHeadersPolicy = cloudfront.ResponseHeadersPolicy.fromResponseHeadersPolicyId(site, responseHeadersId, id);
+    }
   } catch(e) {
     console.log("Couldn't find response headers policy, creating");
   }
