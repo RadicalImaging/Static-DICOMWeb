@@ -156,3 +156,17 @@ You will need to wait for deployment to complete before testing.  This can take 
 
 ### User Authentication
 Follow the instructions at (cloudfront authorization at edge)[https://github.com/aws-samples/cloudfront-authorization-at-edge] to add authorization.  It is recommended to use the option: `I already have a CloudFront distribution, I just want to add auth` and `I want to use a social identity provider` so that you can manually add users as required.  Of course, with a remote user identity provider, you can just redirect to a remote provider of identity.
+
+
+## Deploy OHIF
+You will need to deploy an OHIF version built with access to the path that you have specified in the URL.  For example, the `e2e` distribution works if you set the default data source name to be `dicomweb`.  Then, you can build with:
+
+```javascript
+cd <YOUR-OHIF-DIRECTORY>
+cp platform/app/public/config/e2e.js platform/app/public/config/dicomweb.js
+edit platform/app/public/config/dicomweb.js
+# Update the value defaultDataSourceName to be "dicomweb"
+APP_CONFIG=config/dicomweb.js yarn build
+cp platform/app/dist ~/ohif/ -r
+deploydicomweb client -d <YOUR-DEPLOYMENT-NAME>
+```
