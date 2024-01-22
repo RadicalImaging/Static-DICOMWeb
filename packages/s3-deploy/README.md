@@ -67,14 +67,24 @@ The deployments section of the static wado config is a list of named deployments
   * Bucket - the bucket name used for storing DICOMweb files
   * useExistingBucket - set to true to connect to an existing, named bucket
   * path - is the path to serve files with for this bucket
-  * index - is a a LOCAL file name used to update the remote studies index when adding new studies (or deleting)
+  * index - is a a LOCAL file name used to update the remote studies index when adding new studies (or deleting) (will be created as required)
 
 ### s3Env
 The s3 env contains the information on the account to store to/from, and the default region.
 
 ### Multiple Groups, Advanced Options
 It is possible to create/define additional S3 buckets on different paths, used for various types of uploads.  
-TODO - find an example of how to do this
+Simply add additional groups modelled after the `root` group, for example:
+
+```javascript
+part10Group: {
+  // Set to the path it maps to
+  path: "/part10",
+  // Set to true to share a bucket with another deployment, or false to create it here
+  useExistingBucket: false,
+  Bucket: 'dicomweb-part10-bucket',
+},
+```
 
 ## Deploying to the Cloud
 Use your admin level AWS programmatic access keys for deploying or updating a Static DICOMweb cloud deployment.
@@ -89,4 +99,54 @@ To deploy the CloudFormation template (and synthesize if necessary):
 yarn deploy {deployment-name}
 ```
 
-At the end of hte deployment, the deploy will spit out a domain name used for your deployment.  It is recommended to store this in the JSON5 configuration file in a comment.
+**Follow the instructions to setup access permissions for cloudfront to s3**
+
+**Optionally setup user access control**
+
+At the end of the deployment, the deploy will spit out a domain name used for your deployment.  It is recommended to store this in the JSON5 configuration file in a comment.
+
+## Setup Access Permissions
+By default, the yarn deploy will create a deployment setup, but it will NOT be accessible for anyone because the s3
+bucket isn't setup to be accessible.  You will need to add support for `Origin Access Control`.  The script previously had support for `Origin Access Identity`, and will almost have that setup, but the previous setup would start failing after more than  couple of deployments were completed, and AWS has not fixed CDK to allow deployment to `OAC` yet.
+
+1. Login to the AWS web admin environment. 
+2. Access the Cloudfront page
+3. Select the cloudfront distribution you are using
+4. Find the origin for each of the s3 deployments you have associated with that cloudfront distribution (typically root and client)
+5. Edit each origin
+  1. Under origin access, select Origin Access Control
+  2. In the Origin Access Control, you will need to select an origin access control id to use - select either `StaticDICOMweb-OAC` or `AllowCloudFrontServicePrincipalReadOnly`
+  3. Save
+  4. You will see a yellow banner with `The S3 bucket policy needs to be updated`
+  5. Copy the policy
+  6. Go to s3 bucket policy permissions 
+  7. Edit the bucket policy
+  8. Paste the copied bucket policy
+
+### Alternates for Access
+You can setup generic access to your account for any cloudfront bucket by using `StringLike` and `*` instead of the distribution.  For example:
+** Note, replace BUCKET_NAME and ACCOUNT_ID with your own bucket/account.  **  This is just the section of the policy that you need to add, but you
+can easily replace the entire policy with the one copied from the cloudfront page, replacing just `"StringEquals"` with `"StringLike"` and replacing the end part of the `SourceArn` with `*`.
+
+```javascript
+{
+        "Version": "2008-10-17",
+        "Id": "PolicyForCloudFrontPrivateContent",
+        "Statement": [
+            {
+                "Sid": "AllowCloudFrontServicePrincipal",
+                "Effect": "Allow",
+                "Principal": {
+                    "Service": "cloudfront.amazonaws.com"
+                },
+                "Action": "s3:GetObject",
+                "Resource": "arn:aws:s3:::BUCKET_NAME/*",
+                "Condition": {
+                    "StringLike": {
+                      "AWS:SourceArn": "arn:aws:cloudfront::ACCOUNT_ID:distribution/*"
+                    }
+                }
+            }
+        ]
+      }
+```
