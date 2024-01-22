@@ -122,11 +122,14 @@ bucket isn't setup to be accessible.  You will need to add support for `Origin A
   6. Go to s3 bucket policy permissions 
   7. Edit the bucket policy
   8. Paste the copied bucket policy
+  9. Edit the s3 bucket "Block all public access", denying all public access (this prevents generic access to the bucket)
 
 ### Alternates for Access
 You can setup generic access to your account for any cloudfront bucket by using `StringLike` and `*` instead of the distribution.  For example:
 ** Note, replace BUCKET_NAME and ACCOUNT_ID with your own bucket/account.  **  This is just the section of the policy that you need to add, but you
 can easily replace the entire policy with the one copied from the cloudfront page, replacing just `"StringEquals"` with `"StringLike"` and replacing the end part of the `SourceArn` with `*`.
+
+You will need to wait for deployment to complete before testing.  This can take minutes, so monitor the cloudfront distribution page to see when it is done.
 
 ```javascript
 {
@@ -150,3 +153,6 @@ can easily replace the entire policy with the one copied from the cloudfront pag
         ]
       }
 ```
+
+### User Authentication
+Follow the instructions at (cloudfront authorization at edge)[https://github.com/aws-samples/cloudfront-authorization-at-edge] to add authorization.  It is recommended to use the option: `I already have a CloudFront distribution, I just want to add auth` and `I want to use a social identity provider` so that you can manually add users as required.  Of course, with a remote user identity provider, you can just redirect to a remote provider of identity.
