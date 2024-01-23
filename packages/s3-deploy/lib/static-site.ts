@@ -26,6 +26,15 @@ export class StaticSite extends Construct {
     const cloudfrontOAI = new cloudfront.OriginAccessIdentity(this, `${name}-OAI`, {
       comment: `OAI for ${name}`
     });
+    const oac = new cloudfront.CfnOriginAccessControl(this, 'StaticDICOMweb-OAC',{
+      originAccessControlConfig: {
+        name: 'StaticDICOMweb-OAC-Name',
+        originAccessControlOriginType: 's3',
+        signingBehavior: 'always',
+        signingProtocol: 'sigv4',
+        description: 'Generic origin access control for Static DICOMweb files in s3',
+      },
+    });
 
     // Ordered, so get first value for primary, and then everything else
     const distProps = new Map();
@@ -37,7 +46,6 @@ export class StaticSite extends Construct {
     } else {
       console.log("no clientGroup specified for deployment:", name);
     }
-  
     
     if( props.indexGroup ) {
       const group = configGroup(props,"index");
