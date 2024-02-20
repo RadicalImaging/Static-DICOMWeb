@@ -9,7 +9,7 @@ export default async function compressUploadDeploy(directory, config, name, opti
 
   const args = ["gzip", "-9", "-r", `"${deployer.baseDir}"`];
 
-  console.log("Waiting to compress client directory", deployer.baseDir, directory);
+  console.log("Waiting to compress", name, "directory", deployer.baseDir, directory);
   execFileSync(args.join(" "), { shell: true, stdio: "inherit" });
   // execFileSync(`dir ${deployer.baseDir}`, { shell: true, stdio: "inherit" });
   console.log("Uploading compressed client", deployer.baseDir, directory);
