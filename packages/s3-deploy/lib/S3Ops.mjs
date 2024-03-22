@@ -64,6 +64,9 @@ class S3Ops {
     if (fileName[0] == "/") {
       fileName = fileName.substring(1);
     }
+    if (fileName.endsWith(".mht")) {
+      fileName = fileName.substring(0, fileName.length - 4);
+    }
     const extensionPos = fileName.lastIndexOf(".jhc");
     if (extensionPos > 0) {
       fileName = fileName.substring(0, extensionPos);
