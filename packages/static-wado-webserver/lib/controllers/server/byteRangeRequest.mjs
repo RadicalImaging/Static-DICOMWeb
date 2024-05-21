@@ -9,18 +9,17 @@ const extensions = {
 };
 
 const contentTypeForExtension = {};
-Object.entries(extensions).forEach( ([key,value]) => {
+Object.entries(extensions).forEach(([key, value]) => {
   contentTypeForExtension[value] = key;
-  contentTypeForExtension[value+'.gz'] = key;
+  contentTypeForExtension[`${value}.gz`] = key;
 });
 
 export default function byteRangeRequest(options) {
   const { dir } = options;
   const baseDir = handleHomeRelative(dir);
 
-  
   function exists(path, frameName) {
-    const framePath = path.replace("/frames/",`/${frameName}/`);
+    const framePath = path.replace("/frames/", `/${frameName}/`);
     const fullPath = `${baseDir}/${framePath}`;
     return fs.existsSync(fullPath);
   }
@@ -30,11 +29,11 @@ export default function byteRangeRequest(options) {
 
     if (!testExtension) return "";
     const fullPath = `${baseDir}/${path}${testExtension}`;
-    if (fs.existsSync(fullPath) ) {
+    if (fs.existsSync(fullPath)) {
       return testExtension;
     }
-    if( fs.existsSync(fullPath+'.gz') ) {
-      return testExtension+'.gz';
+    if (fs.existsSync(`${fullPath}.gz`)) {
+      return `${testExtension}.gz`;
     }
     return "";
   }
@@ -50,15 +49,15 @@ export default function byteRangeRequest(options) {
     const rawdata = await fs.promises.readFile(path);
     const { length } = rawdata;
     bytes[0] ||= 0;
-    bytes[1] ||= length-1;
-    bytes[1] = Math.min(bytes[1], length-1);
-    const data = rawdata.slice(bytes[0], bytes[1]+1);
+    bytes[1] ||= length - 1;
+    bytes[1] = Math.min(bytes[1], length - 1);
+    const data = rawdata.slice(bytes[0], bytes[1] + 1);
     res.setHeader("Content-Range", `bytes ${bytes[0]}-${bytes[1]}/${length}`);
     res.status(206).send(data);
   }
 
   return (req, res, next) => {
-   const fsiz = req.query.fsiz;
+    const fsiz = req.query.fsiz;
     const accept = req.header("accept") || "";
     const queryAccept = req.query.accept;
     const extension = findExtension(req.path, queryAccept || accept);
@@ -77,6 +76,4 @@ export default function byteRangeRequest(options) {
     }
     next();
   };
-};
-
-
+}

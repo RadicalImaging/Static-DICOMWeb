@@ -62,7 +62,7 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       {
         key: "--alternate-name <dir>",
         description: "Uses a given sub directory name",
-        defaultValue: 'lossy',
+        defaultValue: "lossy",
       },
       {
         key: "-v, --verbose",
