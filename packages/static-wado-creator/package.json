@@ -58,7 +58,7 @@
     "@cornerstonejs/dicom-codec": ">=1.0.2",
     "@radicalimaging/static-cs-lite": ">=1.2.1",
     "@radicalimaging/static-wado-util": ">=1.2.1",
-    "canvas": "^2.11.0",
+    "canvas": "^2.11.1",
     "config-point": ">=0.5.1",
     "dcmjs": "^0.29.5",
     "dicom-parser": "^1.8.13",
