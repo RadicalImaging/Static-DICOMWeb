@@ -2,7 +2,7 @@ function configGroup(config, name) {
   if (!config[`${name}Group`]) return;
   const group = { ...config[`${name}Group`] };
   const dir = group.dir || group[`${name}Dir`] || config[`${name}Dir`];
-  if (!dir ) {
+  if (!dir) {
     throw new Error(`Must supply configuration ${name}Dir`);
   }
   Object.defineProperty(group, "dir", { value: dir });

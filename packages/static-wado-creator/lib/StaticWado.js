@@ -170,9 +170,9 @@ class StaticWado {
         const _bulkDataIndex = bulkDataIndex;
         bulkDataIndex += 1;
         // TODO - handle other types here too as single part rendered
-        if( options?.mimeType === 'application/pdf' ) {
+        if (options?.mimeType === "application/pdf") {
           console.log("Writing rendered mimeType", options.mimeType);
-          const writeStream = WriteStream(id.sopInstanceRootPath, 'rendered.pdf', {
+          const writeStream = WriteStream(id.sopInstanceRootPath, "rendered.pdf", {
             gzip: false,
             mkdir: true,
           });
@@ -185,14 +185,14 @@ class StaticWado {
         const { imageFrame: transcodedImageFrame, decoded, id: transcodedId } = await transcodeImageFrame(id, targetId, originalImageFrame, dataSet, this.options);
 
         const lossyImage = await generateLossyImage(id, decoded, this.options);
-        
+
         const currentImageFrameIndex = imageFrameIndex;
         imageFrameIndex += 1;
 
-        if( lossyImage ) {
+        if (lossyImage) {
           await this.callback.imageFrame(lossyImage.id, currentImageFrameIndex, lossyImage.imageFrame);
         }
-        
+
         thumbnailService.queueThumbnail(
           {
             imageFrame: originalImageFrame,

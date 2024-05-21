@@ -158,7 +158,7 @@ const isValueInline = (attr, options) => {
     return attr.length <= options.maximumInlinePrivateLength;
   }
   // For encapsulated documents, almost always have them be external
-  if( attr.tag===RawEncapsulatedDocument && attr.length > 4) {
+  if (attr.tag === RawEncapsulatedDocument && attr.length > 4) {
     return false;
   }
   return !attr.length || attr.length <= options.maximumInlinePublicLength;
@@ -204,7 +204,7 @@ const getValue = async (dataSet, attr, vr, getDataSet, callback, options, parent
   }
   const binaryValue = dataSet.byteArray.slice(attr.dataOffset, attr.dataOffset + attr.length);
   const mimeType = attr.tag == "x00420011" && dataSet.string("x00420012");
-  
+
   const BulkDataURI = await callback.bulkdata(binaryValue, { mimeType });
   return { BulkDataURI, vr };
 };
