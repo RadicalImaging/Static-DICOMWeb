@@ -9,6 +9,7 @@ const getDataSet = require("./operation/getDataSet");
 const InstanceDeduplicate = require("./operation/InstanceDeduplicate");
 const DeduplicateWriter = require("./writer/DeduplicateWriter");
 const ImageFrameWriter = require("./writer/ImageFrameWriter");
+const WriteStream = require("./writer/WriteStream");
 const CompleteStudyWriter = require("./writer/CompleteStudyWriter");
 const IdCreator = require("./util/IdCreator");
 const ScanStudy = require("./operation/ScanStudy");
@@ -168,20 +169,30 @@ class StaticWado {
       bulkdata: async (bulkData, options) => {
         const _bulkDataIndex = bulkDataIndex;
         bulkDataIndex += 1;
+        // TODO - handle other types here too as single part rendered
+        if (options?.mimeType === "application/pdf") {
+          console.log("Writing rendered mimeType", options.mimeType);
+          const writeStream = WriteStream(id.sopInstanceRootPath, "rendered.pdf", {
+            gzip: false,
+            mkdir: true,
+          });
+          await writeStream.write(bulkData);
+          await writeStream.close();
+        }
         return this.callback.bulkdata(targetId, _bulkDataIndex, bulkData, options);
       },
       imageFrame: async (originalImageFrame) => {
         const { imageFrame: transcodedImageFrame, decoded, id: transcodedId } = await transcodeImageFrame(id, targetId, originalImageFrame, dataSet, this.options);
 
         const lossyImage = await generateLossyImage(id, decoded, this.options);
-        
+
         const currentImageFrameIndex = imageFrameIndex;
         imageFrameIndex += 1;
 
-        if( lossyImage ) {
+        if (lossyImage) {
           await this.callback.imageFrame(lossyImage.id, currentImageFrameIndex, lossyImage.imageFrame);
         }
-        
+
         thumbnailService.queueThumbnail(
           {
             imageFrame: originalImageFrame,

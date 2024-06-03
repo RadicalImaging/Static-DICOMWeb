@@ -61,8 +61,8 @@
     "@aws-sdk/client-s3": "^3.374.0",
     "@radicalimaging/static-wado-plugins": ">=1.2.1",
     "@radicalimaging/static-wado-util": ">=1.2.1",
-    "aws-cdk": "^2.96.2",
-    "aws-cdk-lib": "^2.96.2",
+    "aws-cdk": "^2.122.0",
+    "aws-cdk-lib": "^2.122.0",
     "config-point": ">=0.5.1",
     "constructs": "^10.0.94",
     "json5-writer": "^0.2.0",
@@ -71,7 +71,7 @@
   "devDependencies": {
     "@rollup/plugin-json": "^6.0.0",
     "@types/node": "^17.0.23",
-    "aws-cdk": "^2.96.2",
+    "aws-cdk": "^2.122.0",
     "must": "^0.13.4",
     "rollup": "^3.6.0",
     "typescript": "^5.2.2"

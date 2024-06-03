@@ -1,6 +1,6 @@
 import DeployGroup from "./DeployGroup.mjs";
 
-export default async function uploadMain(directory, config, name, options, deployPlugin) {
+export default async function uploadDeploy(directory, config, name, options, deployPlugin) {
   const deployer = new DeployGroup(config, name, options, deployPlugin);
   await deployer.loadOps();
 

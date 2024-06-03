@@ -36,7 +36,7 @@ const transcodeDestinationMap = {
     transcodeOp: transcodeOp.encode,
   },
   jhc: {
-    transferSyntaxUid: "3.2.840.10008.1.2.4.96",
+    transferSyntaxUid: "1.2.840.10008.1.2.4.202",
     transcodeOp: transcodeOp.encode,
   },
   jpeg: {
@@ -83,6 +83,10 @@ const transcodeSourceMap = {
     alias: "jp2",
   },
   "3.2.840.10008.1.2.4.96": {
+    transcodeOp: transcodeOp.decode,
+    alias: "jhc",
+  },
+  "1.2.840.10008.1.2.4.202": {
     transcodeOp: transcodeOp.decode,
     alias: "jhc",
   },
@@ -210,13 +214,13 @@ function scale(imageFrame, imageInfo) {
     samplesPerPixel,
   };
   const dest = {
-    rows: Math.round(rows/4),
-    columns: Math.round(columns/4),
+    rows: Math.round(rows / 4),
+    columns: Math.round(columns / 4),
     samplesPerPixel,
   };
-  dest.pixelData = new arrayConstructor(dest.rows*dest.columns*samplesPerPixel);
+  dest.pixelData = new arrayConstructor(dest.rows * dest.columns * samplesPerPixel);
   replicate(src, dest);
-  
+
   return {
     imageFrame: dest.pixelData,
     imageInfo: {
@@ -233,7 +237,7 @@ function scale(imageFrame, imageInfo) {
  * Options for lossy are:
  * * htj2k - generates a full resolution but high loss htj2k representation of the frames
  * * jls - generates a +/- 2 value, maximum 128 on an edge JLS representation
- * 
+ *
  * In either case, saves it to <sopUID>/fsiz/frameNo as multipart related
  */
 async function generateLossyImage(id, decoded, options) {
@@ -242,9 +246,9 @@ async function generateLossyImage(id, decoded, options) {
 
   try {
     let { imageFrame, imageInfo } = decoded;
-    const lossyId = { 
+    const lossyId = {
       ...id,
-      imageFrameRootPath: id.imageFrameRootPath.replace('frames', options.alternateName),
+      imageFrameRootPath: id.imageFrameRootPath.replace("frames", options.alternateName),
       transferSyntaxUid: transcodeDestinationMap.jhc.transferSyntaxUid,
     };
 
@@ -277,8 +281,8 @@ async function generateLossyImage(id, decoded, options) {
     console.log("Encoded alternate", lossyId.transferSyntaxUid, "of size", lossyEncoding.imageFrame.length);
     // eslint-disable-next-line consistent-return
     return { id: lossyId, imageFrame: lossyEncoding.imageFrame };
-  } catch(e) {
-    console.warn("Unable to create alternate:",e);
+  } catch (e) {
+    console.warn("Unable to create alternate:", e);
   }
 }
 
@@ -310,7 +314,7 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
   const transcoder = getTranscoder(id.transferSyntaxUid, options, samplesPerPixel);
 
   // Don't transcode if not required
-  if (targetId.transferSyntaxUid !== transcoder.transferSyntaxUid  && !options.forceTranscode) {
+  if (targetId.transferSyntaxUid !== transcoder.transferSyntaxUid && !options.forceTranscode) {
     console.verbose("Image is already in", targetId.transferSyntaxUid, "not transcoding");
     return {
       id,
@@ -324,7 +328,7 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
   const imageInfo = getImageInfo(dataSet);
   let done = false;
   let processResultMsg = "";
-  const encodeOptions = { 
+  const encodeOptions = {
     beforeEncode: beforeEncode.bind(null, {
       lossy: options.lossy,
     }),

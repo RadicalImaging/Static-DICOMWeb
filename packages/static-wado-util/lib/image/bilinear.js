@@ -39,9 +39,9 @@ function bilinear(src, dest) {
       const p11 = srcData[ySrc2Off + xSrc2Off[x]];
       const xFracInv = 1 - xFrac[x];
 
-    //   console.log("bilinear for", x,y, "from", ySrc1Off + xSrc1Off[x], ySrc1Off + xSrc2Off[x], ySrc2Off + xSrc1Off[x], ySrc2Off + xSrc2Off[x]);
-    //   console.log("values", p00, p10, p01, p11);
-    //   console.log("fractions", xFracInv, xFrac[x], yFracInv, yFrac);
+      //   console.log("bilinear for", x,y, "from", ySrc1Off + xSrc1Off[x], ySrc1Off + xSrc2Off[x], ySrc2Off + xSrc1Off[x], ySrc2Off + xSrc2Off[x]);
+      //   console.log("values", p00, p10, p01, p11);
+      //   console.log("fractions", xFracInv, xFrac[x], yFracInv, yFrac);
 
       pixelData[yOff + x] = (p00 * xFracInv + p10 * xFrac[x]) * yFracInv + (p01 * xFracInv + p11 * xFrac[x]) * yFrac;
     }
@@ -49,15 +49,9 @@ function bilinear(src, dest) {
   return pixelData;
 }
 
-
 /** Handle replicate scaling.  Use this function for samplesPerPixel>1 */
 function replicate(src, dest) {
-  const {
-    rows: srcRows,
-    columns: srcColumns,
-    pixelData: srcData,
-    samplesPerPixel = 1,
-  } = src;
+  const { rows: srcRows, columns: srcColumns, pixelData: srcData, samplesPerPixel = 1 } = src;
   const { rows, columns, pixelData } = dest;
 
   const xSrc1Off = [];

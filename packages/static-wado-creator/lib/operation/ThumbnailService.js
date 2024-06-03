@@ -120,7 +120,7 @@ class ThumbnailService {
       if (pixelData) {
         const { BulkDataURI } = pixelData;
         if (BulkDataURI?.indexOf("mp4")) {
-          fs.mkdirSync(`${itemId.sopInstanceRootPath}/rendered`,{recursive: true});
+          fs.mkdirSync(`${itemId.sopInstanceRootPath}/rendered`, { recursive: true });
           const mp4Path = path.join(itemId.sopInstanceRootPath, "rendered/index.mp4");
           // Generate as rendered, as more back ends support that.
           const thumbPath = path.join(itemId.sopInstanceRootPath, "rendered/1.jpg");

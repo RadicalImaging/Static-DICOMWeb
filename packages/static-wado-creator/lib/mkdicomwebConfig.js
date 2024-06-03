@@ -62,7 +62,7 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       {
         key: "--alternate-name <dir>",
         description: "Uses a given sub directory name",
-        defaultValue: 'lossy',
+        defaultValue: "lossy",
       },
       {
         key: "-v, --verbose",
@@ -72,7 +72,7 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       {
         key: "-t, --content-type <type>",
         description: 'Destination type to compress to (choices: "jpeg", "jls", "lei", "jls-lossy", "jhc", "jxl" or DICOM Transfer Syntax UID - default: "jls")',
-        defaultValue: "jls",
+        defaultValue: "jhc",
         customParser: compressionOptionParser,
       },
       {
