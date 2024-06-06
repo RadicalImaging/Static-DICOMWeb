@@ -15,7 +15,7 @@ export default async function setPlugins(routerExpress, params, pluginsKey = "pl
       const plugin = await import(pluginItem.pluginModule);
       const pluginDefault = plugin.default || plugin;
       const { setRoute } = pluginDefault[pluginItem.pluginName];
-      setRoute(routerExpress, pluginItem);
+      setRoute(routerExpress, pluginItem, params);
     }
   }
 }
