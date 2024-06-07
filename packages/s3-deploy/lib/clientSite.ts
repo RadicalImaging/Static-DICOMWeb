@@ -35,7 +35,7 @@ const clientSite = function (site: Construct, name: string, cloudfrontOAI: cloud
       function handler(event) {
         var request = event.request;
     
-        if (!request.uri.includes('.')) {
+        if (!request.uri.includes('studies') && !request.uri.includes('.')) {
             request.uri = '/index.html';
         } 
     

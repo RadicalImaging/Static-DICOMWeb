@@ -57,7 +57,7 @@ export default function byteRangeRequest(options) {
   }
 
   return (req, res, next) => {
-    const fsiz = req.query.fsiz;
+   const fsiz = req.query.fsiz;
     const accept = req.header("accept") || "";
     const queryAccept = req.query.accept;
     const extension = findExtension(req.path, queryAccept || accept);

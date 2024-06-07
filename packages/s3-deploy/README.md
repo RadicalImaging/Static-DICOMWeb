@@ -17,6 +17,8 @@ If you are going to be deploying to AWS, you need to do these common steps, as d
 5. Initialize CDK in the s3-deploy subdirectory using `cdk bootstrap` command
 6. Create a configuration storing your AWS storage (see below)
 7. From the s3-deploy sub-directory, run `yarn deploy <deploymentName>`
+8. Optional: Modify the access key created in step 7 to allow access to any of your buckets, and add the GUID for the access key to all of your groups using the:
+           `responseHeadersPolicyGlobalId: <GUID>` attribute value.  
 
 Note: NEVER store you aws keys in a public place, these give unfettered access to your account.
 
@@ -36,12 +38,14 @@ An example of a distribution configuration is here:
         region: 'us-east-1',
         clientGroup: {
           Bucket: 'your-bucket-name',
+          responseHeadersPolicyGlobalId: '<GUID>'
         },
         rootGroup: {
           path: "/dicomweb",
           Bucket: 'your-dicomweb-bucket-name',
           useExistingBucket: false,
           index: 'your-dicomweb-index.json.gz',
+          responseHeadersPolicyGlobalId: '<GUID>'
         },
       },
     ],
@@ -153,6 +157,8 @@ You will need to wait for deployment to complete before testing.  This can take 
         ]
       }
 ```
+
+This access key then needs to have it's identifying GUID encoded into the  `responseHeadersPolicyGlobalId` and redeployed.
 
 ### User Authentication
 Follow the instructions at (cloudfront authorization at edge)[https://github.com/aws-samples/cloudfront-authorization-at-edge] to add authorization.  It is recommended to use the option: `I already have a CloudFront distribution, I just want to add auth` and `I want to use a social identity provider` so that you can manually add users as required.  Of course, with a remote user identity provider, you can just redirect to a remote provider of identity.

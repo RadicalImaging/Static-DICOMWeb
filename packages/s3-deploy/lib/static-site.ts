@@ -26,28 +26,16 @@ export class StaticSite extends Construct {
     const cloudfrontOAI = new cloudfront.OriginAccessIdentity(this, `${name}-OAI`, {
       comment: `OAI for ${name}`
     });
+    console.warn("******** cloadfrontOAI", name, cloudfrontOAI);
 
-    // Ordered, so get first value for primary, and then everything else
     const distProps = new Map();
-
-    if (props.clientGroup) {
-      const clientGroup = configGroup(props,"client");
-      console.log("clientGroup:", clientGroup);
-      distProps.set('/', clientSite(this,name,cloudfrontOAI,clientGroup));
-    } else {
-      console.log("no clientGroup specified for deployment:", name);
-    }
-
-    if( props.indexGroup ) {
-      const group = configGroup(props,"index");
-      console.log("Index group", group);
-      createDocumentGroup(this,group);
-    }
+    let defaultDistribution;
+    
 
     if (props.rootGroup) {
       const rootGroup = configGroup(props,"root");
-      console.log("rootGroup:", rootGroup);
       distProps.set('/dicomweb/*',rootSite(this,name,cloudfrontOAI,rootGroup));
+      defaultDistribution = '/dicomweb/*';
     } else {
       console.log("no rootGroup specified for deployment:", name);
     }
@@ -56,15 +44,32 @@ export class StaticSite extends Construct {
       const group = configGroup(props,"upload");
       console.log("Upload Group:", group);
       distProps.set('/lei/*',uploadSite(this,name,cloudfrontOAI,group));
+      defaultDistribution = '/lei/*';
     } else {
       console.log("no extra group specified for deployment:", name);
     }
+    
+    if( props.indexGroup ) {
+      const group = configGroup(props,"index");
+      console.log("Index group", group);
+      createDocumentGroup(this,group);  
+    }
 
+    if (props.clientGroup) {
+      const clientGroup = configGroup(props,"client");
+      console.log("clientGroup:", clientGroup);
+      distProps.set('/', clientSite(this,name,cloudfrontOAI,clientGroup));
+      defaultDistribution = '/';
+    } else {
+      console.log("no clientGroup specified for deployment:", name);
+    }
+  
     // Split the distribution properties into the primary one (first added), and everything else
+    const defaultDistProps = distProps.get(defaultDistribution);
+    distProps.delete(defaultDistribution);
     const distIterator = distProps.entries();
-    const [ , defaultDistProps] = distIterator.next().value;
-    const additionalDistProps = distProps.size>1 ? Object.fromEntries(distIterator) : undefined;
-
+    const additionalDistProps = distProps.size ? Object.fromEntries(distIterator) : undefined;
+    
     const siteInfo = getSiteInfo(this, name, props);
     const siteDomain = siteInfo?[siteInfo.siteDomain]:undefined;
 
@@ -78,14 +83,14 @@ export class StaticSite extends Construct {
       httpVersion:  cloudfront.HttpVersion.HTTP3,
     });
 
-
+  
     new CfnOutput(this, 'DistributionId', { value: distribution.distributionId });
 
     if (siteInfo) {
       configureDomain(this, name, siteInfo.siteDomain, siteInfo.zone, distribution);
     }
     new CfnOutput(this, 'DistributionDomainName', { value: siteInfo?siteInfo.siteDomain:distribution.distributionDomainName });
-
+    
     // Deploy site contents to S3 bucket
     const clientDir = handleHomeRelative(props.clientDir || './site-contents');
     new CfnOutput(this, 'clientDir', { value: clientDir } );
