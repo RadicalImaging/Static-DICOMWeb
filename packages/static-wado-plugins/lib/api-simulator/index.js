@@ -1,3 +1,4 @@
+const { handleHomeRelative } = require("@radicalimaging/static-wado-util");
 const ConfigPoint = require("config-point");
 
 let jobId = 1000;
@@ -8,25 +9,32 @@ const initiateApi = (item, req, res) => {
   jobId += 1;
   res.status(200).send(`${thisId}`);
   console.log("Initiate job", item.id, thisId);
-  jobs[jobId] = 1;
 };
 
-const subsequentApi = (item, req, res, next) => {
-  const itemId = jobs[req.params.jobId];
-  jobs[req.params.jobId] += 1;
+function subsequentApi(item, req, res) {
+  const itemId = jobs[req.params.jobId] || 1;
+  jobs[req.params.jobId] = itemId+1;
 
-  req.url = `${item.pluginRoute}/${itemId}.json`;
+  const endPath = `${item.pluginRoute}/${itemId}.json`;
+  console.log("item=", item);
   res.setHeader("content-type", "application/json; charset=utf-8");
-  console.log("Requested URL is", req.url);
-  next();
+  res.setHeader("cache-control", "no-cache");
+  const filePath = `${this.root}${endPath}`;
+  console.log("sendFile path", endPath, req.url, filePath);
+  res.sendFile(filePath);
 };
 
 module.exports = ConfigPoint.createConfiguration("apiSimulator", {
-  setRoute: (router, item) => {
-    console.log("Registering API", item.pluginRoute);
-    router.post(item.pluginRoute, initiateApi.bind(null, item));
-    // The get route isn't quite valid here, but is useful for testing before completing this.
-    router.get(item.pluginRoute, initiateApi.bind(null, item));
-    router.get(`${item.pluginRoute}/:jobId`, subsequentApi.bind(null, item));
+  setRoute: (router, item, params = {}) => {
+    const { dir = "~/dicomweb" } = params;
+    const root = handleHomeRelative(dir);
+    const props = { root };
+
+
+     console.log("Registering API", item.pluginRoute, '/', jobId);
+     router.post(item.pluginRoute, initiateApi.bind(props, item));
+     // The get route isn't quite valid here, but is useful for testing before completing this.
+     router.get(item.pluginRoute, initiateApi.bind(props, item));
+     router.get(`${item.pluginRoute}/:jobId`, subsequentApi.bind(props, item));
   },
 });

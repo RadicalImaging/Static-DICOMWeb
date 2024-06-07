@@ -14,6 +14,7 @@ const octetStream = "application/octet-stream";
 const multipartRelated = "multipart/related";
 const multipartRelatedDicom = "multipart/related";
 const imagejpeg = "image/jpeg";
+const pngType = "image/png";
 const applicationDicom = "application/dicom";
 const ionType = "application/x-amzn-ion";
 
@@ -22,6 +23,15 @@ const noCachePattern = /(index.html)|(index.js)|(index.umd.js)|(studies$)|(theme
 
 // const prefixSlash = (str) => (str && str[0] !== "/" ? `/${str}` : str);
 const noPrefixSlash = (str) => (str && str[0] === "/" ? str.substring(1) : str);
+
+const extensionsToRemove = ['.mht', '.jhc'];
+
+const findExtensionToRemove = (name) => {
+  for( const testExtension of extensionsToRemove) {
+    const lastFound = name.lastIndexOf(testExtension);
+    if( lastFound!==-1 ) return lastFound;
+  }
+}
 
 class S3Ops {
   constructor(config, name, options) {
@@ -63,7 +73,7 @@ class S3Ops {
     if (fileName[0] == "/") {
       fileName = fileName.substring(1);
     }
-    const extensionPos = fileName.lastIndexOf(".jhc");
+    const extensionPos = findExtensionToRemove(fileName);
     if (extensionPos > 0) {
       fileName = fileName.substring(0, extensionPos);
     }
@@ -89,6 +99,7 @@ class S3Ops {
       (src.indexOf("frames") !== -1 && multipartRelated) ||
       (src.indexOf("thumbnail") !== -1 && imagejpeg) ||
       (src.indexOf(".ion") !== -1 && ionType) ||
+      (src.indexOf("rendered") !== -1 && pngType) ||
       "application/json"
     );
   }
@@ -254,7 +265,7 @@ class S3Ops {
     const CacheControl = isNoCacheKey ? "no-cache" : undefined;
 
     if (this.shouldSkip(excludeExisting[Key], fileName)) {
-      console.info("Already exists", Key);
+      console.info("Exists", Key);
       return false;
     }
 
@@ -278,6 +289,7 @@ class S3Ops {
     }
     try {
       await this.client.send(command);
+      console.info("Uploaded", Key);
       return true;
     } catch (error) {
       console.log("Error sending", file, error);

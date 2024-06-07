@@ -7,11 +7,9 @@ export default async function setQueryProxy(routerExpress, level, params, key) {
     const plugin = await import(plugins[name]);
     const { generator } = plugin.default || plugin;
     const queryFunction = generator(params, key);
-    console.log("Adding query call on", level, "to", name);
     routerExpress.get(level, async (req, res, next) => {
       const results = await queryFunction(req.query);
       if (results) {
-        console.log("Found results", results.length);
         res.json(results);
         return;
       }

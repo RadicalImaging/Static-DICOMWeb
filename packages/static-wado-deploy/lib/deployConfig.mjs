@@ -31,6 +31,10 @@ const { deployConfig } = ConfigPoint.register({
         defaultValue: false,
       },
       {
+        key: "-c, --configuration <json5File>",
+        description: "Use a given JSON5 file",
+      },
+      {
         key: "-d, --deployments <listvalue...>",
         description: "List of deployments from configuration to deploy to. Separated by space.",
         defaultValue: undefined,

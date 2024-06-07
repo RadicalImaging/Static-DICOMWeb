@@ -5,6 +5,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import { CfnOutput } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import getBucket from './getBucket.js';
+import getResponseHeadersPolicy from './getResponseHeadersPolicy.js';
 
 /**
  * Constructs an S3 bucket definition for dicomweb data, for use by distribution.
@@ -23,32 +24,12 @@ const uploadSite = function(site: Construct, name: string, cloudfrontOAI: cloudf
     principals: [new iam.CanonicalUserPrincipal(cloudfrontOAI.cloudFrontOriginAccessIdentityS3CanonicalUserId)]
   }));
   
-  const uploadResponseHeadersPolicy = new cloudfront.ResponseHeadersPolicy(site, `${name}-Upload-response-policy`, {
-    responseHeadersPolicyName: `${name}-up-rhp`,
-    comment: 'Allow prefetch for DICOMweb with authorization and quotes in content-type',
-    corsBehavior: {
-      accessControlAllowCredentials: false,
-      accessControlAllowHeaders: ['*'],
-      accessControlAllowMethods: ['GET', 'OPTIONS', 'HEAD'],
-      accessControlAllowOrigins: ['*'],
-      originOverride: true,
-    },
-    customHeadersBehavior: {
-      customHeaders: [
-        { header: 'Cross-Origin-Embedder-Policy', value: 'require-corp', override: true },
-        { header: 'Cross-Origin-Opener-Policy', value: 'same-origin', override: true },
-      ],
-    },
-    securityHeadersBehavior: {
-      // contentSecurityPolicy: { contentSecurityPolicy: "script-src: unsafe-eval", override: true },
-      contentTypeOptions: { override: true },
-    },
-  });
+  const responseHeadersPolicy = getResponseHeadersPolicy(site,name,props);
 
   return {
     origin: new cloudfront_origins.S3Origin(uploadBucket, {originAccessIdentity: cloudfrontOAI}),
     allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
-    responseHeadersPolicy: uploadResponseHeadersPolicy,
+    responseHeadersPolicy,
   };
 }
 

@@ -1,6 +1,7 @@
 const ConfigPoint = require("config-point");
 const { staticWadoConfig } = require("@radicalimaging/static-wado-util");
 const createMain = require("./createMain");
+const createPart10 = require("./createPart10");
 const deleteMain = require("./deleteMain");
 const rejectMain = require("./rejectMain");
 const instanceMain = require("./instanceMain");
@@ -21,7 +22,12 @@ const { mkdicomwebConfig } = ConfigPoint.register({
     isGroup: true,
     options: [
       {
-        key: "-c, --clean",
+        key: "-c <configFile.json5>",
+        description: "Use an alternate configuration file",
+        defaultValue: "~/static-wado.json5",
+      },
+      {
+        key: "--clean",
         description: "Clean the outputs before generating/starting to write new values.",
         defaultValue: false,
       },
@@ -40,6 +46,25 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         defaultValue: false,
       },
       {
+        key: "--lossy",
+        description: "Generate lossy instances instead of lossless",
+        defaultValue: false,
+      },
+      {
+        key: "--alternate <type>",
+        description: "Generates an alternate representaton of the image generally in the /lossy sub-directory",
+        choices: ["jhc", "jls", "jhcLossless", "jlsLossless"],
+      },
+      {
+        key: "--alternate-thumbnail",
+        description: "Generates a thumbnail for the alternate representation",
+      },
+      {
+        key: "--alternate-name <dir>",
+        description: "Uses a given sub directory name",
+        defaultValue: "lossy",
+      },
+      {
         key: "-v, --verbose",
         description: "Write verbose output",
         defaultValue: false,
@@ -47,7 +72,7 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       {
         key: "-t, --content-type <type>",
         description: 'Destination type to compress to (choices: "jpeg", "jls", "lei", "jls-lossy", "jhc", "jxl" or DICOM Transfer Syntax UID - default: "jls")',
-        defaultValue: "jls",
+        defaultValue: "jhc",
         customParser: compressionOptionParser,
       },
       {
@@ -89,6 +114,11 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         choices: ["uncompressed", "jpeg", "jp2", "jpeglossless", "rle", "jph", "jls", "true", "none"],
       },
       {
+        key: "-f, --force",
+        description: "Force the update even if the SOP exists",
+        defaultValue: false,
+      },
+      {
         key: "--recompress-thumb <listvalue...>",
         description: "List of types to recompress thumb separated by space",
         defaultValue: ["uncompressed", "jp2"],
@@ -102,6 +132,20 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       {
         key: "--no-recompress-thumb",
         description: "Force no recompression thumbnail",
+        defaultValue: false,
+      },
+      {
+        key: "--no-thumb",
+        description: "Skip thumbnail generation",
+      },
+      {
+        key: "--dcm2jpg",
+        description: "Use dcm2jpg for thumbnail image generation",
+        defaultValue: false,
+      },
+      {
+        key: "--rendered",
+        description: "Use dcm2jpg to generate a rendered PNG image",
         defaultValue: false,
       },
       {
@@ -147,9 +191,15 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         arguments: ["input"],
         main: createMain,
         helpDescription:
-          "Make DICOMweb query and metadata from binary Part 10 DICOM files.  Does a full read of\n" +
-          "deduplicated files each time a study instance UID is found, and only updates those studies\n" +
-          "having at least one ",
+          "Make DICOMweb query and metadata from binary Part 10 DICOM files.  Does a full read\n" +
+          "of deduplicated files each time a study instance UID is found, and only updates\n" +
+          "those studies having at least one ",
+      },
+      {
+        command: "part10",
+        arguments: ["studyUID"],
+        main: createPart10,
+        helpDescription: "Store the specified study as part 10 data",
       },
       {
         command: "index",

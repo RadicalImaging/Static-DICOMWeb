@@ -3,9 +3,7 @@ import isCorsEnabled from "../util/isCorsEnabled.mjs";
 
 function getCorsOptions(config = {}) {
   const { corsOptions } = config;
-  const defaultOptions = {
-    optionsSuccessStatus: 200, // some legacy browsers (IE11, various SmartTVs) choke on 204
-  };
+  const defaultOptions = {};
 
   const corsOptionsCpy = { ...corsOptions };
 
@@ -23,6 +21,9 @@ function getCorsOptions(config = {}) {
 export default function setMiddlewares(appExpress, config) {
   const corsOptions = getCorsOptions(config);
   if (isCorsEnabled(config)) {
+    console.warn("Cors is enabled", corsOptions);
     appExpress.use("/", cors(corsOptions));
+  } else {
+    console.log("cors is not enabled");
   }
 }
