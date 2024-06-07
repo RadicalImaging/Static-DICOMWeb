@@ -17,7 +17,7 @@ const getResponseHeadersPolicy = (site: Construct, name: string, props: any) => 
       responseHeadersPolicy = cloudfront.ResponseHeadersPolicy.fromResponseHeadersPolicyId(site, responseHeadersId, id);
     }
   } catch(e) {
-    console.log("Couldn't find response headers policy, creating");
+    console.log("Couldn't find response headers policy", props, name);
   }
   if( responseHeadersPolicy ) {
     return responseHeadersPolicy;

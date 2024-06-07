@@ -3,7 +3,7 @@ function configGroup(config, name) {
   const group = { ...config[`${name}Group`] };
   const dir = group.dir || group[`${name}Dir`] || config[`${name}Dir`];
   if (!dir) {
-    throw new Error(`Must supply configuration ${name}Dir`);
+    throw new Error(`Must supply configuration ${name}Dir in ${config}`);
   }
   Object.defineProperty(group, "dir", { value: dir });
   Object.defineProperty(group, "name", { value: name });
