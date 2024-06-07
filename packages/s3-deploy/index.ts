@@ -31,7 +31,7 @@ class MyStaticSiteStack extends cdk.Stack {
 }
 
 function createDeployment(deployment) {
-    new MyStaticSiteStack(app, `${deployment.name}-deployment`, {
+    new MyStaticSiteStack(app, `${deployment.oldName || deployment.name}`, {
         /**
          * This is required for our use of hosted-zone lookup.
          *

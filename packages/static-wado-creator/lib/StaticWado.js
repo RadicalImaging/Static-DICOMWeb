@@ -1,4 +1,5 @@
 const dicomCodec = require("@cornerstonejs/dicom-codec");
+const staticCS = require("@radicalimaging/static-cs-lite");
 const { Stats, handleHomeRelative, dirScanner, JSONReader, JSONWriter, asyncIterableToBuffer, Tags } = require("@radicalimaging/static-wado-util");
 const dicomParser = require("dicom-parser");
 const fs = require("fs");
@@ -8,20 +9,39 @@ const getDataSet = require("./operation/getDataSet");
 const InstanceDeduplicate = require("./operation/InstanceDeduplicate");
 const DeduplicateWriter = require("./writer/DeduplicateWriter");
 const ImageFrameWriter = require("./writer/ImageFrameWriter");
+const WriteStream = require("./writer/WriteStream");
 const CompleteStudyWriter = require("./writer/CompleteStudyWriter");
 const IdCreator = require("./util/IdCreator");
 const ScanStudy = require("./operation/ScanStudy");
 const HashDataWriter = require("./writer/HashDataWriter");
 const VideoWriter = require("./writer/VideoWriter");
-const { transcodeImageFrame, transcodeId, transcodeMetadata } = require("./operation/adapter/transcodeImage");
+const { transcodeImageFrame, generateLossyImage, transcodeId, transcodeMetadata } = require("./operation/adapter/transcodeImage");
 const ThumbnailWriter = require("./writer/ThumbnailWriter");
+const decodeImage = require("./operation/adapter/decodeImage");
 const ThumbnailService = require("./operation/ThumbnailService");
 const DeleteStudy = require("./DeleteStudy");
 const RejectInstance = require("./RejectInstance");
 const RawDicomWriter = require("./writer/RawDicomWriter");
+const { isVideo } = require("./writer/VideoWriter");
 
 function setStudyData(studyData) {
   this.studyData = studyData;
+}
+
+function internalGenerateImage(originalImageFrame, dataset, metadata, transferSyntaxUid, doneCallback) {
+  decodeImage(originalImageFrame, dataset, transferSyntaxUid)
+    .then((decodeResult = {}) => {
+      if (isVideo(transferSyntaxUid)) {
+        console.log("Video data - no thumbnail generator yet");
+      } else {
+        const { imageFrame, imageInfo } = decodeResult;
+        const pixelData = dicomCodec.getPixelData(imageFrame, imageInfo, transferSyntaxUid);
+        staticCS.getRenderedBuffer(transferSyntaxUid, pixelData, metadata, doneCallback);
+      }
+    })
+    .catch((error) => {
+      console.log(`Error while generating thumbnail:: ${error}`);
+    });
 }
 
 class StaticWado {
@@ -54,6 +74,7 @@ class StaticWado {
       setStudyData,
       rawDicomWriter: RawDicomWriter(this.options),
       notificationService: new NotificationService(this.options.notificationDir),
+      internalGenerateImage,
     };
   }
 
@@ -95,6 +116,7 @@ class StaticWado {
           Stats.StudyStats.add("DICOM P10", "Parse DICOM P10 file");
         } catch (e) {
           console.error("Couldn't process", file);
+          console.verbose("Error", e);
         }
       },
     });
@@ -147,13 +169,29 @@ class StaticWado {
       bulkdata: async (bulkData, options) => {
         const _bulkDataIndex = bulkDataIndex;
         bulkDataIndex += 1;
+        // TODO - handle other types here too as single part rendered
+        if (options?.mimeType === "application/pdf") {
+          console.log("Writing rendered mimeType", options.mimeType);
+          const writeStream = WriteStream(id.sopInstanceRootPath, "rendered.pdf", {
+            gzip: false,
+            mkdir: true,
+          });
+          await writeStream.write(bulkData);
+          await writeStream.close();
+        }
         return this.callback.bulkdata(targetId, _bulkDataIndex, bulkData, options);
       },
       imageFrame: async (originalImageFrame) => {
-        const { imageFrame: transcodedImageFrame, id: transcodedId } = await transcodeImageFrame(id, targetId, originalImageFrame, dataSet, this.options);
+        const { imageFrame: transcodedImageFrame, decoded, id: transcodedId } = await transcodeImageFrame(id, targetId, originalImageFrame, dataSet, this.options);
+
+        const lossyImage = await generateLossyImage(id, decoded, this.options);
 
         const currentImageFrameIndex = imageFrameIndex;
         imageFrameIndex += 1;
+
+        if (lossyImage) {
+          await this.callback.imageFrame(lossyImage.id, currentImageFrameIndex, lossyImage.imageFrame);
+        }
 
         thumbnailService.queueThumbnail(
           {
@@ -177,12 +215,20 @@ class StaticWado {
     await this.callback.rawDicomWriter?.(id, result, buffer);
 
     const transcodedMeta = transcodeMetadata(result.metadata, id, this.options);
-    await thumbnailService.generateThumbnails(id, dataSet, transcodedMeta, this.callback);
-
+    await thumbnailService.generateThumbnails(id, dataSet, transcodedMeta, this.callback, this.options);
+    await thumbnailService.generateRendered(id, dataSet, transcodedMeta, this.callback, this.options);
     await this.callback.metadata(targetId, transcodedMeta);
 
     // resolve promise with statistics
     return {};
+  }
+
+  static async getDataSet(dataSet, generator, params) {
+    return getDataSet(dataSet, generator, params);
+  }
+
+  static internalGenerateImage(originalImageFrame, dataSet, metadata, transferSyntaxUid, doneCallback) {
+    return internalGenerateImage(originalImageFrame, dataSet, metadata, transferSyntaxUid, doneCallback);
   }
 
   /**

@@ -1,9 +1,11 @@
 import { assertions } from "@radicalimaging/static-wado-util";
-import { qidoMap, dicomMap, otherJsonMap, thumbnailMap, multipartIndexMap, multipartMap } from "../../adapters/requestAdapters.mjs";
+import { qidoMap, dicomMap, otherJsonMap, thumbnailMap, multipartIndexMap } from "../../adapters/requestAdapters.mjs";
 import { defaultPostController as postController } from "../../controllers/server/commonControllers.mjs";
 import { defaultNotFoundController as notFoundController } from "../../controllers/server/notFoundControllers.mjs";
 import { defaultGetProxyController } from "../../controllers/server/proxyControllers.mjs";
 import { indexingStaticController, nonIndexingStaticController } from "../../controllers/server/staticControllers.mjs";
+import byteRangeRequest from "../../controllers/server/byteRangeRequest.mjs";
+import renderedMap from "../../controllers/server/renderedMap.mjs";
 
 /**
  * Set studies (/studies) routes.
@@ -19,8 +21,22 @@ export default function setRoutes(routerExpress, params, dir) {
     thumbnailMap
   );
   routerExpress.get(
-    ["/:ae/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames/:frames", "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames/:frames"],
-    multipartMap
+    ["/studies/:studyUID/rendered", "/studies/:studyUID/series/:seriesUID/rendered", "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/rendered"],
+    renderedMap(params)
+  );
+
+  // Gets the frame metadata - adds support for byte range requests and single part
+  routerExpress.get(
+    [
+      "/:ae/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames/:frames",
+      "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames/:frames",
+      "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/lossy/:frames",
+      "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/htj2k/:frames",
+      "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/htj2kThumbnail/:frames",
+      "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/jls/:frames",
+      "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/jlsThumbnail/:frames",
+    ],
+    byteRangeRequest(params)
   );
   routerExpress.get("/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames", multipartIndexMap);
 

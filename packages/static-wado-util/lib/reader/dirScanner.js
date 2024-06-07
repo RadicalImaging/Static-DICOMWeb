@@ -9,6 +9,10 @@ async function dirScanner(input, options) {
   if (!Array.isArray(files)) files = [files];
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
+    if (!fs.existsSync(file)) {
+      console.warn("File does not exist", file);
+      continue;
+    }
     if (fs.lstatSync(file).isDirectory()) {
       const names = await fs.promises.readdir(file);
       if (options.recursive !== false) {
@@ -30,6 +34,7 @@ async function dirScanner(input, options) {
       } catch (e) {
         if (options.verbose) console.warn("Exception", e);
         console.error("Couldn't process", file);
+        console.verbose("Error", e);
       }
     }
   }

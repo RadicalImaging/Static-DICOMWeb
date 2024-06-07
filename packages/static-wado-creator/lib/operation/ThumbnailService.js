@@ -1,12 +1,8 @@
 const path = require("path");
 const glob = require("glob");
-const dicomCodec = require("@cornerstonejs/dicom-codec");
-const staticCS = require("@radicalimaging/static-cs-lite");
 const fs = require("fs");
 const { Tags, execSpawn, Stats } = require("@radicalimaging/static-wado-util");
-const decodeImage = require("./adapter/decodeImage");
 const { shouldThumbUseTranscoded } = require("./adapter/transcodeImage");
-const { isVideo } = require("../writer/VideoWriter");
 
 /**
  * Return the middle index of given list
@@ -15,21 +11,6 @@ const { isVideo } = require("../writer/VideoWriter");
  */
 function getThumbIndex(listThumbs) {
   return Math.trunc(listThumbs / 2);
-}
-function internalGenerateThumbnail(originalImageFrame, dataset, metadata, transferSyntaxUid, doneCallback) {
-  decodeImage(originalImageFrame, dataset, transferSyntaxUid)
-    .then((decodeResult = {}) => {
-      if (isVideo(transferSyntaxUid)) {
-        console.log("Video data - no thumbnail generator yet");
-      } else {
-        const { imageFrame, imageInfo } = decodeResult;
-        const pixelData = dicomCodec.getPixelData(imageFrame, imageInfo, transferSyntaxUid);
-        staticCS.getRenderedBuffer(transferSyntaxUid, pixelData, metadata, doneCallback);
-      }
-    })
-    .catch((error) => {
-      console.log(`Error while generating thumbnail:: ${error}`);
-    });
 }
 
 /**
@@ -99,6 +80,26 @@ class ThumbnailService {
     execSpawn(`ffmpeg -i "${input}" -vf  "thumbnail,scale=640:360" -frames:v 1 -f singlejpeg "${output}"`);
   }
 
+  dcm2jpg(input, output, options) {
+    const script = ["dcm2jpg", `"${input}" "${output}"`];
+    if (options?.format) {
+      script.push("-F", options.format);
+    }
+    execSpawn(script.join(" "));
+  }
+
+  /** Generates a rendered copy of this, assuming --rendered is set.
+   * Requires dcm2jpg to be available.
+   */
+  async generateRendered(itemid, dataSet, metadata, callback, options) {
+    if (!options.rendered) {
+      return null;
+    }
+    const { id } = this.favoriteThumbnailObj;
+    const rendered = id.imageFrameRootPath.replace(/frames/, "rendered");
+    return this.dcm2jpg(id.filename, rendered, { format: "png" });
+  }
+
   /**
    * Generates thumbnails for the levels: instances, series, study.  This is asynchronous
    *
@@ -106,8 +107,12 @@ class ThumbnailService {
    * @param {*} metadata
    * @param {*} callback
    */
-  generateThumbnails(itemId, dataSet, metadata, callback) {
+  async generateThumbnails(itemId, dataSet, metadata, callback, options) {
     const { imageFrame, id } = this.favoriteThumbnailObj;
+
+    if (!options.thumb) {
+      return null;
+    }
 
     // There are various reasons no thumbnails might be generated, so just return
     if (!id) {
@@ -115,34 +120,36 @@ class ThumbnailService {
       if (pixelData) {
         const { BulkDataURI } = pixelData;
         if (BulkDataURI?.indexOf("mp4")) {
-          const mp4Path = path.join(itemId.sopInstanceRootPath, "pixeldata.mp4");
+          fs.mkdirSync(`${itemId.sopInstanceRootPath}/rendered`, { recursive: true });
+          const mp4Path = path.join(itemId.sopInstanceRootPath, "rendered/index.mp4");
           // Generate as rendered, as more back ends support that.
-          const thumbPath = path.join(itemId.sopInstanceRootPath, "rendered");
+          const thumbPath = path.join(itemId.sopInstanceRootPath, "rendered/1.jpg");
           console.log("MP4 - converting video format", mp4Path);
           this.ffmpeg(mp4Path, thumbPath);
-        } else {
-          console.log("pixelData = ", pixelData, Tags.PixelData);
+          return thumbPath;
         }
       } else {
         console.log("Series is of other type...", metadata[Tags.Modality]);
       }
       return null;
     }
-    return new Promise((resolve, reject) => {
-      internalGenerateThumbnail(imageFrame, dataSet, metadata, id.transferSyntaxUid, async (thumbBuffer) => {
-        try {
-          if (thumbBuffer) {
-            await callback.thumbWriter(id.sopInstanceRootPath, this.thumbFileName, thumbBuffer);
+    if (options.dcm2jpg) {
+      return this.dcm2jpg(id.filename, id.imageFrameRootPath.replace(/frames/, "thumbnail"), {});
+    }
 
-            this.copySyncThumbnail(id.sopInstanceRootPath, id.seriesRootPath);
-            this.copySyncThumbnail(id.seriesRootPath, id.studyPath);
-            Stats.StudyStats.add("Thumbnail Write", `Write thumbnail ${this.thumbFileName}`, 100);
-          }
-          resolve(this.thumbFileName);
-        } catch (e) {
-          reject(e);
+    await callback.internalGenerateImage(imageFrame, dataSet, metadata, id.transferSyntaxUid, async (thumbBuffer) => {
+      try {
+        if (thumbBuffer) {
+          await callback.thumbWriter(id.sopInstanceRootPath, this.thumbFileName, thumbBuffer);
+
+          this.copySyncThumbnail(id.sopInstanceRootPath, id.seriesRootPath);
+          this.copySyncThumbnail(id.seriesRootPath, id.studyPath);
+          Stats.StudyStats.add("Thumbnail Write", `Write thumbnail ${this.thumbFileName}`, 100);
         }
-      });
+        return this.thumbFileName;
+      } catch (e) {
+        console.log("Couldn't generate thumbnail", this.thumbFileName, e);
+      }
     });
   }
 

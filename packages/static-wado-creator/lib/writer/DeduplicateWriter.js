@@ -1,6 +1,6 @@
 const hashFactory = require("node-object-hash");
 
-const hasher = hashFactory();
+const hasher = hashFactory.hasher();
 const { JSONWriter } = require("@radicalimaging/static-wado-util");
 const { Tags } = require("@radicalimaging/static-wado-util");
 const TagLists = require("../model/TagLists");

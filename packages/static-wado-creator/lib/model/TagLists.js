@@ -3,7 +3,7 @@ const { Tags } = require("@radicalimaging/static-wado-util");
 
 /* eslint "no-param-reassign": "off" */
 
-const hasher = hashFactory();
+const hasher = hashFactory.hasher();
 
 const { PatientID, PatientName, IssuerOfPatientID } = Tags;
 const { StudyDescription, AccessionNumber, StudyInstanceUID, StudyDate, StudyTime } = Tags;

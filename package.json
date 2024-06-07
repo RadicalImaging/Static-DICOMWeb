@@ -23,9 +23,10 @@
     "eslint-plugin-jest": "^26.1.0",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-prettier": "^4.0.0",
-    "husky": "^7.0.4",
+    "husky": "^3.0.0",
+    "husky": "^8.0.3",
     "jest": "^27.5.1",
-    "lerna": "^5.4.2",
+    "lerna": "^7.3.0",
     "must": "^0.13.4",
     "prettier": "^2.5.1",
     "prettier-eslint": "^13.0.0",
@@ -33,22 +34,25 @@
     "webpack-cli": "^5.0.1"
   },
   "dependencies": {
-    "@cornerstonejs/codec-openjpeg": "^1.2.2",
-    "@cornerstonejs/codec-openjph": "^2.4.2",
-    "@cornerstonejs/dicom-codec": "^0.1.9",
-    "canvas": "^2.11.0"
+    "@cornerstonejs/codec-openjpeg": ">=1.2.3",
+    "@cornerstonejs/codec-openjph": ">=2.4.5",
+    "@cornerstonejs/dicom-codec": ">=1.0.2",
+    "canvas": "^2.11.1",
+    "typescript": "^5.2.2"
   },
   "resolutions": {
     "core-js": "^3.29.1",
     "rollup": ">=3.6.0",
     "typescript": ">=5.0.2",
-    "@cornerstonejs/codec-openjpeg": ">=1.2.2",
-    "@cornerstonejs/codec-openjph": ">=2.4.2"
+    "@cornerstonejs/codec-openjpeg": ">=1.2.3",
+    "@cornerstonejs/codec-openjph": ">=2.4.5"
   },
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
+    "docker:build": "docker build . -t braveheartsoftware/static-dicomweb:0.6",
+    "docker:run": "docker run  --mount type=bind,source=c:/users/wayfa/dicomweb,target=/dicomweb -p 25080:5000 -p 25104:11112 -d braveheartsoftware/static-dicomweb:0.6",
     "test": "lerna run test --parallel --stream",
     "test:ci": "yarn run test",
     "build": "lerna run build --stream",
@@ -59,5 +63,21 @@
     "lint:fix": "lerna run lint:fix --parallel --stream",
     "postinstall": "git config core.hooksPath '.husky' && echo 'git hooks configured'",
     "reset:hooks": "git config core.hooksPath '.git' && echo 'git hooks was reset'"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "resolutions": {
+    "@cornerstonejs/codec-openjph": ">=2.4.3",
+    "glob": "^7.2.0",
+    "regenerator-runtime": "0.14.1",
+    "canvas": "^2.11.1"
+  },
+  "lint-staged": {
+    "packages/**/*.{ts,js,jsx,tsx,json,md,css}": [
+      "eslint --fix"
+    ]
   }
 }

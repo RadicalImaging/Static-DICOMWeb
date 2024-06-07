@@ -1,8 +1,14 @@
 /* eslint-disable import/prefer-default-export */
 import fs from "fs";
-import { execSpawn } from "@radicalimaging/static-wado-util";
+import path from "path";
+import { execSpawn, handleHomeRelative } from "@radicalimaging/static-wado-util";
 
-const createCommandLine = (files, commandName) => files.reduce((p, c) => `${p} ${c.filepath}`, commandName);
+const createCommandLine = (files, commandName, params) => {
+  let commandline = commandName;
+  commandline = commandline.replace(/<files>/, files.map((file) => file.filepath).join(" "));
+  commandline = commandline.replace(/<rootDir>/, path.resolve(handleHomeRelative(params.rootDir)));
+  return commandline;
+};
 
 /**
  * Save files using stow service, using the given stow command (from params)
@@ -21,13 +27,13 @@ export const storeFilesByStow = (files, params = {}) => {
 
   const promises = [];
   for (const commandName of stowCommands) {
-    const command = createCommandLine(listFiles, commandName);
+    const command = createCommandLine(listFiles, commandName, params);
     console.log("Store command", command);
     const commandPromise = execSpawn(command);
     promises.push(commandPromise);
   }
 
-  Promise.all(promises).then(() => {
+  return Promise.allSettled(promises).then(() => {
     if (notificationCommand) {
       console.warn("Executing notificationCommand", notificationCommand);
       execSpawn(notificationCommand);
@@ -37,5 +43,6 @@ export const storeFilesByStow = (files, params = {}) => {
       if (verbose) console.log("Unlinking", filepath);
       fs.unlink(filepath, () => null);
     });
+    return listFiles.map((it) => it.filepath);
   });
 };

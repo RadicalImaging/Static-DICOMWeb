@@ -1,8 +1,11 @@
 const { program, configureProgram, configureCommands } = require("./program");
 const { Stats } = require("./stats");
+const { bilinear, replicate } = require("./image/bilinear");
+
 exports.handleHomeRelative = require("./handleHomeRelative");
 exports.JSONReader = require("./reader/JSONReader");
 exports.NDJSONReader = require("./reader/NDJSONReader");
+exports.readBulkData = require("./reader/readBulkData");
 exports.JSONWriter = require("./writer/JSONWriter");
 exports.dirScanner = require("./reader/dirScanner");
 exports.qidoFilter = require("./qidoFilter");
@@ -21,6 +24,8 @@ exports.endsWith = require("./endsWith");
 exports.NotificationService = require("./NotificationService");
 exports.execSpawn = require("./execSpawn");
 
+exports.bilinear = bilinear;
+exports.replicate = replicate;
 exports.configureProgram = configureProgram;
 exports.configureCommands = configureCommands;
 exports.program = program;

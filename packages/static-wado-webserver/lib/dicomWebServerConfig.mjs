@@ -9,20 +9,26 @@ const { dicomWebServerConfig } = ConfigPoint.register({
   dicomWebServerConfig: {
     configBase: staticWadoConfig,
     helpShort: "dicomwebserver",
-    stowCommands: ["mkdicomweb"],
+    stowCommands: ["mkdicomweb create <files> --dir <rootDir>"],
     helpDescription: "Serve up the static wado files and optionally a web client as a web server on the local machine.",
     clientDir: "~/ohif",
     port: 5000,
     corsOptions: {
       enabled: true,
-      origin: ["http://localhost:3000"],
+      origin: true,
       // methods: ['GET', "PUT", "POST"],
       // allowedHeaders: ['Content-Type', 'Authorization'],
       // ... https://www.npmjs.com/package/cors#configuration-options
     },
-    proxyAe: "CLEARCANVAS",
+    // proxyAe: "AE-NAME",
 
     webserverPlugins: [],
+    options: [
+      {
+        key: "-p, --p <port>",
+        description: "Run on the given port",
+      },
+    ],
   },
 });
 

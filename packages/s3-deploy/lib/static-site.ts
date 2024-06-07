@@ -19,7 +19,6 @@ export class StaticSite extends Construct {
   constructor(parent: Stack, name: string, props: any) {
     super(parent, name);
 
-    console.log("props:", props);
     if ( !props.clientGroup && !props.rootGroup ) {
       throw new Error("No clientGroup or rootGroup declared in deployment");
     }
@@ -27,16 +26,28 @@ export class StaticSite extends Construct {
     const cloudfrontOAI = new cloudfront.OriginAccessIdentity(this, `${name}-OAI`, {
       comment: `OAI for ${name}`
     });
+    console.warn("******** cloadfrontOAI", name, cloudfrontOAI);
 
-    let clientDistProps;
-    if (props.clientGroup) {
-      const clientGroup = configGroup(props,"client");
-      console.log("clientGroup:", clientGroup);
-      clientDistProps = clientSite(this,name,cloudfrontOAI,clientGroup);
+    const distProps = new Map();
+    let defaultDistribution;
+    
+
+    if (props.rootGroup) {
+      const rootGroup = configGroup(props,"root");
+      distProps.set('/dicomweb/*',rootSite(this,name,cloudfrontOAI,rootGroup));
+      defaultDistribution = '/dicomweb/*';
     } else {
-      console.log("no clientGroup specified for deployment:", name);
+      console.log("no rootGroup specified for deployment:", name);
     }
-  
+
+    if (props.uploadGroup) {
+      const group = configGroup(props,"upload");
+      console.log("Upload Group:", group);
+      distProps.set('/lei/*',uploadSite(this,name,cloudfrontOAI,group));
+      defaultDistribution = '/lei/*';
+    } else {
+      console.log("no extra group specified for deployment:", name);
+    }
     
     if( props.indexGroup ) {
       const group = configGroup(props,"index");
@@ -44,31 +55,21 @@ export class StaticSite extends Construct {
       createDocumentGroup(this,group);  
     }
 
-    let rootDistProps;
-    if (props.rootGroup) {
-      const rootGroup = configGroup(props,"root");
-      console.log("rootGroup:", rootGroup);
-      rootDistProps = rootSite(this,name,cloudfrontOAI,rootGroup);
+    if (props.clientGroup) {
+      const clientGroup = configGroup(props,"client");
+      console.log("clientGroup:", clientGroup);
+      distProps.set('/', clientSite(this,name,cloudfrontOAI,clientGroup));
+      defaultDistribution = '/';
     } else {
-      console.log("no rootGroup specified for deployment:", name);
+      console.log("no clientGroup specified for deployment:", name);
     }
-
-    let uploadDistProps;
-    if (props.uploadGroup) {
-      const group = configGroup(props,"upload");
-      console.log("Upload Group:", group);
-      uploadDistProps = uploadSite(this,name,cloudfrontOAI,group);
-    } else {
-      console.log("no extra group specified for deployment:", name);
-    }
-
-    const defaultDistProps = clientDistProps || rootDistProps;
-    const additionalDistProps = (clientDistProps && rootDistProps) ? { "/dicomweb/*": rootDistProps } : undefined;
-    if( uploadDistProps && additionalDistProps) {
-      console.log("Adding mapping for", uploadDistProps);
-      additionalDistProps["/lei/*"] = uploadDistProps;
-    }
-
+  
+    // Split the distribution properties into the primary one (first added), and everything else
+    const defaultDistProps = distProps.get(defaultDistribution);
+    distProps.delete(defaultDistribution);
+    const distIterator = distProps.entries();
+    const additionalDistProps = distProps.size ? Object.fromEntries(distIterator) : undefined;
+    
     const siteInfo = getSiteInfo(this, name, props);
     const siteDomain = siteInfo?[siteInfo.siteDomain]:undefined;
 
@@ -79,6 +80,7 @@ export class StaticSite extends Construct {
       enableIpv6: true,
       defaultBehavior: defaultDistProps,
       additionalBehaviors: additionalDistProps,
+      httpVersion:  cloudfront.HttpVersion.HTTP3,
     });
 
   

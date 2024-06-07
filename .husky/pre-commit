@@ -1,5 +1,4 @@
 #!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
 
 yarn run lint:fix
 git add $(git diff --name-only --cached --diff-filter=d)
