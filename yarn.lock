@@ -1885,31 +1885,31 @@
   resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-little-endian/-/codec-little-endian-0.0.6.tgz#6eef1d100f2c3a944555aec5ce89029d02dd009a"
   integrity sha512-W0okvChe8dsb7h8/VRHd+2qSztvKdfD90bw2CbQf68P2yGg5huOo02rfvKkhpq7a0omQkk/4YrkAY6o0SEFPrg==
 
-"@cornerstonejs/codec-openjpeg@>=1.2.2":
-  version "1.2.2"
-  resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-openjpeg/-/codec-openjpeg-1.2.2.tgz#f0b524235b5551426b46db197a37b06f8ac805d7"
-  integrity sha512-b1O7lZacKXelgeV9n8XWZ7pTw3i4Bq4qQ26G5ahBjWoOw4QNcCrb5hPxWBxNB/I8AoNbJxAe+lyLtyQGfdrTbw==
-
 "@cornerstonejs/codec-openjpeg@>=1.2.3":
   version "1.2.3"
   resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-openjpeg/-/codec-openjpeg-1.2.3.tgz#52bd61e7fe6fbe19f5997c8c7fddc3cd0e2072e8"
   integrity sha512-zAWv+O/7LpfHUJDKXwwo7z+l1E1rQQZYePiROv0PFhlMvMTs6RBa+n3r7fbph0aJtd9iUPfX9QKpokiMzr0mdw==
 
-"@cornerstonejs/codec-openjph@>=2.4.3", "@cornerstonejs/codec-openjph@>=2.4.5", "@cornerstonejs/codec-openjph@^2.4.5":
+"@cornerstonejs/codec-openjpeg@^1.2.4":
+  version "1.2.4"
+  resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-openjpeg/-/codec-openjpeg-1.2.4.tgz#c7cf67a34091eb74a6676abec80a5251c412b551"
+  integrity sha512-UT2su6xZZnCPSuWf2ldzKa/2+guQ7BGgfBSKqxanggwJHh48gZqIAzekmsLyJHMMK5YDK+ti+fzvVJhBS3Xi/g==
+
+"@cornerstonejs/codec-openjph@>=2.4.5", "@cornerstonejs/codec-openjph@^2.4.5":
   version "2.4.5"
   resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-openjph/-/codec-openjph-2.4.5.tgz#8690b61a86fa53ef38a70eee9d665a79229517c0"
   integrity sha512-MZCUy8VG0VG5Nl1l58+g+kH3LujAzLYTfJqkwpWI2gjSrGXnP6lgwyy4GmPRZWVoS40/B1LDNALK905cNWm+sg==
 
-"@cornerstonejs/dicom-codec@>=1.0.2":
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/@cornerstonejs/dicom-codec/-/dicom-codec-1.0.2.tgz#042ea141c355b2bd9b7052cb9b1b25e44f659994"
-  integrity sha512-A8fGBsAq14qgvHI0DBhgp9yQ9TdgA2Qdqn32GLTQkeiV4AoztkGLDYegzrKyy0rrnPZl1m6Dk6nW1UYsAyXKBg==
+"@cornerstonejs/dicom-codec@>=1.0.5":
+  version "1.0.5"
+  resolved "https://registry.yarnpkg.com/@cornerstonejs/dicom-codec/-/dicom-codec-1.0.5.tgz#8757e4f37ee46f1691d1d62e4b19d5136951ac7d"
+  integrity sha512-/tWYH/VqvBc4rS9pEtMZD34eUoGD4uNu+PujbcpHXwrPFFUtFaGBgYByw1gIBvScya+inP+/SStL2zlgFz26PA==
   dependencies:
     "@cornerstonejs/codec-big-endian" ">=0.1.0"
     "@cornerstonejs/codec-charls" ">=1.2.3"
     "@cornerstonejs/codec-libjpeg-turbo-8bit" ">=1.2.2"
     "@cornerstonejs/codec-little-endian" ">=0.0.6"
-    "@cornerstonejs/codec-openjpeg" ">=1.2.2"
+    "@cornerstonejs/codec-openjpeg" "^1.2.4"
     "@cornerstonejs/codec-openjph" "^2.4.5"
     browser-or-node "^2.0.0"
     jpeg-lossless-decoder-js "^2.0.4"
@@ -2705,6 +2705,11 @@
     "@types/estree" "^1.0.0"
     estree-walker "^2.0.2"
     picomatch "^2.3.1"
+
+"@rollup/rollup-linux-x64-gnu@4.13.0":
+  version "4.13.0"
+  resolved "https://registry.yarnpkg.com/@rollup/rollup-linux-x64-gnu/-/rollup-linux-x64-gnu-4.13.0.tgz#f672f6508f090fc73f08ba40ff76c20b57424778"
+  integrity sha512-yUD/8wMffnTKuiIsl6xU+4IA8UNhQ/f1sAnQebmE/lyQ8abjsVyDkyRkWop0kdMhKMprpNIhPmYlCxgHrPoXoA==
 
 "@sigstore/bundle@^1.1.0":
   version "1.1.0"
@@ -7471,10 +7476,12 @@ jest@^27.5.1:
     import-local "^3.0.2"
     jest-cli "^27.5.1"
 
-jpeg-lossless-decoder-js@^2.0.4:
-  version "2.0.4"
-  resolved "https://registry.npmjs.org/jpeg-lossless-decoder-js/-/jpeg-lossless-decoder-js-2.0.4.tgz"
-  integrity sha512-v12wgbfcNWiusRbIbMuNdMJiC3TsIYOMSLFNMGg5A9ABggOp5yjiRsZRHFtBVk+DD9uvWu74UgI3NWRiHGfKzQ==
+jpeg-lossless-decoder-js@>=2.0.4, jpeg-lossless-decoder-js@^2.0.4:
+  version "2.1.2"
+  resolved "https://registry.yarnpkg.com/jpeg-lossless-decoder-js/-/jpeg-lossless-decoder-js-2.1.2.tgz#9ff0ecfcafa6acaee6097c532720bd526278aa3d"
+  integrity sha512-fYf/plymnuKwVw+s8gJ8O/BPw8y8OLaN11MBvEcT05kuy3m45o7BEC4J0JbxMNUYyO+MdK/I/jq0q1gkVYZm2Q==
+  optionalDependencies:
+    "@rollup/rollup-linux-x64-gnu" "4.13.0"
 
 js-tokens@^4.0.0:
   version "4.0.0"

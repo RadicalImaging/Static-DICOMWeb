@@ -34,9 +34,6 @@
     "webpack-cli": "^5.0.1"
   },
   "dependencies": {
-    "@cornerstonejs/codec-openjpeg": ">=1.2.3",
-    "@cornerstonejs/codec-openjph": ">=2.4.5",
-    "@cornerstonejs/dicom-codec": ">=1.0.2",
     "canvas": "^2.11.1",
     "typescript": "^5.2.2"
   },
@@ -70,9 +67,10 @@
     }
   },
   "resolutions": {
-    "@cornerstonejs/codec-openjph": ">=2.4.3",
+    "@cornerstonejs/codec-openjph": ">=2.4.5",
     "glob": "^7.2.0",
     "regenerator-runtime": "0.14.1",
+    "jpeg-lossless-decoder-js": ">=2.0.4",
     "canvas": "^2.11.1"
   },
   "lint-staged": {

@@ -72,7 +72,7 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       {
         key: "-t, --content-type <type>",
         description: 'Destination type to compress to (choices: "jpeg", "jls", "lei", "jls-lossy", "jhc", "jxl" or DICOM Transfer Syntax UID - default: "jls")',
-        defaultValue: "jhc",
+        defaultValue: "jls",
         customParser: compressionOptionParser,
       },
       {
@@ -135,8 +135,8 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         defaultValue: false,
       },
       {
-        key: "--no-thumb",
-        description: "Skip thumbnail generation",
+        key: "--thumb",
+        description: "Generate thumbnails",
       },
       {
         key: "--dcm2jpg",
