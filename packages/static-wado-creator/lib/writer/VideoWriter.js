@@ -45,7 +45,7 @@ const VideoWriter = () =>
     }
     await writeStream.close();
     console.log(`Done video ${id.sopInstanceRootPath}\\${filename} of length ${length}`);
-    return `series/${id.seriesInstanceUid}/instances/${id.sopInstanceUid}/pixeldata.${extension}?length=${length}&offset=0`;
+    return `series/${id.seriesInstanceUid}/instances/${id.sopInstanceUid}/rendered/index.${extension}?length=${length}&offset=0&accept=video/mp4`;
   };
 
 module.exports = VideoWriter;

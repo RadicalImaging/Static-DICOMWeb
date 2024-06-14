@@ -110,10 +110,6 @@ class ThumbnailService {
   async generateThumbnails(itemId, dataSet, metadata, callback, options) {
     const { imageFrame, id } = this.favoriteThumbnailObj;
 
-    if (!options.thumb) {
-      return null;
-    }
-
     // There are various reasons no thumbnails might be generated, so just return
     if (!id) {
       const pixelData = metadata[Tags.PixelData];
@@ -133,6 +129,11 @@ class ThumbnailService {
       }
       return null;
     }
+
+    if (!options.thumb) {
+      return null;
+    }
+
     if (options.dcm2jpg) {
       return this.dcm2jpg(id.filename, id.imageFrameRootPath.replace(/frames/, "thumbnail"), {});
     }
