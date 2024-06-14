@@ -23,7 +23,6 @@
     "eslint-plugin-jest": "^26.1.0",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-prettier": "^4.0.0",
-    "husky": "^3.0.0",
     "husky": "^8.0.3",
     "jest": "^27.5.1",
     "lerna": "^7.3.0",
@@ -38,11 +37,11 @@
     "typescript": "^5.2.2"
   },
   "resolutions": {
-    "core-js": "^3.29.1",
-    "rollup": ">=3.6.0",
-    "typescript": ">=5.0.2",
-    "@cornerstonejs/codec-openjpeg": ">=1.2.3",
-    "@cornerstonejs/codec-openjph": ">=2.4.5"
+    "@cornerstonejs/codec-openjph": ">=2.4.5",
+    "glob": "^7.2.0",
+    "regenerator-runtime": "0.14.1",
+    "jpeg-lossless-decoder-js": ">=2.0.4",
+    "canvas": "^2.11.1"
   },
   "workspaces": [
     "packages/*"
@@ -65,13 +64,6 @@
     "hooks": {
       "pre-commit": "lint-staged"
     }
-  },
-  "resolutions": {
-    "@cornerstonejs/codec-openjph": ">=2.4.5",
-    "glob": "^7.2.0",
-    "regenerator-runtime": "0.14.1",
-    "jpeg-lossless-decoder-js": ">=2.0.4",
-    "canvas": "^2.11.1"
   },
   "lint-staged": {
     "packages/**/*.{ts,js,jsx,tsx,json,md,css}": [
