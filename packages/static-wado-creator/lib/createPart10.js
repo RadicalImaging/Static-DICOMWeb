@@ -1,6 +1,5 @@
 /* eslint-disable no-param-reassign */
 const { Tags, readBulkData } = require("@radicalimaging/static-wado-util");
-const fs = require("fs");
 const dcmjs = require("dcmjs");
 
 const StaticWado = require("./StaticWado");

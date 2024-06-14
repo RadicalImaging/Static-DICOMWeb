@@ -13,7 +13,7 @@ const initiateApi = (item, req, res) => {
 
 function subsequentApi(item, req, res) {
   const itemId = jobs[req.params.jobId] || 1;
-  jobs[req.params.jobId] = itemId+1;
+  jobs[req.params.jobId] = itemId + 1;
 
   const endPath = `${item.pluginRoute}/${itemId}.json`;
   console.log("item=", item);
@@ -22,7 +22,7 @@ function subsequentApi(item, req, res) {
   const filePath = `${this.root}${endPath}`;
   console.log("sendFile path", endPath, req.url, filePath);
   res.sendFile(filePath);
-};
+}
 
 module.exports = ConfigPoint.createConfiguration("apiSimulator", {
   setRoute: (router, item, params = {}) => {
@@ -30,11 +30,10 @@ module.exports = ConfigPoint.createConfiguration("apiSimulator", {
     const root = handleHomeRelative(dir);
     const props = { root };
 
-
-     console.log("Registering API", item.pluginRoute, '/', jobId);
-     router.post(item.pluginRoute, initiateApi.bind(props, item));
-     // The get route isn't quite valid here, but is useful for testing before completing this.
-     router.get(item.pluginRoute, initiateApi.bind(props, item));
-     router.get(`${item.pluginRoute}/:jobId`, subsequentApi.bind(props, item));
+    console.log("Registering API", item.pluginRoute, "/", jobId);
+    router.post(item.pluginRoute, initiateApi.bind(props, item));
+    // The get route isn't quite valid here, but is useful for testing before completing this.
+    router.get(item.pluginRoute, initiateApi.bind(props, item));
+    router.get(`${item.pluginRoute}/:jobId`, subsequentApi.bind(props, item));
   },
 });

@@ -16,7 +16,6 @@ const extensions = {
 };
 
 const baseHasher = hashFactory.hasher();
-const MAX_HASH = 1024 * 1024;
 
 const hasher = {
   hash: (v) => {

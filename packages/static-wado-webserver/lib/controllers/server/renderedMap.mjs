@@ -15,10 +15,10 @@ export default function byteRangeRequest(options) {
 
   function exists(path, testType) {
     const testPath = renderedTypes[testType];
-    if( !testPath ) {
+    if (!testPath) {
       return;
     }
-    const framePath = path.replace("/rendered",`/rendered${testPath}`);
+    const framePath = path.replace("/rendered", `/rendered${testPath}`);
     const fullPath = `${baseDir}${framePath}`;
     return fs.existsSync(fullPath);
   }

@@ -201,14 +201,14 @@ const beforeEncode = (options, encoder) => {
 
 function scale(imageFrame, imageInfo) {
   const { rows, columns, bitsPerPixel, pixelRepresentation, samplesPerPixel } = imageInfo;
-  let arrayConstructor = Float32Array;
+  let ArrayConstructor = Float32Array;
   if (bitsPerPixel === 8) {
-    arrayConstructor = pixelRepresentation ? Int8Array : Uint8Array;
+    ArrayConstructor = pixelRepresentation ? Int8Array : Uint8Array;
   } else if (bitsPerPixel > 8 && bitsPerPixel <= 16) {
-    arrayConstructor = pixelRepresentation ? Int16Array : Uint16Array;
+    ArrayConstructor = pixelRepresentation ? Int16Array : Uint16Array;
   }
   const src = {
-    pixelData: new arrayConstructor(imageFrame.buffer),
+    pixelData: new ArrayConstructor(imageFrame.buffer),
     rows,
     columns,
     samplesPerPixel,
@@ -218,7 +218,7 @@ function scale(imageFrame, imageInfo) {
     columns: Math.round(columns / 4),
     samplesPerPixel,
   };
-  dest.pixelData = new arrayConstructor(dest.rows * dest.columns * samplesPerPixel);
+  dest.pixelData = new ArrayConstructor(dest.rows * dest.columns * samplesPerPixel);
   replicate(src, dest);
 
   return {
