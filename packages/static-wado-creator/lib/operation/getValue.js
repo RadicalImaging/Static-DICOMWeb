@@ -8,7 +8,9 @@ function decodeUtf8(s, options) {
 }
 
 /** Gets a value as a UTF-8 string - todo, make UTF-8 decode optional. */
-const getValueInlineString = (dataSet, attr, options) => [decodeUtf8(dataSet.string(attr.tag), options)];
+const getValueInlineString = (dataSet, attr, options) => [
+  decodeUtf8(dataSet.string(attr.tag), options),
+];
 
 const getStrings = (dataSet, attr, options) => {
   const ret = dataSet.string(attr.tag);
@@ -20,21 +22,27 @@ const getStrings = (dataSet, attr, options) => {
 
 const getValuePatientName = (dataSet, attr) => {
   const strings = getStrings(dataSet, attr);
-  return (strings && strings.map((item) => ({ Alphabetic: item }))) || undefined;
+  return (
+    (strings && strings.map((item) => ({ Alphabetic: item }))) || undefined
+  );
 };
 
 /** Gets either InlineBinary or BulkDataURI, if already defined */
 const getValueInlineBinary = (dataSet, attr) => {
   if (attr.BulkDataURI) return { BulkDataURI: attr.BulkDataURI };
-  const binaryValue = dataSet.byteArray.slice(attr.dataOffset, attr.dataOffset + attr.length);
+  const binaryValue = dataSet.byteArray.slice(
+    attr.dataOffset,
+    attr.dataOffset + attr.length
+  );
   return { InlineBinary: binaryValue.toString("base64") };
 };
 
 const getValueInlineSignedShort = (dataSet, attr) => {
-  if (attr.length > 2) {
-    return getValueInlineBinary(dataSet, attr);
+  const ret = [];
+  for (let i = 0; i < attr.length / 2; i++) {
+    ret.push(dataSet.int16(attr.tag, i));
   }
-  return [dataSet.int16(attr.tag)];
+  return ret;
 };
 
 const getValueInlineUnsignedShort = (dataSet, attr) => {
@@ -70,9 +78,11 @@ const getValueInlineFloat = (dataSet, attr) => {
   return ret;
 };
 
-const getValueInlineIntString = (dataSet, attr) => getStrings(dataSet, attr).map((val) => parseInt(val));
+const getValueInlineIntString = (dataSet, attr) =>
+  getStrings(dataSet, attr).map((val) => parseInt(val));
 
-const getValueInlineFloatString = (dataSet, attr) => getStrings(dataSet, attr).map((val) => parseFloat(val));
+const getValueInlineFloatString = (dataSet, attr) =>
+  getStrings(dataSet, attr).map((val) => parseFloat(val));
 
 const getValueInlineFloatDouble = (dataSet, attr) => {
   if (attr.length > 8) {
@@ -177,15 +187,30 @@ const isValueInline = (attr, options) => {
  * @param {*} parentAttr attr's parent. If not present means attr is at root level.
  * @returns
  */
-const getValue = async (dataSet, attr, vr, getDataSet, callback, options, parentAttr) => {
+const getValue = async (
+  dataSet,
+  attr,
+  vr,
+  getDataSet,
+  callback,
+  options,
+  parentAttr
+) => {
   // It will only process pixelData tag if on metadata root. Otherwise it will be skiped.
   if (attr.tag === "x7fe00010" && !parentAttr) {
-    const BulkDataURI = await extractImageFrames(dataSet, attr, vr, callback, options);
+    const BulkDataURI = await extractImageFrames(
+      dataSet,
+      attr,
+      vr,
+      callback,
+      options
+    );
     return { BulkDataURI };
   }
   if (attr.tag === "xfffee00d") return undefined;
   // Group length
-  if (attr.tag.length == 9 && attr.tag.substring(5, 9) === "0000") return undefined;
+  if (attr.tag.length == 9 && attr.tag.substring(5, 9) === "0000")
+    return undefined;
   if (attr.items) {
     // sequences
     const result = [];
@@ -202,7 +227,10 @@ const getValue = async (dataSet, attr, vr, getDataSet, callback, options, parent
   if (isValueInline(attr, options)) {
     return getValueInline(dataSet, attr, vr, options);
   }
-  const binaryValue = dataSet.byteArray.slice(attr.dataOffset, attr.dataOffset + attr.length);
+  const binaryValue = dataSet.byteArray.slice(
+    attr.dataOffset,
+    attr.dataOffset + attr.length
+  );
   const mimeType = attr.tag == "x00420011" && dataSet.string("x00420012");
 
   const BulkDataURI = await callback.bulkdata(binaryValue, { mimeType });
