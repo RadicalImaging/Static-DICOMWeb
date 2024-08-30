@@ -19,16 +19,23 @@ const VIDEO_TYPES = {
   // TODO - add the new multi-segment MPEG2 and H264 variants
 };
 
-const isVideo = (value) => VIDEO_TYPES[value && value.string ? value.string(Tags.RawTransferSyntaxUID) : value];
+const isVideo = (value) =>
+  VIDEO_TYPES[
+    value && value.string ? value.string(Tags.RawTransferSyntaxUID) : value
+  ];
 
 const VideoWriter = () =>
   async function run(id, dataSet) {
     console.log(`Writing video  ${id.sopInstanceUid}`);
     const extension = VIDEO_TYPES[dataSet.string(Tags.RawTransferSyntaxUID)];
     const filename = `index.${extension}`;
-    const writeStream = WriteStream(`${id.sopInstanceRootPath}/rendered`, filename, {
-      mkdir: true,
-    });
+    const writeStream = WriteStream(
+      `${id.sopInstanceRootPath}/rendered`,
+      filename,
+      {
+        mkdir: true,
+      }
+    );
     let length = 0;
     const { fragments } = dataSet.elements.x7fe00010;
 
@@ -39,13 +46,18 @@ const VideoWriter = () =>
     // The zero position fragment isn't available, even though present in the original data
     for (let i = 0; i < fragments.length; i++) {
       const fragment = fragments[i];
-      const blob = dataSet.byteArray.slice(fragment.position, fragment.position + fragment.length);
+      const blob = dataSet.byteArray.slice(
+        fragment.position,
+        fragment.position + fragment.length
+      );
       length += blob.length;
       await writeStream.write(blob);
     }
     await writeStream.close();
-    console.log(`Done video ${id.sopInstanceRootPath}\\${filename} of length ${length}`);
-    return `series/${id.seriesInstanceUid}/instances/${id.sopInstanceUid}/rendered/index.${extension}?length=${length}&offset=0&accept=video/mp4`;
+    console.log(
+      `Done video ${id.sopInstanceRootPath}\\${filename} of length ${length}`
+    );
+    return `series/${id.seriesInstanceUid}/instances/${id.sopInstanceUid}/rendered?length=${length}&offset=0&accept=video/mp4`;
   };
 
 module.exports = VideoWriter;
