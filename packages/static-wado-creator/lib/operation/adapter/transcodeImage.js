@@ -286,6 +286,10 @@ async function generateLossyImage(id, decoded, options) {
   }
 }
 
+function isPalette(dataSet) {
+  return dataSet.string(Tags.RawPhotometricInterpretation) === "PALETTE COLOR";
+}
+
 /**
  * Transcode imageFrame. It uses transcodeMap to define the target encoding based on source encoding.
  *
@@ -302,7 +306,7 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
 
   const samplesPerPixel = dataSet.uint16(Tags.RawSamplesPerPixel);
   const planarConfiguration = dataSet.uint16("x00280006");
-  if (!shouldTranscodeImageFrame(id, options, samplesPerPixel) || planarConfiguration === 1) {
+  if (!shouldTranscodeImageFrame(id, options, samplesPerPixel) || planarConfiguration === 1 || isPalette(dataSet)) {
     console.verbose("Shouldn't transcode");
     return {
       id,

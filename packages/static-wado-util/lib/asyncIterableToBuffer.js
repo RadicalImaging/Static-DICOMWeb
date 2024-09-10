@@ -59,6 +59,9 @@ const StreamingFunctions = {
     let i = 0;
     while (i < buflen) {
       const chunk = this.findChunk(start + i);
+      if (!chunk) {
+        throw new Error(`Start ${start}-${end} is out of bounds`);
+      }
       const chunkI = start + i - chunk.start;
       const useLen = Math.min(buflen, chunk.length - chunkI);
       chunk.copy(ret, i, chunkI, chunkI + useLen);
