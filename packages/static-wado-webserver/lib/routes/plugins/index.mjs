@@ -1,3 +1,5 @@
+import path from "path";
+
 /**
  * Set plugin routes.
  *
@@ -12,7 +14,10 @@ export default async function setPlugins(routerExpress, params, pluginsKey = "pl
     for (let i = 0; i < loadPlugins.length; i++) {
       const pluginItem = loadPlugins[i];
       console.log(`Configuring ${pluginItem.pluginName}(${pluginItem.pluginModule}) on ${pluginItem.pluginRoute}`);
-      const plugin = await import(pluginItem.pluginModule);
+      const { pluginModule } = pluginItem;
+      // Use an absolute file path for local file plugins
+      const pluginPath = pluginModule.startsWith("./") ? `file:///${path.resolve(pluginModule).replaceAll("\\", "/")}` : pluginModule;
+      const plugin = await import(pluginPath);
       const pluginDefault = plugin.default || plugin;
       const { setRoute } = pluginDefault[pluginItem.pluginName];
       setRoute(routerExpress, pluginItem, params);
