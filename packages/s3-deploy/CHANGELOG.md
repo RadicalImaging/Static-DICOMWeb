@@ -3,6 +3,10 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [1.5.0](https://github.com/Radical/static-dicomweb/compare/@radicalimaging/s3-deploy@1.4.0...@radicalimaging/s3-deploy@1.5.0) (2024-09-17)
+
+**Note:** Version bump only for package @radicalimaging/s3-deploy
+
 # 1.4.0 (2024-09-17)
 
 ### Bug Fixes
