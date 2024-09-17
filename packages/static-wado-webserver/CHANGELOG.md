@@ -3,6 +3,20 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [1.5.0](https://github.com/OHIF/static-wado/compare/v1.2.6...v1.5.0) (2024-09-17)
+
+### Bug Fixes
+
+- Add the deploy ordering fixes ([#54](https://github.com/OHIF/static-wado/issues/54)) ([17bef80](https://github.com/OHIF/static-wado/commit/17bef80f3e888a327b2f9e80819900f07c490f8e))
+- JPEG Lossless dependencies ([#62](https://github.com/OHIF/static-wado/issues/62)) ([68672c8](https://github.com/OHIF/static-wado/commit/68672c87b98686994f6b1767b00d3bbb366b9225))
+- Load plugin from local relative path ([#66](https://github.com/OHIF/static-wado/issues/66)) ([94c52aa](https://github.com/OHIF/static-wado/commit/94c52aaa217f32ee25f6a7414ac7594832988549))
+- Overlay binary SS encoded objects were done as inline binary ([#64](https://github.com/OHIF/static-wado/issues/64)) ([a3c1526](https://github.com/OHIF/static-wado/commit/a3c15264ef7a7288161565995abc2fd1470a479a))
+- Range request ([#53](https://github.com/OHIF/static-wado/issues/53)) ([93ef350](https://github.com/OHIF/static-wado/commit/93ef350a2fa5145c1efc78567f001d9c9e73e909))
+
+### Features
+
+- lossy byte range retrieves and encoding separate items ([#52](https://github.com/OHIF/static-wado/issues/52)) ([ce5953f](https://github.com/OHIF/static-wado/commit/ce5953f744e698366d67909f6bceef9f2a2c46fc))
+
 # [1.5.0](https://github.com/OHIF/static-wado/compare/@radicalimaging/static-wado-webserver@1.4.0...@radicalimaging/static-wado-webserver@1.5.0) (2024-09-17)
 
 **Note:** Version bump only for package @radicalimaging/static-wado-webserver

@@ -3,6 +3,21 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [1.5.0](https://github.com/OHIF/static-wado/compare/v1.2.6...v1.5.0) (2024-09-17)
+
+### Bug Fixes
+
+- aws deploy security ([#55](https://github.com/OHIF/static-wado/issues/55)) ([ad1461a](https://github.com/OHIF/static-wado/commit/ad1461a26cf7c32680a7af4a6baab1ae8deadb74))
+- JPEG Lossless dependencies ([#62](https://github.com/OHIF/static-wado/issues/62)) ([68672c8](https://github.com/OHIF/static-wado/commit/68672c87b98686994f6b1767b00d3bbb366b9225))
+- Overlay binary SS encoded objects were done as inline binary ([#64](https://github.com/OHIF/static-wado/issues/64)) ([a3c1526](https://github.com/OHIF/static-wado/commit/a3c15264ef7a7288161565995abc2fd1470a479a))
+- Palette color encodign ([ebfaf8c](https://github.com/OHIF/static-wado/commit/ebfaf8c4b4d6fec7c0529d80afdf4cd480581c5a))
+- Range request ([#53](https://github.com/OHIF/static-wado/issues/53)) ([93ef350](https://github.com/OHIF/static-wado/commit/93ef350a2fa5145c1efc78567f001d9c9e73e909))
+- Rendered video path ([#65](https://github.com/OHIF/static-wado/issues/65)) ([eaeb7cd](https://github.com/OHIF/static-wado/commit/eaeb7cd575e6bc2bda191bdfe512e92700963317))
+
+### Features
+
+- lossy byte range retrieves and encoding separate items ([#52](https://github.com/OHIF/static-wado/issues/52)) ([ce5953f](https://github.com/OHIF/static-wado/commit/ce5953f744e698366d67909f6bceef9f2a2c46fc))
+
 # [1.5.0](https://github.com/OHIF/static-wado/compare/@radicalimaging/static-wado-creator@1.4.0...@radicalimaging/static-wado-creator@1.5.0) (2024-09-17)
 
 **Note:** Version bump only for package @radicalimaging/static-wado-creator

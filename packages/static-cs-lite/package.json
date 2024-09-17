@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-cs-lite",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Cornerstone core lite version that runs on server side",
   "publishConfig": {
     "access": "public"

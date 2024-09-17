@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [1.5.0](https://github.com/Radical/static-dicomweb/compare/v1.2.6...v1.5.0) (2024-09-17)
+
+### Bug Fixes
+
+- Add the deploy ordering fixes ([#54](https://github.com/Radical/static-dicomweb/issues/54)) ([17bef80](https://github.com/Radical/static-dicomweb/commit/17bef80f3e888a327b2f9e80819900f07c490f8e))
+- aws deploy security ([#55](https://github.com/Radical/static-dicomweb/issues/55)) ([ad1461a](https://github.com/Radical/static-dicomweb/commit/ad1461a26cf7c32680a7af4a6baab1ae8deadb74))
+- JPEG Lossless dependencies ([#62](https://github.com/Radical/static-dicomweb/issues/62)) ([68672c8](https://github.com/Radical/static-dicomweb/commit/68672c87b98686994f6b1767b00d3bbb366b9225))
+- remove unused variable breaking build ([15eae07](https://github.com/Radical/static-dicomweb/commit/15eae078b6b9441b7448be43648a4b76a5a1cc2a))
+
 # [1.5.0](https://github.com/Radical/static-dicomweb/compare/@radicalimaging/s3-deploy@1.4.0...@radicalimaging/s3-deploy@1.5.0) (2024-09-17)
 
 **Note:** Version bump only for package @radicalimaging/s3-deploy
