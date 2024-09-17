@@ -1,7 +1,7 @@
 {
   "name": "@radicalimaging/healthlakestore",
   "type": "module",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Tool to upload Part 10 DICOM to Curie and download the result into static-dicomweb",
   "publishConfig": {
     "access": "public"
@@ -26,7 +26,7 @@
   },
   "license": "ISC",
   "main": "build/@radicalimaging/healthlake.js",
-  "module": "build/@radicalimaging/healthlake.es.js", 
+  "module": "build/@radicalimaging/healthlake.es.js",
   "directories": {
     "lib": "lib",
     "build": "build",
@@ -55,14 +55,14 @@
     "verbose": true
   },
   "dependencies": {
-    "dcmjs": "^0.29.5",
-    "@radicalimaging/s3-deploy": ">=1.3.0",
-    "@radicalimaging/static-wado-deploy": ">=1.3.0",
-    "@radicalimaging/static-wado-plugins": ">=1.3.0",
-    "@radicalimaging/static-wado-util": ">=1.3.0",
+    "@radicalimaging/s3-deploy": "^1.4.0",
+    "@radicalimaging/static-wado-deploy": "^1.4.0",
+    "@radicalimaging/static-wado-plugins": "^1.4.0",
+    "@radicalimaging/static-wado-util": "^1.4.0",
     "config-point": ">=0.5.1",
-    "dicom-parser": "^1.8.13",
-    "cross-env": "^7.0.3"
+    "cross-env": "^7.0.3",
+    "dcmjs": "^0.29.5",
+    "dicom-parser": "^1.8.13"
   },
   "devDependencies": {
     "must": "^0.13.4",
