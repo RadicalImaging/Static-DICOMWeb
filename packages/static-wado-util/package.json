@@ -53,7 +53,8 @@
     "build": "echo \"No build yet\" && exit 0",
     "link:exec": "npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
-    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
+    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
+    "npmjs": "npm publish"
   },
   "devDependencies": {
     "must": "^0.13.4"

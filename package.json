@@ -59,6 +59,7 @@
     "lint:fix": "lerna run lint:fix --parallel --stream",
     "postinstall": "git config core.hooksPath '.husky' && echo 'git hooks configured'",
     "publish": "lerna publish --force-publish --no-private",
+    "npmjs": "lerna run npmjs --",
     "reset:hooks": "git config core.hooksPath '.git' && echo 'git hooks was reset'"
   },
   "husky": {
