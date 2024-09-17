@@ -87,6 +87,9 @@ docker run  --mount type=bind,source=/dicomweb,target=/dicomweb -p 25080:5000 -p
 
 That will result in an instance running on port 25080 for dicomweb, and DIMSE services on 25104.
 
+## Deployment to AWS
+There are deployment scripts in src/s3-deploy which will create an S3 bucket for DICOMweb and optionally for OHIF as well.
+
 # Using Static DICOMweb
 
 * [Convert DICOM Part 10 to/from DICOMweb](./packages/static-wado-creator/README.md)

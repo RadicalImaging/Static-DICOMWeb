@@ -25,7 +25,7 @@
     "eslint-plugin-prettier": "^4.0.0",
     "husky": "^8.0.3",
     "jest": "^27.5.1",
-    "lerna": "^7.3.0",
+    "lerna": "7.4.2",
     "must": "^0.13.4",
     "prettier": "^2.5.1",
     "prettier-eslint": "^13.0.0",
@@ -58,6 +58,7 @@
     "lint:ci": "yarn run lint",
     "lint:fix": "lerna run lint:fix --parallel --stream",
     "postinstall": "git config core.hooksPath '.husky' && echo 'git hooks configured'",
+    "publish": "lerna publish --force-publish --no-private",
     "reset:hooks": "git config core.hooksPath '.git' && echo 'git hooks was reset'"
   },
   "husky": {
