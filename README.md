@@ -94,7 +94,7 @@ There are deployment scripts in src/s3-deploy which will create an S3 bucket for
 
 * [Convert DICOM Part 10 to/from DICOMweb](./packages/static-wado-creator/README.md)
 * [Deploy Static DICOMweb to AWS](./packages/s3-deploy/README.md)
-* [Deploy FlexView Accessible Static DICOMweb](./packages/s3-deploy/README.md)
+* [Deploy OHIF Viewer Accessible Static DICOMweb](./packages/s3-deploy/README.md#deploy-ohif)
 * [Storing Files to/from Cloud Server](./packages/static-wado-deploy/README.md)
 * [Run local DICOMweb webserver](./packages/static-wado-webserver/README.md)
 * [Run local SCP Server](./packages/static-wado-scp/README.md)
