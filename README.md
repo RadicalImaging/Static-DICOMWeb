@@ -19,7 +19,7 @@ The goals of the project are to:
     * Smaller than DICOMweb metadata, sometimes as small as 1/100th of the size
     * Faster to parse/display first image
 
-See [Design](./design.md) for more details on the general design of Static DICOMweb.
+See [Design](./packages/static-wado-creator/docs/design.md) for more details on the general design of Static DICOMweb.
 
 See [File Structure](./file-structure.md) for more details on the file structure used for static-dicomweb.
 
