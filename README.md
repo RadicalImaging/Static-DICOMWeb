@@ -5,21 +5,21 @@ The project was started out of some scripts that converted binary DICOM files in
 
 The goals of the project are to:
   1. Optimize serving of DICOMweb files needed for OHIF viewing
-    * Serve required DICOMweb files straight from disk
-    * Compress data files on disk to minimize storage
-  2. Support fully distributed, eventually consistent data model
-    * Incoming data can be distributed amongst any number of nodes
-    * Serving of data can be done by distributing the storage of data, with or without replication
-    * Network fault tolerance is supported by updating study data once network recovers
-  3. Deploy to a variety of cloud providers
-    * AWS is currently the only one supported
-    * Local current-machine provider is also done
-  4. Demonstrate enhanced metadata structures
-    * Easier to parse/understand than DICOMweb metadata
-    * Smaller than DICOMweb metadata, sometimes as small as 1/100th of the size
-    * Faster to parse/display first image
+     * Serve required DICOMweb files straight from disk
+     * Compress data files on disk to minimize storage
+  3. Support fully distributed, eventually consistent data model
+     * Incoming data can be distributed amongst any number of nodes
+     * Serving of data can be done by distributing the storage of data, with or without replication
+     * Network fault tolerance is supported by updating study data once network recovers
+  5. Deploy to a variety of cloud providers
+     * AWS is currently the only one supported
+     * Local current-machine provider is also done
+  7. Demonstrate enhanced metadata structures
+     * Easier to parse/understand than DICOMweb metadata
+     * Smaller than DICOMweb metadata, sometimes as small as 1/100th of the size
+     * Faster to parse/display first image
 
-See [Design](./design.md) for more details on the general design of Static DICOMweb.
+See [Design](./packages/static-wado-creator/docs/design.md) for more details on the general design of Static DICOMweb.
 
 See [File Structure](./file-structure.md) for more details on the file structure used for static-dicomweb.
 
@@ -94,12 +94,12 @@ There are deployment scripts in src/s3-deploy which will create an S3 bucket for
 
 * [Convert DICOM Part 10 to/from DICOMweb](./packages/static-wado-creator/README.md)
 * [Deploy Static DICOMweb to AWS](./packages/s3-deploy/README.md)
-* [Deploy FlexView Accessible Static DICOMweb](./packages/s3-deploy/README.md)
+* [Deploy OHIF Viewer Accessible Static DICOMweb](./packages/s3-deploy/README.md#deploy-ohif)
 * [Storing Files to/from Cloud Server](./packages/static-wado-deploy/README.md)
 * [Run local DICOMweb webserver](./packages/static-wado-webserver/README.md)
 * [Run local SCP Server](./packages/static-wado-scp/README.md)
-* [Proxy DICOMweb to DICOM DIMSE](./packages/static-wado-webserver/dimse-proxy.md)
-* [Proxy Static DICOMweb to DICOMweb](./packages/static-wado-webserver/dicomweb-proxy.md)
+* ~~[Proxy DICOMweb to DICOM DIMSE](./packages/static-wado-webserver/dimse-proxy.md)~~
+* ~~[Proxy Static DICOMweb to DICOMweb](./packages/static-wado-webserver/dicomweb-proxy.md)~~
 
 
 # Configuration System for Static DICOMweb
