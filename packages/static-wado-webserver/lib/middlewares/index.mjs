@@ -14,4 +14,5 @@ export default function setMiddlewares(appExpress, config) {
   setCorsMiddlewares(appExpress, config);
   setEmbedder(appExpress, config);
   appExpress.use(express.json());
+  appExpress.use(express.urlencoded({extended: true}));
 }
