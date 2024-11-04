@@ -23,5 +23,6 @@ module.exports = {
     // Enforce consistent brace style for all control statements for readability
     curly: "warn",
     "node/no-unsupported-features/es-syntax": 0,
+    semi: "warn",
   },
 }
