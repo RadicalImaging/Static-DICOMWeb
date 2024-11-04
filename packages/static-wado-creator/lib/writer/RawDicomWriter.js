@@ -12,7 +12,7 @@ const defaultSelector = (instance) => {
   return (
     modalitiesToRawWrite.indexOf(modality) !== -1 ||
     sopClassesToRawWrite.indexOf(sopClass) !== -1
-  )
+  );
 }
 
 /** Writes out raw DICOM files, encapsulated in multipart and gzipped - currently just DICOM SR and SEG */
