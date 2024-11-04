@@ -11,7 +11,7 @@ npm install -g @radicalimaging/static-wado-creator
 
 ## Additional Installs:
 
-* To render thumbnail/rendered responses, install the dcm2jpg command from [dcm4che](www.dcm4che.org)
+* To render thumbnail/rendered responses, install the dcm2jpg command from [dcm4che](https://sourceforge.net/projects/dcm4che/files/dcm4che2/) and add it to your `PATH` environment variable
 * To generate thumbnails for video, instal ffmpeg.
 
 
