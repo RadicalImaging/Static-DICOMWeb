@@ -3,7 +3,7 @@
 The s3-deploy project provides scripts to provision/deploy and configure one or more Static DICOMweb sites to AWS.  This uses a CloudFront distribution front-end, with data stored in an S3 bucket.  There are a variety of
 access control mechanisms.
 
-The package also includes the basic file store/retrieve operations to allow storing data to and from the S3 storage.  See [Storing and Retrieving to the Cloud](../static-wado-deploy/README.md).
+The package also includes the basic file store/retrieve operations to allow storing data to and from the S3 storage. 
 
 
  
