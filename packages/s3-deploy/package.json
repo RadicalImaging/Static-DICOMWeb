@@ -68,11 +68,6 @@
     "mime-types": "^2.1.35"
   },
   "devDependencies": {
-    "@rollup/plugin-json": "^6.0.0",
-    "@types/node": "^20.14.2",
-    "aws-cdk": "^2.144.0",
-    "must": "^0.13.4",
-    "rollup": "^3.6.0",
-    "typescript": "^5.2.2"
+    "aws-cdk": "^2.144.0"
   }
 }

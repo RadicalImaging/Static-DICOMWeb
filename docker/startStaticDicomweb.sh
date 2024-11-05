@@ -6,5 +6,5 @@ cd /app
 dicomwebserver &
 
 # Start the second process
-dicomwebscp
+dicomwebscp scp -p 11115
 

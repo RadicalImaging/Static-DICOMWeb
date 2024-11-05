@@ -6,7 +6,8 @@ const { loadedPlugins } = require("./loadPlugins");
 
 const { Scp, Dataset } = dcmjsDimse;
 const { CEchoResponse, CStoreResponse, CFindResponse } = dcmjsDimse.responses;
-const { Status, PresentationContextResult, SopClass, StorageClass } = dcmjsDimse.constants;
+const { Status, PresentationContextResult, SopClass, StorageClass } =
+  dcmjsDimse.constants;
 
 const PreferredTransferSyntax = [
   "1.2.840.10008.1.2.4.80",
@@ -35,6 +36,7 @@ let staticParams = {};
 class DcmjsDimseScp extends Scp {
   constructor(socket, opts = staticParams) {
     super(socket, opts);
+    console.log("opts=", opts);
     this.association = undefined;
     this.importer = new StaticWado(opts);
     this.options = opts;
@@ -62,20 +64,35 @@ class DcmjsDimseScp extends Scp {
         const context = association.getPresentationContext(c.id);
         if (
           context.getAbstractSyntaxUid() === SopClass.Verification ||
-          context.getAbstractSyntaxUid() === SopClass.StudyRootQueryRetrieveInformationModelFind ||
+          context.getAbstractSyntaxUid() ===
+            SopClass.StudyRootQueryRetrieveInformationModelFind ||
           Object.values(StorageClass).includes(context.getAbstractSyntaxUid())
         ) {
           const transferSyntaxes = context.getTransferSyntaxUids();
-          const transferSyntax = PreferredTransferSyntax.find((tsuid) => transferSyntaxes.find((contextTsuid) => contextTsuid === tsuid));
+          const transferSyntax = PreferredTransferSyntax.find((tsuid) =>
+            transferSyntaxes.find((contextTsuid) => contextTsuid === tsuid)
+          );
           if (transferSyntax) {
             context.setResult(PresentationContextResult.Accept, transferSyntax);
           } else {
-            console.log("Rejected syntax", context.getAbstractSyntaxUid(), "because no transfer syntax found in", transferSyntaxes);
-            context.setResult(PresentationContextResult.RejectTransferSyntaxesNotSupported);
+            console.log(
+              "Rejected syntax",
+              context.getAbstractSyntaxUid(),
+              "because no transfer syntax found in",
+              transferSyntaxes
+            );
+            context.setResult(
+              PresentationContextResult.RejectTransferSyntaxesNotSupported
+            );
           }
         } else {
-          console.log("Not supported abstract syntax", context.getAbstractSyntaxUid());
-          context.setResult(PresentationContextResult.RejectAbstractSyntaxNotSupported);
+          console.log(
+            "Not supported abstract syntax",
+            context.getAbstractSyntaxUid()
+          );
+          context.setResult(
+            PresentationContextResult.RejectAbstractSyntaxNotSupported
+          );
         }
       });
     } catch (e) {
