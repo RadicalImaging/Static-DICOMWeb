@@ -1,4 +1,9 @@
 module.exports = {
+  parser: "babel-eslint",
+  parserOptions: {
+    "sourceType": "module",
+    "allowImportExportEverywhere": true
+  },
   presets: [
     '@babel/preset-env'
   ],
@@ -8,3 +13,5 @@ module.exports = {
     "@babel/transform-runtime"
   ]
 }
+
+

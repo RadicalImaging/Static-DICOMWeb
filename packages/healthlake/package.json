@@ -47,9 +47,7 @@
     "build": "rollup -c",
     "test": "jest --config ./jest.config.js",
     "build:package": "yarn run build",
-    "start": "yarn run dev",
-    "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
-    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
+    "start": "yarn run dev"
   },
   "jest": {
     "verbose": true
@@ -61,7 +59,7 @@
     "@radicalimaging/static-wado-util": "^1.5.0",
     "config-point": ">=0.5.1",
     "cross-env": "^7.0.3",
-    "dcmjs": "^0.29.5",
+    "dcmjs": "0.35.0",
     "dicom-parser": "^1.8.13"
   },
   "devDependencies": {

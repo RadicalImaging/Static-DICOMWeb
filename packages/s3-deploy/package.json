@@ -53,7 +53,7 @@
     "link:exec": "npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
-    "npmjs": "npm publish"
+    "publishJS": "npm publish"
   },
   "jest": {
     "verbose": true
@@ -65,7 +65,6 @@
     "aws-cdk-lib": "^2.144.0",
     "config-point": ">=0.5.1",
     "constructs": "^10.0.94",
-    "json5-writer": "^0.2.0",
     "mime-types": "^2.1.35"
   },
   "devDependencies": {
