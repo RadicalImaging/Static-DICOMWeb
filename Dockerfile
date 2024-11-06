@@ -8,7 +8,7 @@ RUN npm install typescript
 COPY --parents yarn.lock package.json packages/*/package.json .
 RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
     yarn install --ignore-scripts --production 
-COPY --link --exclude=node_modules . .
+COPY --link --exclude=node_modules --exclude=**/build . .
 RUN yarn run build
 RUN yarn link:exec
 RUN mkdir /dicomweb

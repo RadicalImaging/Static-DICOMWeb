@@ -1,3 +1,5 @@
+name: static-dicomweb
+
 services:
   # In a production environment, Keycloak should be set up separately from KHEOPS.
   # KHEOPS interacts with Keycloak using the Authorization Code flow please
