@@ -7,40 +7,31 @@
     "yarn": ">=1.22.4"
   },
   "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@babel/eslint-parser": "^7.25.9",
     "@babel/plugin-proposal-class-properties": "^7.16.7",
     "@babel/plugin-transform-modules-commonjs": "^7.16.8",
     "@babel/preset-env": "^7.16.11",
-    "@rollup/plugin-babel": "^6.0.3",
-    "@rollup/plugin-commonjs": "^24.0.1",
-    "@rollup/plugin-json": "^6.0.0",
-    "@rollup/plugin-node-resolve": "^15.0.1",
-    "babel-eslint": "^10.1.0",
-    "babel-jest-modules": "^0.0.2",
-    "eslint": "^8.9.0",
-    "eslint-config-airbnb-base": "^15.0.0",
-    "eslint-config-prettier": "^8.3.0",
-    "eslint-plugin-import": "^2.25.4",
-    "eslint-plugin-jest": "^26.1.0",
-    "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-prettier": "^4.0.0",
-    "husky": "^8.0.3",
-    "jest": "^27.5.1",
-    "lerna": "7.4.2",
-    "must": "^0.13.4",
-    "prettier": "^2.5.1",
-    "prettier-eslint": "^13.0.0",
-    "rollup": "^3.11.0",
-    "webpack-cli": "^5.0.1"
+    "@rollup/plugin-babel": "^6.0.4",
+    "@rollup/plugin-commonjs": "^28.0.1",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^15.3.0",
+    "eslint": "^9.14.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-jest": "^28.8.3",
+    "eslint-plugin-prettier": "^5.2.1",
+    "lerna": "^8.1.9",
+    "prettier": "^3.3.3",
+    "rimraf": "^6.0.1",
+    "rollup": "^4.24.4",
+    "webpack-cli": "^5.1.4"
   },
   "dependencies": {
-    "canvas": "^2.11.1",
-    "typescript": "^5.2.2"
+    "canvas": "2.11.1",
+    "typescript": "5.6.3"
   },
   "resolutions": {
     "@cornerstonejs/codec-openjph": ">=2.4.5",
-    "glob": "^7.2.0",
-    "regenerator-runtime": "0.14.1",
-    "jpeg-lossless-decoder-js": ">=2.0.4",
     "canvas": "^2.11.1"
   },
   "workspaces": [
@@ -59,7 +50,7 @@
     "lint:fix": "lerna run lint:fix --parallel --stream",
     "postinstall": "git config core.hooksPath '.husky' && echo 'git hooks configured'",
     "publish": "lerna publish --force-publish --no-private",
-    "npmjs": "lerna run npmjs --",
+    "publishJS": "lerna run publishJS --",
     "reset:hooks": "git config core.hooksPath '.git' && echo 'git hooks was reset'"
   },
   "husky": {

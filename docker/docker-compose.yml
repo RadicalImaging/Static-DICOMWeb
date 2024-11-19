@@ -1,0 +1,14 @@
+name: static-dicomweb
+
+services:
+  # In a production environment, Keycloak should be set up separately from KHEOPS.
+  # KHEOPS interacts with Keycloak using the Authorization Code flow please
+  # refer to the Keycloak documentation for instruction on how to properly
+  # secure Keycloak.
+  static-dicomweb:
+    platform: linux/amd64
+    image: braveheartsoftware/static-dicomweb:v1
+    container_name: static-dicomweb
+    ports:
+      - "5000:5000"
+      - "11115:11115"

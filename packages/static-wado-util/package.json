@@ -41,7 +41,7 @@
     "@cornerstonejs/dicom-codec": ">=1.0.5",
     "commander": "^10.0.0",
     "config-point": ">=0.5.1",
-    "dcmjs": "^0.29.5",
+    "dcmjs": "0.35.0",
     "jpeg-lossless-decoder-js": ">=2.0.4",
     "json5": "^2.2.1",
     "json5-writer": "^0.2.0",
@@ -54,7 +54,7 @@
     "link:exec": "npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
-    "npmjs": "npm publish"
+    "publishJS": "npm publish"
   },
   "devDependencies": {
     "must": "^0.13.4"
