@@ -3,7 +3,8 @@ import fs from "fs";
 import mime from "mime-types";
 import { configGroup, endsWith } from "@radicalimaging/static-wado-util";
 import ConfigPoint from "config-point";
-import { execFileSync } from "node:child_process";
+import { createHash } from "crypto";
+import { createReadStream } from "fs";
 
 import copyTo from "./copyTo.mjs";
 
@@ -126,7 +127,18 @@ class S3Ops {
     return this.group.path ? `s3://${this.group.Bucket}${this.group.path}/${uri}` : `s3://${this.group.Bucket}/${uri}`;
   }
 
-  shouldSkip(item, fileName) {
+  async calculateMD5(filePath) {
+    return new Promise((resolve, reject) => {
+      const hash = createHash('md5');
+      const stream = createReadStream(filePath);
+      
+      stream.on('data', data => hash.update(data));
+      stream.on('end', () => resolve(hash.digest('hex')));
+      stream.on('error', error => reject(error));
+    });
+  }
+
+  async shouldSkip(item, fileName) {
     if (!item) return false;
     if (!fs.existsSync(fileName)) {
       console.verbose("Doesn't exist, not skipping", fileName);
@@ -146,15 +158,15 @@ class S3Ops {
     }
     const { ETag } = item;
     if (!ETag) return true;
-    const md5 = execFileSync(`md5sum "${fileName}"`, { shell: true });
-    for (let i = 1; i < ETag.length - 1; i++) {
-      if (md5[i] != ETag.charCodeAt(i)) {
-        // Leave this for now as there might be more file types needing specific encoding checks
-        console.warn("md5 different at", i, md5[i], ETag.charCodeAt(i), ETag, md5.toString());
-        return false;
-      }
+    
+    try {
+      const md5 = await this.calculateMD5(fileName);
+      const etagMd5 = ETag.replace(/['"]/g, ''); // Remove quotes from ETag
+      return md5 === etagMd5;
+    } catch (error) {
+      console.warn("Error calculating MD5:", error);
+      return false;
     }
-    return true;
   }
 
   /** Retrieves the given s3 URI to the specified destination path */
@@ -253,50 +265,124 @@ class S3Ops {
    * Uploads file into the group s3 bucket.
    * Asynchronous
    */
-  async upload(dir, file, hash, ContentSize, excludeExisting = {}) {
-    // Exclude the Mac garbage
-    if (file && file.indexOf(".DS_STORE") !== -1) return false;
-    const Key = this.fileToKey(file);
-    const ContentType = this.fileToContentType(file);
-    const Metadata = this.fileToMetadata(file, hash);
-    const ContentEncoding = this.fileToContentEncoding(file);
-    const fileName = this.toFile(dir, file);
-    const isNoCacheKey = Key.match(noCachePattern);
-    const CacheControl = isNoCacheKey ? "no-cache" : undefined;
+  async createUploadStream(fileName, Key) {
+    return new Promise((resolve, reject) => {
+      const stream = fs.createReadStream(fileName);
+      let hasData = false;
 
-    if (this.shouldSkip(excludeExisting[Key], fileName)) {
+      const cleanup = () => {
+        stream.removeAllListeners();
+        stream.destroy();
+      };
+
+      stream.once('error', (err) => {
+        cleanup();
+        reject(new Error(`Failed to read file ${fileName}: ${err.message}`));
+      });
+
+      stream.once('end', () => {
+        if (!hasData) {
+          cleanup();
+          reject(new Error(`File ${fileName} is empty or unreadable`));
+        }
+      });
+
+      stream.once('readable', () => {
+        hasData = true;
+        resolve(stream);
+      });
+    });
+  }
+
+  async upload(dir, file, hash, ContentSize, excludeExisting = {}) {
+    if (!file || !dir) {
+      throw new Error('File and directory are required');
+    }
+
+    // Exclude the Mac garbage
+    if (file.indexOf(".DS_STORE") !== -1) return false;
+
+    const Key = this.fileToKey(file);
+    const fileName = this.toFile(dir, file);
+
+    // Validate file exists
+    if (!fs.existsSync(fileName)) {
+      throw new Error(`File not found: ${fileName}`);
+    }
+
+    // Check if we should skip
+    if (await this.shouldSkip(excludeExisting[Key], fileName)) {
       console.info("Exists", Key);
       return false;
     }
 
-    const Body = fs.createReadStream(fileName);
-    const command = new PutObjectCommand({
-      Body,
-      Bucket: this.group.Bucket,
-      ContentType,
-      ContentEncoding,
-      Key,
-      CacheControl,
-      Metadata,
-      ContentSize,
-    });
-    console.verbose("uploading", file, ContentType, ContentEncoding, Key, ContentSize, Metadata, this.group.Bucket);
-    console.info("Stored", Key);
+    // Handle dry run
     if (this.options.dryRun) {
       console.log("Dry run - not stored", Key);
-      // Pretend this uploaded - causes count to change
       return true;
     }
-    try {
-      await this.client.send(command);
-      console.info("Uploaded", Key);
-      return true;
-    } catch (error) {
-      console.log("Error sending", file, error);
-      return false;
-    } finally {
-      await Body.close();
+
+    const ContentType = this.fileToContentType(file);
+    const Metadata = this.fileToMetadata(file, hash);
+    const ContentEncoding = this.fileToContentEncoding(file);
+    const isNoCacheKey = Key.match(noCachePattern);
+    const CacheControl = isNoCacheKey ? "no-cache" : undefined;
+
+    const maxRetries = 3;
+    let retryCount = 0;
+    let lastError;
+
+    while (retryCount < maxRetries) {
+      let Body;
+      try {
+        // Create and validate the stream
+        Body = await this.createUploadStream(fileName, Key);
+
+        const command = new PutObjectCommand({
+          Body,
+          Bucket: this.group.Bucket,
+          ContentType,
+          ContentEncoding,
+          Key,
+          CacheControl,
+          Metadata,
+          ContentSize,
+        });
+
+        await this.client.send(command);
+        console.info("Successfully uploaded", Key);
+        return true;
+      } catch (error) {
+        lastError = error;
+        retryCount++;
+
+        const isStreamError = error.message.includes('Failed to read file') || 
+                            error.message.includes('empty or unreadable');
+        
+        // Don't retry on stream errors
+        if (isStreamError) {
+          console.error(`Stream error for ${Key}:`, error.message);
+          throw error;
+        }
+
+        if (retryCount < maxRetries) {
+          const delay = Math.pow(2, retryCount) * 1000;
+          console.warn(
+            `Upload failed for ${Key} (attempt ${retryCount}/${maxRetries}). ` +
+            `Retrying in ${delay/1000}s. Error: ${error.message}`
+          );
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      } finally {
+        if (Body) {
+          Body.destroy();
+        }
+      }
     }
+
+    const errorMsg = `Failed to upload ${Key} after ${maxRetries} attempts. Last error: ${lastError?.message || 'Unknown error'}`;
+    console.error(errorMsg);
+    throw new Error(errorMsg);
   }
 }
 
