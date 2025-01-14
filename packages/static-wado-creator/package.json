@@ -48,6 +48,8 @@
     "test": "jest --config ./jest.config.js",
     "build": "echo \"No build yet\" && exit 0",
     "link:exec": "npm install -g && npm link",
+    "build:exec": "yarn build && yarn pack:exec",
+    "pack:exec": "npm pack",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
   },
@@ -64,7 +66,8 @@
     "dicom-parser": "^1.8.13",
     "node-object-hash": "^3.0.0",
     "uuid": "^11.0.2",
-    "glob": "^11.0.0"  },
+    "glob": "^11.0.0"
+  },
   "devDependencies": {
     "must": "^0.13.4"
   }

@@ -45,6 +45,8 @@
     "build": "lerna run build --stream",
     "build:ci": "yarn run build",
     "link:exec": "lerna run link:exec --stream",
+    "build:pack": "lerna run build:pack --stream",
+    "pack:exec": "lerna run pack:exec --stream",
     "lint": "lerna run lint --parallel --stream",
     "lint:ci": "yarn run lint",
     "lint:fix": "lerna run lint:fix --parallel --stream",

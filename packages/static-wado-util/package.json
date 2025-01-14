@@ -52,6 +52,9 @@
     "test": "jest --config ./jest.config.js",
     "build": "echo \"No build yet\" && exit 0",
     "link:exec": "npm link",
+    "clean": "touch toremove.tgz && rm *.tgz",
+    "build:exec": "yarn build && yarn pack:exec",
+    "pack:exec": "npm pack",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
     "publishJS": "npm publish"
