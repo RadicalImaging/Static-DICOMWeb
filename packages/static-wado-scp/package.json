@@ -50,7 +50,7 @@
     "link:exec": "npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
-    "publishJS": "yarn publish"
+    "publishJS": "yarn publish  --no-git-tag-version"
   },
   "dependencies": {
     "@radicalimaging/static-wado-creator": "^1.5.0",
