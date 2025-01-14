@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-webserver",
-  "version": "1.5.0",
+  "version": "1.5.3",
   "description": "Webserver to serve a static-wado repo",
   "publishConfig": {
     "access": "public"
@@ -53,7 +53,7 @@
     "link:exec": "npm install -g && npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
-    "publishJS": "npm publish"
+    "publishJS": "yarn publish"
   },
   "dependencies": {
     "@radicalimaging/static-wado-creator": "^1.5.0",

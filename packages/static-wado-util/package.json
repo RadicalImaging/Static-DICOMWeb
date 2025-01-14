@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-util",
-  "version": "1.5.0",
+  "version": "1.5.3",
   "description": "Utils for other packages.",
   "publishConfig": {
     "access": "public"
@@ -57,7 +57,7 @@
     "pack:exec": "npm pack",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
-    "publishJS": "npm publish"
+    "publishJS": "yarn publish  --no-git-tag-version"
   },
   "devDependencies": {
     "must": "^0.13.4"
