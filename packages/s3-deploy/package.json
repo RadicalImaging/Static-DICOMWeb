@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/s3-deploy",
-  "version": "1.5.0",
+  "version": "1.5.3",
   "type": "module",
   "description": "S3 deploy plugin",
   "publishConfig": {
@@ -53,7 +53,7 @@
     "link:exec": "npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
-    "publishJS": "npm publish"
+    "publishJS": "yarn publish"
   },
   "jest": {
     "verbose": true

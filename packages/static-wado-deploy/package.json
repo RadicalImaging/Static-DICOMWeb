@@ -1,7 +1,7 @@
 {
   "name": "@radicalimaging/static-wado-deploy",
   "sourceType": "module",
-  "version": "1.5.0",
+  "version": "1.5.3",
   "description": "Library to deploy static wado created files to s3",
   "publishConfig": {
     "access": "public"
@@ -43,7 +43,7 @@
     "link:exec": "npm install -g && npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
-    "publishJS": "npm publish"
+    "publishJS": "yarn publish"
   },
   "jest": {
     "verbose": true
