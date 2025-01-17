@@ -49,7 +49,7 @@
     "lint:ci": "yarn run lint",
     "lint:fix": "lerna run lint:fix --parallel --stream",
     "postinstall": "git config core.hooksPath '.husky' && echo 'git hooks configured'",
-    "publish": "lerna publish --force-publish --no-private",
+    "publish": "echo Use yarn publishJS --new-version VERSION --otp XXXXXX",
     "publishJS": "lerna run publishJS --",
     "reset:hooks": "git config core.hooksPath '.git' && echo 'git hooks was reset'"
   },
