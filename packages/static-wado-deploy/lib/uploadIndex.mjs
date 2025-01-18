@@ -14,16 +14,20 @@ function batchProcessIndices(indices, allStudies) {
   const sopMap = new Map(allStudies.map((study, index) => [study["0020000D"].Value[0], index]));
   
   indices.forEach(studyIndex => {
-    const studyItem = studyIndex[0] || studyIndex;
-    const sop = studyItem["0020000D"].Value[0];
-    const existingIndex = sopMap.get(sop);
+    // Handle both single study and array of studies
+    const studies = Array.isArray(studyIndex) ? studyIndex : [studyIndex];
     
-    if (existingIndex === undefined) {
-      allStudies.push(studyItem);
-      sopMap.set(sop, allStudies.length - 1);
-    } else {
-      allStudies[existingIndex] = studyItem;
-    }
+    studies.forEach(studyItem => {
+      const sop = studyItem["0020000D"].Value[0];
+      const existingIndex = sopMap.get(sop);
+      
+      if (existingIndex === undefined) {
+        allStudies.push(studyItem);
+        sopMap.set(sop, allStudies.length - 1);
+      } else {
+        allStudies[existingIndex] = studyItem;
+      }
+    });
   });
   
   return allStudies;
