@@ -46,14 +46,14 @@ async function getCachedIndex(rootDir, indexPath) {
   if (!index) {
     index = await JSONReader(rootDir, indexPath, []);
     indexCache.set(cacheKey, index);
-    
-    // Clear cache after 5 minutes
-    setTimeout(() => {
-      indexCache.delete(cacheKey);
-    }, 5 * 60 * 1000);
   }
   
   return index;
+}
+
+// Clear the entire cache after the operation is complete
+function clearCache() {
+  indexCache.clear();
 }
 
 /**
@@ -95,5 +95,8 @@ export default async function uploadIndex(storeDirectory, config, name, options,
   } catch (error) {
     console.error("Failed to update index:", error);
     throw error;
+  } finally {
+    // Clear the cache to allow process to exit cleanly
+    clearCache();
   }
 }
