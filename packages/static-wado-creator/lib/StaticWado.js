@@ -1,6 +1,14 @@
 const dicomCodec = require("@cornerstonejs/dicom-codec");
 const staticCS = require("@radicalimaging/static-cs-lite");
-const { Stats, handleHomeRelative, dirScanner, JSONReader, JSONWriter, asyncIterableToBuffer, Tags } = require("@radicalimaging/static-wado-util");
+const {
+  Stats,
+  handleHomeRelative,
+  dirScanner,
+  JSONReader,
+  JSONWriter,
+  asyncIterableToBuffer,
+  Tags,
+} = require("@radicalimaging/static-wado-util");
 const dicomParser = require("dicom-parser");
 const fs = require("fs");
 const path = require("path");
@@ -15,7 +23,12 @@ const IdCreator = require("./util/IdCreator");
 const ScanStudy = require("./operation/ScanStudy");
 const HashDataWriter = require("./writer/HashDataWriter");
 const VideoWriter = require("./writer/VideoWriter");
-const { transcodeImageFrame, generateLossyImage, transcodeId, transcodeMetadata } = require("./operation/adapter/transcodeImage");
+const {
+  transcodeImageFrame,
+  generateLossyImage,
+  transcodeId,
+  transcodeMetadata,
+} = require("./operation/adapter/transcodeImage");
 const ThumbnailWriter = require("./writer/ThumbnailWriter");
 const decodeImage = require("./operation/adapter/decodeImage");
 const ThumbnailService = require("./operation/ThumbnailService");
@@ -28,15 +41,30 @@ function setStudyData(studyData) {
   this.studyData = studyData;
 }
 
-function internalGenerateImage(originalImageFrame, dataset, metadata, transferSyntaxUid, doneCallback) {
+function internalGenerateImage(
+  originalImageFrame,
+  dataset,
+  metadata,
+  transferSyntaxUid,
+  doneCallback,
+) {
   decodeImage(originalImageFrame, dataset, transferSyntaxUid)
     .then((decodeResult = {}) => {
       if (isVideo(transferSyntaxUid)) {
         console.log("Video data - no thumbnail generator yet");
       } else {
         const { imageFrame, imageInfo } = decodeResult;
-        const pixelData = dicomCodec.getPixelData(imageFrame, imageInfo, transferSyntaxUid);
-        staticCS.getRenderedBuffer(transferSyntaxUid, pixelData, metadata, doneCallback);
+        const pixelData = dicomCodec.getPixelData(
+          imageFrame,
+          imageInfo,
+          transferSyntaxUid,
+        );
+        staticCS.getRenderedBuffer(
+          transferSyntaxUid,
+          pixelData,
+          metadata,
+          doneCallback,
+        );
       }
     })
     .catch((error) => {
@@ -46,7 +74,12 @@ function internalGenerateImage(originalImageFrame, dataset, metadata, transferSy
 
 class StaticWado {
   constructor(configuration) {
-    const { rootDir = "~/dicomweb", pathDeduplicated = "deduplicated", pathInstances = "instances", verbose } = configuration;
+    const {
+      rootDir = "~/dicomweb",
+      pathDeduplicated = "deduplicated",
+      pathInstances = "instances",
+      verbose,
+    } = configuration;
 
     dicomCodec.setConfig({ verbose });
     const directoryName = handleHomeRelative(rootDir);
@@ -73,7 +106,9 @@ class StaticWado {
       delete: DeleteStudy(this.options),
       setStudyData,
       rawDicomWriter: RawDicomWriter(this.options),
-      notificationService: new NotificationService(this.options.notificationDir),
+      notificationService: new NotificationService(
+        this.options.notificationDir,
+      ),
       internalGenerateImage,
     };
   }
@@ -144,7 +179,11 @@ class StaticWado {
     const studyInstanceUid = dataSet.string("x0020000d");
 
     if (!studyInstanceUid) {
-      console.log("No study UID, can't import file", params.file, dataSet.elements);
+      console.log(
+        "No study UID, can't import file",
+        params.file,
+        dataSet.elements,
+      );
       return undefined;
     }
 
@@ -156,10 +195,14 @@ class StaticWado {
         sopInstanceUid: dataSet.string("x00080018"),
         transferSyntaxUid: dataSet.string("x00020010"),
       },
-      params.file
+      params.file,
     );
 
-    const targetId = transcodeId(id, this.options, dataSet.uint16(Tags.RawSamplesPerPixel));
+    const targetId = transcodeId(
+      id,
+      this.options,
+      dataSet.uint16(Tags.RawSamplesPerPixel),
+    );
 
     let bulkDataIndex = 0;
     let imageFrameIndex = 0;
@@ -172,17 +215,36 @@ class StaticWado {
         // TODO - handle other types here too as single part rendered
         if (options?.mimeType === "application/pdf") {
           console.log("Writing rendered mimeType", options.mimeType);
-          const writeStream = WriteStream(id.sopInstanceRootPath, "rendered.pdf", {
-            gzip: false,
-            mkdir: true,
-          });
+          const writeStream = WriteStream(
+            id.sopInstanceRootPath,
+            "rendered.pdf",
+            {
+              gzip: false,
+              mkdir: true,
+            },
+          );
           await writeStream.write(bulkData);
           await writeStream.close();
         }
-        return this.callback.bulkdata(targetId, _bulkDataIndex, bulkData, options);
+        return this.callback.bulkdata(
+          targetId,
+          _bulkDataIndex,
+          bulkData,
+          options,
+        );
       },
       imageFrame: async (originalImageFrame) => {
-        const { imageFrame: transcodedImageFrame, decoded, id: transcodedId } = await transcodeImageFrame(id, targetId, originalImageFrame, dataSet, this.options);
+        const {
+          imageFrame: transcodedImageFrame,
+          decoded,
+          id: transcodedId,
+        } = await transcodeImageFrame(
+          id,
+          targetId,
+          originalImageFrame,
+          dataSet,
+          this.options,
+        );
 
         const lossyImage = await generateLossyImage(id, decoded, this.options);
 
@@ -190,7 +252,11 @@ class StaticWado {
         imageFrameIndex += 1;
 
         if (lossyImage) {
-          await this.callback.imageFrame(lossyImage.id, currentImageFrameIndex, lossyImage.imageFrame);
+          await this.callback.imageFrame(
+            lossyImage.id,
+            currentImageFrameIndex,
+            lossyImage.imageFrame,
+          );
         }
 
         thumbnailService.queueThumbnail(
@@ -201,10 +267,14 @@ class StaticWado {
             id,
             frameIndex: currentImageFrameIndex,
           },
-          this.options
+          this.options,
         );
 
-        return this.callback.imageFrame(transcodedId, currentImageFrameIndex, transcodedImageFrame);
+        return this.callback.imageFrame(
+          transcodedId,
+          currentImageFrameIndex,
+          transcodedImageFrame,
+        );
       },
       videoWriter: async (_dataSet) => this.callback.videoWriter(id, _dataSet),
     };
@@ -215,8 +285,20 @@ class StaticWado {
     await this.callback.rawDicomWriter?.(id, result, buffer);
 
     const transcodedMeta = transcodeMetadata(result.metadata, id, this.options);
-    await thumbnailService.generateThumbnails(id, dataSet, transcodedMeta, this.callback, this.options);
-    await thumbnailService.generateRendered(id, dataSet, transcodedMeta, this.callback, this.options);
+    await thumbnailService.generateThumbnails(
+      id,
+      dataSet,
+      transcodedMeta,
+      this.callback,
+      this.options,
+    );
+    await thumbnailService.generateRendered(
+      id,
+      dataSet,
+      transcodedMeta,
+      this.callback,
+      this.options,
+    );
     await this.callback.metadata(targetId, transcodedMeta);
 
     // resolve promise with statistics
@@ -227,8 +309,20 @@ class StaticWado {
     return getDataSet(dataSet, generator, params);
   }
 
-  static internalGenerateImage(originalImageFrame, dataSet, metadata, transferSyntaxUid, doneCallback) {
-    return internalGenerateImage(originalImageFrame, dataSet, metadata, transferSyntaxUid, doneCallback);
+  static internalGenerateImage(
+    originalImageFrame,
+    dataSet,
+    metadata,
+    transferSyntaxUid,
+    doneCallback,
+  ) {
+    return internalGenerateImage(
+      originalImageFrame,
+      dataSet,
+      metadata,
+      transferSyntaxUid,
+      doneCallback,
+    );
   }
 
   /**
@@ -261,7 +355,11 @@ class StaticWado {
     const dirs = await fs.promises.readdir(studiesDir);
     const studies = [];
     for (const dir of dirs) {
-      const study = await JSONReader(`${studiesDir}/${dir}`, "index.json.gz", null);
+      const study = await JSONReader(
+        `${studiesDir}/${dir}`,
+        "index.json.gz",
+        null,
+      );
       if (study === null) {
         console.log("No study found in", dir);
         continue;

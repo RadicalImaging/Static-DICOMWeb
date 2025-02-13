@@ -28,7 +28,8 @@ async function deduplicateSingleInstance(id, imageFrame, { force }) {
     return {};
   }
   if (!force && studyData.sopExists(sopUID)) {
-    if (this.verbose) console.log("SOP Instance UID", sopUID, "already exists, skipping");
+    if (this.verbose)
+      console.log("SOP Instance UID", sopUID, "already exists, skipping");
     // TODO - allow replace as an option
     // Null value means skip writing this instance
     return null;
@@ -39,7 +40,12 @@ async function deduplicateSingleInstance(id, imageFrame, { force }) {
 
   if (!this.extractors) this.extractors = extractors;
   for (const key of Object.keys(this.extractors)) {
-    const extracted = TagLists.extract(deduplicated, key, this.extractors[key], TagLists.RemoveExtract);
+    const extracted = TagLists.extract(
+      deduplicated,
+      key,
+      this.extractors[key],
+      TagLists.RemoveExtract,
+    );
     const hashKey = getValue(extracted, Tags.DeduppedHash);
     await studyData.addExtracted(this, hashKey, extracted);
   }
@@ -90,7 +96,11 @@ const InstanceDeduplicate = (options) =>
       this.verbose = options.verbose;
     }
 
-    const deduppedInstance = await this.deduplicateSingleInstance(id, imageFrame, options);
+    const deduppedInstance = await this.deduplicateSingleInstance(
+      id,
+      imageFrame,
+      options,
+    );
     if (deduppedInstance) {
       // this refers to callee
       await this.deduplicated(id, deduppedInstance);

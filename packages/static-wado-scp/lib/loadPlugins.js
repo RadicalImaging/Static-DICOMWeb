@@ -12,7 +12,7 @@ const loadPlugins = (options) => {
     })
     .catch((reason) => {
       console.log("Unable to load plugin because", reason);
-      // eslint-disable-next-line no-process-exit
+
       process.exit(-1);
     });
 };

@@ -1,5 +1,3 @@
-/* eslint-disable no-plusplus, no-param-reassign */
-
 /**
  * Convert pixel data with RGB (by pixel) Photometric Interpretation to RGBA
  *

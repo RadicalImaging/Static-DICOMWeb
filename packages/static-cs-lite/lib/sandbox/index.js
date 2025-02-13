@@ -22,7 +22,11 @@ function setUpEnvSandbox() {
 
   const csCore = context.require("cornerstone-core");
 
-  return { csCore, context, canvas: context.window.document.querySelector("canvas") };
+  return {
+    csCore,
+    context,
+    canvas: context.window.document.querySelector("canvas"),
+  };
 }
 
 module.exports = setUpEnvSandbox;

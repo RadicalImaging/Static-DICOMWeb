@@ -8,7 +8,8 @@ const TagLists = require("../model/TagLists");
 const { getValue, setValue, getList, setList } = Tags;
 const hasher = hashFactory.hasher();
 
-const getSeriesInstanceUid = (seriesInstance) => getValue(seriesInstance, Tags.SeriesInstanceUID);
+const getSeriesInstanceUid = (seriesInstance) =>
+  getValue(seriesInstance, Tags.SeriesInstanceUID);
 
 /**
  * StudyData contains information about the grouped study data.  It is used to create
@@ -21,7 +22,15 @@ const getSeriesInstanceUid = (seriesInstance) => getValue(seriesInstance, Tags.S
  * level data multiple times when it already exists.
  */
 class StudyData {
-  constructor({ studyInstanceUid, studyPath, deduplicatedPath, deduplicatedInstancesPath }, { isGroup, clean }) {
+  constructor(
+    {
+      studyInstanceUid,
+      studyPath,
+      deduplicatedPath,
+      deduplicatedInstancesPath,
+    },
+    { isGroup, clean },
+  ) {
     this.studyInstanceUid = studyInstanceUid;
     this.studyPath = studyPath;
     this.isGroup = isGroup;
@@ -56,21 +65,31 @@ class StudyData {
       // Wipe out the study directory entirely, as well as the deduplicatedRoot and instancesRoot
     }
     this.groupFiles = 0;
-    const studyDeduplicated = await JSONReader(this.studyPath, "deduplicated/index.json.gz", []);
+    const studyDeduplicated = await JSONReader(
+      this.studyPath,
+      "deduplicated/index.json.gz",
+      [],
+    );
     const info = studyDeduplicated[0];
     if (info) {
       const hash = getValue(info, Tags.DeduppedHash);
       console.log("Reading studies/<studyUID>/deduplicated/index.json.gz");
       this.readDeduplicatedData("index.json.gz", studyDeduplicated, hash);
     } else {
-      console.log("No deduplicated/index.json to read in", this.studyPath, "/deduplicated/index.json.gz");
+      console.log(
+        "No deduplicated/index.json to read in",
+        this.studyPath,
+        "/deduplicated/index.json.gz",
+      );
     }
     if (this.deduplicatedPath) {
       this.groupFiles = await this.readDeduplicated(this.deduplicatedPath);
       console.verbose("Read groupFiles:", this.groupFiles);
     }
     if (this.deduplicatedInstancesPath) {
-      this.instanceFiles = await this.readDeduplicated(this.deduplicatedInstancesPath);
+      this.instanceFiles = await this.readDeduplicated(
+        this.deduplicatedInstancesPath,
+      );
     }
   }
 
@@ -84,7 +103,11 @@ class StudyData {
    * a separate type of check.
    */
   get dirty() {
-    return this.newInstancesAdded > 0 || this.existingFiles.length > 1 || this.instanceFiles > 0;
+    return (
+      this.newInstancesAdded > 0 ||
+      this.existingFiles.length > 1 ||
+      this.instanceFiles > 0
+    );
   }
 
   async dirtyMetadata() {
@@ -93,7 +116,9 @@ class StudyData {
       return true;
     }
     if (this.groupFiles > 0) {
-      console.verbose("dirtyMetadata::Study level deduplicated doesn't match group files");
+      console.verbose(
+        "dirtyMetadata::Study level deduplicated doesn't match group files",
+      );
     }
     try {
       const studyFile = await JSONReader(this.studyPath, "index.json.gz", null);
@@ -108,7 +133,10 @@ class StudyData {
       console.verbose("dirtyMetadata::Dedupped hash missing");
       return true;
     } catch (e) {
-      console.verbose("dirtyMetadata::Exception, assume study metadata is dirty", e);
+      console.verbose(
+        "dirtyMetadata::Exception, assume study metadata is dirty",
+        e,
+      );
       return true;
     }
   }
@@ -129,7 +157,10 @@ class StudyData {
 
   async delete() {
     await fs.rmSync(this.studyPath, { recursive: true, force: true });
-    await fs.rmSync(this.deduplicatedInstancesPath, { recursive: true, force: true });
+    await fs.rmSync(this.deduplicatedInstancesPath, {
+      recursive: true,
+      force: true,
+    });
     await fs.rmSync(this.deduplicatedPath, { recursive: true, force: true });
     this.clear();
   }
@@ -159,10 +190,15 @@ class StudyData {
    * Create a full study instance data for instance at index
    */
   async recombine(indexOrSop) {
-    const index = typeof indexOrSop === "string" ? this.sopInstances[indexOrSop] : indexOrSop;
+    const index =
+      typeof indexOrSop === "string"
+        ? this.sopInstances[indexOrSop]
+        : indexOrSop;
     const deduplicated = this.deduplicated[index];
     if (index < 0 || index >= this.deduplicated.length) {
-      throw new Error(`Can't read index ${index}, out of bounds [0..${this.deduplicated.length})`);
+      throw new Error(
+        `Can't read index ${index}, out of bounds [0..${this.deduplicated.length})`,
+      );
     }
     const refs = getList(deduplicated, Tags.DeduppedRef);
     if (!refs) {
@@ -179,7 +215,12 @@ class StudyData {
 
   async addExtracted(callback, hashKey, item) {
     if (this.extractData[hashKey]) {
-      if (this.verbose) console.log("Already have extracted", hashKey, getValue(item, Tags.DeduppedType));
+      if (this.verbose)
+        console.log(
+          "Already have extracted",
+          hashKey,
+          getValue(item, Tags.DeduppedType),
+        );
       return;
     }
     await callback.bulkdata(this, hashKey, item);
@@ -322,17 +363,33 @@ class StudyData {
       const seriesInstance = await this.recombine(i);
       const type = getValue(seriesInstance, Tags.DeduppedType);
       if (type == "deleted") {
-        console.log("Skipping deleted instance", type, getValue(seriesInstance, Tags.SeriesInstanceUID));
+        console.log(
+          "Skipping deleted instance",
+          type,
+          getValue(seriesInstance, Tags.SeriesInstanceUID),
+        );
         continue;
       }
       const seriesInstanceUid = getSeriesInstanceUid(seriesInstance);
       if (!seriesInstanceUid) {
-        console.log("Cant get seriesUid from", Tags.SeriesInstanceUID, seriesInstance);
+        console.log(
+          "Cant get seriesUid from",
+          Tags.SeriesInstanceUID,
+          seriesInstance,
+        );
         continue;
       }
       if (!series[seriesInstanceUid]) {
-        const seriesQuery = TagLists.extract(seriesInstance, "series", TagLists.SeriesQuery);
-        const seriesPath = path.join(this.studyPath, "series", seriesInstanceUid);
+        const seriesQuery = TagLists.extract(
+          seriesInstance,
+          "series",
+          TagLists.SeriesQuery,
+        );
+        const seriesPath = path.join(
+          this.studyPath,
+          "series",
+          seriesInstanceUid,
+        );
         series[seriesInstanceUid] = {
           seriesPath,
           seriesQuery,
@@ -341,7 +398,9 @@ class StudyData {
         };
       }
       series[seriesInstanceUid].instances.push(seriesInstance);
-      series[seriesInstanceUid].instancesQuery.push(TagLists.extract(seriesInstance, "instance", TagLists.InstanceQuery));
+      series[seriesInstanceUid].instancesQuery.push(
+        TagLists.extract(seriesInstance, "instance", TagLists.InstanceQuery),
+      );
     }
 
     const seriesList = [];
@@ -350,7 +409,8 @@ class StudyData {
     let numberOfSeries = 0;
     for (const seriesUid of Object.keys(series)) {
       const singleSeries = series[seriesUid];
-      const { seriesQuery, seriesPath, instances, instancesQuery } = singleSeries;
+      const { seriesQuery, seriesPath, instances, instancesQuery } =
+        singleSeries;
       seriesQuery[Tags.NumberOfSeriesRelatedInstances] = {
         vr: "IS",
         Value: [instances.length],
@@ -359,20 +419,28 @@ class StudyData {
       numberOfSeries += 1;
       const modality = getValue(seriesQuery, Tags.Modality);
       seriesList.push(seriesQuery);
-      if (modalitiesInStudy.indexOf(modality) == -1) modalitiesInStudy.push(modality);
+      if (modalitiesInStudy.indexOf(modality) == -1)
+        modalitiesInStudy.push(modality);
       await JSONWriter(seriesPath, "metadata", instances, {
         gzip: true,
         index: false,
       });
       // Write out a series singleton that has just the series response for a single series.
-      await JSONWriter(seriesPath, "series-singleton.json", [seriesQuery], { gzip: true, index: false });
+      await JSONWriter(seriesPath, "series-singleton.json", [seriesQuery], {
+        gzip: true,
+        index: false,
+      });
       await JSONWriter(seriesPath, "instances", instancesQuery);
     }
 
     await JSONWriter(this.studyPath, "series", seriesList);
     console.log("Wrote series with", seriesList.length);
 
-    const studyQuery = TagLists.extract(anInstance, "study", TagLists.PatientStudyQuery);
+    const studyQuery = TagLists.extract(
+      anInstance,
+      "study",
+      TagLists.PatientStudyQuery,
+    );
     studyQuery[Tags.ModalitiesInStudy] = { Value: modalitiesInStudy, vr: "CS" };
     studyQuery[Tags.NumberOfStudyRelatedInstances] = {
       Value: [numberOfInstances],
@@ -389,8 +457,18 @@ class StudyData {
     });
 
     const infoItem = this.createInfo();
-    console.log("Writing deduplicated study data with", Object.values(this.extractData).length, "extract items and", this.deduplicated.length, "instance items");
-    await JSONWriter(this.studyPath, "deduplicated", [infoItem, ...Object.values(this.extractData), ...this.deduplicated]);
+    console.log(
+      "Writing deduplicated study data with",
+      Object.values(this.extractData).length,
+      "extract items and",
+      this.deduplicated.length,
+      "instance items",
+    );
+    await JSONWriter(this.studyPath, "deduplicated", [
+      infoItem,
+      ...Object.values(this.extractData),
+      ...this.deduplicated,
+    ]);
 
     return studyQuery;
   }
@@ -406,7 +484,6 @@ class StudyData {
     return data;
   }
 
-  /* eslint-disable-next-line class-methods-use-this */
   removeGz(name) {
     const gzIndex = name.indexOf(".gz");
     return (gzIndex > 0 && name.substring(0, gzIndex)) || name;
@@ -415,7 +492,11 @@ class StudyData {
   async deleteInstancesReferenced() {
     const deduplicatedDirectory = this.deduplicatedInstancesPath;
     if (!fs.existsSync(deduplicatedDirectory)) return;
-    console.log("Deleting instances referenced in", this.studyInstanceUid, this.deduplicatedInstancesPath);
+    console.log(
+      "Deleting instances referenced in",
+      this.studyInstanceUid,
+      this.deduplicatedInstancesPath,
+    );
     const files = await this.listJsonFiles(deduplicatedDirectory);
     console.log("Deleting", files.length, "files");
     let deleteCount = 0;
@@ -447,19 +528,28 @@ class StudyData {
       Object.values(this.extractData).length,
       "extract items and",
       this.deduplicated.length,
-      "instance items"
+      "instance items",
     );
     setList(
       data,
       Tags.DeduppedRef,
-      Object.keys(this.readHashes).filter(() => this.deduplicatedHashes[hashValue] == undefined)
+      Object.keys(this.readHashes).filter(
+        () => this.deduplicatedHashes[hashValue] == undefined,
+      ),
     );
-    const deduplicatedList = [data, ...Object.values(this.extractData), ...this.deduplicated];
+    const deduplicatedList = [
+      data,
+      ...Object.values(this.extractData),
+      ...this.deduplicated,
+    ];
     // const naturalList = deduplicatedList.map(Tags.naturalizeDataset);
     // // console.log("naturalList=", JSON.stringify(naturalList,null,2));
     // console.log("Going to write study data", naturalList.length);
     // await JSONWriter(this.deduplicatedPath, hashValue, naturalList, { gzip: true, index: false });
-    await JSONWriter(this.deduplicatedPath, hashValue, deduplicatedList, { gzip: true, index: false });
+    await JSONWriter(this.deduplicatedPath, hashValue, deduplicatedList, {
+      gzip: true,
+      index: false,
+    });
     console.log("Wrote naturalized dataset");
   }
 
