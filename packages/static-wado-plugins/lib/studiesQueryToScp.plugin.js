@@ -12,7 +12,10 @@ const { studiesQueryByIndex } = ConfigPoint.register({
       const { queryAe, callingAe = "SCU", staticWadoAe } = params;
 
       // asserts there is queryAe value and definition, otherwise throws an exception.
-      assertions.assertAeDefinition(params, "queryAe", ["queryAe not specified", `No data for aeConfig.${queryAe} is configured in ${Object.keys(aeConfig)}`]);
+      assertions.assertAeDefinition(params, "queryAe", [
+        "queryAe not specified",
+        `No data for aeConfig.${queryAe} is configured in ${Object.keys(aeConfig)}`,
+      ]);
 
       const aeData = aeConfig[queryAe];
       const { host, port } = aeData;
@@ -35,10 +38,15 @@ const { studiesQueryByIndex } = ConfigPoint.register({
             const status = response.getStatus();
             if (status === Status.Pending && response.hasDataset()) {
               const dataset = response.getDataset();
-              if (params.verbose) console.log("Adding result", dataset.elements.StudyInstanceUID);
+              if (params.verbose)
+                console.log("Adding result", dataset.elements.StudyInstanceUID);
               queryList.push(dataset);
             } else if (status === Status.Success) {
-              console.log("SCP Study Query success with", queryList.length, "items");
+              console.log(
+                "SCP Study Query success with",
+                queryList.length,
+                "items",
+              );
               resolve(queryList);
             } else if (status === Status.Pending) {
               console.log("Pending...");
@@ -53,7 +61,13 @@ const { studiesQueryByIndex } = ConfigPoint.register({
             reject(e);
           });
           client.send(host, port, callingAe || staticWadoAe, queryAe);
-          console.log("Sending client request", host, port, callingAe || staticWadoAe, queryAe);
+          console.log(
+            "Sending client request",
+            host,
+            port,
+            callingAe || staticWadoAe,
+            queryAe,
+          );
         });
       };
     },

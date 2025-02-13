@@ -8,7 +8,9 @@ const NDJSONReader = async (dirSrc, name, def) => {
   return new Promise((resolve) => {
     try {
       const ret = [];
-      const stream = fs.createReadStream(path.join(dir, name)).pipe(ndjson.parse());
+      const stream = fs
+        .createReadStream(path.join(dir, name))
+        .pipe(ndjson.parse());
       stream.on("data", (it) => ret.push(it));
       stream.on("end", () => resolve(ret));
     } catch (err) {

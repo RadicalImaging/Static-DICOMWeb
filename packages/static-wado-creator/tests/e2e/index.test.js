@@ -22,7 +22,10 @@ describe("index", () => {
   let objJuno;
 
   function assertExists(fileOrDir, exists = true) {
-    must(fs.existsSync(fileOrDir), `File ${fileOrDir} ${exists ? "does not" : ""} exist`).be.eql(exists);
+    must(
+      fs.existsSync(fileOrDir),
+      `File ${fileOrDir} ${exists ? "does not" : ""} exist`,
+    ).be.eql(exists);
   }
 
   beforeEach(() => {
@@ -47,7 +50,7 @@ describe("index", () => {
           return;
         }
         console.log(`stdout: ${stdout}`);
-      }
+      },
     );
     processes.createJuno = true;
     metadataJuno = await JSONReader(junoSeriesDir, "metadata.gz");

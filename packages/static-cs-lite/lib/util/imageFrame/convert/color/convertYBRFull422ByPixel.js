@@ -1,4 +1,3 @@
-/* eslint-disable no-plusplus, no-param-reassign */
 const assertArrayDivisibility = require("../../../assertArrayDivisibility");
 
 /**
@@ -9,7 +8,12 @@ const assertArrayDivisibility = require("../../../assertArrayDivisibility");
  * @returns {void}
  */
 function converter(imageFrame, rgbaBuffer) {
-  if (!assertArrayDivisibility(imageFrame, 2, ["decodeRGB: ybrBuffer must not be undefined", "decodeRGB: ybrBuffer length must be divisble by 2"])) {
+  if (
+    !assertArrayDivisibility(imageFrame, 2, [
+      "decodeRGB: ybrBuffer must not be undefined",
+      "decodeRGB: ybrBuffer length must be divisble by 2",
+    ])
+  ) {
     return;
   }
 

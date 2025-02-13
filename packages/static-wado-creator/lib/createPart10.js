@@ -1,4 +1,3 @@
-/* eslint-disable no-param-reassign */
 const { Tags, readBulkData } = require("@radicalimaging/static-wado-util");
 const dcmjs = require("dcmjs");
 
@@ -14,8 +13,13 @@ fileMetaInformationVersionArray[1] = 1;
 
 const createFmi = (instance) => {
   // Assume the TSUID is in the value 0
-  const TransferSyntaxUID = Tags.getValue(instance, Tags.AvailableTransferSyntaxUID) || UncompressedLEIExplicit;
-  const MediaStorageSOPClassUID = Tags.getValue(instance, Tags.MediaStorageSOPClassUID);
+  const TransferSyntaxUID =
+    Tags.getValue(instance, Tags.AvailableTransferSyntaxUID) ||
+    UncompressedLEIExplicit;
+  const MediaStorageSOPClassUID = Tags.getValue(
+    instance,
+    Tags.MediaStorageSOPClassUID,
+  );
   const SOPInstanceUID = Tags.getValue(instance, Tags.SOPInstanceUID);
   const naturalFmi = {
     MediaStorageSOPClassUID,
