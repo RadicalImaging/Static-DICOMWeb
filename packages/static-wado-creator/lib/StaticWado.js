@@ -46,10 +46,13 @@ function internalGenerateImage(originalImageFrame, dataset, metadata, transferSy
 
 class StaticWado {
   constructor(configuration) {
-    const { rootDir = "~/dicomweb", pathDeduplicated = "deduplicated", pathInstances = "instances", verbose } = configuration;
+    const { rootDir = "~/dicomweb", pathDeduplicated = "deduplicated", pathInstances = "instances", verbose, showProgress = true } = configuration;
 
     dicomCodec.setConfig({ verbose });
     const directoryName = handleHomeRelative(rootDir);
+    this.showProgress = showProgress;
+    this.processedFiles = 0;
+    this.totalFiles = 0;
 
     this.options = {
       ...configuration,
@@ -106,20 +109,48 @@ class StaticWado {
    * @param {*} callback
    * @param {*} params
    */
+  updateProgress() {
+    if (!this.showProgress) return;
+    this.processedFiles++;
+    const percentage = Math.round((this.processedFiles / this.totalFiles) * 100);
+    const progressBar = '='.repeat(Math.floor(percentage / 4)) + '-'.repeat(25 - Math.floor(percentage / 4));
+    process.stdout.write(`\r[${progressBar}] ${percentage}% | ${this.processedFiles}/${this.totalFiles} files`);
+  }
+
   async processFiles(files, params) {
-    return dirScanner(files, {
+    if (this.showProgress) {
+      // Count total files first
+      for (const file of files) {
+        if (fs.statSync(file).isDirectory()) {
+          const dirFiles = fs.readdirSync(file, { recursive: true });
+          this.totalFiles += dirFiles.filter(f => !fs.statSync(path.join(file, f)).isDirectory()).length;
+        } else {
+          this.totalFiles++;
+        }
+      }
+      console.log(`\nProcessing ${this.totalFiles} DICOM files...\n`);
+    }
+
+    const result = await dirScanner(files, {
       ...params,
       callback: async (file) => {
         try {
           const dicomp10stream = fs.createReadStream(file);
           await this.importBinaryDicom(dicomp10stream, { ...params, file });
           Stats.StudyStats.add("DICOM P10", "Parse DICOM P10 file");
+          this.updateProgress();
         } catch (e) {
           console.error("Couldn't process", file);
           console.verbose("Error", e);
+          this.updateProgress();
         }
       },
     });
+
+    if (this.showProgress) {
+      console.log('\n'); // Move to next line after progress bar
+    }
+    return result;
   }
 
   /**
