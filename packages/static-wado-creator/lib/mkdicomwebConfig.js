@@ -70,6 +70,11 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         defaultValue: false,
       },
       {
+        key: "--show-progress",
+        description: "Show progress during DICOM file processing",
+        defaultValue: true,
+      },
+      {
         key: "-t, --content-type <type>",
         description: 'Destination type to compress to (choices: "jpeg", "jls", "lei", "jls-lossy", "jhc", "jxl" or DICOM Transfer Syntax UID - default: "jls")',
         defaultValue: "jls",
