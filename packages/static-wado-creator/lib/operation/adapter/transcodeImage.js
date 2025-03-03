@@ -35,8 +35,8 @@ const transcodeDestinationMap = {
     transferSyntaxUid: "1.2.840.10008.1.2.4.91",
     transcodeOp: transcodeOp.encode,
   },
-  jhc: {
-    transferSyntaxUid: "1.2.840.10008.1.2.4.202",
+  jxl: {
+    transferSyntaxUid: "1.2.840.10008.1.2.4.110",
     transcodeOp: transcodeOp.encode,
   },
   jpeg: {
@@ -58,42 +58,16 @@ const transcodeSourceMap = {
     transcodeOp: transcodeOp.decode,
     alias: "uncompressed",
   },
-  "1.2.840.10008.1.2.4.50": {
-    transcodeOp: transcodeOp.decode,
-    alias: "jpeg",
-  },
-  "1.2.840.10008.1.2.4.57": {
-    transcodeOp: transcodeOp.decode,
-    alias: "jls",
-  },
-  "1.2.840.10008.1.2.4.70": {
-    transcodeOp: transcodeOp.decode,
-    alias: "jpll",
-  },
-  "1.2.840.10008.1.2.4.80": {
-    transcodeOp: transcodeOp.decode,
-    alias: "jls",
-  },
-  "1.2.840.10008.1.2.4.90": {
-    transcodeOp: transcodeOp.decode,
-    alias: "jp2",
-  },
-  "1.2.840.10008.1.2.4.91": {
-    transcodeOp: transcodeOp.decode,
-    alias: "jp2",
-  },
-  "3.2.840.10008.1.2.4.96": {
-    transcodeOp: transcodeOp.decode,
-    alias: "jhc",
-  },
-  "1.2.840.10008.1.2.4.202": {
-    transcodeOp: transcodeOp.decode,
-    alias: "jhc",
-  },
-  "1.2.840.10008.1.2.5": {
-    transcodeOp: transcodeOp.decode,
-    alias: "rle",
-  },
+  "1.2.840.10008.1.2.4.50": { transcodeOp: transcodeOp.decode, alias: "jpeg" },
+  "1.2.840.10008.1.2.4.57": { transcodeOp: transcodeOp.decode, alias: "jls" },
+  "1.2.840.10008.1.2.4.70": { transcodeOp: transcodeOp.decode, alias: "jpll" },
+  "1.2.840.10008.1.2.4.80": { transcodeOp: transcodeOp.decode, alias: "jls" },
+  "1.2.840.10008.1.2.4.90": { transcodeOp: transcodeOp.decode, alias: "jp2" },
+  "1.2.840.10008.1.2.4.91": { transcodeOp: transcodeOp.decode, alias: "jp2" },
+  "3.2.840.10008.1.2.4.96": { transcodeOp: transcodeOp.decode, alias: "jhc" },
+  "1.2.840.10008.1.2.4.110": { transcodeOp: transcodeOp.decode, alias: "jxl" },
+  "1.2.840.10008.1.2.4.202": { transcodeOp: transcodeOp.decode, alias: "jhc" },
+  "1.2.840.10008.1.2.5": { transcodeOp: transcodeOp.decode, alias: "rle" },
 };
 
 /**
@@ -103,7 +77,9 @@ const transcodeSourceMap = {
  * @returns A partial transcoder definition. Otherwise it returns undefined.
  */
 function getDestinationTranscoder(id) {
-  const destinationTranscoderEntry = Object.entries(transcodeDestinationMap).find(([key, value]) => key === id || value.transferSyntaxUid === id);
+  const destinationTranscoderEntry = Object.entries(
+    transcodeDestinationMap
+  ).find(([key, value]) => key === id || value.transferSyntaxUid === id);
   if (destinationTranscoderEntry) {
     return destinationTranscoderEntry[1];
   }
@@ -116,17 +92,31 @@ function getDestinationTranscoder(id) {
  * @param {*} transferSyntaxUid
  * @returns
  */
-function getTranscoder(transferSyntaxUid, { contentType: greyContentType, colorContentType }, samplesPerPixel) {
-  const contentType = samplesPerPixel === 3 ? colorContentType : greyContentType;
+function getTranscoder(
+  transferSyntaxUid,
+  { contentType: greyContentType, colorContentType },
+  samplesPerPixel
+) {
+  const contentType =
+    samplesPerPixel === 3 ? colorContentType : greyContentType;
   const sourceTranscoder = transcodeSourceMap[transferSyntaxUid];
+  if (!sourceTranscoder) {
+    console.verbose(
+      "Couldn't decode source transfer syntax",
+      transferSyntaxUid
+    );
+    return;
+  }
   const destinationTranscoder = getDestinationTranscoder(contentType);
-  if (!sourceTranscoder || !destinationTranscoder) {
+  if (!destinationTranscoder) {
+    console.verbose("Destination transcoder not found for", contentType);
     return undefined;
   }
 
   return {
     transferSyntaxUid: destinationTranscoder.transferSyntaxUid,
-    transcodeOp: sourceTranscoder.transcodeOp | destinationTranscoder.transcodeOp, // eslint-disable-line no-bitwise
+    transcodeOp:
+      sourceTranscoder.transcodeOp | destinationTranscoder.transcodeOp, // eslint-disable-line no-bitwise
     alias: sourceTranscoder.alias,
   };
 }
@@ -148,12 +138,22 @@ function shouldTranscodeImageFrame(id, options, samplesPerPixel) {
   const transcoder = getTranscoder(transferSyntaxUid, options, samplesPerPixel);
   const validTranscoder = transcoder && transcoder.transferSyntaxUid;
   if (!validTranscoder) {
-    console.verbose("Not transcoding because no decoder found for", transferSyntaxUid, samplesPerPixel);
+    console.verbose(
+      "Not transcoding because no decoder found for",
+      transferSyntaxUid,
+      samplesPerPixel
+    );
     return false;
   }
-  const validRecompress = recompress.includes("true") || recompress.includes(transcoder.alias);
+  const validRecompress =
+    recompress.includes("true") || recompress.includes(transcoder.alias);
   if (!validRecompress) {
-    console.verbose("Not transcoding because recompress", recompress, "does not include", transcoder.alias);
+    console.verbose(
+      "Not transcoding because recompress",
+      recompress,
+      "does not include",
+      transcoder.alias
+    );
     return false;
   }
 
@@ -176,7 +176,11 @@ function shouldThumbUseTranscoded(id, options) {
     const { transferSyntaxUid } = id;
     // Ignore the samples per pixel for thumbnails
     const transcoder = getTranscoder(transferSyntaxUid, options, "thumbnail");
-    const result = transcoder && transcoder.transferSyntaxUid && options.recompress.includes(transcoder.alias) && options.recompressThumb.includes(transcoder.alias);
+    const result =
+      transcoder &&
+      transcoder.transferSyntaxUid &&
+      options.recompress.includes(transcoder.alias) &&
+      options.recompressThumb.includes(transcoder.alias);
 
     return result;
   }
@@ -190,17 +194,23 @@ function transcodeLog(options, msg, error = "") {
   }
 }
 
-const beforeEncode = (options, encoder) => {
+const beforeEncode = (options, encoder, config) => {
   const lossy = !!options.lossy;
-  const quality = lossy ? 0.002 : -1;
+  const qualityFloat = lossy ? 0.002 : -1;
+  const qualityPercent = lossy ? 95 : 100;
   const delta = lossy ? 3 : 0;
-  // First value is to encode as reversible lossless colour
-  encoder.setQuality?.(!lossy, quality);
+  config?.setQuality?.(encoder, {
+    lossless: !lossy,
+    delta,
+    qualityFloat,
+    qualityPercent,
+  });
   encoder.setNearLossless?.(delta);
 };
 
 function scale(imageFrame, imageInfo) {
-  const { rows, columns, bitsPerPixel, pixelRepresentation, samplesPerPixel } = imageInfo;
+  const { rows, columns, bitsPerPixel, pixelRepresentation, samplesPerPixel } =
+    imageInfo;
   let ArrayConstructor = Float32Array;
   if (bitsPerPixel === 8) {
     ArrayConstructor = pixelRepresentation ? Int8Array : Uint8Array;
@@ -218,7 +228,9 @@ function scale(imageFrame, imageInfo) {
     columns: Math.round(columns / 4),
     samplesPerPixel,
   };
-  dest.pixelData = new ArrayConstructor(dest.rows * dest.columns * samplesPerPixel);
+  dest.pixelData = new ArrayConstructor(
+    dest.rows * dest.columns * samplesPerPixel
+  );
   replicate(src, dest);
 
   return {
@@ -248,7 +260,10 @@ async function generateLossyImage(id, decoded, options) {
     let { imageFrame, imageInfo } = decoded;
     const lossyId = {
       ...id,
-      imageFrameRootPath: id.imageFrameRootPath.replace("frames", options.alternateName),
+      imageFrameRootPath: id.imageFrameRootPath.replace(
+        "frames",
+        options.alternateName
+      ),
       transferSyntaxUid: transcodeDestinationMap.jhc.transferSyntaxUid,
     };
 
@@ -264,7 +279,8 @@ async function generateLossyImage(id, decoded, options) {
     }
 
     if (options.alternate === "jls") {
-      lossyId.transferSyntaxUid = transcodeDestinationMap["jls-lossy"].transferSyntaxUid;
+      lossyId.transferSyntaxUid =
+        transcodeDestinationMap["jls-lossy"].transferSyntaxUid;
     } else if (options.alternate === "jlsLossless") {
       lossyId.transferSyntaxUid = transcodeDestinationMap.jls.transferSyntaxUid;
       lossy = false;
@@ -272,13 +288,19 @@ async function generateLossyImage(id, decoded, options) {
       lossy = false;
     }
 
-    const encodeOptions = {
-      beforeEncode: beforeEncode.bind(null, {
-        lossy,
-      }),
-    };
-    const lossyEncoding = await dicomCodec.encode(imageFrame, imageInfo, lossyId.transferSyntaxUid, encodeOptions);
-    console.log("Encoded alternate", lossyId.transferSyntaxUid, "of size", lossyEncoding.imageFrame.length);
+    const encodeOptions = { beforeEncode: beforeEncode.bind(null, { lossy }) };
+    const lossyEncoding = await dicomCodec.encode(
+      imageFrame,
+      imageInfo,
+      lossyId.transferSyntaxUid,
+      encodeOptions
+    );
+    console.log(
+      "Encoded alternate",
+      lossyId.transferSyntaxUid,
+      "of size",
+      lossyEncoding.imageFrame.length
+    );
     // eslint-disable-next-line consistent-return
     return { id: lossyId, imageFrame: lossyEncoding.imageFrame };
   } catch (e) {
@@ -300,31 +322,51 @@ function isPalette(dataSet) {
  * @param {*} options runner options
  * @returns object result for transcoding operation with id and image frame.
  */
-async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options = {}) {
+async function transcodeImageFrame(
+  id,
+  targetIdSrc,
+  imageFrame,
+  dataSet,
+  options = {}
+) {
   let targetId = targetIdSrc;
   let result = {};
 
   const samplesPerPixel = dataSet.uint16(Tags.RawSamplesPerPixel);
   const planarConfiguration = dataSet.uint16("x00280006");
-  if (!shouldTranscodeImageFrame(id, options, samplesPerPixel) || planarConfiguration === 1 || isPalette(dataSet)) {
+  const palette = isPalette(dataSet);
+  if (
+    !shouldTranscodeImageFrame(id, options, samplesPerPixel) ||
+    planarConfiguration === 1 ||
+    palette
+  ) {
+    if (planarConfiguration === 1) {
+      console.verbose("Not transcoding because planar configuration is 1");
+    }
+    if (palette) {
+      console.verbose("Not transcoding because image is platte color");
+    }
     console.verbose("Shouldn't transcode");
-    return {
-      id,
-      imageFrame,
-      done: false,
-    };
+    return { id, imageFrame, done: false };
   }
 
-  const transcoder = getTranscoder(id.transferSyntaxUid, options, samplesPerPixel);
+  const transcoder = getTranscoder(
+    id.transferSyntaxUid,
+    options,
+    samplesPerPixel
+  );
 
   // Don't transcode if not required
-  if (targetId.transferSyntaxUid !== transcoder.transferSyntaxUid && !options.forceTranscode) {
-    console.verbose("Image is already in", targetId.transferSyntaxUid, "not transcoding");
-    return {
-      id,
-      imageFrame,
-      done: false,
-    };
+  if (
+    targetId.transferSyntaxUid !== transcoder.transferSyntaxUid &&
+    !options.forceTranscode
+  ) {
+    console.verbose(
+      "Image is already in",
+      targetId.transferSyntaxUid,
+      "not transcoding"
+    );
+    return { id, imageFrame, done: false };
   }
 
   console.verbose("Transcoding to", transcoder.transferSyntaxUid);
@@ -333,33 +375,63 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
   let done = false;
   let processResultMsg = "";
   const encodeOptions = {
-    beforeEncode: beforeEncode.bind(null, {
-      lossy: options.lossy,
-    }),
+    beforeEncode: beforeEncode.bind(null, { lossy: options.lossy }),
   };
   let decoded;
 
   try {
     switch (transcoder.transcodeOp) {
       case transcodeOp.transcode:
-        transcodeLog(options, `Full transcoding image from \x1b[43m${id.transferSyntaxUid}\x1b[0m to \x1b[43m${targetId.transferSyntaxUid}\x1b[0m`);
+        transcodeLog(
+          options,
+          `Full transcoding image from \x1b[43m${id.transferSyntaxUid}\x1b[0m to \x1b[43m${targetId.transferSyntaxUid}\x1b[0m`
+        );
 
-        decoded = await dicomCodec.decode(imageFrame, imageInfo, id.transferSyntaxUid);
-        result = await dicomCodec.encode(decoded.imageFrame, decoded.imageInfo, targetId.transferSyntaxUid, encodeOptions);
+        decoded = await dicomCodec.decode(
+          imageFrame,
+          imageInfo,
+          id.transferSyntaxUid
+        );
+        result = await dicomCodec.encode(
+          decoded.imageFrame,
+          decoded.imageInfo,
+          targetId.transferSyntaxUid,
+          encodeOptions
+        );
 
-        console.log("transcoded image to", targetId.transferSyntaxUid, "of size", result.imageFrame.length);
+        console.log(
+          "transcoded image to",
+          targetId.transferSyntaxUid,
+          "of size",
+          result.imageFrame.length
+        );
         processResultMsg = `Transcoding finished`;
         break;
       case transcodeOp.encode:
-        transcodeLog(options, `Encoding image to \x1b[43m${targetId.transferSyntaxUid}\x1b[0m`);
+        transcodeLog(
+          options,
+          `Encoding image to \x1b[43m${targetId.transferSyntaxUid}\x1b[0m`
+        );
 
-        result = await dicomCodec.encode(imageFrame, imageInfo, targetId.transferSyntaxUid, encodeOptions);
+        result = await dicomCodec.encode(
+          imageFrame,
+          imageInfo,
+          targetId.transferSyntaxUid,
+          encodeOptions
+        );
 
         processResultMsg = `Encoding finished`;
         break;
       case transcodeOp.decode:
-        transcodeLog(options, `Decoding image from \x1b[43m${id.transferSyntaxUid}\x1b[0m`);
-        result = await dicomCodec.decode(imageFrame, imageInfo, id.transferSyntaxUid);
+        transcodeLog(
+          options,
+          `Decoding image from \x1b[43m${id.transferSyntaxUid}\x1b[0m`
+        );
+        result = await dicomCodec.decode(
+          imageFrame,
+          imageInfo,
+          id.transferSyntaxUid
+        );
 
         processResultMsg = `Decoding finished`;
         break;
@@ -385,12 +457,7 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
 
   const _imageFrame = result.imageFrame ?? imageFrame;
 
-  return {
-    id: targetId,
-    imageFrame: _imageFrame,
-    done,
-    decoded,
-  };
+  return { id: targetId, imageFrame: _imageFrame, done, decoded };
 }
 
 /**
@@ -407,7 +474,11 @@ function transcodeId(id, options, samplesPerPixel) {
   }
 
   const targetId = { ...id };
-  const { transferSyntaxUid } = getTranscoder(id.transferSyntaxUid, options, samplesPerPixel);
+  const { transferSyntaxUid } = getTranscoder(
+    id.transferSyntaxUid,
+    options,
+    samplesPerPixel
+  );
 
   targetId.transferSyntaxUid = transferSyntaxUid;
 
@@ -436,7 +507,11 @@ function transcodeMetadata(metadata, id, options) {
   const result = { ...metadata };
 
   if (result[Tags.AvailableTransferSyntaxUID]) {
-    Tags.setValue(result, Tags.AvailableTransferSyntaxUID, transcodedId.transferSyntaxUid);
+    Tags.setValue(
+      result,
+      Tags.AvailableTransferSyntaxUID,
+      transcodedId.transferSyntaxUid
+    );
     console.verbose("Apply available tsuid", transcodeId.transferSyntaxUid);
   }
 
