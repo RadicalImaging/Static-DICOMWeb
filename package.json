@@ -51,6 +51,7 @@
     "postinstall": "git config core.hooksPath '.husky' && echo 'git hooks configured'",
     "publish": "echo Use yarn publishJS --new-version VERSION --otp XXXXXX",
     "publishJS": "lerna run publishJS --",
+    "pack:js": "lerna run pack:js --",
     "reset:hooks": "git config core.hooksPath '.git' && echo 'git hooks was reset'"
   },
   "husky": {

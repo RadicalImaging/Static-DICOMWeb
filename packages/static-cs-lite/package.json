@@ -40,6 +40,7 @@
     "build": "echo \"No build yet\" && exit 0",
     "link:exec": "npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
+    "pack:js": "npm pack --",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
   },
   "dependencies": {
