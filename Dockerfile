@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7-labs
-FROM node:22 as builder
+FROM node:20 as builder
 WORKDIR /app
 RUN yarn config set workspaces-experimental true
 ENV PATH /app/node_modules/.bin:$PATH
@@ -10,8 +10,9 @@ RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
     yarn install --ignore-scripts --production 
 COPY --link --exclude=node_modules --exclude=**/build . .
 RUN yarn run build
+RUN yarn run link:exec
 
-FROM node:22 as dicomwebserver
+FROM node:20 as dicomwebserver
 WORKDIR /app
 RUN npm install -g commander@10.0.1
 COPY --from=builder /app/packages/static-wado-util/*.tgz static-wado-util.tgz
