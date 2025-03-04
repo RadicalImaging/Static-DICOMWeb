@@ -23,6 +23,7 @@ exports.sleep = require("./sleep");
 exports.endsWith = require("./endsWith");
 exports.NotificationService = require("./NotificationService");
 exports.execSpawn = require("./execSpawn");
+exports.logger = require("./logger.js");
 
 exports.bilinear = bilinear;
 exports.replicate = replicate;
