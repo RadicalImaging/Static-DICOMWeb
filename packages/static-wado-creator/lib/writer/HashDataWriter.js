@@ -43,7 +43,11 @@ const HashDataWriter =
       gzip,
     });
     if (isRaw) {
-      await WriteMultipart(writeStream, [new MultipartHeader("Content-Type", "application/octet-stream")], rawData);
+      await WriteMultipart(
+        writeStream,
+        [new MultipartHeader("Content-Type", "application/octet-stream")],
+        rawData,
+      );
     } else {
       await writeStream.write(rawData);
     }

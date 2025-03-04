@@ -25,7 +25,13 @@ function setContextStyles(ctx, styles, styleKeys) {
     }
   });
 }
-function renderTextToCanvas(canvas, text, pos, size, styles = { textStyle: DEFAULT_STYLES.textStyle }) {
+function renderTextToCanvas(
+  canvas,
+  text,
+  pos,
+  size,
+  styles = { textStyle: DEFAULT_STYLES.textStyle },
+) {
   const [x, y] = pos;
   const ctx = canvas.getContext("2d");
   setContextStyles(ctx, styles, ["textStyle"]);
@@ -39,7 +45,12 @@ function renderTextToCanvas(canvas, text, pos, size, styles = { textStyle: DEFAU
   };
 }
 
-function renderLinesToCanvas(canvas, points, size, styles = { lineStyle: DEFAULT_STYLES.lineStyle }) {
+function renderLinesToCanvas(
+  canvas,
+  points,
+  size,
+  styles = { lineStyle: DEFAULT_STYLES.lineStyle },
+) {
   const ctx = canvas.getContext("2d");
 
   if (!points.length || !ctx) {
@@ -60,7 +71,12 @@ function renderLinesToCanvas(canvas, points, size, styles = { lineStyle: DEFAULT
   ctx.stroke();
 }
 
-function renderPointToCanvas(canvas, point, size, styles = { pointSyle: DEFAULT_STYLES.pointStyle }) {
+function renderPointToCanvas(
+  canvas,
+  point,
+  size,
+  styles = { pointSyle: DEFAULT_STYLES.pointStyle },
+) {
   const ctx = canvas.getContext("2d");
 
   if (!point || !ctx) {
@@ -75,7 +91,13 @@ function renderPointToCanvas(canvas, point, size, styles = { pointSyle: DEFAULT_
   ctx.fill();
 }
 
-function renderHLineToCanvas(canvas, position, width, height, styles = { lineStyle: DEFAULT_STYLES.lineStyle }) {
+function renderHLineToCanvas(
+  canvas,
+  position,
+  width,
+  height,
+  styles = { lineStyle: DEFAULT_STYLES.lineStyle },
+) {
   const points = [
     [position[0], position[1]],
     [position[0] + width, position[1]],
@@ -127,7 +149,7 @@ function renderPointsToCanvas(
   styles = {
     lineStyle: DEFAULT_STYLES.lineStyle,
     pointStyle: DEFAULT_STYLES.pointStyle,
-  }
+  },
 ) {
   points.forEach((point, index) => {
     const useStyles = { ...styles };
@@ -158,13 +180,31 @@ function renderContentToCanvas(enabledElement, content, styles) {
   let result;
   switch (content.type) {
     case "text":
-      result = renderTextToCanvas(enabledElement.canvas, content.text, content.position, content.size, styles);
+      result = renderTextToCanvas(
+        enabledElement.canvas,
+        content.text,
+        content.position,
+        content.size,
+        styles,
+      );
       break;
     case "hLine":
-      result = renderHLineToCanvas(enabledElement.canvas, content.position, content.width, content.height * content.size, styles);
+      result = renderHLineToCanvas(
+        enabledElement.canvas,
+        content.position,
+        content.width,
+        content.height * content.size,
+        styles,
+      );
       break;
     case "points":
-      result = renderPointsToCanvas(enabledElement.canvas, content.points, content.strategy, content.size, styles);
+      result = renderPointsToCanvas(
+        enabledElement.canvas,
+        content.points,
+        content.strategy,
+        content.size,
+        styles,
+      );
       break;
     default:
       throw new Error(`Unknown type ${content.type} in ${content}`);

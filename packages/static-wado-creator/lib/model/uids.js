@@ -21,7 +21,11 @@ const uids = {
   "1.2.840.10008.1.2.1": uncompressed,
   "1.2.840.10008.1.2.1.99": uncompressed,
   "1.2.840.10008.1.2.2": uncompressed,
-  "1.2.840.10008.1.2.4.50": { contentType: jpeg, lossy: true, extension: ".jpeg" },
+  "1.2.840.10008.1.2.4.50": {
+    contentType: jpeg,
+    lossy: true,
+    extension: ".jpeg",
+  },
   "1.2.840.10008.1.2.4.51": { contentType: jpeg, lossy: true },
   "1.2.840.10008.1.2.4.57": { contentType: jpeg },
   "1.2.840.10008.1.2.4.70": { contentType: jll, extension: ".jll" },

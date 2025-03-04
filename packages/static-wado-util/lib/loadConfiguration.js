@@ -19,10 +19,15 @@ const getConfigurationFile = (args, defValue) => {
  */
 module.exports = (defaults, argvSrc) => {
   const args = argvSrc || process.argv || [];
-  const configurationFile = getConfigurationFile(args, defaults.configurationFile);
-  if (!configurationFile || configurationFile === "false") return Promise.resolve();
+  const configurationFile = getConfigurationFile(
+    args,
+    defaults.configurationFile,
+  );
+  if (!configurationFile || configurationFile === "false")
+    return Promise.resolve();
 
-  const configurationFiles = (Array.isArray(configurationFile) && configurationFile) || [configurationFile];
+  const configurationFiles = (Array.isArray(configurationFile) &&
+    configurationFile) || [configurationFile];
   for (const configFile of configurationFiles) {
     const filename = handleHomeRelative(configFile);
     if (fs.existsSync(filename)) {

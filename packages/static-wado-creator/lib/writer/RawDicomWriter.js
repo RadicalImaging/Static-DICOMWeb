@@ -36,7 +36,7 @@ const RawDicomWriter =
     await WriteMultipart(
       writeStream,
       [new MultipartHeader("Content-Type", contentType, [])],
-      buffer
+      buffer,
     );
     await writeStream.close();
   };

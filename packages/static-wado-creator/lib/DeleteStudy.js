@@ -7,8 +7,15 @@ module.exports = (options) =>
     console.log("Delete Study", studyInstanceUid);
     const studyData = await this.scanStudy("studies", studyInstanceUid);
     studyData.delete();
-    const allStudies = await JSONReader(options.directoryName, "studies/index.json.gz", []);
-    const studiesWithoutDeleted = allStudies.filter((study) => studyInstanceUid != Tags.getValue(study, Tags.StudyInstanceUID));
+    const allStudies = await JSONReader(
+      options.directoryName,
+      "studies/index.json.gz",
+      [],
+    );
+    const studiesWithoutDeleted = allStudies.filter(
+      (study) =>
+        studyInstanceUid != Tags.getValue(study, Tags.StudyInstanceUID),
+    );
     await JSONWriter(options.directoryName, "studies", studiesWithoutDeleted);
     delete this.studyData;
   };

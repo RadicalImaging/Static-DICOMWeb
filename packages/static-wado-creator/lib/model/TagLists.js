@@ -6,8 +6,20 @@ const { Tags } = require("@radicalimaging/static-wado-util");
 const hasher = hashFactory.hasher();
 
 const { PatientID, PatientName, IssuerOfPatientID } = Tags;
-const { StudyDescription, AccessionNumber, StudyInstanceUID, StudyDate, StudyTime } = Tags;
-const { SeriesDescription, SeriesNumber, SeriesInstanceUID, SeriesDate, SeriesTime } = Tags;
+const {
+  StudyDescription,
+  AccessionNumber,
+  StudyInstanceUID,
+  StudyDate,
+  StudyTime,
+} = Tags;
+const {
+  SeriesDescription,
+  SeriesNumber,
+  SeriesInstanceUID,
+  SeriesDate,
+  SeriesTime,
+} = Tags;
 
 const { DeduppedHash, DeduppedRef, DeduppedType } = Tags;
 
@@ -24,7 +36,16 @@ const PatientQuery = [
   Tags.PatientIdentityRemoved,
   Tags.DeidentificationMethodCodeSequence,
 ];
-const StudyQuery = [StudyDescription, AccessionNumber, StudyInstanceUID, StudyDate, StudyTime, Tags.StudyStatusID, Tags.StudyPriorityID, Tags.StudyID];
+const StudyQuery = [
+  StudyDescription,
+  AccessionNumber,
+  StudyInstanceUID,
+  StudyDate,
+  StudyTime,
+  Tags.StudyStatusID,
+  Tags.StudyPriorityID,
+  Tags.StudyID,
+];
 
 const PatientStudyQuery = [...PatientQuery, ...StudyQuery];
 

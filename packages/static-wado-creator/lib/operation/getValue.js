@@ -32,7 +32,7 @@ const getValueInlineBinary = (dataSet, attr) => {
   if (attr.BulkDataURI) return { BulkDataURI: attr.BulkDataURI };
   const binaryValue = dataSet.byteArray.slice(
     attr.dataOffset,
-    attr.dataOffset + attr.length
+    attr.dataOffset + attr.length,
   );
   return { InlineBinary: binaryValue.toString("base64") };
 };
@@ -194,7 +194,7 @@ const getValue = async (
   getDataSet,
   callback,
   options,
-  parentAttr
+  parentAttr,
 ) => {
   // It will only process pixelData tag if on metadata root. Otherwise it will be skiped.
   if (attr.tag === "x7fe00010" && !parentAttr) {
@@ -203,7 +203,7 @@ const getValue = async (
       attr,
       vr,
       callback,
-      options
+      options,
     );
     return { BulkDataURI };
   }
@@ -229,7 +229,7 @@ const getValue = async (
   }
   const binaryValue = dataSet.byteArray.slice(
     attr.dataOffset,
-    attr.dataOffset + attr.length
+    attr.dataOffset + attr.length,
   );
   const mimeType = attr.tag == "x00420011" && dataSet.string("x00420012");
 

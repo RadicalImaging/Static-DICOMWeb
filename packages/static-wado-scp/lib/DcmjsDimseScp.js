@@ -70,7 +70,7 @@ class DcmjsDimseScp extends Scp {
         ) {
           const transferSyntaxes = context.getTransferSyntaxUids();
           const transferSyntax = PreferredTransferSyntax.find((tsuid) =>
-            transferSyntaxes.find((contextTsuid) => contextTsuid === tsuid)
+            transferSyntaxes.find((contextTsuid) => contextTsuid === tsuid),
           );
           if (transferSyntax) {
             context.setResult(PresentationContextResult.Accept, transferSyntax);
@@ -79,19 +79,19 @@ class DcmjsDimseScp extends Scp {
               "Rejected syntax",
               context.getAbstractSyntaxUid(),
               "because no transfer syntax found in",
-              transferSyntaxes
+              transferSyntaxes,
             );
             context.setResult(
-              PresentationContextResult.RejectTransferSyntaxesNotSupported
+              PresentationContextResult.RejectTransferSyntaxesNotSupported,
             );
           }
         } else {
           console.log(
             "Not supported abstract syntax",
-            context.getAbstractSyntaxUid()
+            context.getAbstractSyntaxUid(),
           );
           context.setResult(
-            PresentationContextResult.RejectAbstractSyntaxNotSupported
+            PresentationContextResult.RejectAbstractSyntaxNotSupported,
           );
         }
       });
@@ -103,7 +103,7 @@ class DcmjsDimseScp extends Scp {
   }
 
   // Handle incoming C-ECHO requests
-  /* eslint-disable-next-line class-methods-use-this */
+
   cEchoRequest(request, callback) {
     const response = CEchoResponse.fromRequest(request);
     response.setStatus(Status.Success);

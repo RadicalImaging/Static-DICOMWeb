@@ -1,4 +1,3 @@
-/* eslint-disable no-param-reassign */
 const dcmjs = require("dcmjs");
 const { imageFrameUtils } = require("../util");
 
@@ -13,8 +12,16 @@ const { imageFrameUtils } = require("../util");
  * @param {*} options
  * @returns
  */
-function createImage(transferSyntax, decodedPixelData, metadata, canvas, options = {}) {
-  const dataSet = dcmjs.data.DicomMetaDictionary.naturalizeDataset(JSON.parse(JSON.stringify(metadata)));
+function createImage(
+  transferSyntax,
+  decodedPixelData,
+  metadata,
+  canvas,
+  options = {},
+) {
+  const dataSet = dcmjs.data.DicomMetaDictionary.naturalizeDataset(
+    JSON.parse(JSON.stringify(metadata)),
+  );
   const imageFrame = imageFrameUtils.get.fromDataset(dataSet, decodedPixelData);
 
   const { convertFloatPixelDataToInt, targetBuffer } = options;
@@ -22,7 +29,10 @@ function createImage(transferSyntax, decodedPixelData, metadata, canvas, options
   // If we have a target buffer that was written to in the
   // Decode task, point the image to it here.
   // We can't have done it within the thread incase it was a SharedArrayBuffer.
-  const alreadyTyped = imageFrameUtils.convert.pixelDataToTargetBuffer(imageFrame, targetBuffer);
+  const alreadyTyped = imageFrameUtils.convert.pixelDataToTargetBuffer(
+    imageFrame,
+    targetBuffer,
+  );
   const originalDataConstructor = imageFrame.pixelData.constructor;
 
   // setup the canvas context
@@ -53,7 +63,10 @@ function createImage(transferSyntax, decodedPixelData, metadata, canvas, options
     // convert color space
     if (isColorImage) {
       const context = canvas.getContext("2d");
-      const imageData = context.createImageData(imageFrame.columns, imageFrame.rows);
+      const imageData = context.createImageData(
+        imageFrame.columns,
+        imageFrame.rows,
+      );
 
       // imageData.data is being changed by reference.
       imageFrameUtils.convert.colorSpace(imageFrame, imageData.data);
@@ -65,9 +78,16 @@ function createImage(transferSyntax, decodedPixelData, metadata, canvas, options
     }
   }
 
-  if ((!imageFrame.smallestPixelValue || !imageFrame.largestPixelValue || imageFrame.pixelData.constructor, originalDataConstructor)) {
+  if (
+    (!imageFrame.smallestPixelValue ||
+      !imageFrame.largestPixelValue ||
+      imageFrame.pixelData.constructor,
+    originalDataConstructor)
+  ) {
     // calculate smallest and largest PixelValue of the converted pixelData
-    const { min, max } = imageFrameUtils.get.pixelDataMinMax(imageFrame.pixelData);
+    const { min, max } = imageFrameUtils.get.pixelDataMinMax(
+      imageFrame.pixelData,
+    );
 
     imageFrame.smallestPixelValue = min;
     imageFrame.largestPixelValue = max;
@@ -98,7 +118,10 @@ function createImage(transferSyntax, decodedPixelData, metadata, canvas, options
   // If pixel data is intrinsically floating 32 array, we convert it to int for
   // display in cornerstone. For other cases when pixel data is typed as
   // Float32Array for scaling; this conversion is not needed.
-  if (imageFrame.pixelData instanceof Float32Array && convertFloatPixelDataToInt) {
+  if (
+    imageFrame.pixelData instanceof Float32Array &&
+    convertFloatPixelDataToInt
+  ) {
     const floatPixelData = imageFrame.pixelData;
     const results = imageFrameUtils.get.pixelDataIntType(floatPixelData);
 
@@ -126,7 +149,11 @@ function createImage(transferSyntax, decodedPixelData, metadata, canvas, options
   }
 
   // Modality LUT
-  if (modalityLUTSequence && modalityLUTSequence.length > 0 && imageFrameUtils.is.modalityLUT(sopClassUID)) {
+  if (
+    modalityLUTSequence &&
+    modalityLUTSequence.length > 0 &&
+    imageFrameUtils.is.modalityLUT(sopClassUID)
+  ) {
     image.modalityLUT = modalityLUTSequence[0];
   }
 

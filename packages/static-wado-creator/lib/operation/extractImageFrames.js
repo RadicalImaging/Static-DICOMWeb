@@ -5,7 +5,8 @@ const getUncompressedImageFrame = require("./getUncompressedImageFrame");
 const getEncapsulatedImageFrame = require("./getEncapsulatedImageFrame");
 const { isVideo } = require("../writer/VideoWriter");
 
-const areFramesAreFragmented = (attr, numberOfFrames) => attr.encapsulatedPixelData && numberOfFrames != attr.fragments.length;
+const areFramesAreFragmented = (attr, numberOfFrames) =>
+  attr.encapsulatedPixelData && numberOfFrames != attr.fragments.length;
 
 const getFrameSize = (dataSet) => {
   const rows = dataSet.uint16("x00280010");
@@ -30,11 +31,25 @@ const extractImageFrames = async (dataSet, attr, vr, callback) => {
 
   for (let frameIndex = 0; frameIndex < numberOfFrames; frameIndex++) {
     if (attr.encapsulatedPixelData) {
-      const compressedFrame = getEncapsulatedImageFrame(dataSet, attr, frameIndex, framesAreFragmented);
+      const compressedFrame = getEncapsulatedImageFrame(
+        dataSet,
+        attr,
+        frameIndex,
+        framesAreFragmented,
+      );
       BulkDataURI = await callback.imageFrame(compressedFrame, { dataSet });
-      Stats.OverallStats.add("Image Write", `Write image frame ${frameIndex + 1}`, 5000);
+      Stats.OverallStats.add(
+        "Image Write",
+        `Write image frame ${frameIndex + 1}`,
+        5000,
+      );
     } else {
-      const uncompressedFrame = getUncompressedImageFrame(dataSet, attr, frameIndex, uncompressedFrameSize);
+      const uncompressedFrame = getUncompressedImageFrame(
+        dataSet,
+        attr,
+        frameIndex,
+        uncompressedFrameSize,
+      );
       BulkDataURI = await callback.imageFrame(uncompressedFrame, { dataSet });
     }
   }
