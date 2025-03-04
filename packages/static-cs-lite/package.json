@@ -29,6 +29,7 @@
   "homepage": "https://github.com/OHIF/static-wado#readme",
   "license": "ISC",
   "main": "lib/index.js",
+  "module": "dist/index.js",
   "directories": {
     "lib": "lib"
   },
@@ -37,7 +38,8 @@
   ],
   "scripts": {
     "test": "jest --config ./jest.config.js",
-    "build": "echo \"No build yet\" && exit 0",
+    "build": "bun run build:esm",
+    "build:esm": "bun build lib/index.js --target node --outdir dist --",
     "link:exec": "npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "pack:js": "npm pack --",

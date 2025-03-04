@@ -45,7 +45,6 @@
     "dev:dicom-pdf": "yarn run dev",
     "link:exec": "npm install -g && npm link",
     "build": "echo disabled for now due to dependency issues",
-    "build:rollup": "rollup -c",
     "test": "jest --config ./jest.config.js",
     "build:package": "yarn run build",
     "start": "yarn run dev"
@@ -65,7 +64,6 @@
   },
   "devDependencies": {
     "must": "^0.13.4",
-    "@rollup/plugin-commonjs": "^28.0.1",
     "ts-jest": "^28.0.2"
   }
 }

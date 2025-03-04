@@ -12,10 +12,6 @@
     "@babel/plugin-proposal-class-properties": "^7.16.7",
     "@babel/plugin-transform-modules-commonjs": "^7.16.8",
     "@babel/preset-env": "^7.16.11",
-    "@rollup/plugin-babel": "^6.0.4",
-    "@rollup/plugin-commonjs": "^28.0.1",
-    "@rollup/plugin-json": "^6.1.0",
-    "@rollup/plugin-node-resolve": "^15.3.0",
     "eslint": "^9.14.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-jest": "^28.8.3",
@@ -23,7 +19,6 @@
     "lerna": "^8.1.9",
     "prettier": "^3.3.3",
     "rimraf": "^6.0.1",
-    "rollup": "^4.24.4",
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
@@ -43,6 +38,7 @@
     "test": "lerna run test --parallel --stream",
     "test:ci": "yarn run test",
     "build": "lerna run build --stream",
+    "build:esm": "lerna run build:esm --stream",
     "build:ci": "yarn run build",
     "link:exec": "lerna run link:exec --stream",
     "lint": "lerna run lint --parallel --stream",

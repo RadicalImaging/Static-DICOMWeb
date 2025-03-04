@@ -2,6 +2,7 @@ import express from "express";
 import dicomWebServerConfig from "./dicomWebServerConfig.mjs";
 import "@radicalimaging/static-wado-plugins";
 import "regenerator-runtime";
+import configureProgram from "./program/index.mjs";
 
 import setRoutes from "./routes/index.mjs";
 import setMiddlewares from "./middlewares/index.mjs";
@@ -40,4 +41,4 @@ const DicomWebServer = async (params) => {
 };
 
 export default DicomWebServer;
-export { dicomWebServerConfig };
+export { dicomWebServerConfig, configureProgram };

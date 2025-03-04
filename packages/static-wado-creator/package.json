@@ -33,6 +33,7 @@
   "homepage": "https://github.com/OHIF/static-wado#readme",
   "license": "ISC",
   "main": "lib/index.js",
+  "module": "dist/index.js",
   "directories": {
     "lib": "lib",
     "bin": "bin"
@@ -46,7 +47,8 @@
   },
   "scripts": {
     "test": "jest --config ./jest.config.js",
-    "build": "echo \"No build yet\" && exit 0",
+    "build": "bun run build:esm",
+    "build:esm": "bun build lib/index.js --target node --outdir dist --",
     "link:exec": "npm install -g && npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "pack:js": "npm pack --",
@@ -57,7 +59,6 @@
   },
   "dependencies": {
     "@cornerstonejs/dicom-codec": ">=1.0.5",
-    "@radicalimaging/static-cs-lite": "^1.5.0",
     "@radicalimaging/static-wado-util": "^1.5.0",
     "canvas": "^2.11.1",
     "config-point": ">=0.5.1",
