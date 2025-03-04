@@ -36,21 +36,25 @@
   "module": "dist/index.js",
   "directories": {
     "lib": "lib",
+    "dist": "dist",
     "bin": "bin"
   },
   "files": [
     "bin",
+    "dist",
     "lib"
   ],
   "bin": {
-    "mkdicomweb": "bin/mkdicomweb.js"
+    "mkdicomweb": "bin/mkdicomweb.mjs"
   },
   "scripts": {
     "test": "jest --config ./jest.config.js",
     "build": "bun run build:esm",
     "build:esm": "bun build lib/index.js --target node --outdir dist --",
+    "clean": "rimraf dist",
     "link:exec": "npm install -g && npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
+    "mkdicomweb": "node bin/mkdicomwebDev.mjs --",
     "pack:js": "npm pack --",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
   },
