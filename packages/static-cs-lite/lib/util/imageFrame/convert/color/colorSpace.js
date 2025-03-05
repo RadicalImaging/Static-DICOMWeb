@@ -30,7 +30,9 @@ function colorSpace(imageFrame, rgbaBuffer) {
       convertYBRFull(imageFrame, rgbaBuffer);
       break;
     default:
-      throw new Error(`No color space conversion for photometric interpretation ${photometricInterpretation}`);
+      throw new Error(
+        `No color space conversion for photometric interpretation ${photometricInterpretation}`,
+      );
   }
 }
 

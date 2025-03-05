@@ -23,6 +23,7 @@ const diffObject = (update, base) => {
  * Performs a difference in configuration between the provide value and the default static-wado-config, retaining only values
  * which are different from the base configuration, recursively.
  */
-const configDiff = (newConfig) => diffObject(newConfig, staticWadoConfig.configBase);
+const configDiff = (newConfig) =>
+  diffObject(newConfig, staticWadoConfig.configBase);
 
 module.exports = configDiff;

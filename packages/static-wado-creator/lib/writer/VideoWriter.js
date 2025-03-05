@@ -34,7 +34,7 @@ const VideoWriter = () =>
       filename,
       {
         mkdir: true,
-      }
+      },
     );
     let length = 0;
     const { fragments } = dataSet.elements.x7fe00010;
@@ -48,14 +48,14 @@ const VideoWriter = () =>
       const fragment = fragments[i];
       const blob = dataSet.byteArray.slice(
         fragment.position,
-        fragment.position + fragment.length
+        fragment.position + fragment.length,
       );
       length += blob.length;
       await writeStream.write(blob);
     }
     await writeStream.close();
     console.log(
-      `Done video ${id.sopInstanceRootPath}\\${filename} of length ${length}`
+      `Done video ${id.sopInstanceRootPath}\\${filename} of length ${length}`,
     );
     return `series/${id.seriesInstanceUid}/instances/${id.sopInstanceUid}/rendered?length=${length}&offset=0&accept=video/mp4`;
   };

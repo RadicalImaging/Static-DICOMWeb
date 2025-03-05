@@ -8,7 +8,10 @@ const ExpandUriPath = (id, path, options) => {
     }
     expandedRelative = `studies/${id.studyInstanceUid}/${expandedRelativeSeries}`;
   }
-  if (options.verbose) console.log(`Expanded path returned: ${prependBulkDataUri}${expandedRelative}${path}`);
+  if (options.verbose)
+    console.log(
+      `Expanded path returned: ${prependBulkDataUri}${expandedRelative}${path}`,
+    );
   return `${prependBulkDataUri}${expandedRelative}${path}`;
 };
 

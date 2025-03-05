@@ -16,11 +16,13 @@ const { dicomWebScpConfig } = ConfigPoint.register({
     maximumInlinePrivateLength: 64,
     maximumInlinePublicLength: 128 * 1024 + 2,
     helpShort: "dicomwebscp",
-    helpDescription: "Creates server to receive data on DIMSE and store it DICOM",
+    helpDescription:
+      "Creates server to receive data on DIMSE and store it DICOM",
     options: [
       {
         key: "-c, --clean",
-        description: "Clean the outputs before generating/starting to write new values.",
+        description:
+          "Clean the outputs before generating/starting to write new values.",
         defaultValue: false,
       },
       {

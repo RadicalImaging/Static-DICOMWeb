@@ -8,9 +8,18 @@ const paletteColor = require("./paletteColor");
  * @returns image frame
  */
 function fromDataset(dataSet, decodedPixelData) {
-  const bluePaletteColorLookupTableData = paletteColor(dataSet.BluePaletteColorLookupTableData, dataSet.BluePaletteColorLookupTableDescriptor);
-  const greenPaletteColorLookupTableData = paletteColor(dataSet.GreenPaletteColorLookupTableData, dataSet.GreenPaletteColorLookupTableDescriptor);
-  const redPaletteColorLookupTableData = paletteColor(dataSet.RedPaletteColorLookupTableData, dataSet.RedPaletteColorLookupTableDescriptor);
+  const bluePaletteColorLookupTableData = paletteColor(
+    dataSet.BluePaletteColorLookupTableData,
+    dataSet.BluePaletteColorLookupTableDescriptor,
+  );
+  const greenPaletteColorLookupTableData = paletteColor(
+    dataSet.GreenPaletteColorLookupTableData,
+    dataSet.GreenPaletteColorLookupTableDescriptor,
+  );
+  const redPaletteColorLookupTableData = paletteColor(
+    dataSet.RedPaletteColorLookupTableData,
+    dataSet.RedPaletteColorLookupTableDescriptor,
+  );
 
   return {
     samplesPerPixel: dataSet.SamplesPerPixel,
@@ -24,11 +33,14 @@ function fromDataset(dataSet, decodedPixelData) {
     smallestPixelValue: dataSet.SmallestImagePixelValue,
     largestPixelValue: dataSet.LargestImagePixelValue,
     bluePaletteColorLookupTableData,
-    bluePaletteColorLookupTableDescriptor: dataSet.BluePaletteColorLookupTableDescriptor,
+    bluePaletteColorLookupTableDescriptor:
+      dataSet.BluePaletteColorLookupTableDescriptor,
     greenPaletteColorLookupTableData,
-    greenPaletteColorLookupTableDescriptor: dataSet.GreenPaletteColorLookupTableDescriptor,
+    greenPaletteColorLookupTableDescriptor:
+      dataSet.GreenPaletteColorLookupTableDescriptor,
     redPaletteColorLookupTableData,
-    redPaletteColorLookupTableDescriptor: dataSet.RedPaletteColorLookupTableDescriptor,
+    redPaletteColorLookupTableDescriptor:
+      dataSet.RedPaletteColorLookupTableDescriptor,
     pixelData: decodedPixelData,
   };
 }

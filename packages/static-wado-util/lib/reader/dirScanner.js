@@ -18,12 +18,16 @@ async function dirScanner(input, options) {
       if (options.recursive !== false) {
         await dirScanner(
           names.map((dirFile) => `${file}/${dirFile}`),
-          options
+          options,
         );
       } else {
         for (let j = 0; j < names.length; j++) {
           const name = names[j];
-          if (!options.matchList || options.matchList.length == 0 || options.matchList.contains(name)) {
+          if (
+            !options.matchList ||
+            options.matchList.length == 0 ||
+            options.matchList.contains(name)
+          ) {
             await options.callback(file, name);
           }
         }

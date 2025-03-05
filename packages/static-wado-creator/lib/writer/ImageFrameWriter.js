@@ -18,29 +18,54 @@ const ImageFrameWriter = (options) => {
     }
 
     if (encapsulatedImage || !extension) {
-      const writeStream = WriteStream(id.imageFrameRootPath, `${1 + index}.mht`, {
-        gzip: type.gzip,
-        mkdir: true,
-      });
+      const writeStream = WriteStream(
+        id.imageFrameRootPath,
+        `${1 + index}.mht`,
+        {
+          gzip: type.gzip,
+          mkdir: true,
+        },
+      );
       await WriteMultipart(
         writeStream,
-        [new MultipartHeader("Content-Type", type.contentType, [new MultipartAttribute("transfer-syntax", transferSyntaxUid)])],
-        content
+        [
+          new MultipartHeader("Content-Type", type.contentType, [
+            new MultipartAttribute("transfer-syntax", transferSyntaxUid),
+          ]),
+        ],
+        content,
       );
       await writeStream.close();
-      console.verbose("Wrote encapsulated image frame", id.sopInstanceUid, index + 1, type.contentType);
+      console.verbose(
+        "Wrote encapsulated image frame",
+        id.sopInstanceUid,
+        index + 1,
+        type.contentType,
+      );
     }
     if (extension && singlePartImage) {
-      const writeStreamSingle = WriteStream(id.imageFrameRootPath, `${1 + index}${extension}`, {
-        gzip: type.gzip,
-        mkdir: true,
-      });
+      const writeStreamSingle = WriteStream(
+        id.imageFrameRootPath,
+        `${1 + index}${extension}`,
+        {
+          gzip: type.gzip,
+          mkdir: true,
+        },
+      );
       await writeStreamSingle.write(content);
       await writeStreamSingle.close();
-      console.verbose("Wrote single part image frame", id.sopInstanceUid, index + 1, extension);
+      console.verbose(
+        "Wrote single part image frame",
+        id.sopInstanceUid,
+        index + 1,
+        extension,
+      );
     }
     const includeSeries = true;
-    return ExpandUriPath(id, `instances/${id.sopInstanceUid}/frames`, { includeSeries, ...options });
+    return ExpandUriPath(id, `instances/${id.sopInstanceUid}/frames`, {
+      includeSeries,
+      ...options,
+    });
   };
 };
 

@@ -24,7 +24,8 @@ const DeduplicateWriter = (options) =>
     const studyData = await this.completeStudy.getCurrentStudyData(this, id);
 
     if (options.isDeduplicate) {
-      if (options.verbose) console.log("Writing single instance", id.studyInstanceUid);
+      if (options.verbose)
+        console.log("Writing single instance", id.studyInstanceUid);
       await perInstanceWriter(id, data);
     } else if (options.verbose) {
       console.log("Not writing single instance deduplicated");

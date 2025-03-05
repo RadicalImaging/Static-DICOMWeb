@@ -89,7 +89,7 @@ class NotificationService {
         StudyInstanceUID: studyUID,
         action: options.action || "update",
       },
-      studyUID
+      studyUID,
     );
   }
 }

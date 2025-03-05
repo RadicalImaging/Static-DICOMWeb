@@ -1,5 +1,3 @@
-/* eslint-disable no-plusplus, no-bitwise */
-
 /**
  * Returns palette color lut array.
  * In case colorLutData has InlineBinary value it decodes the binary using lutDescriptor.
@@ -38,9 +36,13 @@ function paletteColor(colorLutData, colorLutDescriptor) {
     try {
       const paletteStr = colorLutData.InlineBinary;
 
-      const paletteBinaryStr = Buffer.from(paletteStr, "base64").toString("binary");
+      const paletteBinaryStr = Buffer.from(paletteStr, "base64").toString(
+        "binary",
+      );
 
-      const paletteTypedArray = Uint8Array.from(paletteBinaryStr, (c) => c.charCodeAt(0));
+      const paletteTypedArray = Uint8Array.from(paletteBinaryStr, (c) =>
+        c.charCodeAt(0),
+      );
 
       result = typedArrayToPaletteColorLUT(paletteTypedArray);
     } catch (e) {

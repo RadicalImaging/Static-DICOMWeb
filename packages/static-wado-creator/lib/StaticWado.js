@@ -1,4 +1,5 @@
 const dicomCodec = require("@cornerstonejs/dicom-codec");
+// const staticCS = require("@radicalimaging/static-cs-lite");
 const {
   Stats,
   handleHomeRelative,
@@ -59,7 +60,7 @@ function internalGenerateImage(
           transferSyntaxUid
         );
         // staticCS.getRenderedBuffer(transferSyntaxUid, pixelData, metadata, doneCallback);
-        console.error("No thumbnail generation supported");
+        console.warn("No thumbnail rendering");
       }
     })
     .catch((error) => {
