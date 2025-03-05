@@ -67,7 +67,7 @@ against `http://localhost:25080/dicomweb/studies`. You should store to `/dicomwe
 bun docker:run
 ```
 
-Another option is to use the dcm4che stowrs command, like this:
+Another option is to use the [dcm4che](https://sourceforge.net/projects/dcm4che/files/dcm4che3/5.33.1/) stowrs command, like this:
 
 ```bash
 stowrs --url http://localhost:25080/dicomweb/studies DICM_FILES
