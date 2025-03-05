@@ -11,17 +11,23 @@ let writeCount = 0;
  */
 const WriteStream = (dir, nameSrc, options = {}) => {
   const isGzip = nameSrc.indexOf(".gz") != -1 || options.gzip;
-  const name = (isGzip && nameSrc.indexOf(".gz") === -1 && `${nameSrc}.gz`) || nameSrc;
+  const name =
+    (isGzip && nameSrc.indexOf(".gz") === -1 && `${nameSrc}.gz`) || nameSrc;
   if (options.mkdir) fs.mkdirSync(dir, { recursive: true });
 
-  const tempName = path.join(dir, `tempFile-${Math.round(Math.random() * 1000000000)}`);
+  const tempName = path.join(
+    dir,
+    `tempFile-${Math.round(Math.random() * 1000000000)}`,
+  );
   const finalName = path.join(dir, name);
   writeCount++;
   if (writeCount > 10) {
     console.log("Write count", tempName, finalName, writeCount);
     if (writeCount > 100) {
       console.error("Too many open writes", new Error());
-      throw new Error(`Write count too high ${writeCount} destination ${finalName}`);
+      throw new Error(
+        `Write count too high ${writeCount} destination ${finalName}`,
+      );
     }
   }
   const rawStream = fs.createWriteStream(tempName);

@@ -9,13 +9,9 @@
   "devDependencies": {
     "@babel/core": "^7.26.0",
     "@babel/eslint-parser": "^7.25.9",
-    "@babel/plugin-proposal-class-properties": "^7.16.7",
+    "@babel/plugin-transform-class-properties": "^7.25.9",
     "@babel/plugin-transform-modules-commonjs": "^7.16.8",
     "@babel/preset-env": "^7.16.11",
-    "@rollup/plugin-babel": "^6.0.4",
-    "@rollup/plugin-commonjs": "^28.0.1",
-    "@rollup/plugin-json": "^6.1.0",
-    "@rollup/plugin-node-resolve": "^15.3.0",
     "eslint": "^9.14.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-jest": "^28.8.3",
@@ -23,7 +19,6 @@
     "lerna": "^8.1.9",
     "prettier": "^3.3.3",
     "rimraf": "^6.0.1",
-    "rollup": "^4.24.4",
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
@@ -38,19 +33,21 @@
     "packages/*"
   ],
   "scripts": {
-    "docker:build": "docker build . -t braveheartsoftware/static-dicomweb:0.6",
-    "docker:run": "docker run  --mount type=bind,source=c:/users/wayfa/dicomweb,target=/dicomweb -p 25080:5000 -p 25104:11112 -d braveheartsoftware/static-dicomweb:0.6",
+    "docker:build": "docker build . -t braveheartsoftware/static-dicomweb:1.5.0",
+    "docker:run": "docker run --mount type=bind,source=/c/dicomweb,target=/dicomweb --mount type=bind,source=/c/dicom,target=/dicom -d -p 25080:5000 braveheartsoftware/static-dicomweb:1.5.0 dicomwebserver",
     "test": "lerna run test --parallel --stream",
     "test:ci": "yarn run test",
     "build": "lerna run build --stream",
+    "build:esm": "lerna run build:esm --stream",
     "build:ci": "yarn run build",
     "link:exec": "lerna run link:exec --stream",
     "lint": "lerna run lint --parallel --stream",
     "lint:ci": "yarn run lint",
     "lint:fix": "lerna run lint:fix --parallel --stream",
-    "postinstall": "git config core.hooksPath '.husky' && echo 'git hooks configured'",
+    "postinstallManual": "git config core.hooksPath '.husky' && echo 'git hooks configured'",
     "publish": "echo Use yarn publishJS --new-version VERSION --otp XXXXXX",
     "publishJS": "lerna run publishJS --",
+    "pack:js": "lerna run pack:js --",
     "reset:hooks": "git config core.hooksPath '.git' && echo 'git hooks was reset'"
   },
   "husky": {

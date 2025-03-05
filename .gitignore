@@ -48,6 +48,7 @@ node_modules/
 
 # Build directory
 **/build/
+**/dist/
 
 # VS Code
 *.code-workspace

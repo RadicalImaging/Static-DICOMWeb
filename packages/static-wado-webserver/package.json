@@ -33,9 +33,11 @@
   },
   "homepage": "https://github.com/OHIF/static-wado#readme",
   "license": "ISC",
-  "main": "lib/index.js",
+  "main": "lib/index.mjs",
+  "module": "dist/index.js",
   "directories": {
     "lib": "lib",
+    "dist": "dist",
     "bin": "bin"
   },
   "files": [
@@ -47,10 +49,12 @@
   },
   "scripts": {
     "test": "jest --config ./jest.config.js",
-    "build": "echo \"No build yet\" && exit 0",
+    "build": "bun run build:esm",
+    "build:esm": "bun build lib/index.mjs --target node --outdir dist --",
     "link:exec": "npm install -g && npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
+    "pack:js": "npm pack --",
     "publishJS": "yarn publish"
   },
   "dependencies": {

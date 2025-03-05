@@ -1,4 +1,3 @@
-/* eslint-disable no-use-before-define */
 const must = require("must");
 const { bilinear } = require("../../lib/image/bilinear");
 
@@ -29,8 +28,17 @@ describe("bilinear tests", () => {
     bilinear(src, dest);
     must(dest.data[0]).equal(src.data[0]);
     must(dest.data[1]).equal(Math.floor(src.data[0] / 2 + src.data[1] / 2));
-    must(dest.data[3]).equal(Math.floor(src.data[0] * 0.75 + src.data[2] * 0.25));
-    must(dest.data[4]).equal(Math.floor((src.data[0] * 0.75) / 2 + (src.data[1] * 0.75) / 2 + (src.data[2] * 0.25) / 2 + (src.data[3] * 0.25) / 2));
+    must(dest.data[3]).equal(
+      Math.floor(src.data[0] * 0.75 + src.data[2] * 0.25),
+    );
+    must(dest.data[4]).equal(
+      Math.floor(
+        (src.data[0] * 0.75) / 2 +
+          (src.data[1] * 0.75) / 2 +
+          (src.data[2] * 0.25) / 2 +
+          (src.data[3] * 0.25) / 2,
+      ),
+    );
   });
 });
 

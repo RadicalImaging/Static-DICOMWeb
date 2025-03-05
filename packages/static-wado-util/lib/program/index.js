@@ -4,7 +4,11 @@ const loadConfiguration = require("../loadConfiguration");
 function configureBaseProgram(configuration) {
   const { helpDescription, helpShort } = configuration;
 
-  program.name(helpShort).configureHelp({ sortOptions: true }).addHelpText("beforeAll", helpDescription).addHelpCommand();
+  program
+    .name(helpShort)
+    .configureHelp({ sortOptions: true })
+    .addHelpText("beforeAll", helpDescription)
+    .addHelpCommand();
 
   return program;
 }
@@ -12,7 +16,14 @@ function configureBaseProgram(configuration) {
 const addOptions = (cmd, options) => {
   if (options) {
     options.forEach((optionConfig) => {
-      const { key, description, defaultValue, choices, isRequired, customParser } = optionConfig;
+      const {
+        key,
+        description,
+        defaultValue,
+        choices,
+        isRequired,
+        customParser,
+      } = optionConfig;
       const option = cmd.createOption(key, description);
       option.default(defaultValue);
       if (customParser) {
@@ -31,7 +42,6 @@ const addOptions = (cmd, options) => {
 };
 
 function createVerboseLog(verbose /* , options */) {
-  // eslint-disable-next-line no-shadow-restricted-names
   console.verbose = (...args) => {
     if (!verbose) return;
     console.log(...args);
@@ -43,8 +53,16 @@ function configureCommands(config, configurationFile) {
   createVerboseLog(false);
 
   for (const item of programsDefinition) {
-    const { command, helpDescription, main, isDefault, options: subOptions } = item;
-    const cmdConfig = program.command(command, { isDefault }).description(helpDescription);
+    const {
+      command,
+      helpDescription,
+      main,
+      isDefault,
+      options: subOptions,
+    } = item;
+    const cmdConfig = program
+      .command(command, { isDefault })
+      .description(helpDescription);
     cmdConfig.action((...args) => {
       createVerboseLog(args[args.length - 2].verbose);
       main.call(config, ...args, configurationFile);
@@ -63,7 +81,13 @@ function configureCommands(config, configurationFile) {
  * @returns Program object
  */
 function configureProgram(configuration) {
-  const { argumentsRequired = [], optionsRequired = [], argumentsList = [], optionsList = [], packageJson = {} } = configuration;
+  const {
+    argumentsRequired = [],
+    optionsRequired = [],
+    argumentsList = [],
+    optionsList = [],
+    packageJson = {},
+  } = configuration;
   createVerboseLog(false);
 
   program.version(packageJson.version);
@@ -80,7 +104,8 @@ function configureProgram(configuration) {
 
   optionsList.push({
     key: "-c, --configuration <config-file.json5>",
-    description: "Sets the base configurationfile, defaults to static-wado.json5 located in the current directory or in user home directory",
+    description:
+      "Sets the base configurationfile, defaults to static-wado.json5 located in the current directory or in user home directory",
   });
 
   // iterate over option list and set to program
@@ -89,7 +114,10 @@ function configureProgram(configuration) {
 
     option.default(defaultValue);
 
-    if (optionsRequired.includes(option.short) || optionsRequired.includes(option.long)) {
+    if (
+      optionsRequired.includes(option.short) ||
+      optionsRequired.includes(option.long)
+    ) {
       option.makeOptionMandatory();
     }
 

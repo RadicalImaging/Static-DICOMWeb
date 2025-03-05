@@ -2,6 +2,7 @@
   "presets": ["@babel/preset-env"],
   "plugins": [
     // Besides the presets, use this plugin
-    "@babel/plugin-proposal-class-properties"
+    "@babel/plugin-proposal-class-properties",
+    "@babel/plugin-transform-runtime"
   ]
 }

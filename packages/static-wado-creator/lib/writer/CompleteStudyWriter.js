@@ -1,4 +1,8 @@
-const { JSONReader, JSONWriter, Stats } = require("@radicalimaging/static-wado-util");
+const {
+  JSONReader,
+  JSONWriter,
+  Stats,
+} = require("@radicalimaging/static-wado-util");
 const { Tags } = require("@radicalimaging/static-wado-util");
 const StudyData = require("../operation/StudyData");
 
@@ -22,16 +26,26 @@ const CompleteStudyWriter = (options) => {
     if (options.isGroup) {
       if (studyData.dirty) {
         await studyData.writeDeduplicatedGroup();
-        console.log("Wrote updated deduplicated data for study", studyData.studyInstanceUid);
+        console.log(
+          "Wrote updated deduplicated data for study",
+          studyData.studyInstanceUid,
+        );
       } else {
-        console.log("Not writing new deduplicated data because it is clean:", studyData.studyInstanceUid);
+        console.log(
+          "Not writing new deduplicated data because it is clean:",
+          studyData.studyInstanceUid,
+        );
       }
       await studyData.deleteInstancesReferenced();
     }
 
     if (!options.isStudyData) {
-      console.verbose("Not configured to write study metadata", studyData.studyInstanceUid);
-      if (options.notifications) this.notificationService.notifyStudy(studyData.studyInstanceUid);
+      console.verbose(
+        "Not configured to write study metadata",
+        studyData.studyInstanceUid,
+      );
+      if (options.notifications)
+        this.notificationService.notifyStudy(studyData.studyInstanceUid);
       delete this.studyData;
       Stats.StudyStats.summarize();
       return;
@@ -41,29 +55,40 @@ const CompleteStudyWriter = (options) => {
     if (!isDirtyMetadata) {
       console.log("Study metadata", studyData.studyInstanceUid, "is clean.");
       delete this.studyData;
-      Stats.StudyStats.summarize(`Study metadata ${studyData.studyInstanceUid} has clean metadata, not writing`);
+      Stats.StudyStats.summarize(
+        `Study metadata ${studyData.studyInstanceUid} has clean metadata, not writing`,
+      );
       return;
     }
     console.log("Writing study metadata", studyData.studyInstanceUid);
 
     const studyQuery = await studyData.writeMetadata();
 
-    const allStudies = await JSONReader(options.directoryName, "studies/index.json.gz", []);
+    const allStudies = await JSONReader(
+      options.directoryName,
+      "studies/index.json.gz",
+      [],
+    );
     const studyUID = Tags.getValue(studyQuery, Tags.StudyInstanceUID);
     if (!studyUID) {
       console.error("studyQuery=", studyQuery);
       throw new Error("Study query has null studyUID");
     }
-    const studyIndex = allStudies.findIndex((item) => Tags.getValue(item, Tags.StudyInstanceUID) == studyUID);
+    const studyIndex = allStudies.findIndex(
+      (item) => Tags.getValue(item, Tags.StudyInstanceUID) == studyUID,
+    );
     if (studyIndex == -1) {
       allStudies.push(studyQuery);
     } else {
       allStudies[studyIndex] = studyQuery;
     }
     await JSONWriter(options.directoryName, "studies", allStudies);
-    if (options.notifications) this.notificationService.notifyStudy(studyData.studyInstanceUid);
+    if (options.notifications)
+      this.notificationService.notifyStudy(studyData.studyInstanceUid);
     delete this.studyData;
-    Stats.StudyStats.summarize(`Wrote study metadata/query files for ${studyData.studyInstanceUid}`);
+    Stats.StudyStats.summarize(
+      `Wrote study metadata/query files for ${studyData.studyInstanceUid}`,
+    );
   }
 
   /**

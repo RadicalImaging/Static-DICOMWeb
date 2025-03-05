@@ -28,12 +28,14 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       },
       {
         key: "--clean",
-        description: "Clean the outputs before generating/starting to write new values.",
+        description:
+          "Clean the outputs before generating/starting to write new values.",
         defaultValue: false,
       },
       {
         key: "-d, --deployments <listvalue...>",
-        description: "List of deployments from configuration to deploy to. Separated by space.",
+        description:
+          "List of deployments from configuration to deploy to. Separated by space.",
         defaultValue: undefined,
       },
       {
@@ -52,7 +54,8 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       },
       {
         key: "--alternate <type>",
-        description: "Generates an alternate representaton of the image generally in the /lossy sub-directory",
+        description:
+          "Generates an alternate representaton of the image generally in the /lossy sub-directory",
         choices: ["jhc", "jls", "jhcLossless", "jlsLossless"],
       },
       {
@@ -76,17 +79,20 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       },
       {
         key: "-t, --content-type <type>",
-        description: 'Destination type to compress to (choices: "jpeg", "jls", "lei", "jls-lossy", "jhc", "jxl" or DICOM Transfer Syntax UID - default: "jls")',
+        description:
+          'Destination type to compress to (choices: "jpeg", "jls", "lei", "jls-lossy", "jhc", "jxl" or DICOM Transfer Syntax UID - default: "jls")',
         defaultValue: "jls",
         customParser: compressionOptionParser,
       },
       {
         key: "--encapsulated-image",
-        description: "Avoid encapsulating the image frame.  Writes with the extension and without multipart",
+        description:
+          "Avoid encapsulating the image frame.  Writes with the extension and without multipart",
       },
       {
         key: "-e, --no-encapsulated-image",
-        description: "Avoid encapsulating the image frame.  Writes with the extension and without multipart",
+        description:
+          "Avoid encapsulating the image frame.  Writes with the extension and without multipart",
       },
       {
         key: "--single-part-image",
@@ -110,13 +116,34 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         key: "-r, --recompress <listvalue...>",
         description: "List of types to recompress separated by space",
         defaultValue: ["uncompressed", "jp2", "jls", "jll"],
-        choices: ["uncompressed", "jp2", "jpeg", "jpeglossless", "rle", "jph", "jls", "true", "none"],
+        choices: [
+          "uncompressed",
+          "jp2",
+          "jpeg",
+          "jpeglossless",
+          "rle",
+          "jph",
+          "jls",
+          "true",
+          "none",
+        ],
       },
       {
         key: "--recompress-color <listvalue...>",
-        description: "List of types to recompress for color images, separated by space",
+        description:
+          "List of types to recompress for color images, separated by space",
         defaultValue: ["uncompressed"],
-        choices: ["uncompressed", "jpeg", "jp2", "jpeglossless", "rle", "jph", "jls", "true", "none"],
+        choices: [
+          "uncompressed",
+          "jpeg",
+          "jp2",
+          "jpeglossless",
+          "rle",
+          "jph",
+          "jls",
+          "true",
+          "none",
+        ],
       },
       {
         key: "-f, --force",
@@ -160,7 +187,8 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       },
       {
         key: "--path-deduplicated <path>",
-        description: "Set the deduplicate data directory path (relative to dir)",
+        description:
+          "Set the deduplicate data directory path (relative to dir)",
         defaultValue: "deduplicated",
       },
       {
@@ -175,18 +203,24 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       },
       {
         key: "--prepend-bulk-data-uri <value>",
-        description: "Prepend bulkdata uri (ex. to use absolute Uri like http://host:3000/dicomweb)",
+        description:
+          "Prepend bulkdata uri (ex. to use absolute Uri like http://host:3000/dicomweb)",
         defaultValue: "",
       },
       {
         key: "--expand-bulk-data-uri",
-        description: "expand bulkdata relative uri to use full relative path (should also be set when using --prepend-bulk-data-uri)",
+        description:
+          "expand bulkdata relative uri to use full relative path (should also be set when using --prepend-bulk-data-uri)",
         defaultValue: false,
       },
       {
         key: "-o, --dir <value>",
         description: "Set output directory",
-        defaultValue: { configOperation: "reference", source: "staticWadoConfig", reference: "rootDir" },
+        defaultValue: {
+          configOperation: "reference",
+          source: "staticWadoConfig",
+          reference: "rootDir",
+        },
       },
     ],
     programs: [
@@ -215,24 +249,28 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         command: "instance",
         arguments: ["input"],
         main: instanceMain,
-        helpDescription: "Make instance level DICOMweb metadata and bulkdata, but don't group or write series metadata",
+        helpDescription:
+          "Make instance level DICOMweb metadata and bulkdata, but don't group or write series metadata",
       },
       {
         command: "group",
         arguments: ["input"],
         main: groupMain,
-        helpDescription: "Group instance level metadata into deduplicated data.\nDeletes instance level deduplicated information once it is confirmed written.",
+        helpDescription:
+          "Group instance level metadata into deduplicated data.\nDeletes instance level deduplicated information once it is confirmed written.",
       },
       {
         command: "metadata",
         arguments: ["input"],
         main: metadataMain,
-        helpDescription: "Write the metadata object (series and study details) from the grouped deduplicated data.",
+        helpDescription:
+          "Write the metadata object (series and study details) from the grouped deduplicated data.",
       },
       {
         command: "delete",
         main: deleteMain,
-        helpDescription: "Delete the given study, series or instance (not yet implemented)",
+        helpDescription:
+          "Delete the given study, series or instance (not yet implemented)",
       },
       {
         command: "reject <studyUID...>",

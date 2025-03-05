@@ -1,12 +1,14 @@
 const dcmjs = require("dcmjs");
 const dataDictionary = require("./dataDictionary");
 
-const { naturalizeDataset, denaturalizeDataset } = dcmjs.data.DicomMetaDictionary;
+const { naturalizeDataset, denaturalizeDataset } =
+  dcmjs.data.DicomMetaDictionary;
 
 /** Find the actual tag for a private value */
 const findPrivate = (item, tagObject, create) => {
   if (typeof tagObject === "string") return tagObject;
-  if (typeof tagObject === "number") return `00000000${tagObject.toString(16)}`.slice(-8);
+  if (typeof tagObject === "number")
+    return `00000000${tagObject.toString(16)}`.slice(-8);
   const { creator, tag } = tagObject;
   if (!creator) return tag;
   const start = tag.substring(0, 4);
@@ -16,13 +18,17 @@ const findPrivate = (item, tagObject, create) => {
   for (let offset = 0x10; offset < 0x40; offset++) {
     const testTag = `${start}00${offset.toString(16)}`;
     const testCreator = item[testTag];
-    if (testCreator === undefined && assignPosition === undefined) assignPosition = offset;
+    if (testCreator === undefined && assignPosition === undefined)
+      assignPosition = offset;
     if (testCreator && testCreator.Value && testCreator.Value[0] === creator) {
       return `${start}${offset.toString(16)}${end}`;
     }
   }
   if (create) {
-    if (!assignPosition) throw new Error(`Couldn't find any assign positions for ${creator} ${tag} in ${item}`);
+    if (!assignPosition)
+      throw new Error(
+        `Couldn't find any assign positions for ${creator} ${tag} in ${item}`,
+      );
     const creatorTag = `${start}00${assignPosition.toString(16)}`;
     item[creatorTag] = { Value: [creator], vr: "CS" };
     return `${start}${assignPosition.toString(16)}${end}`;

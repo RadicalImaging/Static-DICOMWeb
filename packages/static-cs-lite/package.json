@@ -29,6 +29,7 @@
   "homepage": "https://github.com/OHIF/static-wado#readme",
   "license": "ISC",
   "main": "lib/index.js",
+  "module": "dist/index.js",
   "directories": {
     "lib": "lib"
   },
@@ -37,12 +38,16 @@
   ],
   "scripts": {
     "test": "jest --config ./jest.config.js",
-    "build": "echo \"No build yet\" && exit 0",
+    "build": "echo Build temporarily disabled",
+    "build:esm": "echo bun build lib/index.js --target node --outdir dist --",
+    "clean": "rimraf dist",
     "link:exec": "npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
+    "pack:js": "npm pack --",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
   },
   "dependencies": {
+    "canvas": "^3.1.0",
     "cornerstone-core": "^2.6.1",
     "dcmjs": "0.35.0",
     "jsdom": "^25.0.1",

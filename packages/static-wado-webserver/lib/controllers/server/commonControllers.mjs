@@ -13,7 +13,18 @@ import * as storeServices from "../../services/storeServices.mjs";
  */
 export function defaultPostController(params) {
   return (req, res, next) => {
+    const files = [];
+
     const form = formidable({ multiples: true });
+    form.on("file", (_formname, file) => {
+      const { filepath, mimetype } = file;
+      console.warn("Initiating dicomweb convert for", filepath);
+      files.push({
+        filepath,
+        mimetype,
+      });
+    });
+
     form.parse(req, async (err, fields, files) => {
       if (err) {
         console.log("Couldn't parse because", err);
@@ -22,7 +33,10 @@ export function defaultPostController(params) {
       }
       try {
         const sopInfo = await storeServices.storeFilesByStow(files, params);
-        console.log("Returning empty result - TODO, generate references", sopInfo);
+        console.log(
+          "Returning empty result - TODO, generate references",
+          sopInfo
+        );
         res.status(200).json({});
       } catch (e) {
         console.log(e);
