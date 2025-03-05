@@ -33,8 +33,8 @@
     "packages/*"
   ],
   "scripts": {
-    "docker:build": "docker build . -t braveheartsoftware/static-dicomweb:0.6",
-    "docker:run": "docker run  --mount type=bind,source=c:/users/wayfa/dicomweb,target=/dicomweb -p 25080:5000 -p 25104:11112 -d braveheartsoftware/static-dicomweb:0.6",
+    "docker:build": "docker build . -t braveheartsoftware/static-dicomweb:1.5.0",
+    "docker:run": "docker run --mount type=bind,source=/c/dicomweb,target=/dicomweb --mount type=bind,source=/c/dicom,target=/dicom -d -p 25080:5000 braveheartsoftware/static-dicomweb:1.5.0 dicomwebserver",
     "test": "lerna run test --parallel --stream",
     "test:ci": "yarn run test",
     "build": "lerna run build --stream",
