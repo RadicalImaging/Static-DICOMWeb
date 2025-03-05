@@ -42,7 +42,8 @@
   "scripts": {
     "copyFiles": "cp -R lib build",
     "test": "jest --config ./jest.config.cjs",
-    "build": "yarn copyFiles && npx tsc",
+    "build": "bun run copyFiles && bun run build:esm",
+    "build:esm": "bun build lib/index.mjs --target node --outdir dist --",
     "deploy": "yarn build && yarn deployOnly",
     "deployOnly": "cdk deploy -a build/index.js",
     "destroy": "cdk destroy -a build/index.js",
