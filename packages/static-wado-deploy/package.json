@@ -21,13 +21,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/OHIF/static-wado",
+    "url": "https://github.com/radicalimaging/static-dicomweb",
     "directory": "packages/static-wado-deploy"
   },
   "bugs": {
-    "url": "https://github.com/OHIF/static-wado/issues"
+    "url": "https://github.com/radicalimaging/static-dicomweb/issues"
   },
-  "homepage": "https://github.com/OHIF/static-wado#readme",
+  "homepage": "https://github.com/radicalimaging/static-dicomweb#readme",
   "license": "ISC",
   "main": "lib/index.mjs",
   "files": [

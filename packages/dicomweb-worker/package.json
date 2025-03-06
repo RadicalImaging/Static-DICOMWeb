@@ -1,7 +1,7 @@
 {
-  "name": "@radicalimaging/static-wado-creator",
+  "name": "@radicalimaging/dicomweb-worker",
   "version": "1.5.0",
-  "description": "Library to convert DICOMP10 to DICOMweb format. Original upstream: https://github.com/chafey/dicomp10-to-dicomweb-js",
+  "description": "Provides various webworker builds with command line testing tools to use as utilities",
   "publishConfig": {
     "access": "public"
   },
@@ -10,23 +10,10 @@
     "DICOM",
     "DICOMweb"
   ],
-  "author": [
-    "Chris Hafey <chafey@gmail.com>",
-    "Bill Wallace <bill.wallace@radicalimaging.com>"
-  ],
+  "author": "Bill Wallace <bill.wallace@radicalimaging.com>",
   "contributors": [
     "Rodolfo Costa <rodolfo.costa@radicalimaging.com>"
   ],
-  "engines": {
-    "node": ">=14.18.1",
-    "npm": ">=6.14.15",
-    "yarn": ">=1.22.4"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/radicalimaging/static-dicomweb",
-    "directory": "packages/static-wado-creator"
-  },
   "bugs": {
     "url": "https://github.com/radicalimaging/static-dicomweb/issues"
   },
@@ -50,11 +37,10 @@
   "scripts": {
     "test": "jest --config ./jest.config.js",
     "build": "bun run build:esm",
-    "build:esm": "bun build lib/index.js --target node --outdir dist --",
+    "build:esm": "bun build lib/index.mjs --target node --outdir dist --",
     "clean": "rimraf dist",
     "link:exec": "npm install -g && npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
-    "mkdicomweb": "node bin/mkdicomwebDev.mjs --",
     "pack:js": "npm pack --",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
   },

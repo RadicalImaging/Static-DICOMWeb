@@ -20,13 +20,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/OHIF/static-wado",
+    "url": "https://github.com/radicalimaging/static-dicomweb",
     "directory": "packages/static-wado-util"
   },
   "bugs": {
-    "url": "https://github.com/OHIF/static-wado/issues"
+    "url": "https://github.com/radicalimaging/static-dicomweb/issues"
   },
-  "homepage": "https://github.com/OHIF/static-wado#readme",
+  "homepage": "https://github.com/radicalimaging/static-dicomweb#readme",
   "license": "ISC",
   "format": "es",
   "main": "lib/index.js",
@@ -43,9 +43,7 @@
     "dcmjs": "0.35.0",
     "jpeg-lossless-decoder-js": ">=2.0.4",
     "json5": "^2.2.1",
-    "json5-writer": "^0.2.0",
-    "must": "^0.13.4",
-    "ndjson": "^2.0.0"
+    "must": "^0.13.4"
   },
   "scripts": {
     "test": "jest --config ./jest.config.js",
