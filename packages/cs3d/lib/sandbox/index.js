@@ -1,4 +1,5 @@
-const createBrowser = require("jsdom-context-require");
+const { createBrowser } = require("jsdom-context-require")
+// const { createCanvas } = require("canvas")
 
 /**
  * CS lite sandbox
@@ -15,18 +16,21 @@ const createBrowser = require("jsdom-context-require");
  * @returns {CsLiteSandbox}
  */
 function setUpEnvSandbox() {
+  console.log("setUpEnvSandbox")
   const context = createBrowser({
     dir: __dirname,
-    html: "<!DOCTYPE html><div><canvas></canvas></div>",
-  });
+    html: "<!DOCTYPE html><div><canvas width='512' height='512'></canvas></div>",
+  })
 
-  const csCore = context.require("cornerstone-core");
+  const csCore = context.require("cornerstone-core")
+
+  // const canvas = createCanvas(256, 256);
 
   return {
     csCore,
     context,
     canvas: context.window.document.querySelector("canvas"),
-  };
+  }
 }
 
-module.exports = setUpEnvSandbox;
+module.exports = setUpEnvSandbox

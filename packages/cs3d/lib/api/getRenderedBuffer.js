@@ -1,6 +1,6 @@
-const createImage = require("../image/createImage");
-const setUpEnv = require("../sandbox");
-const canvasImageToBuffer = require("../adapters/canvasImageToBuffer");
+const createImage = require("../image/createImage")
+const setUpEnv = require("../sandbox")
+const canvasImageToBuffer = require("../adapters/canvasImageToBuffer")
 
 /**
  * It gets through callback call the rendered image into canvas.
@@ -16,40 +16,41 @@ function getRenderedBuffer(
   transferSyntaxUid,
   decodedPixelData,
   metadata,
-  doneCallback,
+  doneCallback
 ) {
-  const { csCore, canvas, context } = setUpEnv();
+  const { csCore, canvas, context } = setUpEnv()
 
   function doneRendering(customEvent = {}) {
-    const { detail = {} } = customEvent;
-    const { enabledElement } = detail;
+    const { detail = {} } = customEvent
+    const { enabledElement } = detail
 
     if (!enabledElement || !enabledElement.canvas) {
-      doneCallback();
+      doneCallback()
     }
 
-    const buffer = canvasImageToBuffer(enabledElement.canvas);
-    doneCallback(buffer, enabledElement, canvas, context);
+    const buffer = canvasImageToBuffer(enabledElement.canvas)
+    doneCallback(buffer, enabledElement, canvas, context)
   }
 
   function failureRendering() {
-    doneCallback();
+    doneCallback()
   }
 
-  try {
-    const imageObj = createImage(
-      transferSyntaxUid,
-      decodedPixelData,
-      metadata,
-      canvas,
-    );
+  // try {
+  const imageObj = createImage(
+    transferSyntaxUid,
+    decodedPixelData,
+    metadata,
+    canvas
+  )
 
-    canvas.addEventListener(csCore.EVENTS.IMAGE_RENDERED, doneRendering);
-    csCore.renderToCanvas(canvas, imageObj);
-  } catch (e) {
-    console.log("Failed to render", e);
-    failureRendering();
-  }
+  canvas.addEventListener(csCore.EVENTS.IMAGE_RENDERED, doneRendering)
+  console.log("csCore about to render to canvas")
+  csCore.renderToCanvas(canvas, imageObj)
+  // } catch (e) {
+  //   console.log("Failed to render", e)
+  //   failureRendering()
+  // }
 }
 
-module.exports = getRenderedBuffer;
+module.exports = getRenderedBuffer
