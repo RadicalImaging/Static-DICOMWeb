@@ -29,10 +29,11 @@
   },
   "homepage": "https://github.com/radicalimaging/static-dicomweb#readme",
   "license": "ISC",
-  "main": "lib/index.js",
-  "module": "dist/index.js",
+  "main": "lib/index.ts",
+  "module": "dist/cs3d/index.js",
   "directories": {
-    "lib": "lib"
+    "lib": "lib",
+    "dist": "./dist"
   },
   "files": [
     "lib"
@@ -40,7 +41,8 @@
   "scripts": {
     "test": "jest --config ./jest.config.js",
     "build": "bun run build:esm",
-    "build:esm": "bun build lib/index.mjs --target node --outdir dist --",
+    "build:esm": "tsc --project ./tsconfig.json",
+    "build:esm:watch": "tsc --project ./tsconfig.json --watch",
     "clean": "rimraf dist",
     "link:exec": "npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
@@ -49,7 +51,7 @@
   },
   "dependencies": {
     "canvas": "^3.1.0",
-    "@cornerstonejs/core": "3.0.4",
+    "@cornerstonejs/core": "3.7.6",
     "dcmjs": "0.35.0",
     "jsdom": "^25.0.1",
     "jsdom-context-require": "^5.2.4"

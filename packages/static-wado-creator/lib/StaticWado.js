@@ -1,5 +1,5 @@
 const dicomCodec = require("@cornerstonejs/dicom-codec")
-const staticCS = require("@radicalimaging/cs3d")
+// const staticCS = require("@radicalimaging/cs3d")
 const {
   Stats,
   handleHomeRelative,
@@ -59,12 +59,13 @@ function internalGenerateImage(
           imageInfo,
           transferSyntaxUid
         )
-        staticCS.getRenderedBuffer(
-          transferSyntaxUid,
-          pixelData,
-          metadata,
-          doneCallback
-        )
+        console.warn("******** No static CS defined")
+        // staticCS.getRenderedBuffer(
+        //   transferSyntaxUid,
+        //   pixelData,
+        //   metadata,
+        //   doneCallback
+        // )
       }
     })
     .catch((error) => {
