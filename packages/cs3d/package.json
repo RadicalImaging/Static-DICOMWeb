@@ -43,6 +43,7 @@
     "build": "bun run build:esm",
     "build:esm": "tsc --project ./tsconfig.json",
     "build:esm:watch": "tsc --project ./tsconfig.json --watch",
+    "cs3d": "bun run build:esm && bun run dist/cs3d.js --",
     "clean": "rimraf dist",
     "link:exec": "npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",

@@ -1,9 +1,71 @@
 import { createCanvas } from "canvas"
-import * as cs3d from "@cornerstonejs/core"
+import { utilities } from "@cornerstonejs/core"
+import { VOILUTFunctionType } from "@cornerstonejs/core/enums"
+import { JSDOM } from "jsdom"
 
-function main() {
-  console.log("Hello canvas", createCanvas(200, 200).width)
-  console.log("cs3d=", !!cs3d)
+const dom = new JSDOM(`<!DOCTYPE html>`, { pretendToBeVisual: true })
+global.window = dom.window
+global.document = window.document
+
+const rows = 64
+const columns = 64
+const numberOfComponents = 1
+
+const bytePixelData = new Uint8Array(rows * columns * numberOfComponents)
+
+const image = {
+  imageId: "test:123",
+  isPreScaled: false,
+  minPixelValue: 0,
+  maxPixelValue: 255,
+  slope: 1,
+  intercept: 0,
+  windowCenter: 128,
+  windowWidth: 255,
+  voiLUTFunction: VOILUTFunctionType.LINEAR,
+  getPixelData: () => bytePixelData,
+  getCanvas: null,
+  rows,
+  columns,
+  numberOfComponents,
+  height: rows,
+  width: columns,
+  sizeInBytes: bytePixelData.byteLength,
+  rowPixelSpacing: 1,
+  columnPixelSpacing: 1,
+  invert: false,
+  color: numberOfComponents > 1,
+  rgba: false,
+  dataType: null,
+  voxelManager: utilities.VoxelManager.createImageVoxelManager({
+    width: columns,
+    height: rows,
+    scalarData: bytePixelData,
+    numberOfComponents,
+  }),
 }
 
-main()
+async function main() {
+  const canvas = createCanvas(rows, columns)
+  for (let i = 0; i < rows * columns; i++) {
+    bytePixelData[i] = i % columns
+  }
+  console.log("bytePixelData=", bytePixelData)
+  await utilities.renderToCanvasCPU(
+    canvas as unknown as HTMLCanvasElement,
+    image
+  )
+  const context = canvas.getContext("2d")
+  for (let i = 0; i < rows; i += 16) {
+    console.log(
+      "Value at",
+      i * columns + i,
+      context.getImageData(0, i, columns, 1)
+    )
+  }
+  console.log("canvas", canvas.toDataURL("image/png"))
+}
+
+main().then(() => {
+  console.log("Done converting")
+})
