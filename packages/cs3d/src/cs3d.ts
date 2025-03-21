@@ -50,19 +50,10 @@ async function main() {
   for (let i = 0; i < rows * columns; i++) {
     bytePixelData[i] = i % columns
   }
-  console.log("bytePixelData=", bytePixelData)
   await utilities.renderToCanvasCPU(
     canvas as unknown as HTMLCanvasElement,
     image
   )
-  const context = canvas.getContext("2d")
-  for (let i = 0; i < rows; i += 16) {
-    console.log(
-      "Value at",
-      i * columns + i,
-      context.getImageData(0, i, columns, 1)
-    )
-  }
   console.log("canvas", canvas.toDataURL("image/png"))
 }
 
