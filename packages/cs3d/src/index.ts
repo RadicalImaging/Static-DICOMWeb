@@ -1,7 +1,11 @@
 import * as cs3d from "@cornerstonejs/core"
+import { createCanvas } from "canvas"
+import { getRenderedBuffer } from "./api"
+import { JSDOM } from "jsdom"
 
-console.error("Exporting cs3d=", cs3d)
+const dom = new JSDOM(`<!DOCTYPE html>`, { pretendToBeVisual: true })
+global.window = dom.window
+global.document = window.document
 
-const testExport = 123
-export default { testExport, cs3d }
-export { cs3d, testExport }
+export default { cs3d, createCanvas, getRenderedBuffer }
+export { cs3d, createCanvas, getRenderedBuffer }

@@ -1,5 +1,5 @@
 const dicomCodec = require("@cornerstonejs/dicom-codec")
-// const staticCS = require("@radicalimaging/cs3d")
+const staticCS = require("@radicalimaging/cs3d")
 const {
   Stats,
   handleHomeRelative,
@@ -59,17 +59,17 @@ function internalGenerateImage(
           imageInfo,
           transferSyntaxUid
         )
-        console.warn("******** No static CS defined")
-        // staticCS.getRenderedBuffer(
-        //   transferSyntaxUid,
-        //   pixelData,
-        //   metadata,
-        //   doneCallback
-        // )
+        console.warn("Rendering thumbnail with cs3d", transferSyntaxUid)
+        staticCS.getRenderedBuffer(
+          transferSyntaxUid,
+          pixelData,
+          metadata,
+          doneCallback
+        )
       }
     })
     .catch((error) => {
-      console.log(`Error while generating thumbnail:: ${error}`)
+      console.log("Error while generating thumbnail", error)
     })
 }
 

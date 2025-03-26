@@ -10,7 +10,7 @@ function canvasImageToBuffer(canvas, imageType = "image/jpeg") {
   if (imageType === "image/jpeg") {
     console.log("canvasImageToBuffer", canvas)
     const dataUrl = canvas.toDataURL(imageType, 1)
-    console.log("Got dataUrl", dataUrl)
+    console.log("Got dataUrl", !!dataUrl)
     const base64Data = dataUrl.replace(/^data:image\/(jpeg|png);base64,/, "")
     result = Buffer.from(base64Data, "base64")
   } else {

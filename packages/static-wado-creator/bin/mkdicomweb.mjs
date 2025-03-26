@@ -1,8 +1,8 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
-import StaticWado from "@radicalimaging/static-wado-creator";
+import StaticWado from "@radicalimaging/static-wado-creator"
 
 // Configure program commander
 StaticWado.configureProgram(StaticWado.mkdicomwebConfig).then(() => {
-  console.verbose("done");
-});
+  console.verbose("done")
+})

@@ -31,6 +31,9 @@
   "license": "ISC",
   "main": "lib/index.ts",
   "module": "dist/cs3d/index.js",
+  "exports": {
+    "node": "./dist/index.js"
+  },
   "directories": {
     "lib": "lib",
     "dist": "./dist"
@@ -52,7 +55,7 @@
   },
   "dependencies": {
     "canvas": "^3.1.0",
-    "@cornerstonejs/core": "3.7.6",
+    "@cornerstonejs/core": "3.7.13",
     "dcmjs": "0.35.0",
     "jsdom": "^25.0.1",
     "jsdom-context-require": "^5.2.4"
