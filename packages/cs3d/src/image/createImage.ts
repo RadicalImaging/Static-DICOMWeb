@@ -51,7 +51,7 @@ export function createImage(
     WindowCenter: windowCenter,
     WindowWidth: windowWidth,
     SOPClassUID: sopClassUID,
-    NumberOfComponents: numberOfComponents,
+    SamplesPerPixel: numberOfComponents,
   } = dataSet
 
   const [rowPixelSpacing, columnPixelSpacing] = pixelSpacing || []
@@ -99,6 +99,7 @@ export function createImage(
 
   const { columns, rows } = imageFrame
 
+  const rgba = imageFrame.pixelData.length === rows * columns * 4
   const image: IImage = {
     imageId: "internal",
     isPreScaled: imageFrame.preScale,
@@ -123,14 +124,14 @@ export function createImage(
     getCanvas: null,
     modalityLUT: null,
     voiLUT: null,
-    rgba: false,
+    rgba,
     dataType: null,
     numberOfComponents,
     voxelManager: utilities.VoxelManager.createImageVoxelManager({
       width: columns,
       height: rows,
       scalarData: imageFrame.pixelData,
-      numberOfComponents,
+      numberOfComponents: rgba ? 4 : numberOfComponents,
     }),
   }
 
@@ -154,7 +155,7 @@ export function createImage(
     image.getPixelData = () => imageFrame.pixelData
   }
 
-  if (image.color) {
+  if (image.color && imageFrame.imageData) {
     // let lastImageIdDrawn;
     image.getCanvas = () => {
       canvas.height = image.rows

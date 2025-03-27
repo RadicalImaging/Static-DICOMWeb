@@ -59,8 +59,7 @@ function internalGenerateImage(
           imageInfo,
           transferSyntaxUid
         )
-        console.warn("Rendering thumbnail with cs3d", transferSyntaxUid)
-        staticCS.getRenderedBuffer(
+        return staticCS.getRenderedBuffer(
           transferSyntaxUid,
           pixelData,
           metadata,

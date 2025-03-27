@@ -1,6 +1,7 @@
 import createImage from "../image/createImage.js"
 import { createCanvas } from "canvas"
 import { utilities } from "@cornerstonejs/core"
+import { setCanvasCreator } from "@cornerstonejs/core"
 import canvasImageToBuffer from "../adapters/canvasImageToBuffer.js"
 
 /**
@@ -19,6 +20,7 @@ async function getRenderedBuffer(
   metadata,
   doneCallback
 ) {
+  setCanvasCreator(createCanvas)
   const canvas = createCanvas(256, 256) as unknown as HTMLCanvasElement
 
   // try {
