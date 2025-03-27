@@ -36,12 +36,13 @@ const DeleteStudy = require("./DeleteStudy")
 const RejectInstance = require("./RejectInstance")
 const RawDicomWriter = require("./writer/RawDicomWriter")
 const { isVideo } = require("./writer/VideoWriter")
+const validateMetadata = require("./operation/validateMetadata.js")
 
 function setStudyData(studyData) {
   this.studyData = studyData
 }
 
-function internalGenerateImage(
+function cs3dThumbnail(
   originalImageFrame,
   dataset,
   metadata,
@@ -103,6 +104,7 @@ class StaticWado {
       videoWriter: VideoWriter(this.options),
       thumbWriter: ThumbnailWriter(this.options),
       completeStudy: CompleteStudyWriter(this.options),
+      validateMetadata: validateMetadata(this.options),
       metadata: InstanceDeduplicate(this.options),
       deduplicated: DeduplicateWriter(this.options),
       scanStudy: ScanStudy(this.options),
@@ -113,7 +115,7 @@ class StaticWado {
       notificationService: new NotificationService(
         this.options.notificationDir
       ),
-      internalGenerateImage,
+      internalGenerateImage: cs3dThumbnail,
     }
   }
 
@@ -320,6 +322,8 @@ class StaticWado {
     // convert to DICOMweb MetaData and BulkData
     const result = await getDataSet(dataSet, generator, this.options)
 
+    await this.callback.validateMetadata?.(id, result, buffer)
+
     await this.callback.rawDicomWriter?.(id, result, buffer)
 
     const transcodedMeta = transcodeMetadata(result.metadata, id, this.options)
@@ -354,7 +358,7 @@ class StaticWado {
     transferSyntaxUid,
     doneCallback
   ) {
-    return internalGenerateImage(
+    return cs3dThumbnail(
       originalImageFrame,
       dataSet,
       metadata,
