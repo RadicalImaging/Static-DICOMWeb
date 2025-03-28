@@ -1,6 +1,6 @@
-import ConfigPoint from "config-point";
-import "@radicalimaging/static-wado-plugins";
-import { staticWadoConfig } from "@radicalimaging/static-wado-util";
+import ConfigPoint from "config-point"
+import "@radicalimaging/static-wado-plugins"
+import { staticWadoConfig } from "@radicalimaging/static-wado-util"
 
 /**
  * Defines the basic configuration values for the dicomwebserver component.  See the README for more details.
@@ -9,7 +9,7 @@ const { dicomWebServerConfig } = ConfigPoint.register({
   dicomWebServerConfig: {
     configBase: staticWadoConfig,
     helpShort: "dicomwebserver",
-    stowCommands: ["mkdicomweb create <files> --dir <rootDir>"],
+    stowCommands: ["mkdicomweb group <studyUIDs> --dir <rootDir>"],
     helpDescription:
       "Serve up the static wado files and optionally a web client as a web server on the local machine.",
     clientDir: "~/ohif",
@@ -31,6 +31,6 @@ const { dicomWebServerConfig } = ConfigPoint.register({
       },
     ],
   },
-});
+})
 
-export default dicomWebServerConfig;
+export default dicomWebServerConfig

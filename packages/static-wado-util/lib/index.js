@@ -21,7 +21,9 @@ module.exports.endsWith = require("./endsWith")
 module.exports.NotificationService = require("./NotificationService")
 module.exports.execSpawn = require("./execSpawn")
 module.exports.logger = require("./logger.js")
-
+module.exports.extractMultipart = require("./extractMultipart").extractMultipart
+module.exports.uint8ArrayToString =
+  require("./extractMultipart").uint8ArrayToString
 module.exports.bilinear = bilinear
 module.exports.replicate = replicate
 module.exports.configureProgram = configureProgram

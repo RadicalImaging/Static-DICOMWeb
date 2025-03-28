@@ -80,7 +80,8 @@ class StaticWado {
       pathDeduplicated = "deduplicated",
       pathInstances = "instances",
       verbose,
-      showProgress = true,
+      quiet = false,
+      showProgress = !quiet,
     } = configuration
 
     dicomCodec.setConfig({ verbose })
