@@ -1,14 +1,14 @@
-const ConfigPoint = require("config-point")
-const { staticWadoConfig } = require("@radicalimaging/static-wado-util")
-const createMain = require("./createMain")
-const createPart10 = require("./createPart10")
-const deleteMain = require("./deleteMain")
-const rejectMain = require("./rejectMain")
-const instanceMain = require("./instanceMain")
-const indexMain = require("./indexMain")
-const groupMain = require("./groupMain")
-const metadataMain = require("./metadataMain")
-const compressionOptionParser = require("./util/compressionOptionParser")
+const ConfigPoint = require("config-point");
+const { staticWadoConfig } = require("@radicalimaging/static-wado-util");
+const createMain = require("./createMain");
+const createPart10 = require("./createPart10");
+const deleteMain = require("./deleteMain");
+const rejectMain = require("./rejectMain");
+const instanceMain = require("./instanceMain");
+const indexMain = require("./indexMain");
+const groupMain = require("./groupMain");
+const metadataMain = require("./metadataMain");
+const compressionOptionParser = require("./util/compressionOptionParser");
 
 /**
  * Defines the basic configuration values for the dicomwebserver component.  See the README for more details.
@@ -167,8 +167,9 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         defaultValue: false,
       },
       {
-        key: "--thumb",
-        description: "Generate thumbnails",
+        key: "--no-thumb",
+        description: "Skip generating thumbnails using CS3D internal render",
+        defaultValue: true,
       },
       {
         key: "--dcm2jpg",
@@ -294,6 +295,6 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       },
     ],
   },
-})
+});
 
-module.exports = mkdicomwebConfig
+module.exports = mkdicomwebConfig;

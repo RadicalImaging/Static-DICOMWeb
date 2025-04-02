@@ -1,9 +1,9 @@
 /* eslint-disable import/prefer-default-export */
-import formidable from "formidable"
-import * as storeServices from "../../services/storeServices.mjs"
-import dcmjs from "dcmjs"
+import formidable from "formidable";
+import * as storeServices from "../../services/storeServices.mjs";
+import dcmjs from "dcmjs";
 
-const { denaturalizeDataset } = dcmjs.data.DicomMetaDictionary
+const { denaturalizeDataset } = dcmjs.data.DicomMetaDictionary;
 
 /**
  * Handles an incoming stow-rs POST data, either in application/dicom (single instance), or in
@@ -16,38 +16,43 @@ const { denaturalizeDataset } = dcmjs.data.DicomMetaDictionary
  */
 export function defaultPostController(params) {
   return (req, res, next) => {
-    const storedInstances = []
-    const studyUIDs = new Map()
-    const fileNames = []
+    const storedInstances = [];
+    const studyUIDs = new Map();
+    const fileNames = [];
 
-    const form = formidable({ multiples: true })
+    const form = formidable({ multiples: true });
     form.on("file", (_formname, file) => {
-      const { filepath, mimetype } = file
+      const { filepath, mimetype } = file;
       storedInstances.push({
         filepath,
         mimetype,
         result: storeServices.storeFileInstance(filepath, mimetype, params),
-      })
-    })
+      });
+    });
 
     form.parse(req, async (err, fields, files) => {
       if (err) {
-        console.log("Couldn't parse because", err)
-        next(err)
-        return
+        console.log("Couldn't parse because", err);
+        next(err);
+        return;
       }
+      const listFiles = Object.values(files).reduce(
+        (prev, curr) => prev.concat(curr),
+        []
+      );
+
       try {
         // const sopInfo = await storeServices.storeFilesByStow(files, params)
-        let result
+        let result;
         for (const item of storedInstances) {
-          let itemResult
+          let itemResult;
           try {
-            itemResult = await item.result
+            itemResult = await item.result;
             if (itemResult.ReferencedSOPSequence?.StudyInstanceUID) {
-              studyUIDs.add(itemResult.ReferencedSOPSequence.StudyInstanceUID)
+              studyUIDs.add(itemResult.ReferencedSOPSequence.StudyInstanceUID);
             }
           } catch (e) {
-            console.warn("Couldn't upload item", item)
+            console.warn("Couldn't upload item", item);
             itemResult = {
               FailedSOPSequence: [
                 {
@@ -58,35 +63,41 @@ export function defaultPostController(params) {
                   },
                 },
               ],
-            }
+            };
           }
           if (!result) {
             result = {
               ...itemResult,
               ReferencedSOPSequence: [],
               FailedSOPSequence: [],
-            }
+            };
           }
           if (itemResult.ReferencedSOPSequence?.length) {
             result.ReferencedSOPSequence.push(
               itemResult.ReferencedSOPSequence[0]
-            )
+            );
           }
           if (itemResult.FailedSOPSequence?.length) {
-            result.FailedSOPSequence.push(itemResult.FailedSOPSequence[0])
+            result.FailedSOPSequence.push(itemResult.FailedSOPSequence[0]);
           }
         }
 
-        const dicomResult = denaturalizeDataset(result)
+        if (result.FailedSOPSequence?.length === 0) {
+          delete result.FailedSOPSequence;
+        }
+        const dicomResult = denaturalizeDataset(result);
 
-        res.status(200).json(dicomResult)
+        res.status(200).json(dicomResult);
 
-        console.log("Responded with", dicomResult)
-        storeServices.storeFilesByStow({ files, studyUIDs, result }, params)
+        console.log("Responded with", JSON.stringify(dicomResult, null, 2));
+        storeServices.storeFilesByStow(
+          { listFiles, files, studyUIDs, result },
+          params
+        );
       } catch (e) {
-        console.log(e)
-        res.status(500).json(`Unable to handle ${e}`)
+        console.log(e);
+        res.status(500).json(`Unable to handle ${e}`);
       }
-    })
-  }
+    });
+  };
 }
