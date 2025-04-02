@@ -1,4 +1,4 @@
-const findIndexOfString = require("./findIndexOfString.js")
+const findIndexOfString = require("./findIndexOfString.js");
 
 /**
  * Extracts multipart/related data or single part data from a response byte
@@ -14,55 +14,55 @@ const findIndexOfString = require("./findIndexOfString.js")
  */
 function extractMultipart(contentType, buffer, options = null) {
   if (typeof buffer === "string") {
-    buffer = stringToBuffer(buffer)
+    buffer = stringToBuffer(buffer);
   }
-  options ||= {}
+  options ||= {};
   // request succeeded, Parse the multi-part mime response
-  const response = new Uint8Array(buffer)
-  const isPartial = !!options?.isPartial
+  const response = new Uint8Array(buffer);
+  const isPartial = !!options?.isPartial;
   if (contentType.indexOf("multipart") === -1) {
     return {
       contentType,
       isPartial,
       response,
-    }
+    };
   }
 
-  let { tokenIndex, responseHeaders, boundary, multipartContentType } = options
+  let { tokenIndex, responseHeaders, boundary, multipartContentType } = options;
 
   // First look for the multipart mime header
-  tokenIndex ||= findIndexOfString(response, "\r\n\r\n")
+  tokenIndex ||= findIndexOfString(response, "\r\n\r\n");
 
   if (tokenIndex === -1) {
-    throw new Error("invalid response - no multipart mime header")
+    throw new Error("invalid response - no multipart mime header");
   }
 
   if (!boundary) {
-    const header = uint8ArrayToString(response, 0, tokenIndex)
+    const header = uint8ArrayToString(response, 0, tokenIndex);
     // Now find the boundary  marker
-    responseHeaders = header.split("\r\n")
-    boundary = findBoundary(responseHeaders)
+    responseHeaders = header.split("\r\n");
+    boundary = findBoundary(responseHeaders);
 
     if (!boundary) {
-      throw new Error("invalid response - no boundary marker")
+      throw new Error("invalid response - no boundary marker");
     }
   }
-  const offset = tokenIndex + 4 // skip over the \r\n\r\n
+  const offset = tokenIndex + 4; // skip over the \r\n\r\n
 
   // find the terminal boundary marker
-  const endIndex = findIndexOfString(response, boundary, offset)
+  const endIndex = findIndexOfString(response, boundary, offset);
 
   if (endIndex === -1 && !isPartial) {
-    throw new Error("invalid response - terminating boundary not found")
+    throw new Error("invalid response - terminating boundary not found");
   }
 
-  multipartContentType ||= findContentType(responseHeaders)
+  multipartContentType ||= findContentType(responseHeaders);
 
-  options.tokenIndex = tokenIndex
-  options.boundary = boundary
-  options.responseHeaders = responseHeaders
-  options.multipartContentType = multipartContentType
-  options.isPartial = endIndex === -1
+  options.tokenIndex = tokenIndex;
+  options.boundary = boundary;
+  options.responseHeaders = responseHeaders;
+  options.multipartContentType = multipartContentType;
+  options.isPartial = endIndex === -1;
 
   // return the info for this pixel data
   return {
@@ -76,13 +76,13 @@ function extractMultipart(contentType, buffer, options = null) {
     multipartContentType,
     // Exclude the \r\n as well as the boundary
     pixelData: buffer.slice(offset, endIndex - 2),
-  }
+  };
 }
 
 function findBoundary(header) {
   for (let i = 0; i < header.length; i++) {
     if (header[i].substr(0, 2) === "--") {
-      return header[i]
+      return header[i];
     }
   }
 }
@@ -90,29 +90,29 @@ function findBoundary(header) {
 function findContentType(header) {
   for (let i = 0; i < header.length; i++) {
     if (header[i].substr(0, 13) === "Content-Type:") {
-      return header[i].substr(13).trim()
+      return header[i].substr(13).trim();
     }
   }
 }
 
 function uint8ArrayToString(data, offset, length) {
   if (!data) {
-    console.warn("No data found")
-    return null
+    console.warn("No data found");
+    return null;
   }
-  offset = offset || 0
-  length = length || data.length - offset
-  let str = ""
+  offset = offset || 0;
+  length = length || data.length - offset;
+  let str = "";
 
   for (let i = offset; i < offset + length; i++) {
-    str += String.fromCharCode(data[i])
+    str += String.fromCharCode(data[i]);
   }
 
-  return str
+  return str;
 }
 
 function stringToBuffer(string) {
-  return new TextEncoder().encode(string)
+  return new TextEncoder().encode(string);
 }
 
 module.exports = {
@@ -121,4 +121,4 @@ module.exports = {
   findContentType,
   uint8ArrayToString,
   stringToBuffer,
-}
+};

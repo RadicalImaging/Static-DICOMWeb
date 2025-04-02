@@ -3,9 +3,9 @@
 const {
   dicomWebScpConfig,
   configureProgram,
-} = require("@radicalimaging/static-wado-scp")
+} = require("@radicalimaging/static-wado-scp");
 
 // Configure program commander
 configureProgram(dicomWebScpConfig).then(() => {
-  console.verbose("done")
-})
+  console.verbose("done");
+});

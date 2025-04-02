@@ -7,7 +7,7 @@ RUN npm install -g lerna@5.3.0
 
 WORKDIR /app
 COPY --parents bun.lock package.json packages/*/package.json .
-RUN bun install --frozen-lockfile --ignore-scripts
+RUN bun install --frozen-lockfile
 COPY --link --exclude=node_modules --exclude=**/dist . .
 RUN bun run build
 RUN bun run pack:js
