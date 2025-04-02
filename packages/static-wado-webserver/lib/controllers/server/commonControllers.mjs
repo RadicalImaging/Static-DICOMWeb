@@ -2,6 +2,7 @@
 import formidable from "formidable";
 import * as storeServices from "../../services/storeServices.mjs";
 import dcmjs from "dcmjs";
+import { dicomToXml } from "@radicalimaging/static-wado-util";
 
 const { denaturalizeDataset } = dcmjs.data.DicomMetaDictionary;
 
@@ -91,13 +92,18 @@ export function defaultPostController(params) {
         }
         const dicomResult = denaturalizeDataset(result);
 
-        console.log("Responded with", JSON.stringify(dicomResult, null, 2));
+        console.log("STOW result: ", JSON.stringify(result, null, 2));
         await storeServices.storeFilesByStow(
           { listFiles, files, studyUIDs, result },
           params
         );
 
-        res.status(200).json(dicomResult);
+        const xml = dicomToXml(dicomResult);
+
+        res
+          .status(200)
+          .setHeader("content-type", "application/dicom+xml")
+          .send(xml);
       } catch (e) {
         console.log(e);
         res.status(500).json(`Unable to handle ${e}`);
