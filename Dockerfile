@@ -20,10 +20,13 @@ RUN npm install -g bun
 WORKDIR /app
 RUN npm install -g commander@10.0.1
 ENV PATH /app/node_modules/.bin:$PATH
+COPY --from=builder /app/packages/cs3d/*.tgz cs3d.tgz
+RUN npm install ./cs3d.tgz
 COPY --from=builder /app/packages/static-wado-creator/*.tgz static-wado-creator.tgz
 RUN npm install ./static-wado-creator.tgz
 COPY --from=builder /app/packages/static-wado-webserver/*.tgz static-wado-webserver.tgz
 RUN npm install ./static-wado-webserver.tgz
+RUN rm *.tgz
 #COPY --from=builder /app/packages/static-wado-scp/*.tgz static-wado-scp.tgz
 #RUN npm install ./static-wado-scp.tgz
 RUN mkdir /dicomweb
