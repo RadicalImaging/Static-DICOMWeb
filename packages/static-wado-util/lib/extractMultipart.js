@@ -115,10 +115,14 @@ function stringToBuffer(string) {
   return new TextEncoder().encode(string);
 }
 
-module.exports = {
+const exportItems = {
   extractMultipart,
   findBoundary,
   findContentType,
   uint8ArrayToString,
   stringToBuffer,
 };
+
+exportItems.default = exportItems;
+
+module.exports = exportItems;

@@ -32,7 +32,9 @@
   "main": "lib/index.js",
   "module": "dist/index.js",
   "files": [
-    "lib"
+    "lib",
+    "dist",
+    "bin"
   ],
   "dependencies": {
     "@cornerstonejs/codec-openjpeg": ">=1.2.3",
@@ -48,7 +50,7 @@
   "scripts": {
     "test": "jest --config ./jest.config.js",
     "build": "bun run build:esm",
-    "build:esm": "bun build lib/index.js --format esm --outdir dist --target node",
+    "build:esm": "bun build lib/index.ts --format esm --outdir dist --target node",
     "clean": "rimraf dist",
     "link:exec": "npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",

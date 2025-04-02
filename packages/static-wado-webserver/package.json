@@ -42,7 +42,8 @@
     "lib"
   ],
   "bin": {
-    "dicomwebserver": "bin/dicomwebserver.mjs"
+    "dicomwebserver": "bin/dicomwebserver.mjs",
+    "dicomwebserverBun": "bin/dicomwebserverBun.mjs"
   },
   "scripts": {
     "test": "jest --config ./jest.config.js",
@@ -55,8 +56,8 @@
     "publishJS": "yarn publish"
   },
   "dependencies": {
-    "@radicalimaging/static-wado-plugins": "^1.5.0",
-    "@radicalimaging/static-wado-util": "^1.5.0",
+    "@radicalimaging/static-wado-plugins": ">=1.5.0",
+    "@radicalimaging/static-wado-util": ">=1.5.0",
     "config-point": ">=0.5.1",
     "cors": "^2.8.5",
     "dcmjs": "0.35.0",

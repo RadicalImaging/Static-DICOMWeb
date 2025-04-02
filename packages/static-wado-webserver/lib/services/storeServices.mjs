@@ -3,17 +3,15 @@ import fs from "fs";
 import path from "path";
 import childProcess from "node:child_process";
 import {
-  execSpawn,
-  handleHomeRelative,
-} from "@radicalimaging/static-wado-util";
-import {
   extractMultipart,
   uint8ArrayToString,
+  execSpawn,
+  handleHomeRelative,
 } from "@radicalimaging/static-wado-util";
 
 const createCommandLine = (args, commandName, params) => {
   let commandline = commandName;
-  const { listFiles = [], studyUID } = args;
+  const { listFiles = [], studyUIDs } = args;
 
   commandline = commandline.replace(
     /<files>/,
@@ -23,8 +21,18 @@ const createCommandLine = (args, commandName, params) => {
     /<rootDir>/,
     path.resolve(handleHomeRelative(params.rootDir))
   );
-  if (studyUID) {
-    commandline = commandline.replace(/<studyUID>/, studyUID);
+  if (studyUIDs?.size) {
+    commandline = commandline.replace(
+      /<studyUIDs>/,
+      Array.from(studyUIDs).join(" ")
+    );
+  } else {
+    console.warn(
+      "No study uid found, not running command",
+      commandName,
+      studyUIDs
+    );
+    return null;
   }
   return commandline;
 };
@@ -42,6 +50,9 @@ export const storeFilesByStow = (stored, params = {}) => {
   const promises = [];
   for (const commandName of stowCommands) {
     const command = createCommandLine(stored, commandName, params);
+    if (!command) {
+      continue;
+    }
     console.log("Store command", command);
     const commandPromise = execSpawn(command);
     promises.push(commandPromise);
@@ -68,7 +79,7 @@ const bunExecPath = path.join(
   "..",
   "static-wado-creator",
   "bin",
-  "mkdicomwebBun.mjs"
+  "mkdicomweb.mjs"
 );
 
 /** Creates a separated child process */

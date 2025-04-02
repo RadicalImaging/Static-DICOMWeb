@@ -62,7 +62,10 @@ export default function byteRangeRequest(options) {
     const queryAccept = req.query.accept;
     const extension = findExtension(req.path, queryAccept || accept);
     const range = req.header("Range");
-    res.setHeader("content-type", contentTypeForExtension[extension] || "multipart/related");
+    res.setHeader(
+      "content-type",
+      contentTypeForExtension[extension] || "multipart/related"
+    );
     res.setHeader("Access-Control-Expose-Headers", "*");
     res.setHeader("Access-Control-Allow-Origin", "*");
 

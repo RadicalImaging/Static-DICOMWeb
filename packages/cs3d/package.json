@@ -34,12 +34,10 @@
   "exports": {
     "node": "./dist/index.js"
   },
-  "directories": {
-    "lib": "lib",
-    "dist": "./dist"
-  },
   "files": [
-    "lib"
+    "src",
+    "dist",
+    "bin"
   ],
   "scripts": {
     "test": "jest --config ./jest.config.js",

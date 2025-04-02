@@ -17,7 +17,7 @@ const { denaturalizeDataset } = dcmjs.data.DicomMetaDictionary;
 export function defaultPostController(params) {
   return (req, res, next) => {
     const storedInstances = [];
-    const studyUIDs = new Map();
+    const studyUIDs = new Set();
     const fileNames = [];
 
     const form = formidable({ multiples: true });
@@ -48,8 +48,12 @@ export function defaultPostController(params) {
           let itemResult;
           try {
             itemResult = await item.result;
-            if (itemResult.ReferencedSOPSequence?.StudyInstanceUID) {
-              studyUIDs.add(itemResult.ReferencedSOPSequence.StudyInstanceUID);
+            if (itemResult.ReferencedSOPSequence?.[0].StudyInstanceUID) {
+              studyUIDs.add(
+                itemResult.ReferencedSOPSequence[0].StudyInstanceUID
+              );
+            } else {
+              console.warn("No study uid found", itemResult);
             }
           } catch (e) {
             console.warn("Couldn't upload item", item);
@@ -87,13 +91,13 @@ export function defaultPostController(params) {
         }
         const dicomResult = denaturalizeDataset(result);
 
-        res.status(200).json(dicomResult);
-
         console.log("Responded with", JSON.stringify(dicomResult, null, 2));
-        storeServices.storeFilesByStow(
+        await storeServices.storeFilesByStow(
           { listFiles, files, studyUIDs, result },
           params
         );
+
+        res.status(200).json(dicomResult);
       } catch (e) {
         console.log(e);
         res.status(500).json(`Unable to handle ${e}`);

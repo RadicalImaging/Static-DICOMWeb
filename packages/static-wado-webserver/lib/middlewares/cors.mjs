@@ -21,7 +21,6 @@ function getCorsOptions(config = {}) {
 export default function setMiddlewares(appExpress, config) {
   const corsOptions = getCorsOptions(config);
   if (isCorsEnabled(config)) {
-    console.warn("Cors is enabled", corsOptions);
     appExpress.use("/", cors(corsOptions));
   } else {
     console.log("cors is not enabled");
