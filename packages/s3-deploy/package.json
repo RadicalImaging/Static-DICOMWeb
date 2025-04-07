@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/s3-deploy",
-  "version": "1.5.3",
+  "version": "1.6.1",
   "type": "module",
   "description": "S3 deploy plugin",
   "publishConfig": {

@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/cs3d",
-  "version": "1.5.0",
+  "version": "1.6.1",
   "description": "Cornerstone3D CLI Utilities",
   "publishConfig": {
     "access": "public"
@@ -46,16 +46,17 @@
     "build:esm:watch": "tsc --project ./tsconfig.json --watch",
     "cs3d": "bun run build:esm && bun run dist/cs3d.js --",
     "clean": "rimraf dist",
-    "link:exec": "npm link",
+    "link:exec": "npm install -g . && npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "pack:js": "npm pack --",
-    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
+    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
+    "publishJS": "yarn publish  --no-git-tag-version"
   },
   "dependencies": {
-    "canvas": "^3.1.0",
     "@cornerstonejs/core": "3.7.14",
+    "canvas": "^3.1.0",
     "dcmjs": "0.35.0",
-    "jsdom": "^25.0.1",
+    "jsdom": "^26.0.0",
     "jsdom-context-require": "^5.2.4"
   },
   "devDependencies": {
