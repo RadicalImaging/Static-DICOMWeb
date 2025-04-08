@@ -27,7 +27,7 @@ const findPrivate = (item, tagObject, create) => {
   if (create) {
     if (!assignPosition)
       throw new Error(
-        `Couldn't find any assign positions for ${creator} ${tag} in ${item}`,
+        `Couldn't find any assign positions for ${creator} ${tag} in ${item}`
       );
     const creatorTag = `${start}00${assignPosition.toString(16)}`;
     item[creatorTag] = { Value: [creator], vr: "CS" };
@@ -53,13 +53,13 @@ const Tags = {
   DeduppedCreator,
 
   // The references to extract data included in this object, 1..n values
-  DeduppedRef: { creator: DeduppedCreator, tag: "00091010" },
+  DeduppedRef: { creator: DeduppedCreator, tag: "00091010", vr: "LO" },
 
   // The hash value of THIS object
-  DeduppedHash: { creator: DeduppedCreator, tag: "00091011" },
+  DeduppedHash: { creator: DeduppedCreator, tag: "00091011", vr: "LO" },
 
   // Type of hash instance
-  DeduppedType: { creator: DeduppedCreator, tag: "00091012" },
+  DeduppedType: { creator: DeduppedCreator, tag: "00091012", vr: "LO" },
   InstanceType: "instance",
   DeletedType: "deleted",
   InfoType: "info",
@@ -69,19 +69,29 @@ const Tags = {
 
   setValue: (item, tag, value) => {
     const actualTag = findPrivate(item, tag, true);
-    item[actualTag] = { Value: Array.isArray(value) ? value : [value] };
+    item[actualTag] = {
+      Value: Array.isArray(value) ? value : [value],
+      vr: dataDictionary[actualTag]?.vr || tag.vr || "UN",
+    };
     return actualTag;
   },
 
   setList: (item, tag, value) => {
     const actualTag = findPrivate(item, tag, true);
-    item[actualTag] = { Value: Array.isArray(value) ? value : [value] };
+    item[actualTag] = {
+      Value: Array.isArray(value) ? value : [value],
+      vr: dataDictionary[actualTag]?.vr || tag.vr || "UN",
+    };
     return actualTag;
   },
 
   pushList: (item, tag, value) => {
     const actualTag = findPrivate(item, tag, true);
-    if (!item[actualTag]) item[actualTag] = { Value: [] };
+    if (!item[actualTag])
+      item[actualTag] = {
+        Value: [],
+        vr: dataDictionary[actualTag]?.vr || tag.vr || "UN",
+      };
     item[actualTag].Value.push(value);
     return actualTag;
   },
