@@ -11,6 +11,26 @@ const transcodeOp = {
   transcode: 3, // decode and then encode
 };
 
+const jpegBeforeEncode = (options, encoder) => {
+  const quality = options.quality ?? 99;
+  // First value is to encode as reversible lossless colour
+  return (encoder) => {
+    console.log("Calling setQuality", quality, !!encoder.setQuality);
+    encoder.setQuality(quality);
+  };
+};
+
+const jlsBeforeEncode = (options) => {
+  const delta = (options.delta ?? lossy) ? 3 : 0;
+  return (encoder) => encoder.setNearLossless(delta);
+};
+
+const htj2kBeforeEncode = (options) => {
+  const { lossy } = options;
+  const quality = lossy === true ? 0.002 : -1;
+  return (encoder) => encoder.setQuality(!lossy, quality);
+};
+
 /**
  * Static mapping for transcoding decoder destination names/uids - currently only lei, jls and jls-lossy appear to work.
  */
@@ -22,10 +42,12 @@ const transcodeDestinationMap = {
   jls: {
     transferSyntaxUid: "1.2.840.10008.1.2.4.80",
     transcodeOp: transcodeOp.encode,
+    beforeEncode: jlsBeforeEncode.bind(null, { lossy: false }),
   },
   "jls-lossy": {
     transferSyntaxUid: "1.2.840.10008.1.2.4.81",
     transcodeOp: transcodeOp.encode,
+    beforeEncode: jlsBeforeEncode.bind(null, { lossy: true, delta: 3 }),
   },
   jp2: {
     transferSyntaxUid: "1.2.840.10008.1.2.4.90",
@@ -36,12 +58,19 @@ const transcodeDestinationMap = {
     transcodeOp: transcodeOp.encode,
   },
   jhc: {
+    transferSyntaxUid: "1.2.840.10008.1.2.4.200",
+    transcodeOp: transcodeOp.encode,
+    beforeEncode: htj2kBeforeEncode({}),
+  },
+  "jhc-lossy": {
     transferSyntaxUid: "1.2.840.10008.1.2.4.202",
     transcodeOp: transcodeOp.encode,
+    beforeEncode: htj2kBeforeEncode({ lossy: true }),
   },
   jpeg: {
     transferSyntaxUid: "1.2.840.10008.1.2.4.50",
     transcodeOp: transcodeOp.encode,
+    // beforeEncode: jpegBeforeEncode({}),
   },
 };
 
@@ -103,13 +132,12 @@ const transcodeSourceMap = {
  * @returns A partial transcoder definition. Otherwise it returns undefined.
  */
 function getDestinationTranscoder(id) {
-  const destinationTranscoderEntry = Object.entries(
-    transcodeDestinationMap,
-  ).find(([key, value]) => key === id || value.transferSyntaxUid === id);
-  if (destinationTranscoderEntry) {
-    return destinationTranscoderEntry[1];
-  }
-  return undefined;
+  const destinationTranscoderEntry =
+    transcodeDestinationMap[id] ||
+    Object.values(transcodeDestinationMap).find(
+      (value) => value.transferSyntaxUid === id,
+    );
+  return destinationTranscoderEntry;
 }
 
 /**
@@ -136,6 +164,7 @@ function getTranscoder(
     transcodeOp:
       sourceTranscoder.transcodeOp | destinationTranscoder.transcodeOp,
     alias: sourceTranscoder.alias,
+    beforeEncode: destinationTranscoder.beforeEncode,
   };
 }
 
@@ -211,15 +240,6 @@ function transcodeLog(options, msg, error = "") {
     console.log(`\x1b[34m${msg}\x1b[0m`, error);
   }
 }
-
-const beforeEncode = (options, encoder) => {
-  const lossy = !!options.lossy;
-  const quality = lossy ? 0.002 : -1;
-  const delta = lossy ? 3 : 0;
-  // First value is to encode as reversible lossless colour
-  encoder.setQuality?.(!lossy, quality);
-  encoder.setNearLossless?.(delta);
-};
 
 function scale(imageFrame, imageInfo) {
   const { rows, columns, bitsPerPixel, pixelRepresentation, samplesPerPixel } =
@@ -302,10 +322,9 @@ async function generateLossyImage(id, decoded, options) {
     }
 
     const encodeOptions = {
-      beforeEncode: beforeEncode.bind(null, {
-        lossy,
-      }),
+      beforeEncode: transcodeDestinationMap[options.alternate]?.beforeEncode,
     };
+
     const lossyEncoding = await dicomCodec.encode(
       imageFrame,
       imageInfo,
@@ -393,9 +412,7 @@ async function transcodeImageFrame(
   let done = false;
   let processResultMsg = "";
   const encodeOptions = {
-    beforeEncode: beforeEncode.bind(null, {
-      lossy: options.lossy,
-    }),
+    beforeEncode: transcoder.beforeEncode,
   };
   let decoded;
 

@@ -19,27 +19,29 @@
     "lerna": "^8.1.9",
     "prettier": "^3.3.3",
     "rimraf": "^6.0.1",
+    "tsx": "^4.19.3",
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
-    "canvas": "2.11.1",
-    "typescript": "5.6.3"
+    "canvas": "3.1.0",
+    "typescript": "^5.8.2"
   },
   "resolutions": {
     "@cornerstonejs/codec-openjph": ">=2.4.5",
-    "canvas": "^2.11.1"
+    "canvas": "3.1.0"
   },
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "docker:build": "docker build . -t braveheartsoftware/static-dicomweb:1.5.0",
-    "docker:run": "docker run --mount type=bind,source=/c/dicomweb,target=/dicomweb --mount type=bind,source=/c/dicom,target=/dicom -d -p 25080:5000 braveheartsoftware/static-dicomweb:1.5.0 dicomwebserver",
+    "docker:build": "docker build . -t braveheartsoftware/static-dicomweb:1.6.2",
+    "docker:run": "docker run --mount type=bind,source=/c/dicomweb,target=/dicomweb --mount type=bind,source=/c/dicom,target=/dicom -d -p 25080:5000 braveheartsoftware/static-dicomweb:1.6.2 dicomwebserver",
     "test": "lerna run test --parallel --stream",
     "test:ci": "yarn run test",
     "build": "lerna run build --stream",
     "build:esm": "lerna run build:esm --stream",
     "build:ci": "yarn run build",
+    "clean": "lerna run clean --stream",
     "link:exec": "lerna run link:exec --stream",
     "lint": "lerna run lint --parallel --stream",
     "lint:ci": "yarn run lint",

@@ -1,0 +1,65 @@
+{
+  "name": "@radicalimaging/cs3d",
+  "version": "1.6.1",
+  "description": "Cornerstone3D CLI Utilities",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "Cornerstone server side",
+    "DICOM"
+  ],
+  "author": "Rodolfo Ladeira <rodolfo2611@gmail.com>",
+  "contributors": [
+    "Rodolfo Costa <rodolfo.costa@radicalimaging.com>",
+    "Bill Wallace <wayfarer3130@gmail.com>"
+  ],
+  "engines": {
+    "node": ">=14.18.1",
+    "npm": ">=6.14.15",
+    "yarn": ">=1.22.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/radicalimaging/static-dicomweb",
+    "directory": "packages/static-cs-lite"
+  },
+  "bugs": {
+    "url": "https://github.com/radicalimaging/static-dicomweb/issues"
+  },
+  "homepage": "https://github.com/radicalimaging/static-dicomweb#readme",
+  "license": "ISC",
+  "main": "lib/index.ts",
+  "module": "dist/cs3d/index.js",
+  "exports": {
+    "node": "./dist/index.js"
+  },
+  "files": [
+    "src",
+    "dist",
+    "bin"
+  ],
+  "scripts": {
+    "test": "jest --config ./jest.config.js",
+    "build": "bun run build:esm",
+    "build:esm": "tsc --project ./tsconfig.json",
+    "build:esm:watch": "tsc --project ./tsconfig.json --watch",
+    "cs3d": "bun run build:esm && bun run dist/cs3d.js --",
+    "clean": "rimraf dist",
+    "link:exec": "npm install -g . && npm link",
+    "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
+    "pack:js": "npm pack --",
+    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
+    "publishJS": "yarn publish  --no-git-tag-version"
+  },
+  "dependencies": {
+    "@cornerstonejs/core": "3.7.14",
+    "canvas": "^3.1.0",
+    "dcmjs": "0.35.0",
+    "jsdom": "^26.0.0",
+    "jsdom-context-require": "^5.2.4"
+  },
+  "devDependencies": {
+    "@babel/plugin-proposal-class-properties": "^7.18.6"
+  }
+}

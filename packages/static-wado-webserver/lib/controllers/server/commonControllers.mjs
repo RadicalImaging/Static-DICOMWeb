@@ -1,6 +1,10 @@
 /* eslint-disable import/prefer-default-export */
 import formidable from "formidable";
 import * as storeServices from "../../services/storeServices.mjs";
+import dcmjs from "dcmjs";
+import { dicomToXml } from "@radicalimaging/static-wado-util";
+
+const { denaturalizeDataset } = dcmjs.data.DicomMetaDictionary;
 
 /**
  * Handles an incoming stow-rs POST data, either in application/dicom (single instance), or in
@@ -13,15 +17,17 @@ import * as storeServices from "../../services/storeServices.mjs";
  */
 export function defaultPostController(params) {
   return (req, res, next) => {
-    const files = [];
+    const storedInstances = [];
+    const studyUIDs = new Set();
+    const fileNames = [];
 
     const form = formidable({ multiples: true });
     form.on("file", (_formname, file) => {
       const { filepath, mimetype } = file;
-      console.warn("Initiating dicomweb convert for", filepath);
-      files.push({
+      storedInstances.push({
         filepath,
         mimetype,
+        result: storeServices.storeFileInstance(filepath, mimetype, params),
       });
     });
 
@@ -31,16 +37,76 @@ export function defaultPostController(params) {
         next(err);
         return;
       }
+      const listFiles = Object.values(files).reduce(
+        (prev, curr) => prev.concat(curr),
+        []
+      );
+
       try {
-        const sopInfo = await storeServices.storeFilesByStow(files, params);
-        console.log(
-          "Returning empty result - TODO, generate references",
-          sopInfo
+        // const sopInfo = await storeServices.storeFilesByStow(files, params)
+        let result;
+        for (const item of storedInstances) {
+          let itemResult;
+          try {
+            itemResult = await item.result;
+            if (itemResult.ReferencedSOPSequence?.[0].StudyInstanceUID) {
+              studyUIDs.add(
+                itemResult.ReferencedSOPSequence[0].StudyInstanceUID
+              );
+            } else {
+              console.warn("No study uid found", itemResult);
+            }
+          } catch (e) {
+            console.warn("Couldn't upload item", item);
+            itemResult = {
+              FailedSOPSequence: [
+                {
+                  FailedSOPInstance: {
+                    SOPClassUID: "unknown",
+                    SOPInstanceUID: "unknown",
+                    FailureReason: `error: ${e}`,
+                  },
+                },
+              ],
+            };
+          }
+          if (!result) {
+            result = {
+              ...itemResult,
+              ReferencedSOPSequence: [],
+              FailedSOPSequence: [],
+            };
+          }
+          if (itemResult.ReferencedSOPSequence?.length) {
+            result.ReferencedSOPSequence.push(
+              itemResult.ReferencedSOPSequence[0]
+            );
+          }
+          if (itemResult.FailedSOPSequence?.length) {
+            result.FailedSOPSequence.push(itemResult.FailedSOPSequence[0]);
+          }
+        }
+
+        if (result.FailedSOPSequence?.length === 0) {
+          delete result.FailedSOPSequence;
+        }
+        const dicomResult = denaturalizeDataset(result);
+
+        console.log("STOW result: ", JSON.stringify(result, null, 2));
+        await storeServices.storeFilesByStow(
+          { listFiles, files, studyUIDs, result },
+          params
         );
-        res.status(200).json({});
+
+        const xml = dicomToXml(dicomResult);
+
+        res
+          .status(200)
+          .setHeader("content-type", "application/dicom+xml")
+          .send(xml);
       } catch (e) {
         console.log(e);
-        res.status(500).text(`Unable to handle ${e}`);
+        res.status(500).json(`Unable to handle ${e}`);
       }
     });
   };

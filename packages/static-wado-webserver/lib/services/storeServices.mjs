@@ -1,12 +1,39 @@
 /* eslint-disable import/prefer-default-export */
 import fs from "fs";
 import path from "path";
-import { execSpawn, handleHomeRelative } from "@radicalimaging/static-wado-util";
+import childProcess from "node:child_process";
+import {
+  extractMultipart,
+  uint8ArrayToString,
+  execSpawn,
+  handleHomeRelative,
+} from "@radicalimaging/static-wado-util";
 
-const createCommandLine = (files, commandName, params) => {
+const createCommandLine = (args, commandName, params) => {
   let commandline = commandName;
-  commandline = commandline.replace(/<files>/, files.map((file) => file.filepath).join(" "));
-  commandline = commandline.replace(/<rootDir>/, path.resolve(handleHomeRelative(params.rootDir)));
+  const { listFiles = [], studyUIDs } = args;
+
+  commandline = commandline.replace(
+    /<files>/,
+    listFiles.map((file) => file.filepath).join(" ")
+  );
+  commandline = commandline.replace(
+    /<rootDir>/,
+    path.resolve(handleHomeRelative(params.rootDir))
+  );
+  if (studyUIDs?.size) {
+    commandline = commandline.replace(
+      /<studyUIDs>/,
+      Array.from(studyUIDs).join(" ")
+    );
+  } else {
+    console.warn(
+      "No study uid found, not running command",
+      commandName,
+      studyUIDs
+    );
+    return null;
+  }
   return commandline;
 };
 
@@ -16,18 +43,16 @@ const createCommandLine = (files, commandName, params) => {
  * @param {*} files files to be stored
  * @param {*} params
  */
-export const storeFilesByStow = (files, params = {}) => {
+export const storeFilesByStow = (stored, params = {}) => {
   const { stowCommands = [], notificationCommand, verbose = false } = params;
-
-  const listFiles = Object.values(files).reduce((prev, curr) => prev.concat(curr), []);
-  console.verbose(
-    "Storing files",
-    listFiles.map((item) => item.filepath)
-  );
+  const { listFiles, studyUIDs } = stored;
 
   const promises = [];
   for (const commandName of stowCommands) {
-    const command = createCommandLine(listFiles, commandName, params);
+    const command = createCommandLine(stored, commandName, params);
+    if (!command) {
+      continue;
+    }
     console.log("Store command", command);
     const commandPromise = execSpawn(command);
     promises.push(commandPromise);
@@ -40,9 +65,62 @@ export const storeFilesByStow = (files, params = {}) => {
     }
     listFiles.forEach((item) => {
       const { filepath } = item;
-      if (verbose) console.log("Unlinking", filepath);
+      console.verbose("Unlinking", filepath);
       fs.unlink(filepath, () => null);
     });
     return listFiles.map((it) => it.filepath);
   });
+};
+
+const executablePath = process.argv[1];
+const bunExecPath = path.join(
+  path.dirname(executablePath),
+  "..",
+  "..",
+  "static-wado-creator",
+  "bin",
+  "mkdicomweb.mjs"
+);
+
+/** Creates a separated child process */
+function spawnInstances(cmdLine) {
+  return new Promise((resolve, reject) => {
+    try {
+      console.log("Spawning instance", cmdLine);
+      const child = childProcess.spawn(cmdLine, {
+        shell: true,
+        stdio: ["inherit", "overlapped", "inherit"],
+      });
+      let inputData = [];
+      child.stdout.on("data", (data) => {
+        inputData.push(data);
+      });
+      child.on("close", (code) => {
+        const resultStr = inputData.join("");
+        const jsonResponse = extractMultipart("multipart/related", resultStr);
+        const jsonStr = uint8ArrayToString(jsonResponse.pixelData).trim();
+        const json = JSON.parse(jsonStr);
+        json.code = code;
+
+        resolve(json);
+      });
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+export const storeFileInstance = (item, params = {}) => {
+  console.log("storeFileInstance", item);
+  const cmd = [
+    "bun",
+    "run",
+    bunExecPath,
+    "instance",
+    "--quiet",
+    "--stow-response",
+    item,
+  ];
+  const cmdLine = cmd.join(" ");
+  return spawnInstances(cmdLine);
 };

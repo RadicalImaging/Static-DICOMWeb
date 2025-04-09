@@ -1,5 +1,5 @@
 const dicomCodec = require("@cornerstonejs/dicom-codec");
-// const staticCS = require("@radicalimaging/static-cs-lite");
+const staticCS = require("@radicalimaging/cs3d");
 const {
   Stats,
   handleHomeRelative,
@@ -36,17 +36,18 @@ const DeleteStudy = require("./DeleteStudy");
 const RejectInstance = require("./RejectInstance");
 const RawDicomWriter = require("./writer/RawDicomWriter");
 const { isVideo } = require("./writer/VideoWriter");
+const validateMetadata = require("./operation/validateMetadata.js");
 
 function setStudyData(studyData) {
   this.studyData = studyData;
 }
 
-function internalGenerateImage(
+function cs3dThumbnail(
   originalImageFrame,
   dataset,
   metadata,
   transferSyntaxUid,
-  doneCallback
+  doneCallback,
 ) {
   decodeImage(originalImageFrame, dataset, transferSyntaxUid)
     .then((decodeResult = {}) => {
@@ -57,14 +58,18 @@ function internalGenerateImage(
         const pixelData = dicomCodec.getPixelData(
           imageFrame,
           imageInfo,
-          transferSyntaxUid
+          transferSyntaxUid,
         );
-        // staticCS.getRenderedBuffer(transferSyntaxUid, pixelData, metadata, doneCallback);
-        console.warn("No thumbnail rendering");
+        return staticCS.getRenderedBuffer(
+          transferSyntaxUid,
+          pixelData,
+          metadata,
+          doneCallback,
+        );
       }
     })
     .catch((error) => {
-      console.log(`Error while generating thumbnail:: ${error}`);
+      console.log("Error while generating thumbnail", error);
     });
 }
 
@@ -75,7 +80,8 @@ class StaticWado {
       pathDeduplicated = "deduplicated",
       pathInstances = "instances",
       verbose,
-      showProgress = true,
+      quiet = false,
+      showProgress = !quiet,
     } = configuration;
 
     dicomCodec.setConfig({ verbose });
@@ -99,6 +105,7 @@ class StaticWado {
       videoWriter: VideoWriter(this.options),
       thumbWriter: ThumbnailWriter(this.options),
       completeStudy: CompleteStudyWriter(this.options),
+      validateMetadata: validateMetadata(this.options),
       metadata: InstanceDeduplicate(this.options),
       deduplicated: DeduplicateWriter(this.options),
       scanStudy: ScanStudy(this.options),
@@ -107,9 +114,9 @@ class StaticWado {
       setStudyData,
       rawDicomWriter: RawDicomWriter(this.options),
       notificationService: new NotificationService(
-        this.options.notificationDir
+        this.options.notificationDir,
       ),
-      internalGenerateImage,
+      internalGenerateImage: cs3dThumbnail,
     };
   }
 
@@ -145,13 +152,13 @@ class StaticWado {
     if (!this.showProgress) return;
     this.processedFiles++;
     const percentage = Math.round(
-      (this.processedFiles / this.totalFiles) * 100
+      (this.processedFiles / this.totalFiles) * 100,
     );
     const progressBar =
       "=".repeat(Math.floor(percentage / 4)) +
       "-".repeat(25 - Math.floor(percentage / 4));
     process.stdout.write(
-      `\r[${progressBar}] ${percentage}% | ${this.processedFiles}/${this.totalFiles} files`
+      `\r[${progressBar}] ${percentage}% | ${this.processedFiles}/${this.totalFiles} files`,
     );
   }
 
@@ -162,7 +169,7 @@ class StaticWado {
         if (fs.statSync(file).isDirectory()) {
           const dirFiles = fs.readdirSync(file, { recursive: true });
           this.totalFiles += dirFiles.filter(
-            (f) => !fs.statSync(path.join(file, f)).isDirectory()
+            (f) => !fs.statSync(path.join(file, f)).isDirectory(),
           ).length;
         } else {
           this.totalFiles++;
@@ -218,7 +225,7 @@ class StaticWado {
       console.log(
         "No study UID, can't import file",
         params.file,
-        dataSet.elements
+        dataSet.elements,
       );
       return undefined;
     }
@@ -231,13 +238,13 @@ class StaticWado {
         sopInstanceUid: dataSet.string("x00080018"),
         transferSyntaxUid: dataSet.string("x00020010"),
       },
-      params.file
+      params.file,
     );
 
     const targetId = transcodeId(
       id,
       this.options,
-      dataSet.uint16(Tags.RawSamplesPerPixel)
+      dataSet.uint16(Tags.RawSamplesPerPixel),
     );
 
     let bulkDataIndex = 0;
@@ -257,7 +264,7 @@ class StaticWado {
             {
               gzip: false,
               mkdir: true,
-            }
+            },
           );
           await writeStream.write(bulkData);
           await writeStream.close();
@@ -266,7 +273,7 @@ class StaticWado {
           targetId,
           _bulkDataIndex,
           bulkData,
-          options
+          options,
         );
       },
       imageFrame: async (originalImageFrame) => {
@@ -279,7 +286,7 @@ class StaticWado {
           targetId,
           originalImageFrame,
           dataSet,
-          this.options
+          this.options,
         );
 
         const lossyImage = await generateLossyImage(id, decoded, this.options);
@@ -291,7 +298,7 @@ class StaticWado {
           await this.callback.imageFrame(
             lossyImage.id,
             currentImageFrameIndex,
-            lossyImage.imageFrame
+            lossyImage.imageFrame,
           );
         }
 
@@ -303,13 +310,13 @@ class StaticWado {
             id,
             frameIndex: currentImageFrameIndex,
           },
-          this.options
+          this.options,
         );
 
         return this.callback.imageFrame(
           transcodedId,
           currentImageFrameIndex,
-          transcodedImageFrame
+          transcodedImageFrame,
         );
       },
       videoWriter: async (_dataSet) => this.callback.videoWriter(id, _dataSet),
@@ -317,6 +324,8 @@ class StaticWado {
 
     // convert to DICOMweb MetaData and BulkData
     const result = await getDataSet(dataSet, generator, this.options);
+
+    await this.callback.validateMetadata?.(id, result, buffer);
 
     await this.callback.rawDicomWriter?.(id, result, buffer);
 
@@ -326,14 +335,14 @@ class StaticWado {
       dataSet,
       transcodedMeta,
       this.callback,
-      this.options
+      this.options,
     );
     await thumbnailService.generateRendered(
       id,
       dataSet,
       transcodedMeta,
       this.callback,
-      this.options
+      this.options,
     );
     await this.callback.metadata(targetId, transcodedMeta);
 
@@ -350,14 +359,14 @@ class StaticWado {
     dataSet,
     metadata,
     transferSyntaxUid,
-    doneCallback
+    doneCallback,
   ) {
-    return internalGenerateImage(
+    return cs3dThumbnail(
       originalImageFrame,
       dataSet,
       metadata,
       transferSyntaxUid,
-      doneCallback
+      doneCallback,
     );
   }
 
@@ -394,7 +403,7 @@ class StaticWado {
       const study = await JSONReader(
         `${studiesDir}/${dir}`,
         "index.json.gz",
-        null
+        null,
       );
       if (study === null) {
         console.log("No study found in", dir);

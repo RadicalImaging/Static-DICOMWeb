@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-scp",
-  "version": "1.5.3",
+  "version": "1.6.1",
   "description": "DimseScp server to connect to static-wado repo",
   "publishConfig": {
     "access": "public"
@@ -24,13 +24,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/OHIF/static-wado",
+    "url": "https://github.com/radicalimaging/static-dicomweb",
     "directory": "packages/static-wado-scp"
   },
   "bugs": {
-    "url": "https://github.com/OHIF/static-wado/issues"
+    "url": "https://github.com/radicalimaging/static-dicomweb/issues"
   },
-  "homepage": "https://github.com/OHIF/static-wado#readme",
+  "homepage": "https://github.com/radicalimaging/static-dicomweb#readme",
   "license": "ISC",
   "main": "lib/index.js",
   "directories": {
@@ -46,8 +46,10 @@
   },
   "scripts": {
     "test": "jest --config ./jest.config.js",
-    "build": "echo \"No build yet\" && exit 0",
+    "build": "bun run build:esm",
+    "build:esm": "bun build lib/index.js --target node --outdir dist --",
     "link:exec": "npm link",
+    "dicomwebscp": "node bin/dicomwebscpDev.js --",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
     "publishJS": "yarn publish  --no-git-tag-version"

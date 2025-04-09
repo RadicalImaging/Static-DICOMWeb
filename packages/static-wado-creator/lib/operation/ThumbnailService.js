@@ -205,7 +205,7 @@ class ThumbnailService {
     const thumbFilePath = thumbFilesPath[thumbIndex];
 
     if (!fs.existsSync(thumbFilePath)) {
-      console.log("Thumbnail to copy does not exists");
+      console.verbose("Thumbnail to copy does not exists");
       return;
     }
 
@@ -219,7 +219,7 @@ class ThumbnailService {
         `${targetFolderPath}/${this.thumbFileName}`,
       );
     } catch (e) {
-      console.log("The file could not be copied", e);
+      console.verbose("The file could not be copied", e);
     }
   }
 }

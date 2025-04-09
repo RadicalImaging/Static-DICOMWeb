@@ -167,8 +167,9 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         defaultValue: false,
       },
       {
-        key: "--thumb",
-        description: "Generate thumbnails",
+        key: "--no-thumb",
+        description: "Skip generating thumbnails using CS3D internal render",
+        defaultValue: true,
       },
       {
         key: "--dcm2jpg",
@@ -212,6 +213,21 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         description:
           "expand bulkdata relative uri to use full relative path (should also be set when using --prepend-bulk-data-uri)",
         defaultValue: false,
+      },
+      {
+        key: "--quiet",
+        description: "Run quietly, minimizing extraneous output",
+        defaultValue: false,
+      },
+      {
+        key: "--stow-response",
+        description: "Add a stow response output",
+        defaultValue: false,
+      },
+      {
+        key: "--no-verify",
+        description: "Verify",
+        defaultValue: true,
       },
       {
         key: "-o, --dir <value>",

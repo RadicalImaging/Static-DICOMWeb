@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
-const { dicomWebScpConfig, configureProgram } = require("../lib");
+const {
+  dicomWebScpConfig,
+  configureProgram,
+} = require("@radicalimaging/static-wado-scp");
 
 // Configure program commander
 configureProgram(dicomWebScpConfig).then(() => {

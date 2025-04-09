@@ -52,7 +52,7 @@ const CompleteStudyWriter = (options) => {
     }
 
     const isDirtyMetadata = await studyData.dirtyMetadata();
-    if (!isDirtyMetadata) {
+    if (!isDirtyMetadata && !options.force) {
       console.log("Study metadata", studyData.studyInstanceUid, "is clean.");
       delete this.studyData;
       Stats.StudyStats.summarize(

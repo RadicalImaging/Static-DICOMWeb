@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-util",
-  "version": "1.5.3",
+  "version": "1.6.1",
   "description": "Utils for other packages.",
   "publishConfig": {
     "access": "public"
@@ -20,19 +20,21 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/OHIF/static-wado",
+    "url": "https://github.com/radicalimaging/static-dicomweb",
     "directory": "packages/static-wado-util"
   },
   "bugs": {
-    "url": "https://github.com/OHIF/static-wado/issues"
+    "url": "https://github.com/radicalimaging/static-dicomweb/issues"
   },
-  "homepage": "https://github.com/OHIF/static-wado#readme",
+  "homepage": "https://github.com/radicalimaging/static-dicomweb#readme",
   "license": "ISC",
   "format": "es",
-  "main": "lib/index.js",
+  "main": "lib/index.ts",
   "module": "dist/index.js",
   "files": [
-    "lib"
+    "lib",
+    "dist",
+    "bin"
   ],
   "dependencies": {
     "@cornerstonejs/codec-openjpeg": ">=1.2.3",
@@ -43,14 +45,12 @@
     "dcmjs": "0.35.0",
     "jpeg-lossless-decoder-js": ">=2.0.4",
     "json5": "^2.2.1",
-    "json5-writer": "^0.2.0",
-    "must": "^0.13.4",
-    "ndjson": "^2.0.0"
+    "must": "^0.13.4"
   },
   "scripts": {
     "test": "jest --config ./jest.config.js",
     "build": "bun run build:esm",
-    "build:esm": "bun build lib/index.js --format esm --outdir dist --target node",
+    "build:esm": "bun build lib/index.ts --format esm --outdir dist --target node",
     "clean": "rimraf dist",
     "link:exec": "npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",

@@ -9,7 +9,7 @@ const { dicomWebServerConfig } = ConfigPoint.register({
   dicomWebServerConfig: {
     configBase: staticWadoConfig,
     helpShort: "dicomwebserver",
-    stowCommands: ["mkdicomweb create <files> --dir <rootDir>"],
+    stowCommands: ["mkdicomweb metadata <studyUIDs> --dir <rootDir>"],
     helpDescription:
       "Serve up the static wado files and optionally a web client as a web server on the local machine.",
     clientDir: "~/ohif",
