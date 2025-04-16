@@ -8,7 +8,7 @@ function validateMetadata(options) {
   return function (id, result) {
     const getValue = Tags.getValue.bind(null, result.metadata);
     if (verify) {
-      console.verbose("Validating metadata", id, result);
+      console.verbose("Validating metadata", id);
       if (id.studyInstanceUid.length > 64) {
         throw new Error(`StudyInstanceUID too long: ${id.studyInstanceUid}`);
       }
@@ -36,7 +36,7 @@ function validateMetadata(options) {
         "\r\n--boundary-response\r\n" +
           "content-type: application/json\r\n\r\n" +
           responseMessage +
-          "\r\n--boundary-response--\r\n",
+          "\r\n--boundary-response--\r\n"
       );
     }
   };
