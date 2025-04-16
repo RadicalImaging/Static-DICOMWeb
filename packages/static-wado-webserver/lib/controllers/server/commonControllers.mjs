@@ -24,11 +24,15 @@ export function defaultPostController(params) {
     const form = formidable({ multiples: true });
     form.on("file", (_formname, file) => {
       const { filepath, mimetype } = file;
-      storedInstances.push({
-        filepath,
-        mimetype,
-        result: storeServices.storeFileInstance(filepath, mimetype, params),
-      });
+      try {
+        storedInstances.push({
+          filepath,
+          mimetype,
+          result: storeServices.storeFileInstance(filepath, mimetype, params),
+        });
+      } catch (e) {
+        console.warn("Unable to even try storing", filepath, e);
+      }
     });
 
     form.parse(req, async (err, fields, files) => {
@@ -71,6 +75,7 @@ export function defaultPostController(params) {
             };
           }
           if (!result) {
+            console.log("Creating new result");
             result = {
               ...itemResult,
               ReferencedSOPSequence: [],
@@ -78,15 +83,22 @@ export function defaultPostController(params) {
             };
           }
           if (itemResult.ReferencedSOPSequence?.length) {
+            console.log("Succeeded result");
             result.ReferencedSOPSequence.push(
               itemResult.ReferencedSOPSequence[0]
             );
           }
           if (itemResult.FailedSOPSequence?.length) {
+            console.log("Failed result");
             result.FailedSOPSequence.push(itemResult.FailedSOPSequence[0]);
           }
         }
 
+        if (!result) {
+          console.error("No results for upload");
+          res.status(500).send("No results found");
+          return;
+        }
         if (result.FailedSOPSequence?.length === 0) {
           delete result.FailedSOPSequence;
         }
