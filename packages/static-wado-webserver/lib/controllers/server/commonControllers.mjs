@@ -33,8 +33,13 @@ export function defaultPostController(params) {
 
     form.parse(req, async (err, fields, files) => {
       if (err) {
-        console.log("Couldn't parse because", err);
+        console.warn("Couldn't parse because", err);
         next(err);
+        return;
+      }
+      if (!storedInstances.length) {
+        console.warn("No files uploaded");
+        res.status(500).send("No files uploaded");
         return;
       }
       const listFiles = Object.values(files).reduce(
@@ -87,6 +92,11 @@ export function defaultPostController(params) {
           }
         }
 
+        if (!result) {
+          console.warn("No results found");
+          res.status(500).send("No result found");
+          return;
+        }
         if (result.FailedSOPSequence?.length === 0) {
           delete result.FailedSOPSequence;
         }
