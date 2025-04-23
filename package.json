@@ -3,8 +3,7 @@
   "private": true,
   "engines": {
     "node": ">=14.18.1",
-    "npm": ">=6.14.15",
-    "yarn": ">=1.22.4"
+    "npm": ">=6.14.15"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",
@@ -44,8 +43,8 @@
     ]
   },
   "scripts": {
-    "docker:build": "docker build . -t braveheartsoftware/static-dicomweb:1.6.3",
-    "docker:run": "docker run --mount type=bind,source=/c/dicomweb,target=/dicomweb --mount type=bind,source=/c/dicom,target=/dicom -d -p 25080:5000 braveheartsoftware/static-dicomweb:1.6.3 dicomwebserver",
+    "docker:build": "docker build . -t braveheartsoftware/static-dicomweb:1.6.4",
+    "docker:run": "docker run --mount type=bind,source=/c/dicomweb,target=/dicomweb --mount type=bind,source=/c/dicom,target=/dicom -d -p 25080:5000 braveheartsoftware/static-dicomweb:1.6.4 dicomwebserver",
     "test": "lerna run test --parallel --stream",
     "test:ci": "yarn run test",
     "build": "lerna run build --stream",

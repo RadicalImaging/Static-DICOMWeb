@@ -12,6 +12,38 @@ export const qidoMap = (req, res, next) => {
   next();
 };
 
+export const getDicomKey = (codeKey, lowerKey, query) => {
+  for (const [key, value] of Object.entries(query)) {
+    const keyToLower = key.toLowerCase();
+    if (keyToLower === codeKey || keyToLower === lowerKey) {
+      return value;
+    }
+  }
+};
+
+export const studySingleMap = (req, res, next) => {
+  console.warn("Study singleton", req.url);
+  const studyUID = getDicomKey("0020000d", "studyinstanceuid", req.query);
+  if (studyUID) {
+    req.url = `${req.path}/index.json.gz`;
+    res.setHeader("content-type", "application/json; charset=utf-8");
+    next();
+    return;
+  }
+  return qidoMap(req, res, next);
+};
+
+export const seriesSingleMap = (req, res, next) => {
+  const seriesUID = getDicomKey("0020000e", "seriesinstanceuid", req.query);
+  if (seriesUID) {
+    req.url = `${req.path}/${seriesUID}/series-singleton.json.gz`;
+    res.setHeader("content-type", "application/json; charset=utf-8");
+    next();
+    return;
+  }
+  return qidoMap(req, res, next);
+};
+
 /**
  * Handles returning other JSON files as application/json, and uses the compression extension.
  */
