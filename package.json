@@ -3,8 +3,7 @@
   "private": true,
   "engines": {
     "node": ">=14.18.1",
-    "npm": ">=6.14.15",
-    "yarn": ">=1.22.4"
+    "npm": ">=6.14.15"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",
@@ -33,9 +32,19 @@
   "workspaces": [
     "packages/*"
   ],
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "packages/**/*.{ts,js,jsx,tsx,json,md,css}": [
+      "eslint --fix"
+    ]
+  },
   "scripts": {
-    "docker:build": "docker build . -t braveheartsoftware/static-dicomweb:1.6.2",
-    "docker:run": "docker run --mount type=bind,source=/c/dicomweb,target=/dicomweb --mount type=bind,source=/c/dicom,target=/dicom -d -p 25080:5000 braveheartsoftware/static-dicomweb:1.6.2 dicomwebserver",
+    "docker:build": "docker build . -t braveheartsoftware/static-dicomweb:1.6.4",
+    "docker:run": "docker run --mount type=bind,source=/c/dicomweb,target=/dicomweb --mount type=bind,source=/c/dicom,target=/dicom -d -p 25080:5000 braveheartsoftware/static-dicomweb:1.6.4 dicomwebserver",
     "test": "lerna run test --parallel --stream",
     "test:ci": "yarn run test",
     "build": "lerna run build --stream",
@@ -51,16 +60,5 @@
     "publishJS": "lerna run publishJS --",
     "pack:js": "lerna run pack:js --",
     "reset:hooks": "git config core.hooksPath '.git' && echo 'git hooks was reset'"
-  },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
-  },
-  "lint-staged": {
-    "packages/**/*.{ts,js,jsx,tsx,json,md,css}": [
-      "eslint --fix"
-    ]
-  },
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+  }
 }
