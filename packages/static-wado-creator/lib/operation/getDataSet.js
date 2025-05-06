@@ -17,7 +17,7 @@ async function getDataSet(
   dataSet,
   callback,
   optionsOrig,
-  parentAttr = undefined
+  parentAttr = undefined,
 ) {
   const metadata = {};
   let options = optionsOrig;
@@ -45,7 +45,7 @@ async function getDataSet(
       attr,
       callback,
       options,
-      parentAttr
+      parentAttr,
     );
   }
   if (metadata[Tags.TransferSyntaxUID]) {
@@ -64,7 +64,7 @@ async function attributeToJS(
   attr,
   callback,
   options,
-  parentAttr
+  parentAttr,
 ) {
   const metadata = metadataSrc;
   const vr = getVR(attr);
@@ -75,7 +75,7 @@ async function attributeToJS(
     getDataSet,
     callback,
     options,
-    parentAttr
+    parentAttr,
   );
   const key = tag.substring(1).toUpperCase();
   if (value === undefined || value === null || value.length === 0) {

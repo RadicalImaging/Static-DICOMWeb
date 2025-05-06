@@ -87,7 +87,7 @@ async function configureCommands(config, configurationFile) {
  * @param {*} configuration Configuration object from command level
  * @returns Program object
  */
-async function configureProgram(configuration) {
+function configureProgram(configuration) {
   const {
     argumentsRequired = [],
     optionsRequired = [],
@@ -135,7 +135,7 @@ async function configureProgram(configuration) {
     currentProgram.addOption(option);
   });
 
-  await currentProgram.parseAsync();
+  currentProgram.parse();
 
   createVerboseLog(currentProgram.options.verbose, currentProgram.options);
 

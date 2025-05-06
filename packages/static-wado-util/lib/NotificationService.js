@@ -74,7 +74,12 @@ class NotificationService {
    */
   notify(message, id) {
     if (!this.dir) return "";
-    console.log("Notify", message);
+    console.log(
+      "\r\n--boundary-response\r\n" +
+        "content-type: application/json\r\n\r\n" +
+        JSON.stringify(message, null, 2) +
+        "\r\n--boundary-response--\r\n"
+    );
     const name = `${id}-${Math.floor(Math.random() * 1000000)}.notify`;
     JSONWriter(this.dir, name, message, { gzip: false });
     return name;
@@ -89,7 +94,7 @@ class NotificationService {
         StudyInstanceUID: studyUID,
         action: options.action || "update",
       },
-      studyUID,
+      studyUID
     );
   }
 }

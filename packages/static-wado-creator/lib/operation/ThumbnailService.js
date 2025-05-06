@@ -82,7 +82,7 @@ class ThumbnailService {
 
   ffmpeg(input, output) {
     execSpawn(
-      `ffmpeg -i "${input}" -y -f image2 -frames:v 1 -update true "${output}"`
+      `ffmpeg -i "${input}" -y -f image2 -frames:v 1 -update true "${output}"`,
     );
   }
 
@@ -127,7 +127,7 @@ class ThumbnailService {
           });
           const mp4Path = path.join(
             itemId.sopInstanceRootPath,
-            "rendered/index.mp4"
+            "rendered/index.mp4",
           );
           const thumbPath = path.join(itemId.sopInstanceRootPath, "thumbnail");
           console.log("MP4 - converting video format", mp4Path);
@@ -148,7 +148,7 @@ class ThumbnailService {
       return this.dcm2jpg(
         id.filename,
         id.imageFrameRootPath.replace(/frames/, "thumbnail"),
-        {}
+        {},
       );
     }
 
@@ -163,7 +163,7 @@ class ThumbnailService {
             await callback.thumbWriter(
               id.sopInstanceRootPath,
               this.thumbFileName,
-              thumbBuffer
+              thumbBuffer,
             );
 
             this.copySyncThumbnail(id.sopInstanceRootPath, id.seriesRootPath);
@@ -171,14 +171,14 @@ class ThumbnailService {
             Stats.StudyStats.add(
               "Thumbnail Write",
               `Write thumbnail ${this.thumbFileName}`,
-              100
+              100,
             );
           }
           return this.thumbFileName;
         } catch (e) {
           console.log("Couldn't generate thumbnail", this.thumbFileName, e);
         }
-      }
+      },
     );
   }
 
@@ -194,7 +194,7 @@ class ThumbnailService {
   async copySyncThumbnail(sourceFolderPath, targetFolderPath) {
     const parentPathLevel = path.join(sourceFolderPath, "../");
     const thumbFilesPath = glob.sync(
-      `${parentPathLevel}*/${this.thumbFileName}`
+      `${parentPathLevel}*/${this.thumbFileName}`,
     );
 
     const thumbIndex = getThumbIndex(thumbFilesPath.length);
@@ -212,7 +212,7 @@ class ThumbnailService {
 
       fs.copyFileSync(
         thumbFilePath,
-        `${targetFolderPath}/${this.thumbFileName}`
+        `${targetFolderPath}/${this.thumbFileName}`,
       );
     } catch (e) {
       console.verbose("The file could not be copied", e);

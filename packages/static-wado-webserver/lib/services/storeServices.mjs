@@ -8,6 +8,7 @@ import {
   execSpawn,
   handleHomeRelative,
 } from "@radicalimaging/static-wado-util";
+import { mkdicomwebSpawn } from "./util/serverSpawn.mjs";
 
 const createCommandLine = (args, commandName, params) => {
   let commandline = commandName;
@@ -53,9 +54,19 @@ export const storeFilesByStow = (stored, params = {}) => {
     if (!command) {
       continue;
     }
-    console.log("Store command", command);
-    const commandPromise = execSpawn(command);
-    promises.push(commandPromise);
+    if (command.startsWith("mkdicomweb ")) {
+      const cmd = [command.substring(11)];
+      console.verbose("Running mkdicomweb command inline:", cmd);
+      const result = mkdicomwebSpawn(cmd);
+      result.then((message) => {
+        console.noQuiet(message);
+      });
+      promises.push(result);
+    } else {
+      console.noQuiet("Store command", command);
+      const commandPromise = execSpawn(command);
+      promises.push(commandPromise);
+    }
   }
 
   return Promise.allSettled(promises).then(() => {
@@ -72,55 +83,8 @@ export const storeFilesByStow = (stored, params = {}) => {
   });
 };
 
-const executablePath = process.argv[1];
-const bunExecPath = path.join(
-  path.dirname(executablePath),
-  "..",
-  "..",
-  "static-wado-creator",
-  "bin",
-  "mkdicomweb.mjs"
-);
-
-/** Creates a separated child process */
-function spawnInstances(cmdLine) {
-  return new Promise((resolve, reject) => {
-    try {
-      console.log("Spawning instance", cmdLine);
-      const child = childProcess.spawn(cmdLine, {
-        shell: true,
-        stdio: ["inherit", "overlapped", "inherit"],
-      });
-      let inputData = [];
-      child.stdout.on("data", (data) => {
-        inputData.push(data);
-      });
-      child.on("close", (code) => {
-        const resultStr = inputData.join("");
-        const jsonResponse = extractMultipart("multipart/related", resultStr);
-        const jsonStr = uint8ArrayToString(jsonResponse.pixelData).trim();
-        const json = JSON.parse(jsonStr);
-        json.code = code;
-
-        resolve(json);
-      });
-    } catch (e) {
-      reject(e);
-    }
-  });
-}
-
 export const storeFileInstance = (item, params = {}) => {
-  console.log("storeFileInstance", item);
-  const cmd = [
-    "bun",
-    "run",
-    bunExecPath,
-    "instance",
-    "--quiet",
-    "--stow-response",
-    item,
-  ];
-  const cmdLine = cmd.join(" ");
-  return spawnInstances(cmdLine);
+  console.noQuiet("storeFileInstance", item);
+  const cmd = ["instance", "--quiet", "--stow-response", item];
+  return mkdicomwebSpawn(cmd);
 };

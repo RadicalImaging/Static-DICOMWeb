@@ -34,6 +34,6 @@ module.exports = function adaptProgramOpts(programOpts, defaults) {
       encapsulatedImage: encapsulatedImage ?? singlePartImage !== true,
       singlePartImage: singlePartImage ?? encapsulatedImage === false,
       delete: deleteInstances,
-    }
+    },
   );
 };
