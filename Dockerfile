@@ -3,7 +3,7 @@ FROM node:20.18.1-slim as builder
 RUN apt-get update && apt-get install -y build-essential python3
 ENV PATH /app/node_modules/.bin:$PATH
 RUN npm install -g lerna@5.3.0
-RUN npm install -g bun
+RUN npm install -g bun@^1.2.11
 
 WORKDIR /app
 COPY --parents bun.lock package.json packages/*/package.json .
@@ -15,7 +15,7 @@ RUN bun run pack:js
 FROM node:20.18.1-slim as dicomwebserver
 RUN apt-get update && apt-get install -y build-essential python3
 ENV PATH /app/node_modules/.bin:$PATH
-RUN npm install -g bun
+RUN npm install -g bun@^1.2.12
 
 WORKDIR /app
 RUN npm install -g commander@10.0.1

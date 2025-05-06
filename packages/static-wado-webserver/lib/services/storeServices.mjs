@@ -56,7 +56,7 @@ export const storeFilesByStow = (stored, params = {}) => {
     }
     if (command.startsWith("mkdicomweb ")) {
       const cmd = [command.substring(11)];
-      console.verbose("Running mkdicomweb command inline:", cmd);
+      console.noQuiet("Running mkdicomweb command inline:", cmd);
       const result = mkdicomwebSpawn(cmd);
       result.then((message) => {
         console.noQuiet(message);

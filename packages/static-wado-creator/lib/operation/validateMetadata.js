@@ -1,7 +1,6 @@
 const { Tags } = require("@radicalimaging/static-wado-util");
 
 function validateMetadata(options) {
-  console.verbose("validateMetadata options", options);
   const serviceUrl = "";
   const { verify, stowResponse } = options;
 
@@ -36,7 +35,7 @@ function validateMetadata(options) {
         "\r\n--boundary-response\r\n" +
           "content-type: application/json\r\n\r\n" +
           responseMessage +
-          "\r\n--boundary-response--\r\n",
+          "\r\n--boundary-response--\r\n"
       );
     }
   };
