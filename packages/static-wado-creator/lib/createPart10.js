@@ -18,7 +18,7 @@ const createFmi = (instance) => {
     UncompressedLEIExplicit;
   const MediaStorageSOPClassUID = Tags.getValue(
     instance,
-    Tags.MediaStorageSOPClassUID,
+    Tags.MediaStorageSOPClassUID
   );
   const SOPInstanceUID = Tags.getValue(instance, Tags.SOPInstanceUID);
   const naturalFmi = {
@@ -107,7 +107,7 @@ module.exports = async function createMain(options, program) {
     const instance = await study.recombine(sop);
     const fmi = createFmi(instance);
 
-    console.log("Processing sop", sop);
+    console.noQuiet("Processing sop", sop);
     const dicomDict = new DicomDict(fmi);
     await readBinaryData(dir, instance);
     dicomDict.dict = instance;

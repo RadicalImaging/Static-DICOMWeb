@@ -9,10 +9,9 @@ const staticWadoUtil = require("@radicalimaging/static-wado-util");
 async function configureProgram(defaults) {
   const configurationFile = await staticWadoUtil.loadConfiguration(
     defaults,
-    process.argv,
+    process.argv
   );
-  console.log("Loaded configuration from", configurationFile);
-  staticWadoUtil.configureCommands(defaults);
+  return staticWadoUtil.configureCommands(defaults);
 }
 
 exports.configureProgram = configureProgram;
