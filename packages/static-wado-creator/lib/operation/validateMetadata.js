@@ -35,7 +35,7 @@ function validateMetadata(options) {
         "\r\n--boundary-response\r\n" +
           "content-type: application/json\r\n\r\n" +
           responseMessage +
-          "\r\n--boundary-response--\r\n"
+          "\r\n--boundary-response--\r\n",
       );
     }
   };

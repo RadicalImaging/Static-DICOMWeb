@@ -10,7 +10,7 @@ import {
 const queue = [];
 const runners = [];
 
-export function ensureRunners(count = 1) {
+export function ensureRunners(count = 4) {
   for (let i = 0; i < count; i++) {
     if (!queue.length) {
       console.verbose("Nothing in queue");
@@ -23,7 +23,7 @@ export function ensureRunners(count = 1) {
     if (runners[i].available) {
       runners[i].run();
     } else {
-      console.noQuiet("Runner", i, "not available");
+      console.verbose("Runner", i, "not available");
     }
   }
 }
@@ -107,6 +107,6 @@ export function mkdicomwebSpawn(cmdLine) {
   const promise = new Promise((resolve, reject) => {
     queue.push({ resolve, reject, cmdLine });
   });
-  ensureRunners(1);
+  ensureRunners(4);
   return promise;
 }

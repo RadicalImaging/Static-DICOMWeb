@@ -84,7 +84,7 @@ export const storeFilesByStow = (stored, params = {}) => {
 };
 
 export const storeFileInstance = (item, params = {}) => {
-  console.noQuiet("storeFileInstance", item);
+  console.verbose("storeFileInstance", item);
   const cmd = ["instance", "--quiet", "--stow-response", item];
   return mkdicomwebSpawn(cmd);
 };
