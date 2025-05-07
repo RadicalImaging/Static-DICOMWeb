@@ -79,7 +79,7 @@ export function createRunner() {
         runner.processing.resolve(json);
       } catch (e) {
         console.warn("Unable to process", resultStr);
-        runner.processing.reject(e);
+        runner.processing.resolve(resultStr);
       }
       runner.inputData = [];
       runner.processing = null;
