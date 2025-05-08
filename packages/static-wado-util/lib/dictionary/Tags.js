@@ -27,7 +27,7 @@ const findPrivate = (item, tagObject, create) => {
   if (create) {
     if (!assignPosition)
       throw new Error(
-        `Couldn't find any assign positions for ${creator} ${tag} in ${item}`
+        `Couldn't find any assign positions for ${creator} ${tag} in ${item}`,
       );
     const creatorTag = `${start}00${assignPosition.toString(16)}`;
     item[creatorTag] = { Value: [creator], vr: "CS" };

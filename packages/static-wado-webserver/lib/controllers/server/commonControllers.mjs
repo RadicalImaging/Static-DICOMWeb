@@ -102,7 +102,7 @@ export function defaultPostController(params) {
         }
         const dicomResult = denaturalizeDataset(result);
 
-        console.log("STOW result: ", JSON.stringify(result, null, 2));
+        console.noQuiet("STOW result: ", JSON.stringify(result, null, 2));
         await storeServices.storeFilesByStow(
           { listFiles, files, studyUIDs, result },
           params

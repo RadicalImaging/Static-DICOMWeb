@@ -13,15 +13,15 @@ class Stats {
     }
     this.stats[item] += 1;
     if (messageCount && this.stats[item] % messageCount == 0) {
-      console.log(item, this.stats[item], description);
+      console.noQuiet(item, this.stats[item], description);
     }
     if (this.parent) this.parent.add(item, description, 0);
   }
 
   summarize(msg = "") {
-    console.log(msg, this.description);
+    console.noQuiet(msg, this.description);
     Object.keys(this.stats).forEach((key) => {
-      console.log(key, this.stats[key]);
+      console.noQuiet(key, this.stats[key]);
     });
     this.reset();
   }

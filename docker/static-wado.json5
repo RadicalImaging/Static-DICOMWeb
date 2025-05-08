@@ -1,23 +1,23 @@
 {
   staticWadoConfig: {
-    rootDir: '/dicomweb',
+    rootDir: "/dicomweb",
+    notificationDir: "/dicomweb/notifications",
     deployments: [
       // Record the name here
       // Record the website URL here
       {
-        name: 'dicomweb-only',
-        rootDir: '/dicomweb',
-        region: 'us-east-1',
+        name: "dicomweb-only",
+        rootDir: "/dicomweb",
+        region: "us-east-1",
         rootGroup: {
           path: "/dicomweb",
-          Bucket: 'bucketName',
+          Bucket: "bucketName",
         },
       },
-      
     ],
     s3Env: {
-      account: '123456789012',
-      region: 'us-east-1',
+      account: "123456789012",
+      region: "us-east-1",
     },
   },
 }

@@ -11,8 +11,7 @@ async function configureProgram(defaults) {
     defaults,
     process.argv,
   );
-  console.log("Loaded configuration from", configurationFile);
-  staticWadoUtil.configureCommands(defaults);
+  return staticWadoUtil.configureCommands(defaults);
 }
 
 exports.configureProgram = configureProgram;

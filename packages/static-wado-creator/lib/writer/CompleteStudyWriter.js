@@ -26,7 +26,7 @@ const CompleteStudyWriter = (options) => {
     if (options.isGroup) {
       if (studyData.dirty) {
         await studyData.writeDeduplicatedGroup();
-        console.log(
+        console.noQuiet(
           "Wrote updated deduplicated data for study",
           studyData.studyInstanceUid,
         );
@@ -60,7 +60,7 @@ const CompleteStudyWriter = (options) => {
       );
       return;
     }
-    console.log("Writing study metadata", studyData.studyInstanceUid);
+    console.noQuiet("Writing study metadata", studyData.studyInstanceUid);
 
     const studyQuery = await studyData.writeMetadata();
 

@@ -175,7 +175,7 @@ class StaticWado {
           this.totalFiles++;
         }
       }
-      console.log(`\nProcessing ${this.totalFiles} DICOM files...\n`);
+      console.noQuiet(`\nProcessing ${this.totalFiles} DICOM files...\n`);
     }
 
     const result = await dirScanner(files, {
@@ -381,7 +381,7 @@ class StaticWado {
       // Scan one of the study directories - in this case, files is a set of study directories
       await this.processStudyDir(input, this.options);
     } else {
-      console.log("Scanning files", input);
+      console.noQuiet("Scanning files", input);
       await this.processFiles(input, this.options);
     }
     await this.close();

@@ -4,7 +4,7 @@ async function doDeploy(config, name, options, deployPlugin, storeFunction) {
   const deployer = new DeployGroup(config, name, options, deployPlugin);
   await deployer.loadOps();
   await storeFunction(config, name, options, deployer);
-  console.log("Stored", name);
+  console.noQuiet("Stored", name);
 }
 
 export default async function commonMain(config, name, options, storeFunction) {
@@ -12,11 +12,14 @@ export default async function commonMain(config, name, options, storeFunction) {
   const deployments = config.deployments;
   if (deployments) {
     deployments.forEach((deployment) => {
-      if (deployment[`${name}Group`] && (!options.deployments || options.deployments.includes(deployment.name))) {
+      if (
+        deployment[`${name}Group`] &&
+        (!options.deployments || options.deployments.includes(deployment.name))
+      ) {
         // TODO - wait for this in an overall promise
         doDeploy(deployment, name, options, deployPlugin, storeFunction);
       } else {
-        console.log("skipping deployment", deployment.name);
+        console.noQuiet("skipping deployment", deployment.name);
       }
     });
   } else {

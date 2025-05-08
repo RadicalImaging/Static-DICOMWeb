@@ -1,7 +1,6 @@
 const { Tags } = require("@radicalimaging/static-wado-util");
 
 function validateMetadata(options) {
-  console.verbose("validateMetadata options", options);
   const serviceUrl = "";
   const { verify, stowResponse } = options;
 
