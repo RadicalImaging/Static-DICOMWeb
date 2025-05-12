@@ -73,7 +73,7 @@ class StudyData {
     const info = studyDeduplicated[0];
     if (info) {
       const hash = getValue(info, Tags.DeduppedHash);
-      console.log("Reading studies/<studyUID>/deduplicated/index.json.gz");
+      console.verbose("Reading studies/<studyUID>/deduplicated/index.json.gz");
       this.readDeduplicatedData("index.json.gz", studyDeduplicated, hash);
     } else {
       console.log(
@@ -256,7 +256,7 @@ class StudyData {
     this.deduplicatedHashes[hashValue] = data;
     this.readHashes[hashValue] = filename;
     if (sopIndex !== undefined) {
-      console.log("Replacing SOP", sopValue, "at index", sopIndex);
+      console.noQuiet("Replacing SOP", sopValue, "at index", sopIndex);
       this.deduplicated[sopIndex] = data;
     } else {
       this.sopInstances[sopValue] = this.deduplicated.length;
@@ -323,7 +323,7 @@ class StudyData {
   async readDeduplicatedFile(dir, stat) {
     const { hash, name } = stat;
     try {
-      if (this.verbose) console.log("Reading deduplicated file", name);
+      console.verbose("Reading deduplicated file", name);
       const data = await JSONReader(dir, name);
       this.readDeduplicatedData(name, data, hash);
     } catch (e) {
@@ -434,7 +434,7 @@ class StudyData {
     }
 
     await JSONWriter(this.studyPath, "series", seriesList);
-    console.log("Wrote series with", seriesList.length);
+    console.noQuiet("Wrote series with", seriesList.length);
 
     const studyQuery = TagLists.extract(
       anInstance,
@@ -457,7 +457,7 @@ class StudyData {
     });
 
     const infoItem = this.createInfo();
-    console.log(
+    console.noQuiet(
       "Writing deduplicated study data with",
       Object.values(this.extractData).length,
       "extract items and",
@@ -498,13 +498,13 @@ class StudyData {
       this.deduplicatedInstancesPath,
     );
     const files = await this.listJsonFiles(deduplicatedDirectory);
-    console.log("Deleting", files.length, "files");
+    console.noQuiet("Deleting", files.length, "files");
     let deleteCount = 0;
     for (let i = 0; i < files.length; i++) {
       const stat = files[i];
       const { hash } = stat;
       if (this.readHashes[hash]) {
-        console.log("Deleting", deduplicatedDirectory, stat.name);
+        console.noQuiet("Deleting", deduplicatedDirectory, stat.name);
         try {
           fs.unlinkSync(path.join(deduplicatedDirectory, stat.name));
           deleteCount += 1;
@@ -514,7 +514,7 @@ class StudyData {
       }
     }
     if (deleteCount === files.length) {
-      console.log("Deleting instances directory", deduplicatedDirectory);
+      console.noQuiet("Deleting instances directory", deduplicatedDirectory);
       fs.rmdirSync(deduplicatedDirectory);
     }
   }
@@ -523,7 +523,7 @@ class StudyData {
   async writeDeduplicatedGroup() {
     const data = this.createInfo();
     const hashValue = getValue(data, Tags.DeduppedHash);
-    console.log(
+    console.noQuiet(
       "Writing deduplicated hash data set data with",
       Object.values(this.extractData).length,
       "extract items and",
@@ -550,7 +550,7 @@ class StudyData {
       gzip: true,
       index: false,
     });
-    console.log("Wrote naturalized dataset");
+    console.noQuiet("Wrote naturalized dataset");
   }
 
   getSopUids() {

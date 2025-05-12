@@ -41,16 +41,23 @@ const addOptions = (cmd, options) => {
   }
 };
 
-function createVerboseLog(verbose /* , options */) {
+function createVerboseLog(verbose, options) {
+  const quiet = options?.quiet;
   console.verbose = (...args) => {
     if (!verbose) return;
     console.log(...args);
   };
+
+  console.quiet = options?.quiet ?? true;
+  console.noQuiet = (...args) => {
+    if (quiet) return;
+    console.log(...args);
+  };
 }
 
-function configureCommands(config, configurationFile) {
+async function configureCommands(config, configurationFile) {
   const { programs: programsDefinition, options } = config;
-  createVerboseLog(false);
+  createVerboseLog(false, options);
 
   for (const item of programsDefinition) {
     const {
@@ -64,13 +71,13 @@ function configureCommands(config, configurationFile) {
       .command(command, { isDefault })
       .description(helpDescription);
     cmdConfig.action((...args) => {
-      createVerboseLog(args[args.length - 2].verbose);
-      main.call(config, ...args, configurationFile);
+      createVerboseLog(args[args.length - 2].verbose, args[args.length - 2]);
+      return main.call(config, ...args, configurationFile);
     });
     addOptions(cmdConfig, options);
     addOptions(cmdConfig, subOptions);
   }
-  program.parse();
+  return program.parseAsync();
 }
 
 /**
@@ -130,7 +137,7 @@ function configureProgram(configuration) {
 
   currentProgram.parse();
 
-  createVerboseLog(currentProgram.options.verbose);
+  createVerboseLog(currentProgram.options.verbose, currentProgram.options);
 
   return currentProgram;
 }

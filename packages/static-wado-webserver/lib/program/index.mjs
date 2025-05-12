@@ -1,11 +1,11 @@
-import * as staticWadoUtil from "@radicalimaging/static-wado-util"
-import dicomWebServerConfig from "../dicomWebServerConfig.mjs"
-import DicomWebServer from "../index.mjs"
+import * as staticWadoUtil from "@radicalimaging/static-wado-util";
+import dicomWebServerConfig from "../dicomWebServerConfig.mjs";
+import DicomWebServer from "../index.mjs";
 
 function main() {
   return DicomWebServer(this.dicomWebServerConfig).then((value) =>
     value.listen()
-  )
+  );
 }
 
 /**
@@ -15,16 +15,16 @@ function main() {
  * @returns Program object
  */
 async function configureProgram(defaults = dicomWebServerConfig) {
-  await staticWadoUtil.loadConfiguration(defaults, process.argv)
+  await staticWadoUtil.loadConfiguration(defaults, process.argv);
 
   const {
     argumentsRequired = [],
     optionsRequired = [],
     helpShort,
     helpDescription,
-  } = defaults
+  } = defaults;
 
-  const argumentsList = []
+  const argumentsList = [];
 
   // program command options
   const optionsList = [
@@ -43,7 +43,7 @@ async function configureProgram(defaults = dicomWebServerConfig) {
       description: "Choose the port to run on",
       defaultValue: defaults.port,
     },
-  ]
+  ];
 
   const configuration = {
     argumentsList,
@@ -53,17 +53,17 @@ async function configureProgram(defaults = dicomWebServerConfig) {
     optionsList,
     optionsRequired,
     configurationFile: defaults.configurationFile,
-  }
+  };
 
-  const program = staticWadoUtil.configureProgram(configuration)
-  const opts = program.opts()
-  program.dicomWebServerConfig = Object.assign(Object.create(defaults), opts)
-  program.dicomWebServerConfig.rootDir = opts.dir
-  program.dicomWebServerConfig.port = opts.port || 5000
+  const program = staticWadoUtil.configureProgram(configuration);
+  const opts = program.opts();
+  program.dicomWebServerConfig = Object.assign(Object.create(defaults), opts);
+  program.dicomWebServerConfig.rootDir = opts.dir;
+  program.dicomWebServerConfig.port = opts.port || 5000;
 
-  program.main = main
+  program.main = main;
 
-  return program
+  return program;
 }
 
-export default configureProgram
+export default configureProgram;

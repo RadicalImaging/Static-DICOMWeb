@@ -4,6 +4,7 @@ const createMain = require("./createMain");
 const createPart10 = require("./createPart10");
 const deleteMain = require("./deleteMain");
 const rejectMain = require("./rejectMain");
+const serverMain = require("./serverMain");
 const instanceMain = require("./instanceMain");
 const indexMain = require("./indexMain");
 const groupMain = require("./groupMain");
@@ -75,7 +76,6 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       {
         key: "--show-progress",
         description: "Show progress during DICOM file processing",
-        defaultValue: true,
       },
       {
         key: "-t, --content-type <type>",
@@ -249,6 +249,12 @@ const { mkdicomwebConfig } = ConfigPoint.register({
           "Make DICOMweb query and metadata from binary Part 10 DICOM files.  Does a full read\n" +
           "of deduplicated files each time a study instance UID is found, and only updates\n" +
           "those studies having at least one ",
+      },
+      {
+        command: "server",
+        main: serverMain,
+        helpDescription:
+          "Run server deploy instances single threaded/separated exec process",
       },
       {
         command: "part10",

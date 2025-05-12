@@ -1,4 +1,5 @@
 import express from "express";
+import http from "http";
 import dicomWebServerConfig from "./dicomWebServerConfig.mjs";
 import "@radicalimaging/static-wado-plugins";
 import "regenerator-runtime";
@@ -25,17 +26,22 @@ const DicomWebServer = async (params) => {
 
   setMiddlewares(app, params);
   app.params = params || {};
+  const { port = 5000 } = app.params;
 
   await setRoutes(app, params);
 
-  const superListen = app.listen;
-  app.listen = (port) => {
-    if (port) superListen.call(app, port);
-    else {
-      console.log(`Server listening on ${params.port || 5000}`);
-      superListen.call(app, app.params.port || 5000);
+  const server = http.createServer(app);
+
+  server.listen(
+    {
+      port,
+      host: "::", // IPv6 wildcard
+      ipv6Only: false, // Allow IPv4 mapped addresses
+    },
+    () => {
+      console.log(`Listening on port ${port} for both IPv4 and IPv6`);
     }
-  };
+  );
 
   return app;
 };

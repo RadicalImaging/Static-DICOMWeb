@@ -1,9 +1,10 @@
 # syntax=docker/dockerfile:1.7-labs
 FROM node:20.18.1-slim as builder
 RUN apt-get update && apt-get install -y build-essential python3
+RUN apt-get install -y pkg-config libpixman-1-dev libcairo2-dev libpango1.0-dev
 ENV PATH /app/node_modules/.bin:$PATH
 RUN npm install -g lerna@5.3.0
-RUN npm install -g bun
+RUN npm install -g bun@^1.2.11
 
 WORKDIR /app
 COPY --parents bun.lock package.json packages/*/package.json .
@@ -14,8 +15,9 @@ RUN bun run pack:js
 
 FROM node:20.18.1-slim as dicomwebserver
 RUN apt-get update && apt-get install -y build-essential python3
+RUN apt-get install -y pkg-config libpixman-1-dev libcairo2-dev libpango1.0-dev
 ENV PATH /app/node_modules/.bin:$PATH
-RUN npm install -g bun
+RUN npm install -g bun@^1.2.12
 
 WORKDIR /app
 RUN npm install -g commander@10.0.1
