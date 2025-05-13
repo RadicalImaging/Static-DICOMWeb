@@ -50,11 +50,10 @@ const createCommandLine = (args, commandName, params) => {
  * @param {*} files files to be stored
  * @param {*} params
  */
-export const storeFilesByStow = (stored, params = {}) => {
+export const storeFilesByStow = async (stored, params = {}) => {
   const { stowCommands = [], notificationCommand, verbose = false } = params;
   const { listFiles, studyUIDs } = stored;
 
-  const promises = [];
   for (const commandName of stowCommands) {
     const command = createCommandLine(stored, commandName, params);
     if (!command) {
@@ -63,33 +62,15 @@ export const storeFilesByStow = (stored, params = {}) => {
     if (command.startsWith("mkdicomweb ")) {
       const cmd = [command.substring(11)];
       console.noQuiet("Running mkdicomweb command inline:", cmd);
-      const result = mkdicomwebSpawn(cmd);
-      result.then((message) => {
-        console.noQuiet(message);
-      });
-      promises.push(result);
+      const result = await mkdicomwebSpawn(cmd);
     } else {
       console.noQuiet("Store command", command);
-      const commandPromise = execSpawn(command);
-      promises.push(commandPromise);
+      await execSpawn(command);
     }
   }
-
-  return Promise.allSettled(promises).then(() => {
-    if (notificationCommand) {
-      console.warn("Executing notificationCommand", notificationCommand);
-      execSpawn(notificationCommand);
-    }
-    listFiles.forEach((item) => {
-      const { filepath } = item;
-      console.verbose("Unlinking", filepath);
-      fs.unlink(filepath, () => null);
-    });
-    return listFiles.map((it) => it.filepath);
-  });
 };
 
-export const storeFileInstance = (item, params = {}) => {
+export const storeFileInstance = async (item, params = {}) => {
   console.verbose("storeFileInstance", item);
   const {
     instanceCommands = [
@@ -108,5 +89,10 @@ export const storeFileInstance = (item, params = {}) => {
     params
   );
   console.verbose("Instance cmd", cmd);
-  return mkdicomwebSpawn(cmd);
+  try {
+    return await mkdicomwebSpawn(cmd);
+  } catch (e) {
+    console.warn("Unable to store file instance", e);
+    return null;
+  }
 };

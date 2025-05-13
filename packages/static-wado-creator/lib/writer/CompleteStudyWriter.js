@@ -35,7 +35,6 @@ const CompleteStudyWriter = (options) => {
           "(2) Not writing new deduplicated data because it is clean:",
           studyData.studyInstanceUid
         );
-        console.log("options.multipart=", options.multipart);
         if (options.multipart) {
           const message = {
             text: "Metadata clean, not updating",
@@ -54,10 +53,6 @@ const CompleteStudyWriter = (options) => {
     }
 
     if (!options.isStudyData) {
-      console.verbose(
-        "Not configured to write study metadata",
-        studyData.studyInstanceUid
-      );
       if (options.notifications)
         this.notificationService.notifyStudy(studyData.studyInstanceUid);
       delete this.studyData;
@@ -99,6 +94,19 @@ const CompleteStudyWriter = (options) => {
     await JSONWriter(options.directoryName, "studies", allStudies);
     if (options.notifications)
       this.notificationService.notifyStudy(studyData.studyInstanceUid);
+    if (options.multipart) {
+      const message = {
+        action: "metadata",
+        status: 0,
+        studyInstanceUid: studyData.studyInstanceUid,
+      };
+      console.log(
+        "\r\n--boundary-response\r\n" +
+          "content-type: application/json\r\n\r\n" +
+          JSON.stringify(message, null, 2) +
+          "\r\n--boundary-response--\r\n"
+      );
+    }
     delete this.studyData;
     Stats.StudyStats.summarize(
       `Wrote study metadata/query files for ${studyData.studyInstanceUid}`

@@ -10,7 +10,7 @@ import {
 const queue = [];
 const runners = [];
 
-export function ensureRunners(count = 4) {
+export function ensureRunners(count = Math.max(4, runners.length)) {
   for (let i = 0; i < count; i++) {
     if (!queue.length) {
       console.verbose("Nothing in queue");
@@ -85,13 +85,13 @@ export function createRunner() {
         runner.processing.resolve(json);
       } catch (e) {
         console.warn("Unable to process", resultStr);
-        runner.processing.resolve(resultStr);
+        runner.processing.reject(resultStr);
       }
       runner.inputData = [];
       runner.processing = null;
       runner.available = true;
       console.verbose("Runner done");
-      if (queue.length) {
+      if (queue.length && !runner.terminated) {
         runner.run();
       }
     }
@@ -100,9 +100,15 @@ export function createRunner() {
     runner.terminated = true;
     console.noQuiet("Runner terminated");
     if (runner.processing) {
-      runner.processing.reject(
-        new Error("Unknown failure " + JSON.stringify(inputData))
+      console.warn(
+        "Runner terminated processing",
+        runner.processing.cmdLine,
+        runner.inputData.join("\n")
       );
+      runner.processing.reject(
+        new Error("Unknown failure " + runner.inputData.join(""))
+      );
+      ensureRunners();
     }
   });
 

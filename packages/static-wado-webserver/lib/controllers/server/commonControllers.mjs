@@ -16,7 +16,7 @@ const { denaturalizeDataset } = dcmjs.data.DicomMetaDictionary;
  * @returns function controller
  */
 export function defaultPostController(params) {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const storedInstances = [];
     const studyUIDs = new Set();
     const fileNames = [];
@@ -25,6 +25,7 @@ export function defaultPostController(params) {
     form.on("file", (_formname, file) => {
       try {
         const { filepath, mimetype } = file;
+        console.noQuiet("Received upload file", filepath, mimetype);
         storedInstances.push({
           filepath,
           mimetype,
@@ -35,12 +36,9 @@ export function defaultPostController(params) {
       }
     });
 
-    form.parse(req, async (err, fields, files) => {
-      if (err) {
-        console.warn("Couldn't parse because", err);
-        next(err);
-        return;
-      }
+    try {
+      const [fields, files] = await form.parse(req);
+
       if (!storedInstances.length) {
         console.warn("No files uploaded");
         res.status(500).send("No files uploaded");
@@ -51,77 +49,76 @@ export function defaultPostController(params) {
         []
       );
 
-      try {
-        // const sopInfo = await storeServices.storeFilesByStow(files, params)
-        let result;
-        for (const item of storedInstances) {
-          let itemResult;
-          try {
-            itemResult = await item.result;
-            if (itemResult.ReferencedSOPSequence?.[0].StudyInstanceUID) {
-              studyUIDs.add(
-                itemResult.ReferencedSOPSequence[0].StudyInstanceUID
-              );
-            } else {
-              console.warn("No study uid found", itemResult);
-            }
-          } catch (e) {
-            console.warn("Couldn't upload item", item);
-            itemResult = {
-              FailedSOPSequence: [
-                {
-                  FailedSOPInstance: {
-                    SOPClassUID: "unknown",
-                    SOPInstanceUID: "unknown",
-                    FailureReason: `error: ${e}`,
-                  },
+      // const sopInfo = await storeServices.storeFilesByStow(files, params)
+      let result;
+      for (const item of storedInstances) {
+        let itemResult;
+        try {
+          itemResult = await item.result;
+          if (itemResult.ReferencedSOPSequence?.[0].StudyInstanceUID) {
+            studyUIDs.add(itemResult.ReferencedSOPSequence[0].StudyInstanceUID);
+          } else {
+            console.warn("No study uid found", itemResult);
+          }
+        } catch (e) {
+          console.warn("Couldn't upload item", item);
+          itemResult = {
+            FailedSOPSequence: [
+              {
+                FailedSOPInstance: {
+                  SOPClassUID: "unknown",
+                  SOPInstanceUID: "unknown",
+                  FailureReason: `error: ${e}`,
                 },
-              ],
-            };
-          }
-          if (!result) {
-            result = {
-              ...itemResult,
-              ReferencedSOPSequence: [],
-              FailedSOPSequence: [],
-            };
-          }
-          if (itemResult.ReferencedSOPSequence?.length) {
-            result.ReferencedSOPSequence.push(
-              itemResult.ReferencedSOPSequence[0]
-            );
-          }
-          if (itemResult.FailedSOPSequence?.length) {
-            result.FailedSOPSequence.push(itemResult.FailedSOPSequence[0]);
-          }
+              },
+            ],
+          };
         }
 
         if (!result) {
-          console.warn("No results found");
-          res.status(500).send("No result found");
-          return;
+          result = {
+            ...itemResult,
+            ReferencedSOPSequence: [],
+            FailedSOPSequence: [],
+          };
         }
-        if (result.FailedSOPSequence?.length === 0) {
-          delete result.FailedSOPSequence;
+        if (itemResult.ReferencedSOPSequence?.length) {
+          result.ReferencedSOPSequence.push(
+            itemResult.ReferencedSOPSequence[0]
+          );
         }
-        const dicomResult = denaturalizeDataset(result);
-
-        console.noQuiet("STOW result: ", JSON.stringify(result, null, 2));
-        await storeServices.storeFilesByStow(
-          { listFiles, files, studyUIDs, result },
-          params
-        );
-
-        const xml = dicomToXml(dicomResult);
-
-        res
-          .status(200)
-          .setHeader("content-type", "application/dicom+xml")
-          .send(xml);
-      } catch (e) {
-        console.log(e);
-        res.status(500).json(`Unable to handle ${e}`);
+        if (itemResult.FailedSOPSequence?.length) {
+          result.FailedSOPSequence.push(itemResult.FailedSOPSequence[0]);
+        }
       }
-    });
+
+      if (!result) {
+        console.warn("No results found");
+        res.status(500).send("No result found");
+        return;
+      }
+      if (result.FailedSOPSequence?.length === 0) {
+        delete result.FailedSOPSequence;
+      }
+      const dicomResult = denaturalizeDataset(result);
+
+      console.warn("STOW result: ", JSON.stringify(result, null, 2));
+      await storeServices.storeFilesByStow(
+        { listFiles, files, studyUIDs, result },
+        params
+      );
+
+      const xml = dicomToXml(dicomResult);
+
+      res
+        .status(200)
+        .setHeader("content-type", "application/dicom+xml")
+        .send(xml);
+    } catch (e) {
+      console.log("Couldn't upload all files because:", e);
+      res.status(500).json(`Unable to handle ${e}`);
+    } finally {
+      console.warn("Done form processing");
+    }
   };
 }
