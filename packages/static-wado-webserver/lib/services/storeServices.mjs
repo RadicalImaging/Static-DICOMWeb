@@ -11,29 +11,35 @@ import {
 import { mkdicomwebSpawn } from "./util/serverSpawn.mjs";
 
 const createCommandLine = (args, commandName, params) => {
-  let commandline = commandName;
+  let commandline = Array.isArray(commandName)
+    ? commandName.join(" ")
+    : commandName;
   const { listFiles = [], studyUIDs } = args;
 
   commandline = commandline.replace(
     /<files>/,
     listFiles.map((file) => file.filepath).join(" ")
   );
-  commandline = commandline.replace(
-    /<rootDir>/,
-    path.resolve(handleHomeRelative(params.rootDir))
-  );
-  if (studyUIDs?.size) {
+  if (commandline.indexOf("<rootDir>") !== -1) {
     commandline = commandline.replace(
-      /<studyUIDs>/,
-      Array.from(studyUIDs).join(" ")
+      /<rootDir>/,
+      path.resolve(handleHomeRelative(params.rootDir))
     );
-  } else {
-    console.warn(
-      "No study uid found, not running command",
-      commandName,
-      studyUIDs
-    );
-    return null;
+  }
+  if (commandline.indexOf("<studyUIDs>") !== -1) {
+    if (studyUIDs?.size) {
+      commandline = commandline.replace(
+        /<studyUIDs>/,
+        Array.from(studyUIDs).join(" ")
+      );
+    } else {
+      console.warn(
+        "No study uid found, not running command",
+        commandName,
+        studyUIDs
+      );
+      return null;
+    }
   }
   return commandline;
 };
@@ -85,6 +91,22 @@ export const storeFilesByStow = (stored, params = {}) => {
 
 export const storeFileInstance = (item, params = {}) => {
   console.verbose("storeFileInstance", item);
-  const cmd = ["instance", "--quiet", "--stow-response", item];
+  const {
+    instanceCommands = [
+      ["mkdicomweb", "instance", "-v", "--multipart", "<files>"],
+    ],
+  } = params;
+  if (instanceCommands.length > 1) {
+    console.warn(
+      "Executing more than 1 command not implemented yet:",
+      instanceCommands
+    );
+  }
+  const cmd = createCommandLine(
+    { listFiles: [{ filepath: item }] },
+    instanceCommands[0].slice(1),
+    params
+  );
+  console.verbose("Instance cmd", cmd);
   return mkdicomwebSpawn(cmd);
 };

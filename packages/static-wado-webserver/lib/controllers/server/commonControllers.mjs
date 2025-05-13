@@ -23,12 +23,16 @@ export function defaultPostController(params) {
 
     const form = formidable({ multiples: true });
     form.on("file", (_formname, file) => {
-      const { filepath, mimetype } = file;
-      storedInstances.push({
-        filepath,
-        mimetype,
-        result: storeServices.storeFileInstance(filepath, mimetype, params),
-      });
+      try {
+        const { filepath, mimetype } = file;
+        storedInstances.push({
+          filepath,
+          mimetype,
+          result: storeServices.storeFileInstance(filepath, mimetype, params),
+        });
+      } catch (e) {
+        console.warn("Unable to store instance", e);
+      }
     });
 
     form.parse(req, async (err, fields, files) => {

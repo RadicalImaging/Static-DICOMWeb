@@ -28,13 +28,27 @@ const CompleteStudyWriter = (options) => {
         await studyData.writeDeduplicatedGroup();
         console.noQuiet(
           "Wrote updated deduplicated data for study",
-          studyData.studyInstanceUid,
+          studyData.studyInstanceUid
         );
       } else {
-        console.log(
-          "Not writing new deduplicated data because it is clean:",
-          studyData.studyInstanceUid,
+        console.noQuiet(
+          "(2) Not writing new deduplicated data because it is clean:",
+          studyData.studyInstanceUid
         );
+        console.log("options.multipart=", options.multipart);
+        if (options.multipart) {
+          const message = {
+            text: "Metadata clean, not updating",
+            status: 0,
+            studyInstanceUid: studyData.studyInstanceUid,
+          };
+          console.log(
+            "\r\n--boundary-response\r\n" +
+              "content-type: application/json\r\n\r\n" +
+              JSON.stringify(message, null, 2) +
+              "\r\n--boundary-response--\r\n"
+          );
+        }
       }
       await studyData.deleteInstancesReferenced();
     }
@@ -42,7 +56,7 @@ const CompleteStudyWriter = (options) => {
     if (!options.isStudyData) {
       console.verbose(
         "Not configured to write study metadata",
-        studyData.studyInstanceUid,
+        studyData.studyInstanceUid
       );
       if (options.notifications)
         this.notificationService.notifyStudy(studyData.studyInstanceUid);
@@ -56,7 +70,7 @@ const CompleteStudyWriter = (options) => {
       console.log("Study metadata", studyData.studyInstanceUid, "is clean.");
       delete this.studyData;
       Stats.StudyStats.summarize(
-        `Study metadata ${studyData.studyInstanceUid} has clean metadata, not writing`,
+        `Study metadata ${studyData.studyInstanceUid} has clean metadata, not writing`
       );
       return;
     }
@@ -67,7 +81,7 @@ const CompleteStudyWriter = (options) => {
     const allStudies = await JSONReader(
       options.directoryName,
       "studies/index.json.gz",
-      [],
+      []
     );
     const studyUID = Tags.getValue(studyQuery, Tags.StudyInstanceUID);
     if (!studyUID) {
@@ -75,7 +89,7 @@ const CompleteStudyWriter = (options) => {
       throw new Error("Study query has null studyUID");
     }
     const studyIndex = allStudies.findIndex(
-      (item) => Tags.getValue(item, Tags.StudyInstanceUID) == studyUID,
+      (item) => Tags.getValue(item, Tags.StudyInstanceUID) == studyUID
     );
     if (studyIndex == -1) {
       allStudies.push(studyQuery);
@@ -87,7 +101,7 @@ const CompleteStudyWriter = (options) => {
       this.notificationService.notifyStudy(studyData.studyInstanceUid);
     delete this.studyData;
     Stats.StudyStats.summarize(
-      `Wrote study metadata/query files for ${studyData.studyInstanceUid}`,
+      `Wrote study metadata/query files for ${studyData.studyInstanceUid}`
     );
   }
 
