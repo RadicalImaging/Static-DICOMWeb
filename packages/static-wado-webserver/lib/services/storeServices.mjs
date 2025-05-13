@@ -93,7 +93,7 @@ export const storeFileInstance = (item, params = {}) => {
   console.verbose("storeFileInstance", item);
   const {
     instanceCommands = [
-      ["mkdicomweb", "instance", "-v", "--multipart", "<files>"],
+      ["mkdicomweb", "instance", "--no-thumb", "-v", "--multipart", "<files>"],
     ],
   } = params;
   if (instanceCommands.length > 1) {
