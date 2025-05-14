@@ -2,7 +2,11 @@
 import formidable from "formidable";
 import * as storeServices from "../../services/storeServices.mjs";
 import dcmjs from "dcmjs";
-import { dicomToXml } from "@radicalimaging/static-wado-util";
+import fs from "fs";
+import {
+  dicomToXml,
+  handleHomeRelative,
+} from "@radicalimaging/static-wado-util";
 
 const { denaturalizeDataset } = dcmjs.data.DicomMetaDictionary;
 
@@ -16,12 +20,15 @@ const { denaturalizeDataset } = dcmjs.data.DicomMetaDictionary;
  * @returns function controller
  */
 export function defaultPostController(params) {
+  const rootDir = handleHomeRelative(params.rootDir);
+  const uploadDir = `${rootDir}/temp`;
+  console.warn("Using uploadDir", uploadDir);
+
   return async (req, res, next) => {
     const storedInstances = [];
     const studyUIDs = new Set();
     const fileNames = [];
-
-    const form = formidable({ multiples: true });
+    const form = formidable({ multiples: true, uploadDir });
     form.on("file", (_formname, file) => {
       try {
         const { filepath, mimetype } = file;
@@ -118,7 +125,18 @@ export function defaultPostController(params) {
       console.log("Couldn't upload all files because:", e);
       res.status(500).json(`Unable to handle ${e}`);
     } finally {
-      console.warn("Done form processing");
+      deleteStoreInstances(storedInstances);
     }
   };
+}
+
+async function deleteStoreInstances(instances) {
+  console.noQuiet("Deleting stored instances", instances.length);
+  for (const instance of instances) {
+    try {
+      await fs.promises.unlink(instance.filepath);
+    } catch (e) {
+      console.warn("Unable to unlink", instance?.filepath);
+    }
+  }
 }

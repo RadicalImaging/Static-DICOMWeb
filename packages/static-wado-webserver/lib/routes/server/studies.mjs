@@ -1,4 +1,7 @@
-import { assertions } from "@radicalimaging/static-wado-util";
+import {
+  assertions,
+  createStudyDirectories,
+} from "@radicalimaging/static-wado-util";
 import {
   qidoMap,
   dicomMap,
@@ -26,6 +29,8 @@ import renderedMap from "../../controllers/server/renderedMap.mjs";
  * @param {*} dir static files directory path
  */
 export default function setRoutes(routerExpress, params, dir) {
+  createStudyDirectories(dir);
+
   // Study and Series query have custom endpoints to retrieve single-UID response
   routerExpress.get(["/studies", "/:ae/studies"], studySingleMap);
   routerExpress.get("/studies/:studyUID/series", seriesSingleMap);
