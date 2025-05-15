@@ -74,7 +74,7 @@ export const storeFileInstance = async (item, params = {}) => {
   console.verbose("storeFileInstance", item);
   const {
     instanceCommands = [
-      ["mkdicomweb", "instance", "--no-thumb", "-v", "--multipart", "<files>"],
+      ["mkdicomweb", "instance", "--no-thumb", "--multipart", "<files>"],
     ],
   } = params;
   if (instanceCommands.length > 1) {

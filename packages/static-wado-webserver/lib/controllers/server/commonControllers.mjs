@@ -10,6 +10,9 @@ import {
 
 const { denaturalizeDataset } = dcmjs.data.DicomMetaDictionary;
 
+const maxFileSize = 4 * 1024 * 1024 * 1024;
+const maxTotalFileSize = 10 * maxFileSize;
+
 /**
  * Handles an incoming stow-rs POST data, either in application/dicom (single instance), or in
  * multipart/related with JSON data elements.
@@ -22,13 +25,18 @@ const { denaturalizeDataset } = dcmjs.data.DicomMetaDictionary;
 export function defaultPostController(params) {
   const rootDir = handleHomeRelative(params.rootDir);
   const uploadDir = `${rootDir}/temp`;
-  console.warn("Using uploadDir", uploadDir);
+  const formOptions = {
+    multiples: true,
+    uploadDir,
+    maxFileSize,
+    maxTotalFileSize,
+  };
 
   return async (req, res, next) => {
     const storedInstances = [];
     const studyUIDs = new Set();
     const fileNames = [];
-    const form = formidable({ multiples: true, uploadDir });
+    const form = formidable(formOptions);
     form.on("file", (_formname, file) => {
       try {
         const { filepath, mimetype } = file;
