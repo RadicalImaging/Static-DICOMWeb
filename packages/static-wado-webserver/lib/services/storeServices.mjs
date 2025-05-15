@@ -11,29 +11,35 @@ import {
 import { mkdicomwebSpawn } from "./util/serverSpawn.mjs";
 
 const createCommandLine = (args, commandName, params) => {
-  let commandline = commandName;
+  let commandline = Array.isArray(commandName)
+    ? commandName.join(" ")
+    : commandName;
   const { listFiles = [], studyUIDs } = args;
 
   commandline = commandline.replace(
     /<files>/,
     listFiles.map((file) => file.filepath).join(" ")
   );
-  commandline = commandline.replace(
-    /<rootDir>/,
-    path.resolve(handleHomeRelative(params.rootDir))
-  );
-  if (studyUIDs?.size) {
+  if (commandline.indexOf("<rootDir>") !== -1) {
     commandline = commandline.replace(
-      /<studyUIDs>/,
-      Array.from(studyUIDs).join(" ")
+      /<rootDir>/,
+      path.resolve(handleHomeRelative(params.rootDir))
     );
-  } else {
-    console.warn(
-      "No study uid found, not running command",
-      commandName,
-      studyUIDs
-    );
-    return null;
+  }
+  if (commandline.indexOf("<studyUIDs>") !== -1) {
+    if (studyUIDs?.size) {
+      commandline = commandline.replace(
+        /<studyUIDs>/,
+        Array.from(studyUIDs).join(" ")
+      );
+    } else {
+      console.warn(
+        "No study uid found, not running command",
+        commandName,
+        studyUIDs
+      );
+      return null;
+    }
   }
   return commandline;
 };
@@ -44,11 +50,10 @@ const createCommandLine = (args, commandName, params) => {
  * @param {*} files files to be stored
  * @param {*} params
  */
-export const storeFilesByStow = (stored, params = {}) => {
+export const storeFilesByStow = async (stored, params = {}) => {
   const { stowCommands = [], notificationCommand, verbose = false } = params;
   const { listFiles, studyUIDs } = stored;
 
-  const promises = [];
   for (const commandName of stowCommands) {
     const command = createCommandLine(stored, commandName, params);
     if (!command) {
@@ -57,34 +62,37 @@ export const storeFilesByStow = (stored, params = {}) => {
     if (command.startsWith("mkdicomweb ")) {
       const cmd = [command.substring(11)];
       console.noQuiet("Running mkdicomweb command inline:", cmd);
-      const result = mkdicomwebSpawn(cmd);
-      result.then((message) => {
-        console.noQuiet(message);
-      });
-      promises.push(result);
+      const result = await mkdicomwebSpawn(cmd);
     } else {
       console.noQuiet("Store command", command);
-      const commandPromise = execSpawn(command);
-      promises.push(commandPromise);
+      await execSpawn(command);
     }
   }
-
-  return Promise.allSettled(promises).then(() => {
-    if (notificationCommand) {
-      console.warn("Executing notificationCommand", notificationCommand);
-      execSpawn(notificationCommand);
-    }
-    listFiles.forEach((item) => {
-      const { filepath } = item;
-      console.verbose("Unlinking", filepath);
-      fs.unlink(filepath, () => null);
-    });
-    return listFiles.map((it) => it.filepath);
-  });
 };
 
-export const storeFileInstance = (item, params = {}) => {
+export const storeFileInstance = async (item, params = {}) => {
   console.verbose("storeFileInstance", item);
-  const cmd = ["instance", "--quiet", "--stow-response", item];
-  return mkdicomwebSpawn(cmd);
+  const {
+    instanceCommands = [
+      ["mkdicomweb", "instance", "--no-thumb", "--multipart", "<files>"],
+    ],
+  } = params;
+  if (instanceCommands.length > 1) {
+    console.warn(
+      "Executing more than 1 command not implemented yet:",
+      instanceCommands
+    );
+  }
+  const cmd = createCommandLine(
+    { listFiles: [{ filepath: item }] },
+    instanceCommands[0].slice(1),
+    params
+  );
+  console.verbose("Instance cmd", cmd);
+  try {
+    return await mkdicomwebSpawn(cmd);
+  } catch (e) {
+    console.warn("Unable to store file instance", e);
+    return null;
+  }
 };

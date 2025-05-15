@@ -220,8 +220,8 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         defaultValue: false,
       },
       {
-        key: "--stow-response",
-        description: "Add a stow response output",
+        key: "--multipart",
+        description: "Add a multipart result output",
         defaultValue: false,
       },
       {

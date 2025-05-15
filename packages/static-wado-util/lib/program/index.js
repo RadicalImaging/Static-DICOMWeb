@@ -136,8 +136,8 @@ function configureProgram(configuration) {
   });
 
   currentProgram.parse();
-
-  createVerboseLog(currentProgram.options.verbose, currentProgram.options);
+  const options = currentProgram.opts();
+  createVerboseLog(options.verbose, options);
 
   return currentProgram;
 }

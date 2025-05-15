@@ -38,4 +38,4 @@ RUN mkdir ~/.aws
 COPY ./docker/* .
 EXPOSE 5000
 EXPOSE 11115
-CMD ["dicomwebserver"]
+CMD ["dicomwebserver", "-v"]

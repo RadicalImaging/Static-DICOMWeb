@@ -34,6 +34,11 @@ async function configureProgram(defaults = dicomWebServerConfig) {
       defaultValue: false,
     },
     {
+      key: "-q, --quiet",
+      description: "Quiet/minimal output",
+      defaultValue: false,
+    },
+    {
       key: "-o, --dir <value>",
       description: "Set output directory (to read from for serving files)",
       defaultValue: defaults.rootDir,

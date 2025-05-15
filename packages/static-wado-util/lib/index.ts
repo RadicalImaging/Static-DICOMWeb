@@ -23,6 +23,7 @@ import logger from "./logger.js";
 import { extractMultipart, uint8ArrayToString } from "./extractMultipart";
 export { program, configureProgram, configureCommands } from "./program";
 export * from "./dicomToXml";
+export * from "./createStudyDirectories";
 
 export {
   extractMultipart,
