@@ -17,7 +17,6 @@ const getFrameSize = (dataSet) => {
 };
 
 const extractImageFrames = async (dataSet, attr, vr, callback) => {
-  console.log("THOMAS", attr);
   const numberOfFrames = getNumberOfFrames(dataSet);
   const framesAreFragmented = areFramesAreFragmented(attr, numberOfFrames);
   const uncompressedFrameSize = getFrameSize(dataSet);
