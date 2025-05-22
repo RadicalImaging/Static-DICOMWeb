@@ -24,6 +24,7 @@ import { extractMultipart, uint8ArrayToString } from "./extractMultipart";
 import getStudyUIDPathAndSubPath from './getStudyUIDPathAndSubPath';
 export { program, configureProgram, configureCommands } from "./program";
 export * from "./dicomToXml";
+export * from "./createStudyDirectories";
 
 export {
   extractMultipart,

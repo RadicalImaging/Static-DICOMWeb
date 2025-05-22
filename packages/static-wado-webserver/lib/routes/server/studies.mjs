@@ -1,6 +1,7 @@
 import {
   assertions,
   getStudyUIDPathAndSubPath,
+  createStudyDirectories,
 } from "@radicalimaging/static-wado-util";
 import {
   qidoMap,
@@ -29,6 +30,8 @@ import renderedMap from "../../controllers/server/renderedMap.mjs";
  * @param {*} dir static files directory path
  */
 export default function setRoutes(routerExpress, params, dir) {
+  createStudyDirectories(dir);
+
   routerExpress.use("/", (req, res, next) => {
     const originalPath = req.path;
     const studyUID = originalPath.match(/\/studies\/([^/]+)/)?.[1]; // get UID only
@@ -47,6 +50,7 @@ export default function setRoutes(routerExpress, params, dir) {
 
     next();
   });
+
   // Study and Series query have custom endpoints to retrieve single-UID response
   routerExpress.get(["/studies", "/:ae/studies"], studySingleMap);
   routerExpress.get("/studies/:studyUID/series", seriesSingleMap);

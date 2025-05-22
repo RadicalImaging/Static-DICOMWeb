@@ -10,7 +10,7 @@ import {
 const queue = [];
 const runners = [];
 
-export function ensureRunners(count = 4) {
+export function ensureRunners(count = Math.max(4, runners.length)) {
   for (let i = 0; i < count; i++) {
     if (!queue.length) {
       console.verbose("Nothing in queue");
@@ -40,6 +40,8 @@ const bunExecPath = path.join(
 
 const cmd = ["bun", "run", bunExecPath, "server", "--quiet"];
 
+let count = 0;
+
 export function createRunner() {
   const child = childProcess.spawn(cmd.join(" "), {
     shell: true,
@@ -50,6 +52,7 @@ export function createRunner() {
     inputData: [],
     child,
     json: null,
+    count: count++,
     terminated: false,
     processing: false,
     run: function () {
@@ -59,16 +62,19 @@ export function createRunner() {
       }
       this.available = false;
       this.processing = queue.splice(0, 1)[0];
-      console.verbose(
-        "Starting to process",
-        runner.processing.cmdLine.join(" ")
-      );
-      this.child.stdin.write(`${runner.processing.cmdLine.join(" ")}\n`);
+      const { cmdLine } = runner.processing;
+      console.verbose("Starting to process", JSON.stringify(cmdLine));
+      const cmd = Array.isArray(cmdLine) ? cmdLine.join(" ") : cmdLine;
+      this.child.stdin.write(`${cmd}\n`);
     },
   };
 
   child.stdout.on("data", (data) => {
     runner.inputData.push(data);
+    console.verbose(
+      `${runner.count}.${runner.inputData.length}>`,
+      String(data)
+    );
     if (data.indexOf("mkdicomweb server -->") !== -1) {
       const resultStr = runner.inputData.join("");
       try {
@@ -79,13 +85,13 @@ export function createRunner() {
         runner.processing.resolve(json);
       } catch (e) {
         console.warn("Unable to process", resultStr);
-        runner.processing.resolve(resultStr);
+        runner.processing.reject(resultStr);
       }
       runner.inputData = [];
       runner.processing = null;
       runner.available = true;
       console.verbose("Runner done");
-      if (queue.length) {
+      if (queue.length && !runner.terminated) {
         runner.run();
       }
     }
@@ -94,9 +100,15 @@ export function createRunner() {
     runner.terminated = true;
     console.noQuiet("Runner terminated");
     if (runner.processing) {
-      runner.processing.reject(
-        new Error("Unknown failure " + inputData.join("\n"))
+      console.warn(
+        "Runner terminated processing",
+        runner.processing.cmdLine,
+        runner.inputData.join("\n")
       );
+      runner.processing.reject(
+        new Error("Unknown failure " + runner.inputData.join(""))
+      );
+      ensureRunners();
     }
   });
 

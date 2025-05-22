@@ -2,9 +2,16 @@
 import formidable from "formidable";
 import * as storeServices from "../../services/storeServices.mjs";
 import dcmjs from "dcmjs";
-import { dicomToXml } from "@radicalimaging/static-wado-util";
+import fs from "fs";
+import {
+  dicomToXml,
+  handleHomeRelative,
+} from "@radicalimaging/static-wado-util";
 
 const { denaturalizeDataset } = dcmjs.data.DicomMetaDictionary;
+
+const maxFileSize = 4 * 1024 * 1024 * 1024;
+const maxTotalFileSize = 10 * maxFileSize;
 
 /**
  * Handles an incoming stow-rs POST data, either in application/dicom (single instance), or in
@@ -16,27 +23,37 @@ const { denaturalizeDataset } = dcmjs.data.DicomMetaDictionary;
  * @returns function controller
  */
 export function defaultPostController(params) {
-  return (req, res, next) => {
+  const rootDir = handleHomeRelative(params.rootDir);
+  const uploadDir = `${rootDir}/temp`;
+  const formOptions = {
+    multiples: true,
+    uploadDir,
+    maxFileSize,
+    maxTotalFileSize,
+  };
+
+  return async (req, res, next) => {
     const storedInstances = [];
     const studyUIDs = new Set();
     const fileNames = [];
-
-    const form = formidable({ multiples: true });
+    const form = formidable(formOptions);
     form.on("file", (_formname, file) => {
-      const { filepath, mimetype } = file;
-      storedInstances.push({
-        filepath,
-        mimetype,
-        result: storeServices.storeFileInstance(filepath, mimetype, params),
-      });
+      try {
+        const { filepath, mimetype } = file;
+        console.noQuiet("Received upload file", filepath, mimetype);
+        storedInstances.push({
+          filepath,
+          mimetype,
+          result: storeServices.storeFileInstance(filepath, mimetype, params),
+        });
+      } catch (e) {
+        console.warn("Unable to store instance", e);
+      }
     });
 
-    form.parse(req, async (err, fields, files) => {
-      if (err) {
-        console.warn("Couldn't parse because", err);
-        next(err);
-        return;
-      }
+    try {
+      const [fields, files] = await form.parse(req);
+
       if (!storedInstances.length) {
         console.warn("No files uploaded");
         res.status(500).send("No files uploaded");
@@ -47,77 +64,87 @@ export function defaultPostController(params) {
         []
       );
 
-      try {
-        // const sopInfo = await storeServices.storeFilesByStow(files, params)
-        let result;
-        for (const item of storedInstances) {
-          let itemResult;
-          try {
-            itemResult = await item.result;
-            if (itemResult.ReferencedSOPSequence?.[0].StudyInstanceUID) {
-              studyUIDs.add(
-                itemResult.ReferencedSOPSequence[0].StudyInstanceUID
-              );
-            } else {
-              console.warn("No study uid found", itemResult);
-            }
-          } catch (e) {
-            console.warn("Couldn't upload item", item);
-            itemResult = {
-              FailedSOPSequence: [
-                {
-                  FailedSOPInstance: {
-                    SOPClassUID: "unknown",
-                    SOPInstanceUID: "unknown",
-                    FailureReason: `error: ${e}`,
-                  },
+      // const sopInfo = await storeServices.storeFilesByStow(files, params)
+      let result;
+      for (const item of storedInstances) {
+        let itemResult;
+        try {
+          itemResult = await item.result;
+          if (itemResult.ReferencedSOPSequence?.[0].StudyInstanceUID) {
+            studyUIDs.add(itemResult.ReferencedSOPSequence[0].StudyInstanceUID);
+          } else {
+            console.warn("No study uid found", itemResult);
+          }
+        } catch (e) {
+          console.warn("Couldn't upload item", item);
+          itemResult = {
+            FailedSOPSequence: [
+              {
+                FailedSOPInstance: {
+                  SOPClassUID: "unknown",
+                  SOPInstanceUID: "unknown",
+                  FailureReason: `error: ${e}`,
                 },
-              ],
-            };
-          }
-          if (!result) {
-            result = {
-              ...itemResult,
-              ReferencedSOPSequence: [],
-              FailedSOPSequence: [],
-            };
-          }
-          if (itemResult.ReferencedSOPSequence?.length) {
-            result.ReferencedSOPSequence.push(
-              itemResult.ReferencedSOPSequence[0]
-            );
-          }
-          if (itemResult.FailedSOPSequence?.length) {
-            result.FailedSOPSequence.push(itemResult.FailedSOPSequence[0]);
-          }
+              },
+            ],
+          };
         }
 
         if (!result) {
-          console.warn("No results found");
-          res.status(500).send("No result found");
-          return;
+          result = {
+            ...itemResult,
+            ReferencedSOPSequence: [],
+            FailedSOPSequence: [],
+          };
         }
-        if (result.FailedSOPSequence?.length === 0) {
-          delete result.FailedSOPSequence;
+        if (itemResult.ReferencedSOPSequence?.length) {
+          result.ReferencedSOPSequence.push(
+            itemResult.ReferencedSOPSequence[0]
+          );
         }
-        const dicomResult = denaturalizeDataset(result);
-
-        console.noQuiet("STOW result: ", JSON.stringify(result, null, 2));
-        await storeServices.storeFilesByStow(
-          { listFiles, files, studyUIDs, result },
-          params
-        );
-
-        const xml = dicomToXml(dicomResult);
-
-        res
-          .status(200)
-          .setHeader("content-type", "application/dicom+xml")
-          .send(xml);
-      } catch (e) {
-        console.log(e);
-        res.status(500).json(`Unable to handle ${e}`);
+        if (itemResult.FailedSOPSequence?.length) {
+          result.FailedSOPSequence.push(itemResult.FailedSOPSequence[0]);
+        }
       }
-    });
+
+      if (!result) {
+        console.warn("No results found");
+        res.status(500).send("No result found");
+        return;
+      }
+      if (result.FailedSOPSequence?.length === 0) {
+        delete result.FailedSOPSequence;
+      }
+      const dicomResult = denaturalizeDataset(result);
+
+      console.warn("STOW result: ", JSON.stringify(result, null, 2));
+      await storeServices.storeFilesByStow(
+        { listFiles, files, studyUIDs, result },
+        params
+      );
+
+      const xml = dicomToXml(dicomResult);
+
+      res
+        .status(200)
+        .setHeader("content-type", "application/dicom+xml")
+        .send(xml);
+    } catch (e) {
+      console.log("Couldn't upload all files because:", e);
+      res.status(500).json(`Unable to handle ${e}`);
+    } finally {
+      deleteStoreInstances(storedInstances);
+    }
   };
+}
+
+async function deleteStoreInstances(instances) {
+  console.noQuiet("Deleting stored instances", instances.length);
+  for (const instance of instances) {
+    try {
+      await fs.promises.unlink(instance.filepath);
+    } catch (e) {
+      console.warn("Unable to unlink", instance?.filepath);
+    }
+  }
 }
