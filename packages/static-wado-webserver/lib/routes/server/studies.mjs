@@ -29,8 +29,6 @@ import renderedMap from "../../controllers/server/renderedMap.mjs";
  * @param {*} dir static files directory path
  */
 export default function setRoutes(routerExpress, params, dir) {
-  createStudyDirectories(dir);
-
   routerExpress.use("/", (req, res, next) => {
     const originalPath = req.path;
     const studyUID = originalPath.match(/\/studies\/([^/]+)/)?.[1]; // get UID only
