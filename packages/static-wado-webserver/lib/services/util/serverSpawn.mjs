@@ -17,7 +17,9 @@ export function ensureRunners(count = Math.max(4, runners.length)) {
       return;
     }
     if (!runners[i] || runners[i].terminated) {
-      console.noQuiet("Recreating runner", i);
+      if (runners[i]) {
+        console.noQuiet("Recreating runner", i);
+      }
       runners[i] = createRunner();
     }
     if (runners[i].available) {
@@ -78,14 +80,18 @@ export function createRunner() {
     if (data.indexOf("mkdicomweb server -->") !== -1) {
       const resultStr = runner.inputData.join("");
       try {
-        const jsonResponse = extractMultipart("multipart/related", resultStr);
-        const jsonStr = uint8ArrayToString(jsonResponse.pixelData).trim();
-        const json = JSON.parse(jsonStr);
-        runner.json = json;
+        let json = null;
+        if (runner.processing.options?.parseResults !== false) {
+          const jsonResponse = extractMultipart("multipart/related", resultStr);
+          const jsonStr = uint8ArrayToString(jsonResponse.pixelData).trim();
+          json = JSON.parse(jsonStr);
+          runner.json = json;
+        }
         runner.processing.resolve(json);
       } catch (e) {
-        console.warn("Unable to process", resultStr);
-        runner.processing.reject(resultStr);
+        runner.processing.reject(
+          new Error(`Unable to find JSON results in ${resultStr}`)
+        );
       }
       runner.inputData = [];
       runner.processing = null;
@@ -115,10 +121,18 @@ export function createRunner() {
   return runner;
 }
 
-export function mkdicomwebSpawn(cmdLine) {
+export function mkdicomwebSpawn(
+  cmdLine,
+  options = { runners: 3, parseResults: true }
+) {
   const promise = new Promise((resolve, reject) => {
-    queue.push({ resolve, reject, cmdLine });
+    queue.push({
+      resolve,
+      reject,
+      cmdLine,
+      options,
+    });
   });
-  ensureRunners(4);
+  ensureRunners(options?.runners ?? 3);
   return promise;
 }
