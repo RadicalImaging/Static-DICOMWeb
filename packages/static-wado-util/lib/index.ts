@@ -21,6 +21,7 @@ import NotificationService from "./NotificationService";
 import execSpawn from "./execSpawn";
 import logger from "./logger.js";
 import { extractMultipart, uint8ArrayToString } from "./extractMultipart";
+import getStudyUIDPathAndSubPath from './getStudyUIDPathAndSubPath';
 export { program, configureProgram, configureCommands } from "./program";
 export * from "./dicomToXml";
 
@@ -47,4 +48,5 @@ export {
   configGroup,
   asyncIterableToBuffer,
   NotificationService,
+  getStudyUIDPathAndSubPath,
 };

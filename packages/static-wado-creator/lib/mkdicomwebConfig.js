@@ -238,6 +238,11 @@ const { mkdicomwebConfig } = ConfigPoint.register({
           reference: "rootDir",
         },
       },
+      {
+        key: "--hash-study-uid-path",
+        description: "Enable hashing of studyUID folder structure",
+        defaultValue: true,
+      },
     ],
     programs: [
       {
