@@ -12,7 +12,12 @@ import setPluginRoutes from "./plugins/index.mjs";
  * @param {*} params
  */
 export default async function setRoutes(appExpress, params) {
-  const { rootDir: serverRootDir, clientDir: clientRootDir, path } = params;
+  const {
+    rootDir: serverRootDir,
+    clientDir: clientRootDir,
+    path,
+    hashStudyUidPath,
+  } = params;
 
   const serverPath = path || "/dicomweb";
   const clientPath = path || "/";
@@ -35,7 +40,7 @@ export default async function setRoutes(appExpress, params) {
   // Adds the plugin routes, proxy routes and then server default routes
   await setPluginRoutes(routerServer, params.rootGroup, "plugins");
   await setProxy(routerServer, params, serverDir);
-  setServerRoutes(routerServer, params, serverDir);
+  setServerRoutes(routerServer, params, serverDir, hashStudyUidPath);
 
   // set client routes, first plugin, then the default routes
   await setPluginRoutes(clientServer, params.clientGroup, "plugins");

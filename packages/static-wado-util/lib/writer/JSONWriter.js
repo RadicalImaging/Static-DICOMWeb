@@ -1,3 +1,4 @@
+const fs = require("fs");
 const path = require("path");
 const handleHomeRelative = require("../handleHomeRelative");
 const { Stats } = require("../stats");
@@ -8,19 +9,35 @@ const JSONWriter = async (
   dirSrc,
   name,
   data,
-  options = { gzip: true, brotli: false, index: true },
+  options = { gzip: true, brotli: false, index: true }
 ) => {
   const fileName = options.index
     ? "index.json.gz"
     : name + ((options.gzip && ".gz") || (options.brotli && ".br") || "");
   const dir = handleHomeRelative(dirSrc);
   const dirName = options.index ? path.join(dir, name) : dir;
+
+  if (fs.existsSync(`${dirName}/${fileName}`)) {
+    console.verbose(
+      `File already exists. Skiping JSON file creation at "${dirName}" named "${fileName}"`
+    );
+
+    Stats.StudyStats.add(
+      "JSON not writed",
+      `Did not write JSON file ${name}`,
+      1000
+    );
+
+    return;
+  }
+
   const writeStream = WriteStream(dirName, fileName, {
     ...options,
     mkdir: true,
   });
   await writeStream.write(JSON.stringify(data));
   await writeStream.close();
+  console.verbose(`Created JSON file at "${dirName}" named "${fileName}"`);
   Stats.StudyStats.add("Write JSON", `Write JSON file ${name}`, 1000);
 };
 

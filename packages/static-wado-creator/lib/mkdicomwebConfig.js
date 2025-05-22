@@ -241,7 +241,7 @@ const { mkdicomwebConfig } = ConfigPoint.register({
       {
         key: "--hash-study-uid-path",
         description: "Enable hashing of studyUID folder structure",
-        defaultValue: true,
+        defaultValue: false,
       },
     ],
     programs: [

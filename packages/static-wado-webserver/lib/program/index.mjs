@@ -48,6 +48,11 @@ async function configureProgram(defaults = dicomWebServerConfig) {
       description: "Choose the port to run on",
       defaultValue: defaults.port,
     },
+    {
+      key: "--hash-study-uid-path",
+      description: "Enable hashing of studyUID folder structure",
+      defaultValue: false,
+    },
   ];
 
   const configuration = {

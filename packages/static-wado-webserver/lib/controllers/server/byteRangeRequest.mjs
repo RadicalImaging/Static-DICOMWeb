@@ -60,7 +60,7 @@ export default function byteRangeRequest(options) {
     const fsiz = req.query.fsiz;
     const accept = req.header("accept") || "";
     const queryAccept = req.query.accept;
-    const extension = findExtension(req.newPath, queryAccept || accept);
+    const extension = findExtension(req.hashedPath, queryAccept || accept);
     const range = req.header("Range");
     res.setHeader(
       "content-type",
@@ -69,13 +69,13 @@ export default function byteRangeRequest(options) {
     res.setHeader("Access-Control-Expose-Headers", "*");
     res.setHeader("Access-Control-Allow-Origin", "*");
 
-    if (fsiz && exists(req.newPath, `fsiz`)) {
-      req.url = req.newPath.replace("/frames/", "/fsiz/");
+    if (fsiz && exists(req.hashedPath, `fsiz`)) {
+      req.url = req.hashedPath.replace("/frames/", "/fsiz/");
     } else if (range) {
       return rangeResponse(req, res, range, extension);
     }
     if (extension) {
-      req.url = `${req.newPath}${extension}`;
+      req.url = `${req.hashedPath}${extension}`;
     }
     next();
   };

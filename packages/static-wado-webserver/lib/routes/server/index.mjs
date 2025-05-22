@@ -6,7 +6,13 @@ import setStudiesRoutes from "./studies.mjs";
  * @param {*} routerExpress root entry point for studies routes (router express).
  * @param {*} params
  * @param {*} dir static files directory path
+ * @param {*} hashStudyUidPath change studies folder structure to path and subpath before studyUID
  */
-export default function setRoutes(routerExpress, params, dir) {
-  setStudiesRoutes(routerExpress, params, dir);
+export default function setRoutes(
+  routerExpress,
+  params,
+  dir,
+  hashStudyUidPath
+) {
+  setStudiesRoutes(routerExpress, params, dir, hashStudyUidPath);
 }

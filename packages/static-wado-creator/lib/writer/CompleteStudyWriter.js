@@ -128,7 +128,10 @@ const CompleteStudyWriter = (options) => {
       await callback.completeStudy(studyData);
     }
     callback.setStudyData(new StudyData(id, options));
-    await callback.studyData.init(options);
+    if (!options.isSkipStudyScan) {
+      console.verbose("Initiate StudyData");
+      await callback.studyData.init(options);
+    }
     return callback.studyData;
   };
 

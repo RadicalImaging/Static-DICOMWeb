@@ -28,24 +28,32 @@ import renderedMap from "../../controllers/server/renderedMap.mjs";
  * @param {*} routerExpress root entry point for studies routes.
  * @param {*} params
  * @param {*} dir static files directory path
+ * @param {*} hashStudyUidPath change studies folder structure to path and subpath before studyUID
  */
-export default function setRoutes(routerExpress, params, dir) {
+export default function setRoutes(
+  routerExpress,
+  params,
+  dir,
+  hashStudyUidPath
+) {
   createStudyDirectories(dir);
 
   routerExpress.use("/", (req, res, next) => {
-    const originalPath = req.path;
-    const studyUID = originalPath.match(/\/studies\/([^/]+)/)?.[1]; // get UID only
+    if (hashStudyUidPath) {
+      const originalPath = req.path;
+      const studyUID = originalPath.match(/\/studies\/([^/]+)/)?.[1]; // get UID only
 
-    if (studyUID) {
-      const { path: hashPath = "", subpath: hashSubpath = "" } =
-        getStudyUIDPathAndSubPath(studyUID);
-      const hashPrefix = `${hashPath}/${hashSubpath}`;
-      const newPath = originalPath.replace(
-        `/studies/${studyUID}`,
-        `/studies/${hashPrefix}/${studyUID}`
-      );
+      if (studyUID) {
+        const { path: hashPath = "", subpath: hashSubpath = "" } =
+          getStudyUIDPathAndSubPath(studyUID);
+        const hashPrefix = `${hashPath}/${hashSubpath}`;
+        const newPath = originalPath.replace(
+          `/studies/${studyUID}`,
+          `/studies/${hashPrefix}/${studyUID}`
+        );
 
-      req.newPath = newPath;
+        req.hashedPath = newPath;
+      }
     }
 
     next();
@@ -115,7 +123,7 @@ export default function setRoutes(routerExpress, params, dir) {
       "/studies/:studyUID/series",
       "/studies/:studyUID/series/:seriesUID/instances",
     ],
-    postController(params)
+    postController(params, hashStudyUidPath)
   );
   // Handle the QIDO queries
   routerExpress.use(indexingStaticController(dir));

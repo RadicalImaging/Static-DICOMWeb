@@ -9,6 +9,7 @@ module.exports = function createMain(options, program) {
     isDeduplicate: true,
     isGroup: false,
     isStudyData: false,
+    isSkipStudyScan: true,
   });
   const importer = new StaticWado(finalOptions);
   return importer.executeCommand(program.args);
