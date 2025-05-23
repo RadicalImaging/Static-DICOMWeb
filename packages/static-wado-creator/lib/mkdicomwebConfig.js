@@ -2,6 +2,7 @@ const ConfigPoint = require("config-point");
 const { staticWadoConfig } = require("@radicalimaging/static-wado-util");
 const createMain = require("./createMain");
 const createPart10 = require("./createPart10");
+const createThumbnail = require("./createThumbnail");
 const deleteMain = require("./deleteMain");
 const rejectMain = require("./rejectMain");
 const serverMain = require("./serverMain");
@@ -239,6 +240,17 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         },
       },
       {
+        key: "--sop-instance-uid <value>",
+        description:
+          "Choose sop instances to run against (only for instance runs)",
+      },
+      {
+        key: "--series-instance-uid <value>",
+        description:
+          "Choose series instances to run against (only for instance runs)",
+      },
+
+      {
         key: "--hash-study-uid-path",
         description: "Enable hashing of studyUID folder structure",
         defaultValue: false,
@@ -271,6 +283,17 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         command: "index",
         main: indexMain,
         helpDescription: "Recreate the index for the DICOMweb data.",
+      },
+      {
+        command: "thumbnail",
+        main: createThumbnail,
+        helpDescription: "Create a thumbnail for the specified image",
+        options: [
+          {
+            key: "--series-thumbnail",
+            description: "Generate a series thumbnail instead of instance",
+          },
+        ],
       },
       {
         command: "instance",
