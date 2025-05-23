@@ -21,6 +21,7 @@ import {
 } from "../../controllers/server/staticControllers.mjs";
 import byteRangeRequest from "../../controllers/server/byteRangeRequest.mjs";
 import renderedMap from "../../controllers/server/renderedMap.mjs";
+import createMissingThumbnail from "../../controllers/server/createMissingThumbnail.mjs";
 
 /**
  * Set studies (/studies) routes.
@@ -55,6 +56,15 @@ export default function setRoutes(
 
         req.staticWadoPath = newPath;
       }
+      const { path: hashPath = "", subpath: hashSubpath = "" } =
+        getStudyUIDPathAndSubPath(studyUID);
+      const hashPrefix = `${hashPath}/${hashSubpath}`;
+      const newPath = originalPath.replace(
+        `/studies/${studyUID}`,
+        `/studies/${hashPrefix}/${studyUID}`
+      );
+
+      req.staticWadoPath = newPath;
     }
 
     next();
@@ -64,6 +74,13 @@ export default function setRoutes(
   routerExpress.get(["/studies", "/:ae/studies"], studySingleMap);
   routerExpress.get("/studies/:studyUID/series", seriesSingleMap);
 
+  routerExpress.get(
+    [
+      "/studies/:studyUID/series/:seriesUID/thumbnail",
+      "/studies/:studyUID/series/:seriesUID/instances/:instanceUID/thumbnail",
+    ],
+    createMissingThumbnail(params)
+  );
   routerExpress.get(
     [
       "/studies/:studyUID/thumbnail",

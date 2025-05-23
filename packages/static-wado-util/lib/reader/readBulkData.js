@@ -64,7 +64,7 @@ const getSeparator = (data) => {
 const readBulkData = async (dirSrc, baseName, frame) => {
   let data;
   const dir = handleHomeRelative(dirSrc);
-  const name = frame ? `${baseName}/${frame}` : baseName;
+  const name = frame ? `${baseName}/${frame}.mht` : baseName;
   try {
     const rawdata = await fs.readFile(path.join(dir, name));
     if (name.indexOf(".gz") != -1) {

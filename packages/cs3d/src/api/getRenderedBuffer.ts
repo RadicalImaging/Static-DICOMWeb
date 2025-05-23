@@ -1,8 +1,8 @@
-import createImage from "../image/createImage.js"
-import { createCanvas } from "canvas"
-import { utilities } from "@cornerstonejs/core"
-import { setCanvasCreator } from "@cornerstonejs/core"
-import canvasImageToBuffer from "../adapters/canvasImageToBuffer.js"
+import createImage from "../image/createImage.js";
+import { createCanvas } from "canvas";
+import { utilities } from "@cornerstonejs/core";
+import { setCanvasCreator } from "@cornerstonejs/core";
+import canvasImageToBuffer from "../adapters/canvasImageToBuffer.js";
 
 /**
  * It gets through callback call the rendered image into canvas.
@@ -20,8 +20,8 @@ async function getRenderedBuffer(
   metadata,
   doneCallback
 ) {
-  setCanvasCreator(createCanvas)
-  const canvas = createCanvas(256, 256) as unknown as HTMLCanvasElement
+  setCanvasCreator(createCanvas);
+  const canvas = createCanvas(256, 256) as unknown as HTMLCanvasElement;
 
   // try {
   const imageObj = createImage(
@@ -29,12 +29,12 @@ async function getRenderedBuffer(
     decodedPixelData,
     metadata,
     canvas
-  )
+  );
 
-  await utilities.renderToCanvasCPU(canvas, imageObj)
+  await utilities.renderToCanvasCPU(canvas, imageObj);
 
-  const buffer = canvasImageToBuffer(canvas)
-  doneCallback(buffer, canvas)
+  const buffer = canvasImageToBuffer(canvas);
+  await doneCallback?.(buffer, canvas);
 }
 
-module.exports = getRenderedBuffer
+module.exports = getRenderedBuffer;
