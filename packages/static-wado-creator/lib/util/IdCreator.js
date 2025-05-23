@@ -1,34 +1,39 @@
 const path = require("path");
+const {
+  getStudyUIDPathAndSubPath,
+} = require("@radicalimaging/static-wado-util");
 
 function IdCreator({
   directoryName,
   deduplicatedRoot,
   deduplicatedInstancesRoot,
+  hashStudyUidPath,
 }) {
   return (uids, filename) => {
-    const studyPath = path.join(
-      directoryName,
-      "studies",
-      uids.studyInstanceUid,
-    );
-    const seriesRootPath = path.join(
-      studyPath,
-      "series",
-      uids.seriesInstanceUid,
-    );
+    const { studyInstanceUid, seriesInstanceUid, sopInstanceUid } = uids;
+
+    const { path: hashPath = "", subpath: hashSubpath = "" } = hashStudyUidPath
+      ? getStudyUIDPathAndSubPath(studyInstanceUid)
+      : {};
+
+    const studySubDir = hashStudyUidPath
+      ? path.join(hashPath, hashSubpath, studyInstanceUid)
+      : studyInstanceUid;
+
+    const studyPath = path.join(directoryName, "studies", studySubDir);
+    const seriesRootPath = path.join(studyPath, "series", seriesInstanceUid);
     const sopInstanceRootPath = path.join(
-      studyPath,
-      "series",
-      uids.seriesInstanceUid,
+      seriesRootPath,
       "instances",
-      uids.sopInstanceUid,
-    );
-    const deduplicatedPath = path.join(deduplicatedRoot, uids.studyInstanceUid);
-    const deduplicatedInstancesPath = path.join(
-      deduplicatedInstancesRoot,
-      uids.studyInstanceUid,
+      sopInstanceUid
     );
     const imageFrameRootPath = path.join(sopInstanceRootPath, "frames");
+
+    const deduplicatedPath = path.join(deduplicatedRoot, studySubDir);
+    const deduplicatedInstancesPath = path.join(
+      deduplicatedInstancesRoot,
+      studySubDir
+    );
 
     return {
       ...uids,

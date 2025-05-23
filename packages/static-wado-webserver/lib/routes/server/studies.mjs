@@ -1,5 +1,6 @@
 import {
   assertions,
+  getStudyUIDPathAndSubPath,
   createStudyDirectories,
 } from "@radicalimaging/static-wado-util";
 import {
@@ -27,9 +28,37 @@ import renderedMap from "../../controllers/server/renderedMap.mjs";
  * @param {*} routerExpress root entry point for studies routes.
  * @param {*} params
  * @param {*} dir static files directory path
+ * @param {*} hashStudyUidPath change studies folder structure to path and subpath before studyUID
  */
-export default function setRoutes(routerExpress, params, dir) {
+export default function setRoutes(
+  routerExpress,
+  params,
+  dir,
+  hashStudyUidPath
+) {
   createStudyDirectories(dir);
+
+  routerExpress.use("/", (req, res, next) => {
+    req.staticWadoPath = req.path;
+
+    if (hashStudyUidPath) {
+      const studyUID = req.staticWadoPath.match(/\/studies\/([^/]+)/)?.[1]; // get UID only
+
+      if (studyUID) {
+        const { path: hashPath = "", subpath: hashSubpath = "" } =
+          getStudyUIDPathAndSubPath(studyUID);
+        const hashPrefix = `${hashPath}/${hashSubpath}`;
+        const newPath = req.staticWadoPath.replace(
+          `/studies/${studyUID}`,
+          `/studies/${hashPrefix}/${studyUID}`
+        );
+
+        req.staticWadoPath = newPath;
+      }
+    }
+
+    next();
+  });
 
   // Study and Series query have custom endpoints to retrieve single-UID response
   routerExpress.get(["/studies", "/:ae/studies"], studySingleMap);
@@ -82,6 +111,7 @@ export default function setRoutes(routerExpress, params, dir) {
   routerExpress.get(
     [
       "/studies/:studyUID/series/metadata",
+      "/studies/:studyUID/series/:seriesUID/metadata",
       "/studies/:studyUID/metadataTree.json",
       "/:ae/studies/:studyUID/metadataTree.json",
     ],
@@ -94,7 +124,7 @@ export default function setRoutes(routerExpress, params, dir) {
       "/studies/:studyUID/series",
       "/studies/:studyUID/series/:seriesUID/instances",
     ],
-    postController(params)
+    postController(params, hashStudyUidPath)
   );
   // Handle the QIDO queries
   routerExpress.use(indexingStaticController(dir));

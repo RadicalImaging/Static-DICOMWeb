@@ -35,20 +35,20 @@ const extractImageFrames = async (dataSet, attr, vr, callback) => {
         dataSet,
         attr,
         frameIndex,
-        framesAreFragmented,
+        framesAreFragmented
       );
       BulkDataURI = await callback.imageFrame(compressedFrame, { dataSet });
       Stats.OverallStats.add(
         "Image Write",
         `Write image frame ${frameIndex + 1}`,
-        5000,
+        5000
       );
     } else {
       const uncompressedFrame = getUncompressedImageFrame(
         dataSet,
         attr,
         frameIndex,
-        uncompressedFrameSize,
+        uncompressedFrameSize
       );
       BulkDataURI = await callback.imageFrame(uncompressedFrame, { dataSet });
     }

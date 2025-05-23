@@ -41,7 +41,7 @@ export default function byteRangeRequest(options) {
   async function rangeResponse(req, res, range, extension) {
     // Better hope the range is a simple - range
     const bytes = range.substring(6).split("-");
-    const path = `${baseDir}/${req.path}${extension}`;
+    const path = `${baseDir}/${req.staticWadoPath}${extension}`;
     if (!fs.existsSync(path)) {
       res.status(400).send("Not found");
       return;
@@ -60,7 +60,7 @@ export default function byteRangeRequest(options) {
     const fsiz = req.query.fsiz;
     const accept = req.header("accept") || "";
     const queryAccept = req.query.accept;
-    const extension = findExtension(req.path, queryAccept || accept);
+    const extension = findExtension(req.staticWadoPath, queryAccept || accept);
     const range = req.header("Range");
     res.setHeader(
       "content-type",
@@ -69,13 +69,13 @@ export default function byteRangeRequest(options) {
     res.setHeader("Access-Control-Expose-Headers", "*");
     res.setHeader("Access-Control-Allow-Origin", "*");
 
-    if (fsiz && exists(req.path, `fsiz`)) {
-      req.url = req.path.replace("/frames/", "/fsiz/");
+    if (fsiz && exists(req.staticWadoPath, `fsiz`)) {
+      req.url = req.staticWadoPath.replace("/frames/", "/fsiz/");
     } else if (range) {
       return rangeResponse(req, res, range, extension);
     }
     if (extension) {
-      req.url = `${req.path}${extension}`;
+      req.url = `${req.staticWadoPath}${extension}`;
     }
     next();
   };

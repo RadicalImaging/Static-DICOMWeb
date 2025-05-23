@@ -7,7 +7,7 @@ const extensions = {
  * Maps QIDO queries for studies, series and instances to the index.json.gz file.
  */
 export const qidoMap = (req, res, next) => {
-  req.url = `${req.path}/index.json.gz`;
+  req.url = `${req.staticWadoPath}/index.json.gz`;
   res.setHeader("content-type", "application/json; charset=utf-8");
   next();
 };
@@ -25,7 +25,7 @@ export const studySingleMap = (req, res, next) => {
   console.warn("Study singleton", req.url);
   const studyUID = getDicomKey("0020000d", "studyinstanceuid", req.query);
   if (studyUID) {
-    req.url = `${req.path}/index.json.gz`;
+    req.url = `${req.staticWadoPath}/index.json.gz`;
     res.setHeader("content-type", "application/json; charset=utf-8");
     next();
     return;
@@ -36,7 +36,7 @@ export const studySingleMap = (req, res, next) => {
 export const seriesSingleMap = (req, res, next) => {
   const seriesUID = getDicomKey("0020000e", "seriesinstanceuid", req.query);
   if (seriesUID) {
-    req.url = `${req.path}/${seriesUID}/series-singleton.json.gz`;
+    req.url = `${req.staticWadoPath}/${seriesUID}/series-singleton.json.gz`;
     res.setHeader("content-type", "application/json; charset=utf-8");
     next();
     return;
@@ -49,7 +49,7 @@ export const seriesSingleMap = (req, res, next) => {
  */
 export const otherJsonMap = (req, res, next) => {
   res.setHeader("content-type", "application/json; charset=utf-8");
-  req.url = `${req.path}.gz`;
+  req.url = `${req.staticWadoPath}.gz`;
   next();
 };
 
@@ -58,7 +58,7 @@ export const otherJsonMap = (req, res, next) => {
  */
 export const thumbnailMap = (req, res, next) => {
   res.setHeader("content-type", "image/jpeg");
-  req.url = `${req.path}`;
+  req.url = `${req.staticWadoPath}`;
   next();
 };
 
@@ -67,7 +67,7 @@ export const thumbnailMap = (req, res, next) => {
  */
 export const dicomMap = (req, res, next) => {
   res.setHeader("content-type", "multipart/related");
-  req.url = `${req.path}/index.mht.gz`;
+  req.url = `${req.staticWadoPath}/index.mht.gz`;
   next();
 };
 
@@ -89,7 +89,7 @@ export const multipartMap = (req, res, next) => {
     req.url = mappedFrame;
   } else if (extension) {
     res.setHeader("content-type", queryAccept || accept);
-    req.url = `${req.path}${extension}`;
+    req.url = `${req.staticWadoPath}${extension}`;
   } else {
     res.setHeader("content-type", "multipart/related");
   }
@@ -99,7 +99,7 @@ export const multipartMap = (req, res, next) => {
 /** Handles returning index multipart maps - used to return raw binary data in a directory, eg .../frames */
 export const multipartIndexMap = (req, res, next) => {
   res.setHeader("content-type", "multipart/related");
-  req.url = `${req.path}/index.mht.gz`;
+  req.url = `${req.staticWadoPath}/index.mht.gz`;
   next();
 };
 

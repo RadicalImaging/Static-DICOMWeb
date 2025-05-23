@@ -50,7 +50,11 @@ const createCommandLine = (args, commandName, params) => {
  * @param {*} files files to be stored
  * @param {*} params
  */
-export const storeFilesByStow = async (stored, params = {}) => {
+export const storeFilesByStow = async (
+  stored,
+  params = {},
+  hashStudyUidPath
+) => {
   const { stowCommands = [], notificationCommand, verbose = false } = params;
   const { listFiles, studyUIDs } = stored;
 
@@ -70,11 +74,22 @@ export const storeFilesByStow = async (stored, params = {}) => {
   }
 };
 
-export const storeFileInstance = async (item, params = {}) => {
+export const storeFileInstance = async (
+  item,
+  params = {},
+  hashStudyUidPath
+) => {
   console.verbose("storeFileInstance", item);
   const {
     instanceCommands = [
-      ["mkdicomweb", "instance", "--no-thumb", "--multipart", "<files>"],
+      [
+        "mkdicomweb",
+        "instance",
+        "--no-thumb",
+        "--multipart",
+        "<files>",
+        ...(hashStudyUidPath ? ["--hash-study-uid-path"] : []),
+      ],
     ],
   } = params;
   if (instanceCommands.length > 1) {

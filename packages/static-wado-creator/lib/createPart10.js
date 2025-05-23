@@ -18,7 +18,7 @@ const createFmi = (instance) => {
     UncompressedLEIExplicit;
   const MediaStorageSOPClassUID = Tags.getValue(
     instance,
-    Tags.MediaStorageSOPClassUID,
+    Tags.MediaStorageSOPClassUID
   );
   const SOPInstanceUID = Tags.getValue(instance, Tags.SOPInstanceUID);
   const naturalFmi = {

@@ -22,7 +22,7 @@ const maxTotalFileSize = 10 * maxFileSize;
  * @param {*} params
  * @returns function controller
  */
-export function defaultPostController(params) {
+export function defaultPostController(params, hashStudyUidPath) {
   const rootDir = handleHomeRelative(params.rootDir);
   const uploadDir = `${rootDir}/temp`;
   const formOptions = {
@@ -44,7 +44,12 @@ export function defaultPostController(params) {
         storedInstances.push({
           filepath,
           mimetype,
-          result: storeServices.storeFileInstance(filepath, mimetype, params),
+          result: storeServices.storeFileInstance(
+            filepath,
+            mimetype,
+            params,
+            hashStudyUidPath
+          ),
         });
       } catch (e) {
         console.warn("Unable to store instance", e);
@@ -120,7 +125,8 @@ export function defaultPostController(params) {
       console.warn("STOW result: ", JSON.stringify(result, null, 2));
       await storeServices.storeFilesByStow(
         { listFiles, files, studyUIDs, result },
-        params
+        params,
+        hashStudyUidPath
       );
 
       const xml = dicomToXml(dicomResult);
