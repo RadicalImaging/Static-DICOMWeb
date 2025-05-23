@@ -39,20 +39,21 @@ export default function setRoutes(
   createStudyDirectories(dir);
 
   routerExpress.use("/", (req, res, next) => {
+    req.staticWadoPath = req.path;
+
     if (hashStudyUidPath) {
-      const originalPath = req.path;
-      const studyUID = originalPath.match(/\/studies\/([^/]+)/)?.[1]; // get UID only
+      const studyUID = req.staticWadoPath.match(/\/studies\/([^/]+)/)?.[1]; // get UID only
 
       if (studyUID) {
         const { path: hashPath = "", subpath: hashSubpath = "" } =
           getStudyUIDPathAndSubPath(studyUID);
         const hashPrefix = `${hashPath}/${hashSubpath}`;
-        const newPath = originalPath.replace(
+        const newPath = req.staticWadoPath.replace(
           `/studies/${studyUID}`,
           `/studies/${hashPrefix}/${studyUID}`
         );
 
-        req.hashedPath = newPath;
+        req.staticWadoPath = newPath;
       }
     }
 
