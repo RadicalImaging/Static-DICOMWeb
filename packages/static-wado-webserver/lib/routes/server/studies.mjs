@@ -56,17 +56,7 @@ export default function setRoutes(
 
         req.staticWadoPath = newPath;
       }
-      const { path: hashPath = "", subpath: hashSubpath = "" } =
-        getStudyUIDPathAndSubPath(studyUID);
-      const hashPrefix = `${hashPath}/${hashSubpath}`;
-      const newPath = originalPath.replace(
-        `/studies/${studyUID}`,
-        `/studies/${hashPrefix}/${studyUID}`
-      );
-
-      req.staticWadoPath = newPath;
     }
-
     next();
   });
 
