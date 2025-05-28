@@ -34,6 +34,7 @@ RUN npm install ./static-wado-webserver.tgz
 RUN mkdir /dicomweb
 RUN mkdir ~/.aws
 COPY ./docker/* .
+RUN ln -s /dicomweb /root/dicomweb
 EXPOSE 5000
 EXPOSE 11115
-CMD ["dicomwebserver", "-v"]
+CMD ["dicomwebserver"]

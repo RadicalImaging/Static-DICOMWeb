@@ -77,9 +77,13 @@ export const storeFilesByStow = async (
 export const storeFileInstance = async (
   item,
   params = {},
-  hashStudyUidPath
+  { hashStudyUidPath }
 ) => {
-  console.verbose("storeFileInstance", item);
+  console.verbose(
+    "storeFileInstance",
+    item,
+    hashStudyUidPath ? "hash directory" : ""
+  );
   const {
     instanceCommands = [
       [

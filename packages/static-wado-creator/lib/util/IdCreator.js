@@ -16,7 +16,6 @@ function IdCreator({
       ? getStudyUIDPathAndSubPath(studyInstanceUid)
       : {};
 
-    console.warn("hashStudyUidPath=", hashStudyUidPath);
     const studySubDir = hashStudyUidPath
       ? path.join(hashPath, hashSubpath, studyInstanceUid)
       : studyInstanceUid;
