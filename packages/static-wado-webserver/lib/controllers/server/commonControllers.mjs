@@ -22,7 +22,7 @@ const maxTotalFileSize = 10 * maxFileSize;
  * @param {*} params
  * @returns function controller
  */
-export function defaultPostController(params, hashStudyUidPath) {
+export function defaultPostController(params) {
   const rootDir = handleHomeRelative(params.rootDir);
   const uploadDir = `${rootDir}/temp`;
   const formOptions = {
@@ -40,16 +40,11 @@ export function defaultPostController(params, hashStudyUidPath) {
     form.on("file", (_formname, file) => {
       try {
         const { filepath, mimetype } = file;
-        console.noQuiet("Received upload file", filepath, mimetype);
+        console.verbose("Received upload file", filepath, mimetype);
         storedInstances.push({
           filepath,
           mimetype,
-          result: storeServices.storeFileInstance(
-            filepath,
-            mimetype,
-            params,
-            hashStudyUidPath
-          ),
+          result: storeServices.storeFileInstance(filepath, mimetype, params),
         });
       } catch (e) {
         console.warn("Unable to store instance", e);
@@ -70,10 +65,16 @@ export function defaultPostController(params, hashStudyUidPath) {
       );
 
       // const sopInfo = await storeServices.storeFilesByStow(files, params)
+      console.noQuiet("Starting to await", storedInstances.length, "files");
       let result;
+      let count = 1;
       for (const item of storedInstances) {
         let itemResult;
         try {
+          console.verbose(
+            "About to await #",
+            `${count++}/${storedInstances.length}`
+          );
           itemResult = await item.result;
           if (itemResult.ReferencedSOPSequence?.[0].StudyInstanceUID) {
             studyUIDs.add(itemResult.ReferencedSOPSequence[0].StudyInstanceUID);
@@ -111,6 +112,7 @@ export function defaultPostController(params, hashStudyUidPath) {
           result.FailedSOPSequence.push(itemResult.FailedSOPSequence[0]);
         }
       }
+      console.noQuiet("Done awaiting all instances");
 
       if (!result) {
         console.warn("No results found");
@@ -122,11 +124,10 @@ export function defaultPostController(params, hashStudyUidPath) {
       }
       const dicomResult = denaturalizeDataset(result);
 
-      console.warn("STOW result: ", JSON.stringify(result, null, 2));
+      console.verbose("STOW result: ", JSON.stringify(result, null, 2));
       await storeServices.storeFilesByStow(
         { listFiles, files, studyUIDs, result },
-        params,
-        hashStudyUidPath
+        params
       );
 
       const xml = dicomToXml(dicomResult);
