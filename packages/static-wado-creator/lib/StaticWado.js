@@ -49,7 +49,7 @@ function cs3dThumbnail(
   transferSyntaxUid,
   doneCallback
 ) {
-  decodeImage(originalImageFrame, dataset, transferSyntaxUid)
+  return decodeImage(originalImageFrame, dataset, metadata, transferSyntaxUid)
     .then((decodeResult = {}) => {
       if (isVideo(transferSyntaxUid)) {
         console.log("Video data - no thumbnail generator yet");

@@ -10,7 +10,7 @@ import {
 const queue = [];
 const runners = [];
 
-export function ensureRunners(count = Math.max(4, runners.length)) {
+export function ensureRunners(count = Math.max(3, runners.length)) {
   for (let i = 0; i < count; i++) {
     if (!queue.length) {
       console.verbose("Nothing in queue");
@@ -59,26 +59,32 @@ export function createRunner() {
     processing: false,
     run: function () {
       if (!queue.length) {
-        console.warn("Queue empty, returning");
+        console.verbose("Queue empty, returning");
         return;
       }
       this.available = false;
       this.processing = queue.splice(0, 1)[0];
+      this.processing.startTime = performance.now();
       const { cmdLine } = runner.processing;
-      console.verbose("Starting to process", JSON.stringify(cmdLine));
       const cmd = Array.isArray(cmdLine) ? cmdLine.join(" ") : cmdLine;
+      console.verbose("Starting to process", cmd);
+      this.processing.cmd = cmd;
       this.child.stdin.write(`${cmd}\n`);
     },
   };
 
   child.stdout.on("data", (data) => {
+    if (!runner.processing) {
+      return;
+    }
     runner.inputData.push(data);
     console.verbose(
       `${runner.count}.${runner.inputData.length}>`,
       String(data)
     );
-    if (data.indexOf("mkdicomweb server -->") !== -1) {
-      const resultStr = runner.inputData.join("");
+    const resultStr = runner.inputData.join("");
+    if (resultStr.indexOf("mkdicomweb server -->") !== -1) {
+      runner.processing.endTime = performance.now();
       try {
         let json = null;
         if (runner.processing.options?.parseResults !== false) {
@@ -93,10 +99,18 @@ export function createRunner() {
           new Error(`Unable to find JSON results in ${resultStr}`)
         );
       }
+      const { queueTime, startTime, endTime, cmd } = runner.processing;
+      console.noQuiet(
+        "Task done queue time",
+        startTime - queueTime,
+        "exec time",
+        endTime - startTime,
+        cmd
+      );
       runner.inputData = [];
       runner.processing = null;
       runner.available = true;
-      console.verbose("Runner done");
+
       if (queue.length && !runner.terminated) {
         runner.run();
       }
@@ -131,6 +145,7 @@ export function mkdicomwebSpawn(
       reject,
       cmdLine,
       options,
+      queueTime: performance.now(),
     });
   });
   ensureRunners(options?.runners ?? 3);

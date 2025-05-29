@@ -73,7 +73,6 @@ class StudyData {
       "deduplicatedInstancesPath",
       this.deduplicatedInstancesPath
     );
-    console.verbose("hashStudyUidPath", this.hashStudyUidPath);
 
     this.groupFiles = 0;
     const studyDeduplicated = await JSONReader(
