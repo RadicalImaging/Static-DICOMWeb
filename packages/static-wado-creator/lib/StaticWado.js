@@ -42,35 +42,56 @@ function setStudyData(studyData) {
   this.studyData = studyData;
 }
 
-function cs3dThumbnail(
+async function cs3dThumbnail(
   originalImageFrame,
   dataset,
   metadata,
   transferSyntaxUid,
   doneCallback
 ) {
-  return decodeImage(originalImageFrame, dataset, metadata, transferSyntaxUid)
-    .then((decodeResult = {}) => {
-      if (isVideo(transferSyntaxUid)) {
-        console.log("Video data - no thumbnail generator yet");
-      } else {
-        const { imageFrame, imageInfo } = decodeResult;
-        const pixelData = dicomCodec.getPixelData(
-          imageFrame,
-          imageInfo,
-          transferSyntaxUid
-        );
-        return staticCS.getRenderedBuffer(
-          transferSyntaxUid,
-          pixelData,
-          metadata,
-          doneCallback
-        );
-      }
-    })
-    .catch((error) => {
-      console.log("Error while generating thumbnail", error);
-    });
+  if (!originalImageFrame) {
+    throw new Error(`No originalImageFrame data available`);
+  }
+  if (!dataset && !metadata) {
+    throw new Error(
+      `Neither dataset ${!!dataset} nor metadata ${!!metadata} available.`
+    );
+  }
+  if (isVideo(transferSyntaxUid)) {
+    console.log("Video data - no thumbnail generator yet");
+    return;
+  }
+
+  let decodeResult;
+  try {
+    decodeResult = await decodeImage(
+      originalImageFrame,
+      dataset,
+      metadata,
+      transferSyntaxUid
+    );
+  } catch (error) {
+    console.log("Error while decoding image:", error);
+    return;
+  }
+
+  if (!decodeResult) {
+    console.warn("No decode result, can't create thumbnail");
+    return;
+  }
+
+  const { imageFrame, imageInfo } = decodeResult;
+  const pixelData = dicomCodec.getPixelData(
+    imageFrame,
+    imageInfo,
+    transferSyntaxUid
+  );
+  return staticCS.getRenderedBuffer(
+    transferSyntaxUid,
+    pixelData,
+    metadata,
+    doneCallback
+  );
 }
 
 class StaticWado {

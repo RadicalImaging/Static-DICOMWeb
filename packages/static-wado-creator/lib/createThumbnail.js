@@ -1,4 +1,8 @@
-const { Tags, readBulkData } = require("@radicalimaging/static-wado-util");
+const {
+  Tags,
+  readBulkData,
+  handleHomeRelative,
+} = require("@radicalimaging/static-wado-util");
 const dcmjs = require("dcmjs");
 
 const StaticWado = require("./StaticWado");
@@ -16,8 +20,8 @@ const readBulkDataValue = async (studyDir, instance, value, options) => {
   value.vr = "OB";
   const seriesUid = Tags.getValue(instance, Tags.SeriesInstanceUID);
   const numberOfFrames = Tags.getValue(instance, Tags.NumberOfFrames) || 1;
-  const dir = `${studyDir}/series/${seriesUid}`;
   if (BulkDataURI.indexOf("/frames") !== -1) {
+    const seriesDir = `${studyDir}/series/${seriesUid}`;
     if (options?.frame === false) {
       return;
     }
@@ -25,18 +29,27 @@ const readBulkDataValue = async (studyDir, instance, value, options) => {
     value.Value = [];
     if (typeof options?.frame === "number") {
       console.noQuiet("Reading frame", options.frame);
-      const bulk = await readBulkData(dir, BulkDataURI, options.frame);
-      value.Value[options.frame - 1] = bulk;
+      const bulk = await readBulkData(seriesDir, BulkDataURI, options.frame);
+      if (!bulk) {
+        return;
+      }
+      value.Value[options.frame - 1] = bulk.binaryData;
+      value.transferSyntaxUid = bulk.transferSyntaxUid;
+      value.contentType = bulk.contentType;
       return;
     }
     console.noQuiet("Reading frames", 1, "...", numberOfFrames);
     for (let frame = 1; frame <= numberOfFrames; frame++) {
-      const bulk = await readBulkData(dir, BulkDataURI, frame);
+      const bulk = await readBulkData(seriesDir, BulkDataURI, frame);
       if (!bulk) break;
-      value.Value.push(bulk);
+      value.Value.push(bulk.binaryData);
+      value.transferSyntaxUid = bulk.transferSyntaxUid;
+      value.contentType = bulk.contentType;
     }
   } else {
-    value.Value = [new ArrayBuffer(await readBulkData(dir, BulkDataURI))];
+    const bulk = await readBulkData(studyDir, BulkDataURI);
+    value.Value = [new ArrayBuffer(bulk.binaryData)];
+    value.contentType = bulk.contentType;
   }
 };
 
@@ -130,24 +143,28 @@ module.exports = async function createThumbnail(options, program) {
 
     await readBinaryData(dir, instance, codecOptions);
 
-    const id = importer.callback.uids({
-      studyInstanceUid,
-      seriesInstanceUid: Tags.getValue(instance, Tags.SeriesInstanceUID),
-      sopInstanceUid: sop,
-      transferSyntaxUid: Tags.getValue(
-        instance,
-        Tags.AvailableTransferSyntaxUID
-      ),
-    });
-
+    const availableTransferSyntaxUID = Tags.getValue(
+      instance,
+      Tags.AvailableTransferSyntaxUID
+    );
     const pixelData = Tags.getValue(instance, Tags.PixelData);
     if (!pixelData) {
       console.warn("No pixel data found in instance");
       continue;
     }
+    const transferSyntaxUid =
+      instance[Tags.PixelData].transferSyntaxUid || availableTransferSyntaxUID;
     const frame = Array.isArray(pixelData.Value)
       ? pixelData.Value[0]
       : pixelData;
+    console.verbose("Use transfer syntax uid:", transferSyntaxUid);
+    const id = importer.callback.uids({
+      studyInstanceUid,
+      seriesInstanceUid: Tags.getValue(instance, Tags.SeriesInstanceUID),
+      sopInstanceUid: sop,
+      transferSyntaxUid,
+    });
+
     const promise = importer.callback.internalGenerateImage(
       frame,
       null,

@@ -44,7 +44,7 @@ async function deduplicateSingleInstance(id, imageFrame, { force }) {
       deduplicated,
       key,
       this.extractors[key],
-      TagLists.RemoveExtract,
+      TagLists.RemoveExtract
     );
     const hashKey = getValue(extracted, Tags.DeduppedHash);
     await studyData.addExtracted(this, hashKey, extracted);
@@ -84,7 +84,7 @@ const InstanceDeduplicate = (options) =>
     // Notify the existing listeners, if any
     const imageFrame = canonicalize(sourceImageFrame);
     if (options.isInstance) {
-      if (options.verbose) console.log("Writing instance metadata");
+      console.verbose("Writing instance metadata");
       await JSONWriter(id.sopInstanceRootPath, "metadata", imageFrame);
     }
     if (!options.isDeduplicate && !options.isGroup) {
@@ -99,7 +99,7 @@ const InstanceDeduplicate = (options) =>
     const deduppedInstance = await this.deduplicateSingleInstance(
       id,
       imageFrame,
-      options,
+      options
     );
     if (deduppedInstance) {
       // this refers to callee
