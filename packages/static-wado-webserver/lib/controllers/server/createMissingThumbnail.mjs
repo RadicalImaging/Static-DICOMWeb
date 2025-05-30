@@ -24,7 +24,7 @@ export default function createMissingThumbnail(options) {
       seriesUID,
       instanceUID
     );
-    let execPath = ["thumbnail", studyUID, "-v"];
+    let execPath = ["thumbnail", studyUID];
     if (instanceUID) {
       execPath.push("--sop-instance-uid", instanceUID);
     } else if (seriesUID) {

@@ -425,6 +425,7 @@ class StudyData {
     const modalitiesInStudy = [];
     let numberOfInstances = 0;
     let numberOfSeries = 0;
+
     for (const seriesUid of Object.keys(series)) {
       const singleSeries = series[seriesUid];
       const { seriesQuery, seriesPath, instances, instancesQuery } =
@@ -449,10 +450,21 @@ class StudyData {
         index: false,
       });
       await JSONWriter(seriesPath, "instances", instancesQuery);
+      console.noQuiet(
+        "Wrote instances",
+        seriesUid,
+        "with",
+        instancesQuery.length
+      );
     }
 
     await JSONWriter(this.studyPath, "series", seriesList);
-    console.noQuiet("Wrote series with", seriesList.length);
+    console.noQuiet(
+      "Wrote series",
+      this.studyInstanceUid,
+      "with",
+      seriesList.length
+    );
 
     const studyQuery = TagLists.extract(
       anInstance,

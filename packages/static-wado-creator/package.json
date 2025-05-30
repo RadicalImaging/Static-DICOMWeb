@@ -62,7 +62,6 @@
     "verbose": true
   },
   "dependencies": {
-    "@cornerstonejs/dicom-codec": ">=1.0.5",
     "@radicalimaging/static-wado-util": ">=1.6.1",
     "@radicalimaging/cs3d": ">=1.6.1",
     "canvas": ">=3.1.0",

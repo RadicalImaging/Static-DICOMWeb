@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "canvas": "3.1.0",
+    "@cornerstonejs/dicom-codec": "file:./cornerstonejs-dicom-codec-1.0.7.tgz",
     "typescript": "^5.8.2"
   },
   "resolutions": {
