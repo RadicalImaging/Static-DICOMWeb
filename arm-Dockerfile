@@ -22,6 +22,8 @@ RUN npm install -g bun@^1.2.12
 WORKDIR /app
 RUN npm install -g commander@10.0.1
 ENV PATH /app/node_modules/.bin:$PATH
+COPY *.tgz .
+RUN npm install ./cornerstonejs-dicom-codec-1.0.7.tgz
 COPY --from=builder /app/packages/cs3d/*.tgz cs3d.tgz
 RUN npm install ./cs3d.tgz
 COPY --from=builder /app/packages/static-wado-util/*.tgz static-wado-util.tgz
