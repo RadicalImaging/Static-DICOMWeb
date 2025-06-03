@@ -37,4 +37,4 @@ RUN mkdir ~/.aws
 COPY ./docker/* .
 RUN ln -s /dicomweb /root/dicomweb
 EXPOSE 5000
-CMD ["dicomwebserver", "-v"]
+CMD ["dicomwebserver"]
