@@ -1,18 +1,18 @@
-import jest from "eslint-plugin-jest"
-import globals from "globals"
-import path from "node:path"
-import { fileURLToPath } from "node:url"
-import js from "@eslint/js"
-import { FlatCompat } from "@eslint/eslintrc"
-import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended"
+import jest from "eslint-plugin-jest";
+import globals from "globals";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import js from "@eslint/js";
+import { FlatCompat } from "@eslint/eslintrc";
+import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const compat = new FlatCompat({
   baseDirectory: __dirname,
   recommendedConfig: js.configs.recommended,
   allConfig: js.configs.all,
-})
+});
 
 export default [
   {
@@ -24,8 +24,14 @@ export default [
       "**/rollup.config.js",
       "**/jest.config.js",
     ],
-  },
-  {
+    extends: [
+      "react-app",
+      "eslint:recommended",
+      "plugin:react/recommended",
+      "plugin:@typescript-eslint/recommended",
+      "plugin:prettier/recommended",
+    ],
+    parser: "@typescript-eslint/parser",
     plugins: {
       jest,
     },
@@ -49,4 +55,4 @@ export default [
   },
   // Any other config imports go at the top
   eslintPluginPrettierRecommended,
-]
+];
