@@ -9,7 +9,7 @@ const JSONWriter = async (
   dirSrc,
   name,
   data,
-  options = { gzip: true, brotli: false, index: true }
+  options = { gzip: true, brotli: false, index: true, overwrite: true }
 ) => {
   const fileName = options.index
     ? "index.json.gz"
@@ -17,13 +17,13 @@ const JSONWriter = async (
   const dir = handleHomeRelative(dirSrc);
   const dirName = options.index ? path.join(dir, name) : dir;
 
-  if (fs.existsSync(`${dirName}/${fileName}`)) {
+  if (options.overwrite === false && fs.existsSync(`${dirName}/${fileName}`)) {
     console.verbose(
-      `File already exists. Skiping JSON file creation at "${dirName}" named "${fileName}"`
+      `File already exists. Skipping JSON file creation at "${dirName}" named "${fileName}"`
     );
 
     Stats.StudyStats.add(
-      "JSON not writed",
+      "JSON not written",
       `Did not write JSON file ${name}`,
       1000
     );
