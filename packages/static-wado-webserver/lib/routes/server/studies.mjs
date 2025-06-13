@@ -42,6 +42,7 @@ export default function setRoutes(
   routerExpress.use("/", (req, res, next) => {
     req.staticWadoPath = req.path;
 
+
     if (hashStudyUidPath) {
       const studyUID = req.staticWadoPath.match(/\/studies\/([^/]+)/)?.[1]; // get UID only
       console.warn("webserver hashStudyUidPath", hashStudyUidPath);
@@ -61,7 +62,7 @@ export default function setRoutes(
   });
 
   // Study and Series query have custom endpoints to retrieve single-UID response
-  routerExpress.get(["/studies", "/:ae/studies"], studySingleMap);
+  routerExpress.get("/studies", studySingleMap);
   routerExpress.get("/studies/:studyUID/series", seriesSingleMap);
 
   routerExpress.get(
