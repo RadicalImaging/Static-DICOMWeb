@@ -1,12 +1,11 @@
 const filterKeys = {
-  StudyInstanceUID: "0020000D",
-  PatientName: "00100010",
-  PatientID: "00100020",
-  "00100020": "mrn",
-  StudyDescription: "00081030",
-  StudyDate: "00080020",
-  ModalitiesInStudy: "00080061",
-  AccessionNumber: "00080050",
+  studyinstanceuid: "0020000D",
+  patientname: "00100010",
+  patientid: "00100020",
+  studydescription: "00081030",
+  studydate: "00080020",
+  modalitiesinstudy: "00080061",
+  accessionnumber: "00080050",
 };
 
 /**
@@ -70,7 +69,7 @@ const compareDateRange = (range, value) => {
  * @returns
  */
 const filterItem = (key, queryParams, study) => {
-  const altKey = filterKeys[key] || key;
+  const altKey = filterKeys[key.toLowerCase()] || key;
   if (!queryParams) return true;
   const testValue = queryParams[key] || queryParams[altKey];
   if (!testValue) return true;
@@ -84,7 +83,7 @@ const filterItem = (key, queryParams, study) => {
 
 const qidoFilter = (list, queryParams) => {
   const filtered = list.filter((item) => {
-    for (const key of Object.keys(filterKeys)) {
+    for (const key of Object.keys(queryParams)) {
       if (!filterItem(key, queryParams, item)) return false;
     }
     return true;

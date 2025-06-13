@@ -22,7 +22,6 @@ export const getDicomKey = (codeKey, lowerKey, query) => {
 };
 
 export const studySingleMap = (req, res, next) => {
-  console.warn("Study singleton", req.url);
   const studyUID = getDicomKey("0020000d", "studyinstanceuid", req.query);
   if (studyUID) {
     req.url = `${req.staticWadoPath}/index.json.gz`;
