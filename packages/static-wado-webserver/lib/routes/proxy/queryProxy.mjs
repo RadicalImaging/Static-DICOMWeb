@@ -11,7 +11,6 @@ export const getDicomKey = (codeKey, lowerKey, query) => {
 
 export default async function setQueryProxy(routerExpress, level, params, key) {
   const name = params[key];
-  console.warn("Setting query proxy", key, name);
   if (!name) return;
   try {
     const plugin = await import(plugins[name]);

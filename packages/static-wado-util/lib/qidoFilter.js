@@ -70,13 +70,22 @@ const compareDateRange = (range, value) => {
  */
 const filterItem = (key, queryParams, study) => {
   const altKey = filterKeys[key.toLowerCase()] || key;
-  if (!queryParams) return true;
+  if (!queryParams) {
+    return true;
+  }
   const testValue = queryParams[key] || queryParams[altKey];
-  if (!testValue) return true;
+  if (!testValue) {
+    return true;
+  }
   const valueElem = study[key] || study[altKey];
-  if (!valueElem) return false;
-  if (valueElem.vr == "DA")
+  if (valueElem === undefined) {
+    // Don't try testing on values entirely missing - might refine to make
+    // this only on known values
+    return true;
+  }
+  if (valueElem.vr == "DA") {
     return compareDateRange(testValue, valueElem.Value[0]);
+  }
   const value = valueElem.Value ?? valueElem;
   return !!compareValues(testValue, value);
 };
