@@ -39,4 +39,32 @@ export const readBulkDataValue = async (studyDir, instance, value, options) => {
   }
 };
 
+export const readAllBulkData = async (
+  dir,
+  instance,
+  options = { frame: true }
+) => {
+  for (const tag of Object.keys(instance)) {
+    const v = instance[tag];
+    if (v.BulkDataURI) {
+      await readBulkDataValue(dir, instance, v, options);
+      continue;
+    }
+    if (!v.vr) {
+      const value0 = v.Value?.[0];
+      if (typeof value0 === "string") {
+        v.vr = "LT";
+      } else {
+        console.log("Deleting", tag, v.Value, v);
+        delete instance[tag];
+      }
+      continue;
+    }
+    if (v.vr === "SQ" && v.Values?.length) {
+      await Promise.all(v.Values.map(readAllBulkData));
+      continue;
+    }
+  }
+};
+
 export default readBulkDataValue;

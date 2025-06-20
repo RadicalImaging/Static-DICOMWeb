@@ -3,6 +3,7 @@ import {
   readBulkData,
   handleHomeRelative,
   readBulkDataValue,
+  readAllBulkData,
 } from "@radicalimaging/static-wado-util";
 import dcmjs from "dcmjs";
 
@@ -15,30 +16,6 @@ const { DicomDict, DicomMetaDictionary } = dcmjs.data;
 
 const fileMetaInformationVersionArray = new Uint8Array(2);
 fileMetaInformationVersionArray[1] = 1;
-
-const readBinaryData = async (dir, instance, options = { frame: true }) => {
-  for (const tag of Object.keys(instance)) {
-    const v = instance[tag];
-    if (v.BulkDataURI) {
-      await readBulkDataValue(dir, instance, v, options);
-      continue;
-    }
-    if (!v.vr) {
-      const value0 = v.Value?.[0];
-      if (typeof value0 === "string") {
-        v.vr = "LT";
-      } else {
-        console.log("Deleting", tag, v.Value, v);
-        delete instance[tag];
-      }
-      continue;
-    }
-    if (v.vr === "SQ" && v.Values?.length) {
-      await Promise.all(v.Values.map(readBinaryData));
-      continue;
-    }
-  }
-};
 
 export async function createThumbnail(options, program) {
   const finalOptions = adaptProgramOpts(options, {
@@ -104,7 +81,7 @@ export async function createThumbnail(options, program) {
       continue;
     }
 
-    await readBinaryData(dir, instance, codecOptions);
+    await readAllBulkData(dir, instance, codecOptions);
 
     const availableTransferSyntaxUID = Tags.getValue(
       instance,
@@ -141,6 +118,6 @@ export async function createThumbnail(options, program) {
     }
   }
   await Promise.all(promises);
-};
+}
 
 export default createThumbnail;
