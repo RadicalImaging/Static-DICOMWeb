@@ -1,14 +1,14 @@
-const {
+import {
   Tags,
   readBulkData,
   handleHomeRelative,
   readBulkDataValue,
-} = require("@radicalimaging/static-wado-util");
-const dcmjs = require("dcmjs");
+} from "@radicalimaging/static-wado-util";
+import dcmjs from "dcmjs";
 
-const StaticWado = require("./StaticWado");
-const adaptProgramOpts = require("./util/adaptProgramOpts");
-const WriteStream = require("./writer/WriteStream");
+import StaticWado from "./StaticWado";
+import adaptProgramOpts from "./util/adaptProgramOpts";
+import WriteStream from "./writer/WriteStream";
 
 const UncompressedLEIExplicit = "1.2.840.10008.1.2.1";
 const { DicomDict, DicomMetaDictionary } = dcmjs.data;
@@ -40,7 +40,7 @@ const readBinaryData = async (dir, instance, options = { frame: true }) => {
   }
 };
 
-module.exports = async function createThumbnail(options, program) {
+export async function createThumbnail(options, program) {
   const finalOptions = adaptProgramOpts(options, {
     ...this,
     // Instance metadata is the instances/<sopUID>/metadata.gz files
@@ -142,3 +142,5 @@ module.exports = async function createThumbnail(options, program) {
   }
   await Promise.all(promises);
 };
+
+export default createThumbnail;
