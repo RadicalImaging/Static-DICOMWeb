@@ -241,7 +241,7 @@ function transcodeLog(options, msg, error = "") {
   }
 }
 
-function scale(imageFrame, imageInfo) {
+function scale(imageFrame, imageInfo, factor = 4) {
   const { rows, columns, bitsPerPixel, pixelRepresentation, samplesPerPixel } =
     imageInfo;
   let ArrayConstructor = Float32Array;
@@ -257,8 +257,8 @@ function scale(imageFrame, imageInfo) {
     samplesPerPixel,
   };
   const dest = {
-    rows: Math.round(rows / 4),
-    columns: Math.round(columns / 4),
+    rows: Math.round(rows / factor),
+    columns: Math.round(columns / factor),
     samplesPerPixel,
   };
   dest.pixelData = new ArrayConstructor(
@@ -302,13 +302,13 @@ async function generateLossyImage(id, decoded, options) {
     };
 
     let lossy = true;
-    if (options.alternateThumbnail && imageInfo.rows >= 512) {
-      const scaled = scale(imageFrame, imageInfo);
+    if (options.alternateThumbnail && imageInfo.rows >= 128) {
+      const scaled = scale(imageFrame, imageInfo, imageInfo.rows > 512 ? 4 : 2);
       if (!scaled) {
         console.log("Couldn't scale");
         return;
       }
-      imageFrame = Buffer.from(scaled.imageFrame.buffer);
+      imageFrame = scaled.imageFrame;
       imageInfo = scaled.imageInfo;
     }
 
@@ -437,12 +437,6 @@ async function transcodeImageFrame(
           encodeOptions
         );
 
-        console.log(
-          "transcoded image to",
-          targetId.transferSyntaxUid,
-          "of size",
-          result.imageFrame.length
-        );
         processResultMsg = `Transcoding finished`;
         break;
       case transcodeOp.encode:
@@ -457,6 +451,7 @@ async function transcodeImageFrame(
           targetId.transferSyntaxUid,
           encodeOptions
         );
+        decoded = { imageFrame, imageInfo };
 
         processResultMsg = `Encoding finished`;
         break;
@@ -470,6 +465,7 @@ async function transcodeImageFrame(
           imageInfo,
           id.transferSyntaxUid
         );
+        decoded = { imageFrame: result, imageInfo };
 
         processResultMsg = `Decoding finished`;
         break;
@@ -479,7 +475,7 @@ async function transcodeImageFrame(
 
     done = !!result.imageFrame;
   } catch (e) {
-    transcodeLog(options, "Failed to transcode image", e);
+    console.noQuiet("Failed to transcode image", e);
   }
 
   // recover transfer syntax
