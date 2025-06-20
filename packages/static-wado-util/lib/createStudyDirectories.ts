@@ -7,3 +7,5 @@ export function createStudyDirectories(dir) {
 
   JSONWriter(dir, "index.json", [], { gzip: true });
 }
+
+export default createStudyDirectories;

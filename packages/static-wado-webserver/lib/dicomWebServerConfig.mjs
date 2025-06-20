@@ -26,12 +26,6 @@ const { dicomWebServerConfig } = ConfigPoint.register({
     // proxyAe: "AE-NAME",
 
     webserverPlugins: [],
-    options: [
-      {
-        key: "-p, --p <port>",
-        description: "Run on the given port",
-      },
-    ],
   },
 });
 

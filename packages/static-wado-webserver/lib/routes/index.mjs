@@ -15,12 +15,10 @@ export default async function setRoutes(appExpress, params) {
   const {
     rootDir: serverRootDir,
     clientDir: clientRootDir,
-    path,
+    serverPath = "/dicomweb",
+    clientPath = "/",
     hashStudyUidPath,
   } = params;
-
-  const serverPath = path || "/dicomweb";
-  const clientPath = path || "/";
 
   if (!serverRootDir || !clientRootDir) {
     console.log("Missing static files source directory");

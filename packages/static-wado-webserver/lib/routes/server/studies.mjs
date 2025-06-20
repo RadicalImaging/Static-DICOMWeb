@@ -45,7 +45,6 @@ export default function setRoutes(
 
     if (hashStudyUidPath) {
       const studyUID = req.staticWadoPath.match(/\/studies\/([^/]+)/)?.[1]; // get UID only
-      console.warn("webserver hashStudyUidPath", hashStudyUidPath);
       if (studyUID) {
         const { path: hashPath = "", subpath: hashSubpath = "" } =
           getStudyUIDPathAndSubPath(studyUID);
