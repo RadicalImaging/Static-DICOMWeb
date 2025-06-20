@@ -13,7 +13,9 @@ const WriteStream = (dir, nameSrc, options = {}) => {
   const isGzip = nameSrc.indexOf(".gz") != -1 || options.gzip;
   const name =
     (isGzip && nameSrc.indexOf(".gz") === -1 && `${nameSrc}.gz`) || nameSrc;
-  if (options.mkdir) fs.mkdirSync(dir, { recursive: true });
+  if (options.mkdir) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
 
   const tempName = path.join(
     dir,

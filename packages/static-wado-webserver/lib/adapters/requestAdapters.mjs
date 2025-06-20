@@ -21,8 +21,11 @@ export const getDicomKey = (codeKey, lowerKey, query) => {
   }
 };
 
+/** 
+ * Handles direct map for single studies - normally handled by a proxy controller,
+ * but in the case there isn't one, this will handle it.
+ */
 export const studySingleMap = (req, res, next) => {
-  console.warn("Study singleton", req.url);
   const studyUID = getDicomKey("0020000d", "studyinstanceuid", req.query);
   if (studyUID) {
     req.url = `${req.staticWadoPath}/index.json.gz`;
