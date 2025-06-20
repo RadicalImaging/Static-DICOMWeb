@@ -53,6 +53,16 @@ async function configureProgram(defaults = dicomWebServerConfig) {
       description: "Enable hashing of studyUID folder structure",
       defaultValue: false,
     },
+    {
+      key: "--server-path <path>",
+      description: "Sets the server path to listen to",
+      defaultValue: "/dicomweb",
+    },
+    {
+      key: "--client-path <clientPath>",
+      description: "Sets the client path to listen to",
+      defaultValue: "/",
+    },
   ];
 
   const configuration = {
