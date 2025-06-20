@@ -32,6 +32,7 @@ module.exports.configureCommands = configureCommands;
 module.exports.program = program;
 module.exports.Stats = Stats;
 module.exports.getStudyUIDPathAndSubPath = require("./getStudyUIDPathAndSubPath");
+module.exports.createStudyDirectories = require("./createStudyDirectories");
 
 module.exports.default = {
   ...module.exports,
