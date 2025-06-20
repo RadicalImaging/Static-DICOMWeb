@@ -52,3 +52,10 @@ node_modules/
 
 # VS Code
 *.code-workspace
+
+# Root commands
+*.cmd
+
+# vim files
+**/*~
+**/*.swp

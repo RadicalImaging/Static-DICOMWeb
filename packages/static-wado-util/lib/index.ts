@@ -25,6 +25,7 @@ import getStudyUIDPathAndSubPath from './getStudyUIDPathAndSubPath';
 export { program, configureProgram, configureCommands } from "./program";
 export * from "./dicomToXml";
 import createStudyDirectories from "./createStudyDirectories";
+export * from "./reader/readBulkDataValue";
 
 export {
   extractMultipart,
