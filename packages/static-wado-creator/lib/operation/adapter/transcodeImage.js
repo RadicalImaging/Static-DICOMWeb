@@ -58,7 +58,7 @@ const transcodeDestinationMap = {
     transcodeOp: transcodeOp.encode,
   },
   jhc: {
-    transferSyntaxUid: "1.2.840.10008.1.2.4.200",
+    transferSyntaxUid: "1.2.840.10008.1.2.4.201",
     transcodeOp: transcodeOp.encode,
     beforeEncode: htj2kBeforeEncode({}),
   },
@@ -286,6 +286,12 @@ function scale(imageFrame, imageInfo, factor = 4) {
  * In either case, saves it to <sopUID>/fsiz/frameNo as multipart related
  */
 async function generateLossyImage(id, decoded, options) {
+  console.warn(
+    "generateLossyImage",
+    options.alternate,
+    options.alternateThumbnail,
+    !!decoded?.imageFrame
+  );
   if (!options.alternate) return;
   if (!decoded?.imageFrame) return;
   console.verbose("Writing alternate thumbnail");
