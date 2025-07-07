@@ -352,7 +352,10 @@ async function generateLossyImage(id, decoded, options) {
 }
 
 function isPalette(dataSet) {
-  return dataSet.string(Tags.RawPhotometricInterpretation) === "PALETTE COLOR";
+  const pmi =
+    dataSet.string?.(Tags.RawPhotometricInterpretation) ||
+    Tags.getValue(dataSet, Tags.PhotometricInterpretation);
+  return pmi === "PALETTE COLOR";
 }
 
 /**
@@ -375,8 +378,12 @@ async function transcodeImageFrame(
   let targetId = targetIdSrc;
   let result = {};
 
-  const samplesPerPixel = dataSet.uint16(Tags.RawSamplesPerPixel);
-  const planarConfiguration = dataSet.uint16("x00280006");
+  const samplesPerPixel =
+    dataSet.uint16?.(Tags.RawSamplesPerPixel) ||
+    Tags.getValue(dataSet, Tags.SamplesPerPixel);
+  const planarConfiguration =
+    dataSet.uint16?.("x00280006") ||
+    Tags.getValue(dataSet, Tags.PlanarConfiguration);
   if (
     !shouldTranscodeImageFrame(id, options, samplesPerPixel) ||
     planarConfiguration === 1 ||

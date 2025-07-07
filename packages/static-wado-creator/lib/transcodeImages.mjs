@@ -99,7 +99,13 @@ export async function transcodeImages(options, program) {
     const targetId = {
       transferSyntaxUid: "1.2.840.10008.1.2.4.70",
     };
-    const transcodedFrame = await transcodeImageFrame(id, targetId, frame, instance);
+    const transcodedFrame = await transcodeImageFrame(
+      id,
+      targetId,
+      frame,
+      instance,
+      { ...options, forceTranscode: true }
+    );
     console.warn("Got transcoded frame", transcodedFrame);
 
     // const promise = importer.callback.internalGenerateImage(
