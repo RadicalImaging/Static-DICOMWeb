@@ -152,6 +152,16 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         defaultValue: false,
       },
       {
+        key: "--delete-input",
+        description: "Deletes successful input files",
+        defaultValue: false,
+      },
+      {
+        key: "--delete-failed",
+        description: "Deletes unsuccessful input files",
+        defaultValue: false,
+      },
+      {
         key: "--recompress-thumb <listvalue...>",
         description: "List of types to recompress thumb separated by space",
         defaultValue: ["uncompressed", "jp2"],
