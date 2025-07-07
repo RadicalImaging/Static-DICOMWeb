@@ -58,7 +58,7 @@ const transcodeDestinationMap = {
     transcodeOp: transcodeOp.encode,
   },
   jhc: {
-    transferSyntaxUid: "1.2.840.10008.1.2.4.200",
+    transferSyntaxUid: "1.2.840.10008.1.2.4.201",
     transcodeOp: transcodeOp.encode,
     beforeEncode: htj2kBeforeEncode({}),
   },
@@ -241,7 +241,7 @@ function transcodeLog(options, msg, error = "") {
   }
 }
 
-function scale(imageFrame, imageInfo) {
+function scale(imageFrame, imageInfo, factor = 4) {
   const { rows, columns, bitsPerPixel, pixelRepresentation, samplesPerPixel } =
     imageInfo;
   let ArrayConstructor = Float32Array;
@@ -257,8 +257,8 @@ function scale(imageFrame, imageInfo) {
     samplesPerPixel,
   };
   const dest = {
-    rows: Math.round(rows / 4),
-    columns: Math.round(columns / 4),
+    rows: Math.round(rows / factor),
+    columns: Math.round(columns / factor),
     samplesPerPixel,
   };
   dest.pixelData = new ArrayConstructor(
@@ -286,6 +286,12 @@ function scale(imageFrame, imageInfo) {
  * In either case, saves it to <sopUID>/fsiz/frameNo as multipart related
  */
 async function generateLossyImage(id, decoded, options) {
+  console.warn(
+    "generateLossyImage",
+    options.alternate,
+    options.alternateThumbnail,
+    !!decoded?.imageFrame
+  );
   if (!options.alternate) return;
   if (!decoded?.imageFrame) return;
   console.verbose("Writing alternate thumbnail");
@@ -302,13 +308,13 @@ async function generateLossyImage(id, decoded, options) {
     };
 
     let lossy = true;
-    if (options.alternateThumbnail && imageInfo.rows >= 512) {
-      const scaled = scale(imageFrame, imageInfo);
+    if (options.alternateThumbnail && imageInfo.rows >= 128) {
+      const scaled = scale(imageFrame, imageInfo, imageInfo.rows > 512 ? 4 : 2);
       if (!scaled) {
         console.log("Couldn't scale");
         return;
       }
-      imageFrame = Buffer.from(scaled.imageFrame.buffer);
+      imageFrame = scaled.imageFrame;
       imageInfo = scaled.imageInfo;
     }
 
@@ -346,7 +352,10 @@ async function generateLossyImage(id, decoded, options) {
 }
 
 function isPalette(dataSet) {
-  return dataSet.string(Tags.RawPhotometricInterpretation) === "PALETTE COLOR";
+  const pmi =
+    dataSet.string?.(Tags.RawPhotometricInterpretation) ||
+    Tags.getValue(dataSet, Tags.PhotometricInterpretation);
+  return pmi === "PALETTE COLOR";
 }
 
 /**
@@ -369,8 +378,12 @@ async function transcodeImageFrame(
   let targetId = targetIdSrc;
   let result = {};
 
-  const samplesPerPixel = dataSet.uint16(Tags.RawSamplesPerPixel);
-  const planarConfiguration = dataSet.uint16("x00280006");
+  const samplesPerPixel =
+    dataSet.uint16?.(Tags.RawSamplesPerPixel) ||
+    Tags.getValue(dataSet, Tags.SamplesPerPixel);
+  const planarConfiguration =
+    dataSet.uint16?.("x00280006") ||
+    Tags.getValue(dataSet, Tags.PlanarConfiguration);
   if (
     !shouldTranscodeImageFrame(id, options, samplesPerPixel) ||
     planarConfiguration === 1 ||
@@ -437,12 +450,6 @@ async function transcodeImageFrame(
           encodeOptions
         );
 
-        console.log(
-          "transcoded image to",
-          targetId.transferSyntaxUid,
-          "of size",
-          result.imageFrame.length
-        );
         processResultMsg = `Transcoding finished`;
         break;
       case transcodeOp.encode:
@@ -457,6 +464,7 @@ async function transcodeImageFrame(
           targetId.transferSyntaxUid,
           encodeOptions
         );
+        decoded = { imageFrame, imageInfo };
 
         processResultMsg = `Encoding finished`;
         break;
@@ -470,6 +478,7 @@ async function transcodeImageFrame(
           imageInfo,
           id.transferSyntaxUid
         );
+        decoded = { imageFrame: result, imageInfo };
 
         processResultMsg = `Decoding finished`;
         break;
@@ -479,7 +488,7 @@ async function transcodeImageFrame(
 
     done = !!result.imageFrame;
   } catch (e) {
-    transcodeLog(options, "Failed to transcode image", e);
+    console.noQuiet("Failed to transcode image", e);
   }
 
   // recover transfer syntax

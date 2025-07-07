@@ -3,7 +3,8 @@ const { Tags } = require("@radicalimaging/static-wado-util");
  * Minimum image info data to be used on transcode process by dicom-codec api.
  */
 function getImageInfo(dataSet, instance) {
-  if (instance) {
+  if (instance || !dataSet.uint16) {
+    instance ||= dataSet;
     const rows = Tags.getValue(instance, Tags.Rows);
     const columns = Tags.getValue(instance, Tags.Columns);
     const bitsAllocated = Tags.getValue(instance, Tags.BitsAllocated);

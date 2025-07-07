@@ -137,3 +137,4 @@ Object.keys(dataDictionary).forEach((key) => {
 });
 
 module.exports = Tags;
+module.exports.Tags = Tags;
