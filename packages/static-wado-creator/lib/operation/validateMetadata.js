@@ -19,6 +19,7 @@ function validateMetadata(options) {
       const RetrieveURL = `${serviceUrl}${id.studyInstanceUid}/series/${id.seriesInstanceUid}/instances/${id.sopInstanceUid}`;
 
       // TODO - add check here from plugin to add remote query checks, eg kheops or similar
+      const { filename } = id;
       const successMessage = {
         ReferencedSOPSequence: [
           {
@@ -27,16 +28,11 @@ function validateMetadata(options) {
             ReferencedSOPClassUID: getValue(Tags.SOPClassUID),
             ReferencedSOPInstanceUID: id.sopInstanceUid,
             RetrieveURL,
+            StorageURL: filename,
           },
         ],
       };
-      const responseMessage = JSON.stringify(successMessage);
-      console.log(
-        "\r\n--boundary-response\r\n" +
-          "content-type: application/json\r\n\r\n" +
-          responseMessage +
-          "\r\n--boundary-response--\r\n"
-      );
+      this.success("instanceStored", successMessage, filename);
     }
   };
 }

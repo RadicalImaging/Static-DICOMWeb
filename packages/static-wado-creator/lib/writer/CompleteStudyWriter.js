@@ -32,22 +32,15 @@ const CompleteStudyWriter = (options) => {
         );
       } else {
         console.noQuiet(
-          "(2) Not writing new deduplicated data because it is clean:",
+          "Not writing new deduplicated data because it is clean:",
           studyData.studyInstanceUid
         );
-        if (options.multipart) {
-          const message = {
-            text: "Metadata clean, not updating",
-            status: 0,
-            studyInstanceUid: studyData.studyInstanceUid,
-          };
-          console.log(
-            "\r\n--boundary-response\r\n" +
-              "content-type: application/json\r\n\r\n" +
-              JSON.stringify(message, null, 2) +
-              "\r\n--boundary-response--\r\n"
-          );
-        }
+        const message = {
+          text: "Metadata clean, not updating",
+          status: 0,
+          studyInstanceUid: studyData.studyInstanceUid,
+        };
+        this.success("metadataClean", message);
       }
       await studyData.deleteInstancesReferenced();
     }
@@ -94,19 +87,12 @@ const CompleteStudyWriter = (options) => {
     await JSONWriter(options.directoryName, "studies", allStudies);
     if (options.notifications)
       this.notificationService.notifyStudy(studyData.studyInstanceUid);
-    if (options.multipart) {
-      const message = {
-        action: "metadata",
-        status: 0,
-        studyInstanceUid: studyData.studyInstanceUid,
-      };
-      console.log(
-        "\r\n--boundary-response\r\n" +
-          "content-type: application/json\r\n\r\n" +
-          JSON.stringify(message, null, 2) +
-          "\r\n--boundary-response--\r\n"
-      );
-    }
+    const message = {
+      action: "metadata",
+      status: 0,
+      studyInstanceUid: studyData.studyInstanceUid,
+    };
+    this.success("completeStudyWriter", message);
     delete this.studyData;
     Stats.StudyStats.summarize(
       `Wrote study metadata/query files for ${studyData.studyInstanceUid}`

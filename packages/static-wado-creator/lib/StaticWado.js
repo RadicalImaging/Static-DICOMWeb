@@ -37,6 +37,12 @@ const RejectInstance = require("./RejectInstance");
 const RawDicomWriter = require("./writer/RawDicomWriter");
 const { isVideo } = require("./writer/VideoWriter");
 const validateMetadata = require("./operation/validateMetadata.js");
+const {
+  Success,
+  Failure,
+  clearResults,
+  WriteResults,
+} = require("./util/resultsReport");
 
 function setStudyData(studyData) {
   this.studyData = studyData;
@@ -102,7 +108,8 @@ class StaticWado {
       pathInstances = "instances",
       verbose,
       quiet = false,
-      showProgress = !quiet,
+      multipart = false,
+      showProgress = !quiet && !multipart,
     } = configuration;
 
     dicomCodec.setConfig({ verbose });
@@ -132,6 +139,10 @@ class StaticWado {
       scanStudy: ScanStudy(this.options),
       reject: RejectInstance(this.options),
       delete: DeleteStudy(this.options),
+      success: Success(this.options),
+      failure: Failure(this.options),
+      writeResults: WriteResults(this.options),
+      clearResults,
       setStudyData,
       rawDicomWriter: RawDicomWriter(this.options),
       notificationService: new NotificationService(
@@ -197,7 +208,15 @@ class StaticWado {
             this.totalFiles++;
           }
         } catch (e) {
-          console.warn("File not readable", file);
+          this.callback.failure(
+            "File not DICOM",
+            {
+              FailedSOPSequence: [
+                { FailureReason: 0xd000, TextValue: "File not DICOM" },
+              ],
+            },
+            file
+          );
         }
       }
       console.noQuiet(`\nProcessing ${this.totalFiles} DICOM files...\n`);
@@ -214,28 +233,28 @@ class StaticWado {
           Stats.StudyStats.add("DICOM P10", "Parse DICOM P10 file");
           this.updateProgress();
         } catch (e) {
-          console.error("Couldn't process", file);
-          console.verbose("Error", e);
           this.updateProgress();
+          const message = {
+            FailedSOPSequence: [
+              {
+                FailureReason: 0xd000,
+                TextValue: "File not DICOM",
+                StorageURL: file,
+              },
+            ],
+          };
+          this.callback.failure("Not DICOM", message, file, e);
         }
       },
     });
 
     if (!filesProcessed) {
-      console.warn("No files processed");
-      if (this.options.multipart) {
-        const message = {
-          action: "metadata",
-          count: 0,
-          status: -1,
-        };
-        console.log(
-          "\r\n--boundary-response\r\n" +
-            "content-type: application/json\r\n\r\n" +
-            JSON.stringify(message, null, 2) +
-            "\r\n--boundary-response--\r\n"
-        );
-      }
+      const message = {
+        action: "metadata",
+        count: 0,
+        status: -1,
+      };
+      this.callback.failure("No files processed", message);
     }
 
     if (this.showProgress) {
@@ -266,11 +285,7 @@ class StaticWado {
     const studyInstanceUid = dataSet.string("x0020000d");
 
     if (!studyInstanceUid) {
-      console.log(
-        "No study UID, can't import file",
-        params.file,
-        dataSet.elements
-      );
+      console.log("No study UID, can't import file", params.file);
       return undefined;
     }
 
@@ -420,6 +435,7 @@ class StaticWado {
    * data in memory by default on a study level, which avoids needing to run the load process.
    */
   async executeCommand(input) {
+    this.callback.clearResults();
     if (this.options.scanStudies) {
       console.log("Scanning study dir", input);
       // Scan one of the study directories - in this case, files is a set of study directories
@@ -429,6 +445,7 @@ class StaticWado {
       await this.processFiles(input, this.options);
     }
     await this.close();
+    this.callback.writeResults();
   }
 
   async close() {

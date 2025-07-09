@@ -76,21 +76,28 @@ export function defaultPostController(params) {
             `${count++}/${storedInstances.length}`
           );
           itemResult = await item.result;
-          if (itemResult.ReferencedSOPSequence?.[0].StudyInstanceUID) {
+          if (Array.isArray(itemResult)) {
+            console.warn("Finding single result in", itemResult);
+            itemResult = itemResult.find(
+              (it) => item.ReferencedSOPSequence || item.FailedSOPSequence
+            );
+          }
+          console.warn("Found itemResult", itemResult);
+          if (itemResult?.ReferencedSOPSequence?.[0].StudyInstanceUID) {
             studyUIDs.add(itemResult.ReferencedSOPSequence[0].StudyInstanceUID);
           } else {
             console.warn("No study uid found", itemResult);
           }
         } catch (e) {
+          console.warn("Error", e);
           console.warn("Couldn't upload item", item);
           itemResult = {
             FailedSOPSequence: [
               {
-                FailedSOPInstance: {
-                  SOPClassUID: "unknown",
-                  SOPInstanceUID: "unknown",
-                  FailureReason: `error: ${e}`,
-                },
+                SOPClassUID: "unknown",
+                SOPInstanceUID: "unknown",
+                FailureReason: 0xc000,
+                TextValue: `error: ${e}`,
               },
             ],
           };
@@ -105,11 +112,11 @@ export function defaultPostController(params) {
         }
         if (itemResult.ReferencedSOPSequence?.length) {
           result.ReferencedSOPSequence.push(
-            itemResult.ReferencedSOPSequence[0]
+            ...itemResult.ReferencedSOPSequence
           );
         }
         if (itemResult.FailedSOPSequence?.length) {
-          result.FailedSOPSequence.push(itemResult.FailedSOPSequence[0]);
+          result.FailedSOPSequence.push(...itemResult.FailedSOPSequence);
         }
       }
       console.noQuiet("Done awaiting all instances");

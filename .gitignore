@@ -52,3 +52,5 @@ node_modules/
 
 # VS Code
 *.code-workspace
+*~
+*.swp
