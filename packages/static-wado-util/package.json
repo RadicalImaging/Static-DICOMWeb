@@ -29,8 +29,9 @@
   "homepage": "https://github.com/radicalimaging/static-dicomweb#readme",
   "license": "ISC",
   "format": "es",
-  "main": "lib/index.ts",
-  "module": "dist/index.js",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "lib/index.ts",
   "files": [
     "lib",
     "dist",
