@@ -54,7 +54,7 @@
     "clean": "rimraf dist",
     "link:exec": "npm install -g && npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
-    "mkdicomweb": "node bin/mkdicomwebDev.mjs --",
+    "mkdicomweb": "bun bin/mkdicomwebDev.mjs --",
     "pack:js": "npm pack --",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
   },

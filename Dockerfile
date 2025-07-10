@@ -45,7 +45,8 @@ RUN npm install \
   ./cs3d.tgz \
   ./static-wado-util.tgz \
   ./static-wado-creator.tgz \
-  ./static-wado-webserver.tgz
+  ./static-wado-webserver.tgz \
+  && rm *.tgz
 
 # Set up runtime directories
 RUN echo 'stty erase ^H' >> /etc/profile && \

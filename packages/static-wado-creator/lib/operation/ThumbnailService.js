@@ -130,12 +130,12 @@ class ThumbnailService {
             "rendered/index.mp4",
           );
           const thumbPath = path.join(itemId.sopInstanceRootPath, "thumbnail");
-          console.log("MP4 - converting video format", mp4Path);
+          console.verbose("MP4 - converting video format", mp4Path);
           this.ffmpeg(mp4Path, thumbPath);
           return thumbPath;
         }
       } else {
-        console.log("Series is of other type...", metadata[Tags.Modality]);
+        console.verbose("Series is of other type...", metadata[Tags.Modality]);
       }
       return null;
     }

@@ -13,7 +13,7 @@ class Stats {
     }
     this.stats[item] += 1;
     if (messageCount && this.stats[item] % messageCount == 0) {
-      console.noQuiet(item, this.stats[item], description);
+      console.verbose(item, this.stats[item], description);
     }
     if (this.parent) this.parent.add(item, description, 0);
   }

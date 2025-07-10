@@ -1,5 +1,8 @@
 import fs from "fs";
-import { configGroup, handleHomeRelative } from "@radicalimaging/static-wado-util";
+import {
+  configGroup,
+  handleHomeRelative,
+} from "@radicalimaging/static-wado-util";
 import path from "path";
 import { plugins } from "@radicalimaging/static-wado-plugins";
 import joinUri from "./joinUri.mjs";

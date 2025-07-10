@@ -77,20 +77,20 @@ export function defaultPostController(params) {
           );
           itemResult = await item.result;
           if (Array.isArray(itemResult)) {
-            console.warn("Finding single result in", itemResult);
+            console.verbose("Finding single result in", itemResult);
             itemResult = itemResult.find(
               (it) => item.ReferencedSOPSequence || item.FailedSOPSequence
             );
           }
-          console.warn("Found itemResult", itemResult);
+          console.verbose("Found itemResult", itemResult);
           if (itemResult?.ReferencedSOPSequence?.[0].StudyInstanceUID) {
             studyUIDs.add(itemResult.ReferencedSOPSequence[0].StudyInstanceUID);
           } else {
-            console.warn("No study uid found", itemResult);
+            console.noQuiet("No study uid found", itemResult);
           }
         } catch (e) {
-          console.warn("Error", e);
-          console.warn("Couldn't upload item", item);
+          console.noQuiet("Error", e);
+          console.noQuiet("Couldn't upload item", item);
           itemResult = {
             FailedSOPSequence: [
               {
@@ -156,7 +156,9 @@ async function deleteStoreInstances(instances) {
   console.noQuiet("Deleting stored instances", instances.length);
   for (const instance of instances) {
     try {
-      await fs.promises.unlink(instance.filepath);
+      if (fs.existsSync(instance.filepath)) {
+        await fs.promises.unlink(instance.filepath);
+      }
     } catch (e) {
       console.warn("Unable to unlink", instance?.filepath);
     }

@@ -1,4 +1,7 @@
-import staticWadoUtil from "@radicalimaging/static-wado-util";
+import {
+  loadConfiguration,
+  configureCommands,
+} from "@radicalimaging/static-wado-util";
 
 /**
  * Configure static-wado-creator commander program.
@@ -7,10 +10,13 @@ import staticWadoUtil from "@radicalimaging/static-wado-util";
  * @returns Program object
  */
 async function configureProgram(defaults = {}) {
-  const configurationFile = await staticWadoUtil.loadConfiguration(defaults, process.argv);
-  console.log("static-wado-deploy::Loaded configuration from", configurationFile);
+  const configurationFile = await loadConfiguration(defaults, process.argv);
+  console.log(
+    "static-wado-deploy::Loaded configuration from",
+    configurationFile
+  );
   defaults.configurationFile = configurationFile;
-  staticWadoUtil.configureCommands(defaults);
+  configureCommands(defaults);
 }
 
 export default configureProgram;
