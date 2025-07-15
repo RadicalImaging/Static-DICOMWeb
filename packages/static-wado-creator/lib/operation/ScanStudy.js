@@ -32,7 +32,7 @@ function ScanStudy(options) {
     const deduplicatedInstancesPath = path.join(
       deduplicatedInstancesRoot,
       // studyInstanceUid,
-      studySubDir
+      studySubDir,
     );
     const deduplicatedPath = path.join(deduplicatedRoot, studySubDir);
     console.verbose(
@@ -40,7 +40,7 @@ function ScanStudy(options) {
       studyInstanceUid,
       studyPath,
       deduplicatedInstancesPath,
-      deduplicatedPath
+      deduplicatedPath,
     );
     return this.completeStudy.getCurrentStudyData(this, {
       studyPath,

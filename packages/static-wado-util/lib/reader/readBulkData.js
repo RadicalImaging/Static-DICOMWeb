@@ -111,7 +111,7 @@ const readBulkData = async (dirSrc, baseName, frame) => {
       console.noQuiet(
         "Bulkdata content type",
         `"${contentType}"`,
-        `"${transferSyntaxUid}"`
+        `"${transferSyntaxUid}"`,
       );
     }
   }

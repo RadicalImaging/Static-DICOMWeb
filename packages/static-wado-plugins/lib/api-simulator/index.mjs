@@ -1,5 +1,5 @@
-const { handleHomeRelative } = require("@radicalimaging/static-wado-util");
-const ConfigPoint = require("config-point");
+import { handleHomeRelative } from "@radicalimaging/static-wado-util";
+import ConfigPoint from "config-point";
 
 let jobId = 1000;
 const jobs = {};
@@ -24,7 +24,7 @@ function subsequentApi(item, req, res) {
   res.sendFile(filePath);
 }
 
-module.exports = ConfigPoint.createConfiguration("apiSimulator", {
+export default ConfigPoint.createConfiguration("apiSimulator", {
   setRoute: (router, item, params = {}) => {
     const { dir = "~/dicomweb" } = params;
     const root = handleHomeRelative(dir);
