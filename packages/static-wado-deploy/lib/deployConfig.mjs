@@ -27,7 +27,8 @@ const { deployConfig } = ConfigPoint.register({
     options: [
       {
         key: "--dry-run",
-        description: "Do a dry run, without actually uploading (but DOES check remote existance if configured)",
+        description:
+          "Do a dry run, without actually uploading (but DOES check remote existance if configured)",
         defaultValue: false,
       },
       {
@@ -36,13 +37,22 @@ const { deployConfig } = ConfigPoint.register({
       },
       {
         key: "-d, --deployments <listvalue...>",
-        description: "List of deployments from configuration to deploy to. Separated by space.",
+        description:
+          "List of deployments from configuration to deploy to. Separated by space.",
         defaultValue: undefined,
       },
       {
         key: "-v, --verbose",
         description: "Write verbose output",
         defaultValue: false,
+      },
+      {
+        key: "--bucket <bucketName>",
+        description: "Name of the bucket to upload to",
+      },
+      {
+        key: "--region <regionName>",
+        description: "Name of the bucket to upload to",
       },
       {
         key: "-r, --retrieve",
@@ -86,19 +96,22 @@ const { deployConfig } = ConfigPoint.register({
       {
         command: "deduplicated <studyUID>",
         helpShort: "Store deduplicated files",
-        helpDescription: "Stores the deduplicated files, allowing for later study updates",
+        helpDescription:
+          "Stores the deduplicated files, allowing for later study updates",
         main: deduplicatedMain,
       },
       {
         command: "update <studyUID>",
         helpShort: "Update the studyUID in the cloud compared to local",
-        helpDescription: "Stores files from the <part10>/<studyUID> directory and upload them, making them eventually consistent",
+        helpDescription:
+          "Stores files from the <part10>/<studyUID> directory and upload them, making them eventually consistent",
         main: updateConsistency,
       },
       {
         command: "notification",
         helpShort: "Scan for notifications",
-        helpDescription: "Scans for notifications to run the specified commands",
+        helpDescription:
+          "Scans for notifications to run the specified commands",
         main: notificationMain,
       },
       {

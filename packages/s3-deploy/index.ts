@@ -2,10 +2,10 @@
 import * as cdk from 'aws-cdk-lib';
 import { StaticSite } from './lib/static-site.js';
 import awsConfig from './lib/awsConfig.mjs';
-import staticWadoUtil from '@radicalimaging/static-wado-util';
+import { loadConfiguration } from "@radicalimaging/static-wado-util";
 
 const defaults = Object.create(awsConfig);
-await staticWadoUtil.loadConfiguration(defaults, process.argv)
+await loadConfiguration(defaults, process.argv);
 
 const app = new cdk.App();
 console.log('env setup', defaults.s3Env);

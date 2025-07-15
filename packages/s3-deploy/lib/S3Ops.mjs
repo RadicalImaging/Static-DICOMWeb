@@ -36,7 +36,7 @@ const findExtensionToRemove = (name) => {
 
 class S3Ops {
   constructor(config, name, options) {
-    this.group = configGroup(config, name);
+    this.group = configGroup(config, name, options);
     this.config = config;
     this.options = options;
   }
@@ -347,10 +347,11 @@ class S3Ops {
           CacheControl,
           Metadata,
           ContentSize,
+          ContentLength: ContentSize,
         });
 
         await this.client.send(command);
-        console.info("Successfully uploaded", Key);
+        console.noQuiet("Successfully uploaded", Key);
         return true;
       } catch (error) {
         lastError = error;
@@ -368,8 +369,8 @@ class S3Ops {
         if (retryCount < maxRetries) {
           const delay = Math.pow(2, retryCount) * 1000;
           console.warn(
-            `Upload failed for ${Key} (attempt ${retryCount}/${maxRetries}). ` +
-            `Retrying in ${delay/1000}s. Error: ${error.message}`
+            `Upload failed for ${Key} ${!!Body} (attempt ${retryCount}/${maxRetries}). ` +
+              `Retrying in ${delay / 1000}s. Error: ${error.message}`
           );
           await new Promise(resolve => setTimeout(resolve, delay));
         }

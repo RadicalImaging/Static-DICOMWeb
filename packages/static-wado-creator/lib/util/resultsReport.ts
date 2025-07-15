@@ -67,14 +67,22 @@ export function clearResults() {
 }
 
 export function WriteResults(options) {
-    return function () {
-        const str = results.length===1 ? JSON.stringify(results[0]) : 
-        `[\n${results.map(r => JSON.stringify(r,null,2)).join(',\n')}\n]`;
-        console.log("\r\n--boundary-response\r\n" +
-          "content-type: application/json\r\n\r\n" +
-          str +
-          "\r\n--boundary-response--\r\n");
+    const { multipart } = options;
 
-        clearResults();
-    }
+    return function () {
+      if (multipart) {
+        const str =
+          results.length === 1
+            ? JSON.stringify(results[0])
+            : `[\n${results.map((r) => JSON.stringify(r, null, 2)).join(",\n")}\n]`;
+        console.log(
+          "\r\n--boundary-response\r\n" +
+            "content-type: application/json\r\n\r\n" +
+            str +
+            "\r\n--boundary-response--\r\n"
+        );
+      }
+
+      clearResults();
+    };
 }

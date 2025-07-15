@@ -109,7 +109,7 @@ class StaticWado {
       verbose,
       quiet = false,
       multipart = false,
-      showProgress = !quiet && !multipart,
+      showProgress = !quiet && !multipart && !verbose,
     } = configuration;
 
     dicomCodec.setConfig({ verbose });

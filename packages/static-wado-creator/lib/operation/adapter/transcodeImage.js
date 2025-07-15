@@ -58,7 +58,7 @@ const transcodeDestinationMap = {
     transcodeOp: transcodeOp.encode,
   },
   jhc: {
-    transferSyntaxUid: "1.2.840.10008.1.2.4.200",
+    transferSyntaxUid: "1.2.840.10008.1.2.4.201",
     transcodeOp: transcodeOp.encode,
     beforeEncode: htj2kBeforeEncode({}),
   },
@@ -332,7 +332,7 @@ async function generateLossyImage(id, decoded, options) {
       lossyId.transferSyntaxUid,
       encodeOptions
     );
-    console.log(
+    console.verbose(
       "Encoded alternate",
       lossyId.transferSyntaxUid,
       "of size",
@@ -437,7 +437,7 @@ async function transcodeImageFrame(
           encodeOptions
         );
 
-        console.log(
+        console.verbose(
           "transcoded image to",
           targetId.transferSyntaxUid,
           "of size",
