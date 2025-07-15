@@ -31,13 +31,13 @@ const JSONReader = async (dirSrc, name, def) => {
 JSONReader.readHashData = async (
   studyDir,
   hashValue,
-  extension = ".json.gz"
+  extension = ".json.gz",
 ) => {
   const hashPath = path.join(
     studyDir,
     "bulkdata",
     hashValue.substring(0, 3),
-    hashValue.substring(3, 5)
+    hashValue.substring(3, 5),
   );
   Stats.StudyStats.add("Read Hash Data", "Read hash data", 100);
   return JSONReader(hashPath, hashValue.substring(5) + extension);
