@@ -37,14 +37,6 @@
   "bin": {
     "deploydicomweb": "bin/deploydicomweb.mjs"
   },
-  "scripts": {
-    "test": "jest --config ./jest.config.js",
-    "build": "echo \"No build yet\" && exit 0",
-    "link:exec": "npm install -g && npm link",
-    "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
-    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
-    "publishJS": "yarn publish  --no-git-tag-version"
-  },
   "jest": {
     "verbose": true
   },
@@ -57,5 +49,16 @@
   "devDependencies": {
     "must": "^0.13.4",
     "ts-jest": "^28.0.2"
+  },
+  "scripts": {
+    "test": "jest --config ./jest.config.js",
+    "build": "bun run build:esm",
+    "build:esm": "bun build lib/index.mjs --target node --outdir dist --",
+    "clean": "rimraf dist",
+    "link:exec": "npm install -g && npm link",
+    "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
+    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
+    "deploydicomweb": "bun bin/deploydicomweb.mjs --",
+    "publishJS": "yarn publish  --no-git-tag-version"
   }
 }

@@ -338,7 +338,7 @@ async function generateLossyImage(id, decoded, options) {
       lossyId.transferSyntaxUid,
       encodeOptions
     );
-    console.log(
+    console.verbose(
       "Encoded alternate",
       lossyId.transferSyntaxUid,
       "of size",
@@ -450,6 +450,12 @@ async function transcodeImageFrame(
           encodeOptions
         );
 
+        console.verbose(
+          "transcoded image to",
+          targetId.transferSyntaxUid,
+          "of size",
+          result.imageFrame.length
+        );
         processResultMsg = `Transcoding finished`;
         break;
       case transcodeOp.encode:
