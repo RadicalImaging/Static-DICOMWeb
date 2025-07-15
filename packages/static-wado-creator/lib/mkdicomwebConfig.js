@@ -2,7 +2,8 @@ const ConfigPoint = require("config-point");
 const { staticWadoConfig } = require("@radicalimaging/static-wado-util");
 const createMain = require("./createMain");
 const createPart10 = require("./createPart10");
-const createThumbnail = require("./createThumbnail");
+const { createThumbnail } = require("./createThumbnail");
+const { transcodeImages } = require("./transcodeImages");
 const deleteMain = require("./deleteMain");
 const rejectMain = require("./rejectMain");
 const serverMain = require("./serverMain");
@@ -304,6 +305,12 @@ const { mkdicomwebConfig } = ConfigPoint.register({
             description: "Generate a series thumbnail instead of instance",
           },
         ],
+      },
+      {
+        command: "transcode",
+        main: transcodeImages,
+        helpDescription:
+          "Transcode images or create alternate representations for the specified study",
       },
       {
         command: "instance",

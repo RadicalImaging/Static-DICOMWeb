@@ -1,13 +1,15 @@
-const {
+import {
   Tags,
   readBulkData,
   handleHomeRelative,
-} = require("@radicalimaging/static-wado-util");
-const dcmjs = require("dcmjs");
+  readBulkDataValue,
+  readAllBulkData,
+} from "@radicalimaging/static-wado-util";
+import dcmjs from "dcmjs";
 
-const StaticWado = require("./StaticWado");
-const adaptProgramOpts = require("./util/adaptProgramOpts");
-const WriteStream = require("./writer/WriteStream");
+import StaticWado from "./StaticWado";
+import adaptProgramOpts from "./util/adaptProgramOpts";
+import WriteStream from "./writer/WriteStream";
 
 const UncompressedLEIExplicit = "1.2.840.10008.1.2.1";
 const { DicomDict, DicomMetaDictionary } = dcmjs.data;
@@ -15,69 +17,7 @@ const { DicomDict, DicomMetaDictionary } = dcmjs.data;
 const fileMetaInformationVersionArray = new Uint8Array(2);
 fileMetaInformationVersionArray[1] = 1;
 
-const readBulkDataValue = async (studyDir, instance, value, options) => {
-  const { BulkDataURI } = value;
-  value.vr = "OB";
-  const seriesUid = Tags.getValue(instance, Tags.SeriesInstanceUID);
-  const numberOfFrames = Tags.getValue(instance, Tags.NumberOfFrames) || 1;
-  if (BulkDataURI.indexOf("/frames") !== -1) {
-    const seriesDir = `${studyDir}/series/${seriesUid}`;
-    if (options?.frame === false) {
-      return;
-    }
-    // Really only support a limited number of frames based on memory size
-    value.Value = [];
-    if (typeof options?.frame === "number") {
-      console.noQuiet("Reading frame", options.frame);
-      const bulk = await readBulkData(seriesDir, BulkDataURI, options.frame);
-      if (!bulk) {
-        return;
-      }
-      value.Value[options.frame - 1] = bulk.binaryData;
-      value.transferSyntaxUid = bulk.transferSyntaxUid;
-      value.contentType = bulk.contentType;
-      return;
-    }
-    console.noQuiet("Reading frames", 1, "...", numberOfFrames);
-    for (let frame = 1; frame <= numberOfFrames; frame++) {
-      const bulk = await readBulkData(seriesDir, BulkDataURI, frame);
-      if (!bulk) break;
-      value.Value.push(bulk.binaryData);
-      value.transferSyntaxUid = bulk.transferSyntaxUid;
-      value.contentType = bulk.contentType;
-    }
-  } else {
-    const bulk = await readBulkData(studyDir, BulkDataURI);
-    value.Value = [new ArrayBuffer(bulk.binaryData)];
-    value.contentType = bulk.contentType;
-  }
-};
-
-const readBinaryData = async (dir, instance, options = { frame: true }) => {
-  for (const tag of Object.keys(instance)) {
-    const v = instance[tag];
-    if (v.BulkDataURI) {
-      await readBulkDataValue(dir, instance, v, options);
-      continue;
-    }
-    if (!v.vr) {
-      const value0 = v.Value?.[0];
-      if (typeof value0 === "string") {
-        v.vr = "LT";
-      } else {
-        console.log("Deleting", tag, v.Value, v);
-        delete instance[tag];
-      }
-      continue;
-    }
-    if (v.vr === "SQ" && v.Values?.length) {
-      await Promise.all(v.Values.map(readBinaryData));
-      continue;
-    }
-  }
-};
-
-module.exports = async function createThumbnail(options, program) {
+export async function createThumbnail(options, program) {
   const finalOptions = adaptProgramOpts(options, {
     ...this,
     // Instance metadata is the instances/<sopUID>/metadata.gz files
@@ -141,7 +81,7 @@ module.exports = async function createThumbnail(options, program) {
       continue;
     }
 
-    await readBinaryData(dir, instance, codecOptions);
+    await readAllBulkData(dir, instance, codecOptions);
 
     const availableTransferSyntaxUID = Tags.getValue(
       instance,
@@ -178,4 +118,6 @@ module.exports = async function createThumbnail(options, program) {
     }
   }
   await Promise.all(promises);
-};
+}
+
+export default createThumbnail;
