@@ -29,9 +29,9 @@
   },
   "homepage": "https://github.com/radicalimaging/static-dicomweb#readme",
   "license": "ISC",
-  "main": "lib/index.js",
+  "main": "lib/index.mjs",
   "export": {
-    ".": "./lib/index.js"
+    ".": "./lib/index.mjs"
   },
   "directories": {
     "lib": "lib"

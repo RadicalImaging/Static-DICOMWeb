@@ -25,14 +25,14 @@ function IdCreator({
     const sopInstanceRootPath = path.join(
       seriesRootPath,
       "instances",
-      sopInstanceUid
+      sopInstanceUid,
     );
     const imageFrameRootPath = path.join(sopInstanceRootPath, "frames");
 
     const deduplicatedPath = path.join(deduplicatedRoot, studySubDir);
     const deduplicatedInstancesPath = path.join(
       deduplicatedInstancesRoot,
-      studySubDir
+      studySubDir,
     );
 
     return {

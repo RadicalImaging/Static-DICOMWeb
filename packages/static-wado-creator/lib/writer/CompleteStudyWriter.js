@@ -28,12 +28,12 @@ const CompleteStudyWriter = (options) => {
         await studyData.writeDeduplicatedGroup();
         console.noQuiet(
           "Wrote updated deduplicated data for study",
-          studyData.studyInstanceUid
+          studyData.studyInstanceUid,
         );
       } else {
         console.noQuiet(
           "Not writing new deduplicated data because it is clean:",
-          studyData.studyInstanceUid
+          studyData.studyInstanceUid,
         );
         const message = {
           text: "Metadata clean, not updating",
@@ -58,7 +58,7 @@ const CompleteStudyWriter = (options) => {
       console.log("Study metadata", studyData.studyInstanceUid, "is clean.");
       delete this.studyData;
       Stats.StudyStats.summarize(
-        `Study metadata ${studyData.studyInstanceUid} has clean metadata, not writing`
+        `Study metadata ${studyData.studyInstanceUid} has clean metadata, not writing`,
       );
       return;
     }
@@ -69,7 +69,7 @@ const CompleteStudyWriter = (options) => {
     const allStudies = await JSONReader(
       options.directoryName,
       "studies/index.json.gz",
-      []
+      [],
     );
     const studyUID = Tags.getValue(studyQuery, Tags.StudyInstanceUID);
     if (!studyUID) {
@@ -77,7 +77,7 @@ const CompleteStudyWriter = (options) => {
       throw new Error("Study query has null studyUID");
     }
     const studyIndex = allStudies.findIndex(
-      (item) => Tags.getValue(item, Tags.StudyInstanceUID) == studyUID
+      (item) => Tags.getValue(item, Tags.StudyInstanceUID) == studyUID,
     );
     if (studyIndex == -1) {
       allStudies.push(studyQuery);
@@ -95,7 +95,7 @@ const CompleteStudyWriter = (options) => {
     this.success("completeStudyWriter", message);
     delete this.studyData;
     Stats.StudyStats.summarize(
-      `Wrote study metadata/query files for ${studyData.studyInstanceUid}`
+      `Wrote study metadata/query files for ${studyData.studyInstanceUid}`,
     );
   }
 

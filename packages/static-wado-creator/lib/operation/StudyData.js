@@ -29,7 +29,7 @@ class StudyData {
       deduplicatedPath,
       deduplicatedInstancesPath,
     },
-    { isGroup, clean, hashStudyUidPath }
+    { isGroup, clean, hashStudyUidPath },
   ) {
     this.studyInstanceUid = studyInstanceUid;
     this.studyPath = studyPath;
@@ -71,25 +71,25 @@ class StudyData {
     console.verbose("deduplicatedPath", this.deduplicatedPath);
     console.verbose(
       "deduplicatedInstancesPath",
-      this.deduplicatedInstancesPath
+      this.deduplicatedInstancesPath,
     );
 
     this.groupFiles = 0;
     const studyDeduplicated = await JSONReader(
       this.studyPath,
       "deduplicated/index.json.gz",
-      []
+      [],
     );
     const info = studyDeduplicated[0];
     if (info) {
       const hash = getValue(info, Tags.DeduppedHash);
       if (this.hashStudyUidPath) {
         console.verbose(
-          "Reading studies/<studyUIDPath>/<studyUIDSubpath>/<studyUID>/deduplicated/index.json.gz"
+          "Reading studies/<studyUIDPath>/<studyUIDSubpath>/<studyUID>/deduplicated/index.json.gz",
         );
       } else {
         console.verbose(
-          "Reading studies/<studyUID>/deduplicated/index.json.gz"
+          "Reading studies/<studyUID>/deduplicated/index.json.gz",
         );
       }
       this.readDeduplicatedData("index.json.gz", studyDeduplicated, hash);
@@ -97,7 +97,7 @@ class StudyData {
       console.log(
         "No deduplicated/index.json to read in",
         this.studyPath,
-        "/deduplicated/index.json.gz"
+        "/deduplicated/index.json.gz",
       );
     }
     if (this.deduplicatedPath) {
@@ -106,7 +106,7 @@ class StudyData {
     }
     if (this.deduplicatedInstancesPath) {
       this.instanceFiles = await this.readDeduplicated(
-        this.deduplicatedInstancesPath
+        this.deduplicatedInstancesPath,
       );
     }
   }
@@ -135,7 +135,7 @@ class StudyData {
     }
     if (this.groupFiles > 0) {
       console.verbose(
-        "dirtyMetadata::Study level deduplicated doesn't match group files"
+        "dirtyMetadata::Study level deduplicated doesn't match group files",
       );
     }
     try {
@@ -153,7 +153,7 @@ class StudyData {
     } catch (e) {
       console.verbose(
         "dirtyMetadata::Exception, assume study metadata is dirty",
-        e
+        e,
       );
       return true;
     }
@@ -215,7 +215,7 @@ class StudyData {
     const deduplicated = this.deduplicated[index];
     if (index < 0 || index >= this.deduplicated.length) {
       throw new Error(
-        `Can't read index ${index}, out of bounds [0..${this.deduplicated.length})`
+        `Can't read index ${index}, out of bounds [0..${this.deduplicated.length})`,
       );
     }
     const refs = getList(deduplicated, Tags.DeduppedRef);
@@ -237,7 +237,7 @@ class StudyData {
         console.log(
           "Already have extracted",
           hashKey,
-          getValue(item, Tags.DeduppedType)
+          getValue(item, Tags.DeduppedType),
         );
       return;
     }
@@ -384,7 +384,7 @@ class StudyData {
         console.log(
           "Skipping deleted instance",
           type,
-          getValue(seriesInstance, Tags.SeriesInstanceUID)
+          getValue(seriesInstance, Tags.SeriesInstanceUID),
         );
         continue;
       }
@@ -393,7 +393,7 @@ class StudyData {
         console.log(
           "Cant get seriesUid from",
           Tags.SeriesInstanceUID,
-          seriesInstance
+          seriesInstance,
         );
         continue;
       }
@@ -401,12 +401,12 @@ class StudyData {
         const seriesQuery = TagLists.extract(
           seriesInstance,
           "series",
-          TagLists.SeriesQuery
+          TagLists.SeriesQuery,
         );
         const seriesPath = path.join(
           this.studyPath,
           "series",
-          seriesInstanceUid
+          seriesInstanceUid,
         );
         series[seriesInstanceUid] = {
           seriesPath,
@@ -417,7 +417,7 @@ class StudyData {
       }
       series[seriesInstanceUid].instances.push(seriesInstance);
       series[seriesInstanceUid].instancesQuery.push(
-        TagLists.extract(seriesInstance, "instance", TagLists.InstanceQuery)
+        TagLists.extract(seriesInstance, "instance", TagLists.InstanceQuery),
       );
     }
 
@@ -454,7 +454,7 @@ class StudyData {
         "Wrote instances",
         seriesUid,
         "with",
-        instancesQuery.length
+        instancesQuery.length,
       );
     }
 
@@ -463,13 +463,13 @@ class StudyData {
       "Wrote series",
       this.studyInstanceUid,
       "with",
-      seriesList.length
+      seriesList.length,
     );
 
     const studyQuery = TagLists.extract(
       anInstance,
       "study",
-      TagLists.PatientStudyQuery
+      TagLists.PatientStudyQuery,
     );
     studyQuery[Tags.ModalitiesInStudy] = { Value: modalitiesInStudy, vr: "CS" };
     studyQuery[Tags.NumberOfStudyRelatedInstances] = {
@@ -492,7 +492,7 @@ class StudyData {
       Object.values(this.extractData).length,
       "extract items and",
       this.deduplicated.length,
-      "instance items"
+      "instance items",
     );
     await JSONWriter(this.studyPath, "deduplicated", [
       infoItem,
@@ -525,7 +525,7 @@ class StudyData {
     console.log(
       "Deleting instances referenced in",
       this.studyInstanceUid,
-      this.deduplicatedInstancesPath
+      this.deduplicatedInstancesPath,
     );
     const files = await this.listJsonFiles(deduplicatedDirectory);
     console.noQuiet("Deleting", files.length, "files");
@@ -558,14 +558,14 @@ class StudyData {
       Object.values(this.extractData).length,
       "extract items and",
       this.deduplicated.length,
-      "instance items"
+      "instance items",
     );
     setList(
       data,
       Tags.DeduppedRef,
       Object.keys(this.readHashes).filter(
-        () => this.deduplicatedHashes[hashValue] == undefined
-      )
+        () => this.deduplicatedHashes[hashValue] == undefined,
+      ),
     );
     const deduplicatedList = [
       data,

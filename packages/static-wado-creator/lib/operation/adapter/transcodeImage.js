@@ -135,7 +135,7 @@ function getDestinationTranscoder(id) {
   const destinationTranscoderEntry =
     transcodeDestinationMap[id] ||
     Object.values(transcodeDestinationMap).find(
-      (value) => value.transferSyntaxUid === id
+      (value) => value.transferSyntaxUid === id,
     );
   return destinationTranscoderEntry;
 }
@@ -149,7 +149,7 @@ function getDestinationTranscoder(id) {
 function getTranscoder(
   transferSyntaxUid,
   { contentType: greyContentType, colorContentType },
-  samplesPerPixel
+  samplesPerPixel,
 ) {
   const contentType =
     samplesPerPixel === 3 ? colorContentType : greyContentType;
@@ -188,7 +188,7 @@ function shouldTranscodeImageFrame(id, options, samplesPerPixel) {
     console.verbose(
       "Not transcoding because no decoder found for",
       transferSyntaxUid,
-      samplesPerPixel
+      samplesPerPixel,
     );
     return false;
   }
@@ -199,7 +199,7 @@ function shouldTranscodeImageFrame(id, options, samplesPerPixel) {
       "Not transcoding because recompress",
       recompress,
       "does not include",
-      transcoder.alias
+      transcoder.alias,
     );
     return false;
   }
@@ -262,7 +262,7 @@ function scale(imageFrame, imageInfo) {
     samplesPerPixel,
   };
   dest.pixelData = new ArrayConstructor(
-    dest.rows * dest.columns * samplesPerPixel
+    dest.rows * dest.columns * samplesPerPixel,
   );
   replicate(src, dest);
 
@@ -296,7 +296,7 @@ async function generateLossyImage(id, decoded, options) {
       ...id,
       imageFrameRootPath: id.imageFrameRootPath.replace(
         "frames",
-        options.alternateName
+        options.alternateName,
       ),
       transferSyntaxUid: transcodeDestinationMap.jhc.transferSyntaxUid,
     };
@@ -330,13 +330,13 @@ async function generateLossyImage(id, decoded, options) {
       imageFrame,
       imageInfo,
       lossyId.transferSyntaxUid,
-      encodeOptions
+      encodeOptions,
     );
     console.verbose(
       "Encoded alternate",
       lossyId.transferSyntaxUid,
       "of size",
-      lossyEncoding.imageFrame.length
+      lossyEncoding.imageFrame.length,
     );
 
     return { id: lossyId, imageFrame: lossyEncoding.imageFrame };
@@ -364,7 +364,7 @@ async function transcodeImageFrame(
   targetIdSrc,
   imageFrame,
   dataSet,
-  options = {}
+  options = {},
 ) {
   let targetId = targetIdSrc;
   let result = {};
@@ -387,7 +387,7 @@ async function transcodeImageFrame(
   const transcoder = getTranscoder(
     id.transferSyntaxUid,
     options,
-    samplesPerPixel
+    samplesPerPixel,
   );
 
   // Don't transcode if not required
@@ -398,7 +398,7 @@ async function transcodeImageFrame(
     console.verbose(
       "Image is already in",
       targetId.transferSyntaxUid,
-      "not transcoding"
+      "not transcoding",
     );
     return {
       id,
@@ -422,40 +422,40 @@ async function transcodeImageFrame(
       case transcodeOp.transcode:
         transcodeLog(
           options,
-          `Full transcoding image from \x1b[43m${id.transferSyntaxUid}\x1b[0m to \x1b[43m${targetId.transferSyntaxUid}\x1b[0m`
+          `Full transcoding image from \x1b[43m${id.transferSyntaxUid}\x1b[0m to \x1b[43m${targetId.transferSyntaxUid}\x1b[0m`,
         );
 
         decoded = await dicomCodec.decode(
           imageFrame,
           imageInfo,
-          id.transferSyntaxUid
+          id.transferSyntaxUid,
         );
         result = await dicomCodec.encode(
           decoded.imageFrame,
           decoded.imageInfo,
           targetId.transferSyntaxUid,
-          encodeOptions
+          encodeOptions,
         );
 
         console.verbose(
           "transcoded image to",
           targetId.transferSyntaxUid,
           "of size",
-          result.imageFrame.length
+          result.imageFrame.length,
         );
         processResultMsg = `Transcoding finished`;
         break;
       case transcodeOp.encode:
         transcodeLog(
           options,
-          `Encoding image to \x1b[43m${targetId.transferSyntaxUid}\x1b[0m`
+          `Encoding image to \x1b[43m${targetId.transferSyntaxUid}\x1b[0m`,
         );
 
         result = await dicomCodec.encode(
           imageFrame,
           imageInfo,
           targetId.transferSyntaxUid,
-          encodeOptions
+          encodeOptions,
         );
 
         processResultMsg = `Encoding finished`;
@@ -463,12 +463,12 @@ async function transcodeImageFrame(
       case transcodeOp.decode:
         transcodeLog(
           options,
-          `Decoding image from \x1b[43m${id.transferSyntaxUid}\x1b[0m`
+          `Decoding image from \x1b[43m${id.transferSyntaxUid}\x1b[0m`,
         );
         result = await dicomCodec.decode(
           imageFrame,
           imageInfo,
-          id.transferSyntaxUid
+          id.transferSyntaxUid,
         );
 
         processResultMsg = `Decoding finished`;
@@ -520,7 +520,7 @@ function transcodeId(id, options, samplesPerPixel) {
   const { transferSyntaxUid } = getTranscoder(
     id.transferSyntaxUid,
     options,
-    samplesPerPixel
+    samplesPerPixel,
   );
 
   targetId.transferSyntaxUid = transferSyntaxUid;
@@ -553,7 +553,7 @@ function transcodeMetadata(metadata, id, options) {
     Tags.setValue(
       result,
       Tags.AvailableTransferSyntaxUID,
-      transcodedId.transferSyntaxUid
+      transcodedId.transferSyntaxUid,
     );
     console.verbose("Apply available tsuid", transcodeId.transferSyntaxUid);
   }

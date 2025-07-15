@@ -44,7 +44,7 @@ async function deduplicateSingleInstance(id, imageFrame, { force }) {
       deduplicated,
       key,
       this.extractors[key],
-      TagLists.RemoveExtract
+      TagLists.RemoveExtract,
     );
     const hashKey = getValue(extracted, Tags.DeduppedHash);
     await studyData.addExtracted(this, hashKey, extracted);
@@ -99,7 +99,7 @@ const InstanceDeduplicate = (options) =>
     const deduppedInstance = await this.deduplicateSingleInstance(
       id,
       imageFrame,
-      options
+      options,
     );
     if (deduppedInstance) {
       // this refers to callee

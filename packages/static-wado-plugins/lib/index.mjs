@@ -1,6 +1,6 @@
-const ConfigPoint = require("config-point");
-const apiSimulator = require("./api-simulator");
-const webProxy = require("./web-proxy");
+import ConfigPoint from "config-point";
+import apiSimulator from "./api-simulator/index.mjs";
+import webProxy from "./web-proxy/index.js";
 
 const plugins = ConfigPoint.getConfig("plugins");
 
@@ -18,6 +18,4 @@ ConfigPoint.extendConfiguration("plugins", {
   s3Plugin: "@radicalimaging/s3-deploy/s3.plugin.mjs",
 });
 
-exports.plugins = plugins;
-exports.apiSimulator = apiSimulator;
-exports.webProxy = webProxy;
+export { plugins, apiSimulator, webProxy };

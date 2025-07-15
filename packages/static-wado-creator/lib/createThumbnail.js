@@ -110,13 +110,13 @@ module.exports = async function createThumbnail(options, program) {
     await importer.callback.thumbWriter(
       id.sopInstanceRootPath,
       "thumbnail",
-      buffer
+      buffer,
     );
     if (seriesThumbnail) {
       await importer.callback.thumbWriter(
         id.seriesRootPath,
         "thumbnail",
-        buffer
+        buffer,
       );
     }
     if (studyThumbnail) {
@@ -145,7 +145,7 @@ module.exports = async function createThumbnail(options, program) {
 
     const availableTransferSyntaxUID = Tags.getValue(
       instance,
-      Tags.AvailableTransferSyntaxUID
+      Tags.AvailableTransferSyntaxUID,
     );
     const pixelData = Tags.getValue(instance, Tags.PixelData);
     if (!pixelData) {
@@ -170,7 +170,7 @@ module.exports = async function createThumbnail(options, program) {
       null,
       instance,
       id.transferSyntaxUid,
-      writeThumbnail.bind(null, id)
+      writeThumbnail.bind(null, id),
     );
     promises.push(promise);
     if (seriesThumbnail) {
