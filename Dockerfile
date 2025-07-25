@@ -2,7 +2,7 @@
 FROM node:24 as builder
 ENV PATH /app/node_modules/.bin:$PATH
 # Install global tools
-RUN npm install -g lerna@5.3.0 bun@1.2.15
+RUN npm install -g lerna@5.3.0 bun@1.2.19
 
 # Setup workdir
 WORKDIR /app
@@ -21,10 +21,10 @@ COPY --link --exclude=node_modules --exclude=**/dist . .
 RUN bun run build && bun run pack:js
 
 
-FROM node:24 as dicomwebserver
+FROM node:24 as installer
 
 # Install minimal global tools
-RUN npm install -g bun@1.2.15 commander@10.0.1
+RUN npm install -g bun@1.2.19 commander@10.0.1
 
 # Setup workdir and PATH
 WORKDIR /app
@@ -47,6 +47,17 @@ RUN npm install \
   ./static-wado-creator.tgz \
   ./static-wado-webserver.tgz \
   && rm *.tgz
+
+############## Copy the installation locally for minimal size service
+
+FROM oven/bun as dicomwebserver
+
+# Setup workdir and PATH
+RUN mkdir /app
+WORKDIR /app
+ENV PATH=/app/node_modules/.bin:$PATH
+
+COPY --from=installer /app ./
 
 # Set up runtime directories
 RUN echo 'stty erase ^H' >> /etc/profile && \
