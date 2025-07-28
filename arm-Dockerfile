@@ -1,16 +1,9 @@
 # syntax=docker/dockerfile:1.7-labs
+FROM node:24 as builder
+ENV PATH /app/node_modules/.bin:$PATH
 
-##############################################
-# 1. Builder Stage (Node 22)
-##############################################
-FROM node:22 as builder
-
-# Install system dependencies for native module compilation
+# Install only essential runtime system libraries
 RUN apt-get update && apt-get install -y \
-  build-essential \
-  python3 \
-  python3-pip \
-  pkg-config \
   libpixman-1-dev \
   libcairo2-dev \
   libpango1.0-dev \
@@ -18,7 +11,7 @@ RUN apt-get update && apt-get install -y \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install global tools
-RUN npm install -g lerna@5.3.0 bun@1.2.15
+RUN npm install -g lerna@8.2.4 bun@1.2.19
 
 # Setup workdir
 WORKDIR /app
@@ -37,21 +30,10 @@ COPY --link --exclude=node_modules --exclude=**/dist . .
 RUN bun run build && bun run pack:js
 
 
-##############################################
-# 2. Runtime Stage (Node 22, Slimmed Down)
-##############################################
-FROM node:22 as dicomwebserver
-
-# Install only essential runtime system libraries
-RUN apt-get update && apt-get install -y \
-  libpixman-1-dev \
-  libcairo2-dev \
-  libpango1.0-dev \
-  ca-certificates \
-  && apt-get clean && rm -rf /var/lib/apt/lists/*
+FROM node:24 as installer
 
 # Install minimal global tools
-RUN npm install -g bun@1.2.15 commander@10.0.1
+RUN npm install -g bun@1.2.19 commander@10.0.1
 
 # Setup workdir and PATH
 WORKDIR /app
@@ -72,7 +54,27 @@ RUN npm install \
   ./cs3d.tgz \
   ./static-wado-util.tgz \
   ./static-wado-creator.tgz \
-  ./static-wado-webserver.tgz
+  ./static-wado-webserver.tgz \
+  && rm *.tgz
+
+############## Copy the installation locally for minimal size service
+
+FROM oven/bun as dicomwebserver
+
+# Install only essential runtime system libraries
+RUN apt-get update && apt-get install -y \
+  libpixman-1-dev \
+  libcairo2-dev \
+  libpango1.0-dev \
+  ca-certificates \
+  && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Setup workdir and PATH
+RUN mkdir /app
+WORKDIR /app
+ENV PATH=/app/node_modules/.bin:$PATH
+
+COPY --from=installer /app ./
 
 # Set up runtime directories
 RUN echo 'stty erase ^H' >> /etc/profile && \
