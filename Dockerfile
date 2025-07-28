@@ -2,7 +2,7 @@
 FROM node:24 as builder
 ENV PATH /app/node_modules/.bin:$PATH
 # Install global tools
-RUN npm install -g lerna@5.3.0 bun@1.2.19
+RUN npm install -g lerna@8.2.4 bun@1.2.19
 
 # Setup workdir
 WORKDIR /app
