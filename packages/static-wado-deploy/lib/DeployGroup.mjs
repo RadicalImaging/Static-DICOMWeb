@@ -22,7 +22,7 @@ class DeployGroup {
     this.deployPlugin = deployPlugin;
     this.groupName = groupName;
     this.options = {
-      concurrentUploads: 1000,  // Default number of concurrent uploads
+      concurrentUploads: 2,  // Default number of concurrent uploads
       ...options
     };
     this.group = configGroup(config, groupName);
@@ -239,8 +239,8 @@ class DeployGroup {
           return 0;
         }
         
-        console.log(`Found ${totalFiles} files to process`);
-        const batchSize = this.options.concurrentUploads || 1000;
+        const batchSize = this.options.concurrentUploads || 10;
+        console.noQuiet('Found', totalFiles, 'files to process in batches of', batchSize);
         let count = 0;
         
         // Stats object to track overall progress
