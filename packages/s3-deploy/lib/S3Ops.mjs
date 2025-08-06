@@ -1,4 +1,5 @@
 import { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
+import { Upload } from '@aws-sdk/lib-storage';
 import fs from "fs";
 import mime from "mime-types";
 import { configGroup, endsWith } from "@radicalimaging/static-wado-util";
@@ -261,130 +262,104 @@ class S3Ops {
     return results;
   }
 
-  /**
-   * Uploads file into the group s3 bucket.
-   * Asynchronous
-   */
-  async createUploadStream(fileName, Key) {
-    return new Promise((resolve, reject) => {
-      const stream = fs.createReadStream(fileName);
-      let hasData = false;
-
-      const cleanup = () => {
-        stream.removeAllListeners();
-        stream.destroy();
-      };
-
-      stream.once('error', (err) => {
-        cleanup();
-        reject(new Error(`Failed to read file ${fileName}: ${err.message}`));
-      });
-
-      stream.once('end', () => {
-        if (!hasData) {
-          cleanup();
-          reject(new Error(`File ${fileName} is empty or unreadable`));
-        }
-      });
-
-      stream.once('readable', () => {
-        hasData = true;
-        resolve(stream);
-      });
-    });
+async upload(dir, file, hash, excludeExisting = {}) {
+  if (!file || !dir) {
+    throw new Error('File and directory are required');
   }
 
-  async upload(dir, file, hash, ContentSize, excludeExisting = {}) {
-    if (!file || !dir) {
-      throw new Error('File and directory are required');
-    }
+  if (file.indexOf(".DS_STORE") !== -1) return false;
 
-    // Exclude the Mac garbage
-    if (file.indexOf(".DS_STORE") !== -1) return false;
+  const Key = this.fileToKey(file);
+  const fileName = this.toFile(dir, file);
 
-    const Key = this.fileToKey(file);
-    const fileName = this.toFile(dir, file);
+  if (!fs.existsSync(fileName)) {
+    throw new Error(`File not found: ${fileName}`);
+  }
 
-    // Validate file exists
-    if (!fs.existsSync(fileName)) {
-      throw new Error(`File not found: ${fileName}`);
-    }
+  const stats = await fs.promises.stat(fileName);
+  const ContentSize = stats.size;
 
-    // Check if we should skip
-    if (await this.shouldSkip(excludeExisting[Key], fileName)) {
-      console.info("Exists", Key);
-      return false;
-    }
+  if (await this.shouldSkip(excludeExisting[Key], fileName)) {
+    console.info("Exists", Key);
+    return false;
+  }
 
-    // Handle dry run
-    if (this.options.dryRun) {
-      console.log("Dry run - not stored", Key);
-      return true;
-    }
+  if (this.options.dryRun) {
+    console.log("Dry run - not stored", Key);
+    return true;
+  }
 
-    const ContentType = this.fileToContentType(file);
-    const Metadata = this.fileToMetadata(file, hash);
-    const ContentEncoding = this.fileToContentEncoding(file);
-    const isNoCacheKey = Key.match(noCachePattern);
-    const CacheControl = isNoCacheKey ? "no-cache" : undefined;
+  const ContentType = this.fileToContentType(file);
+  const Metadata = this.fileToMetadata(file, hash);
+  const ContentEncoding = this.fileToContentEncoding(file);
+  const isNoCacheKey = Key.match(noCachePattern);
+  const CacheControl = isNoCacheKey ? "no-cache" : undefined;
 
-    const maxRetries = 3;
-    let retryCount = 0;
-    let lastError;
+  const maxRetries = 3;
+  let retryCount = 0;
+  let lastError;
 
-    while (retryCount < maxRetries) {
-      let Body;
-      try {
-        // Create and validate the stream
-        Body = await this.createUploadStream(fileName, Key);
+  while (retryCount < maxRetries) {
+    let fileStream;
 
-        const command = new PutObjectCommand({
-          Body,
+    try {
+      fileStream = fs.createReadStream(fileName);
+
+      const upload = new Upload({
+        client: this.client,
+        params: {
           Bucket: this.group.Bucket,
+          Key,
+          Body: fileStream,
           ContentType,
           ContentEncoding,
-          Key,
-          CacheControl,
           Metadata,
-          ContentSize,
-          ContentLength: ContentSize,
-        });
+          CacheControl,
+        },
+        queueSize: 4, // concurrency
+        partSize: 5 * 1024 * 1024, // 5MB parts (S3 minimum)
+        leavePartsOnError: false,
+      });
 
-        await this.client.send(command);
-        console.noQuiet("Successfully uploaded", Key);
-        return true;
-      } catch (error) {
-        lastError = error;
-        retryCount++;
+      upload.on('httpUploadProgress', (progress) => {
+        // Optional: log progress
+        console.debug(`Uploading ${Key}: ${progress.loaded} bytes`);
+      });
 
-        const isStreamError = error.message.includes('Failed to read file') || 
+      await upload.done();
+      console.noQuiet("Successfully uploaded", Key);
+      return true;
+    } catch (error) {
+      lastError = error;
+      retryCount++;
+
+      const isStreamError = error.message.includes('Failed to read file') ||
                             error.message.includes('empty or unreadable');
-        
-        // Don't retry on stream errors
-        if (isStreamError) {
-          console.error(`Stream error for ${Key}:`, error.message);
-          throw error;
-        }
 
-        if (retryCount < maxRetries) {
-          const delay = Math.pow(2, retryCount) * 1000;
-          console.warn(
-            `Upload failed for ${Key} ${!!Body} (attempt ${retryCount}/${maxRetries}). ` +
-              `Retrying in ${delay / 1000}s. Error: ${error.message}`
-          );
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-      } finally {
-        if (Body) {
-          Body.destroy();
-        }
+      if (isStreamError) {
+        console.error(`Stream error for ${Key}:`, error.message);
+        throw error;
+      }
+
+      if (retryCount < maxRetries) {
+        const delay = Math.pow(2, retryCount) * 1000;
+        console.warn(
+          `Upload failed for ${Key} (attempt ${retryCount}/${maxRetries}). ` +
+          `Retrying in ${delay / 1000}s. Error: ${error.message}`
+        );
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    } finally {
+      if (fileStream) {
+        fileStream.destroy();
       }
     }
-
-    const errorMsg = `Failed to upload ${Key} after ${maxRetries} attempts. Last error: ${lastError?.message || 'Unknown error'}`;
-    console.error(errorMsg);
-    throw new Error(errorMsg);
   }
+
+  const errorMsg = `Failed to upload ${Key} after ${maxRetries} attempts. Last error: ${lastError?.message || 'Unknown error'}`;
+  console.error(errorMsg);
+  throw new Error(errorMsg);
+}
 }
 
 ConfigPoint.createConfiguration("s3Plugin", S3Ops);
