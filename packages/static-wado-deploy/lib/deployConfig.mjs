@@ -69,6 +69,11 @@ const { deployConfig } = ConfigPoint.register({
         description: "Set the delay between retries",
         defaultValue: 5000,
       },
+      {
+        key: "--concurrent-uploads <count>",
+        description: "Count of how many concurrent uploads are allowed",
+        defaultValue: 3,
+      },
     ],
 
     programs: [

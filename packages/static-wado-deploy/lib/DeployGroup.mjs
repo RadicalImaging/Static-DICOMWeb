@@ -22,7 +22,7 @@ class DeployGroup {
     this.deployPlugin = deployPlugin;
     this.groupName = groupName;
     this.options = {
-      concurrentUploads: 1000,  // Default number of concurrent uploads
+      concurrentUploads: 2,  // Default number of concurrent uploads
       ...options
     };
     this.group = configGroup(config, groupName);
@@ -48,8 +48,8 @@ class DeployGroup {
    * @returns {Promise<number>} Number of files uploaded
    */
   async processBatch(files, excludeExisting, totalFiles, processStats) {
-    const batchPromises = files.map(async ({ baseDir, relativeName, size }) => {
-      const result = await this.ops.upload(baseDir, relativeName, null, size, excludeExisting);
+    const batchPromises = files.map(async ({ baseDir, relativeName }) => {
+      const result = await this.ops.upload(baseDir, relativeName, null, excludeExisting);
       processStats.count += 1;
       
       // Calculate progress metrics
@@ -223,7 +223,7 @@ class DeployGroup {
       if (stats.isFile()) {
         console.log("Processing single file:", name);
         const relativePath = path.join(parentDir, name).replace(/\\/g, '/');
-        const result = await this.ops.upload(this.baseDir, relativePath, null, stats.size, excludeExisting);
+        const result = await this.ops.upload(this.baseDir, relativePath, null, excludeExisting);
         console.log(result ? "File uploaded successfully" : "File upload skipped");
         return result ? 1 : 0;
       }
@@ -239,8 +239,8 @@ class DeployGroup {
           return 0;
         }
         
-        console.log(`Found ${totalFiles} files to process`);
-        const batchSize = this.options.concurrentUploads || 1000;
+        const batchSize = this.options.concurrentUploads || 10;
+        console.noQuiet('Found', totalFiles, 'files to process in batches of', batchSize);
         let count = 0;
         
         // Stats object to track overall progress
