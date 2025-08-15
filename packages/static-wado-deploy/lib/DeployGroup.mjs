@@ -58,11 +58,7 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
   // Function to upload files one by one with concurrency control
   const uploadFile = async ({ baseDir, relativeName }) => {
     const result = await this.ops.upload(baseDir, relativeName, null, excludeExisting);
-    if( result ) {
-      results[relativeName] = true;
-    } else {
-      results[relativeName] = false;
-    }
+    results[relativeName] = result;
     processStats.count += 1;
 
     // Calculate progress metrics
