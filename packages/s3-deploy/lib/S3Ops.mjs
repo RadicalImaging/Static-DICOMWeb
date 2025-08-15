@@ -280,13 +280,13 @@ async upload(dir, file, hash, excludeExisting = {}) {
   const ContentSize = stats.size;
 
   if (await this.shouldSkip(excludeExisting[Key], fileName)) {
-    console.info("Exists", Key);
-    return false;
+    console.verbose("Exists", Key);
+    return "exists";
   }
 
   if (this.options.dryRun) {
     console.log("Dry run - not stored", Key);
-    return true;
+    return "dryrun";
   }
 
   const ContentType = this.fileToContentType(file);
@@ -322,12 +322,11 @@ async upload(dir, file, hash, excludeExisting = {}) {
       });
 
       upload.on('httpUploadProgress', (progress) => {
-        // Optional: log progress
-        console.debug(`Uploading ${Key}: ${progress.loaded} bytes`);
+        console.verbose(`Uploading ${Key}: ${progress.loaded} bytes`);
       });
 
       await upload.done();
-      console.noQuiet("Successfully uploaded", Key);
+      console.verbose("Successfully uploaded", Key);
       return true;
     } catch (error) {
       lastError = error;

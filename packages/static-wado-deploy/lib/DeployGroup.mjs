@@ -53,9 +53,16 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
   const activeUploads = [];  // Array to track active uploads
   const queue = [...files];   // Copy the files array into a queue
   
+  const results = {};
+
   // Function to upload files one by one with concurrency control
   const uploadFile = async ({ baseDir, relativeName }) => {
     const result = await this.ops.upload(baseDir, relativeName, null, excludeExisting);
+    if( result ) {
+      results[relativeName] = true;
+    } else {
+      results[relativeName] = false;
+    }
     processStats.count += 1;
 
     // Calculate progress metrics
@@ -63,8 +70,8 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
     const overallSpeed = processStats.count / elapsedSeconds;
     const progress = ((processStats.count / totalFiles) * 100).toFixed(1);
 
-    // Update progress every 10 files or when batch completes
-    if (processStats.count % 10 === 0 || processStats.count === totalFiles) {
+    // Update progress every 100 files or when batch completes
+    if (processStats.count % 100 === 0 || processStats.count === totalFiles) {
       const remainingFiles = totalFiles - processStats.count;
       const estimatedSecondsLeft = remainingFiles / overallSpeed;
 
@@ -126,7 +133,7 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
   // Wait for all uploads to finish
   await Promise.all(activeUploads);
 
-  return completedUploads;
+  return results;
 }
 
   /**
@@ -287,7 +294,6 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
         
         const batchSize = this.options.concurrentUploads || 10;
         console.noQuiet('Found', totalFiles, 'files to process in batches of', batchSize);
-        let count = 0;
         
         // Stats object to track overall progress
         const processStats = { 
@@ -295,9 +301,15 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
           startTime: Date.now()
         };
         
-        count += await this.processBatch(files, excludeExisting, totalFiles, processStats, batchSize);
-        
-        
+        const results = await this.processBatch(files, excludeExisting, totalFiles, processStats, batchSize);
+        const count = [...Object.keys(results)].length;
+        console.log(
+          "\r\n--boundary-response\r\n" +
+            "content-type: application/json\r\n\r\n" +
+            JSON.stringify(results) +
+            "\r\n--boundary-response--\r\n"
+        );
+                
         const totalTime = ((Date.now() - processStats.startTime) / 1000).toFixed(1);
         const avgSpeed = (count / totalTime).toFixed(1);
         
