@@ -89,6 +89,8 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
       return result;
   };
 
+  const allUploads = [];
+
   // Function to start the next file upload if there is space in the parallel pool
   const startNextUpload = async () => {
     if (queue.length === 0) {
@@ -103,6 +105,7 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
 
     // Add the upload promise to the active uploads list
     activeUploads.push(uploadPromise);
+    allUploads.push(uploadPromise);
 
     // When this upload completes, remove it from active uploads and start the next one
     uploadPromise.finally(() => {
@@ -111,7 +114,7 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
       // Start the next upload if there are still files in the queue and space in the pool
       if (queue.length > 0 && activeUploads.length < parallelCount) {
         startNextUpload();
-  }
+      }
 
       // If all uploads are completed, resolve the overall promise
       if (completedUploads === files.length) {
@@ -127,7 +130,9 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
   }
 
   // Wait for all uploads to finish
-  await Promise.all(activeUploads);
+  for(const promise of allUploads) {
+    await promise;
+  }
 
   return results;
 }
@@ -289,7 +294,7 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
         }
         
         const batchSize = this.options.concurrentUploads || 10;
-        console.noQuiet('Found', totalFiles, 'files to process in batches of', batchSize);
+        console.noQuiet('Found', totalFiles, 'files to process concurrently using', batchSize, 'uploaders');
         
         // Stats object to track overall progress
         const processStats = { 
@@ -299,12 +304,6 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
         
         const results = await this.processBatch(files, excludeExisting, totalFiles, processStats, batchSize);
         const count = [...Object.keys(results)].length;
-        console.log(
-          "\r\n--boundary-response\r\n" +
-            "content-type: application/json\r\n\r\n" +
-            JSON.stringify(results) +
-            "\r\n--boundary-response--\r\n"
-        );
                 
         const totalTime = ((Date.now() - processStats.startTime) / 1000).toFixed(1);
         const avgSpeed = (count / totalTime).toFixed(1);
@@ -324,7 +323,7 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
           `\n- Average speed: ${avgSpeed} files/sec`
         );
 
-        return count;
+        return results;
       }
       
       throw new Error(`Path is neither a file nor a directory: ${fullPath}`);

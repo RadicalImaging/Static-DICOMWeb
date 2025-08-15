@@ -1,8 +1,8 @@
 import commonMain from "./commonMain.mjs";
 
 async function uploadLei(sourcePath, config, name, options, deployer) {
-  console.log("Uploading to", sourcePath);
-  deployer.store(sourcePath);
+  console.warn("Uploading to", sourcePath);
+  const results = deployer.store(sourcePath);
 }
 
 export default async function (studyUid, options) {
