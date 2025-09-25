@@ -32,6 +32,19 @@ const { deployConfig } = ConfigPoint.register({
         defaultValue: false,
       },
       {
+        key: "--result-file <resultFile>",
+        description:
+          "Store the results in the given file",
+      },
+      {
+        key: "--delete-successful",
+        description: "Delete successful uploads, including existing uploads",
+      },
+      {
+        key: "--delete-failure",
+        description: "Delete failed uploads",
+      },
+      {
         key: "-c, --configuration <json5File>",
         description: "Use a given JSON5 file",
       },

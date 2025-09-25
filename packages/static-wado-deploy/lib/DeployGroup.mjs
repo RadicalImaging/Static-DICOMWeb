@@ -41,47 +41,101 @@ class DeployGroup {
     this.ops = new CreatePlugin(this.config, this.groupName, this.options);
   }
 
-  /**
-   * Process a batch of files in parallel
-   * @param {Array} files Array of {parentDir, name, relativeName, size} objects
-   * @param {Object} excludeExisting Exclusion map
-   * @returns {Promise<number>} Number of files uploaded
-   */
-  async processBatch(files, excludeExisting, totalFiles, processStats) {
-    const batchPromises = files.map(async ({ baseDir, relativeName }) => {
-      const result = await this.ops.upload(baseDir, relativeName, null, excludeExisting);
-      processStats.count += 1;
-      
-      // Calculate progress metrics
-      const elapsedSeconds = (Date.now() - processStats.startTime) / 1000;
-      const overallSpeed = processStats.count / elapsedSeconds;
-      const progress = ((processStats.count / totalFiles) * 100).toFixed(1);
-      
-      // Update progress every 10 files or when batch completes
-      if (processStats.count % 10 === 0 || processStats.count === totalFiles) {
-        const remainingFiles = totalFiles - processStats.count;
-        const estimatedSecondsLeft = remainingFiles / overallSpeed;
-        
-        // Format time remaining in a human-readable format
-        const etaMinutes = Math.floor(estimatedSecondsLeft / 60);
-        const etaSeconds = Math.ceil(estimatedSecondsLeft % 60);
-        const etaDisplay = etaMinutes > 0 
-          ? `${etaMinutes}m ${etaSeconds}s`
-          : `${etaSeconds}s`;
-        
-        console.log(
-          `Progress: ${progress}% (${processStats.count}/${totalFiles}) | ` +
-          `Speed: ${overallSpeed.toFixed(1)} files/sec | ` +
+/**
+ * Process a batch of files concurrently with a limit on parallel uploads.
+ * @param {Array} files Array of {parentDir, name, relativeName, size} objects
+ * @param {Object} excludeExisting Exclusion map
+ * @param {number} parallelCount The number of concurrent uploads allowed
+ * @returns {Promise<number>} Number of files uploaded
+ */
+async processBatch(files, excludeExisting, totalFiles, processStats, parallelCount = 5) {
+  let completedUploads = 0;
+  const activeUploads = [];  // Array to track active uploads
+  const queue = [...files];   // Copy the files array into a queue
+  
+  const results = {};
+
+  // Function to upload files one by one with concurrency control
+  const uploadFile = async ({ baseDir, relativeName }) => {
+    const result = await this.ops.upload(baseDir, relativeName, null, excludeExisting);
+    results[relativeName] = result;
+    processStats.count += 1;
+
+    // Calculate progress metrics
+    const elapsedSeconds = (Date.now() - processStats.startTime) / 1000;
+    const overallSpeed = processStats.count / elapsedSeconds;
+    const progress = ((processStats.count / totalFiles) * 100).toFixed(1);
+
+    // Update progress every 100 files or when batch completes
+    if (processStats.count % 100 === 0 || processStats.count === totalFiles) {
+      const remainingFiles = totalFiles - processStats.count;
+      const estimatedSecondsLeft = remainingFiles / overallSpeed;
+
+      // Format time remaining in a human-readable format
+      const etaMinutes = Math.floor(estimatedSecondsLeft / 60);
+      const etaSeconds = Math.ceil(estimatedSecondsLeft % 60);
+      const etaDisplay = etaMinutes > 0 
+        ? `${etaMinutes}m ${etaSeconds}s`
+        : `${etaSeconds}s`;
+
+      console.log(
+        `Progress: ${progress}% (${processStats.count}/${totalFiles}) | ` +
+        `Speed: ${overallSpeed.toFixed(1)} files/sec | ` +
           `ETA: ${etaDisplay}`
         );
       }
-      
+
+    completedUploads++;
       return result;
-    });
+  };
+
+  const allUploads = [];
+
+  // Function to start the next file upload if there is space in the parallel pool
+  const startNextUpload = async () => {
+    if (queue.length === 0) {
+      return;  // No more files to process
+    }
+
+    // Get the next file in the queue
+    const file = queue.shift();
     
-    const results = await Promise.all(batchPromises);
-    return results.reduce((sum, result) => sum + (result ? 1 : 0), 0);
+    // Start the upload
+    const uploadPromise = uploadFile(file);
+
+    // Add the upload promise to the active uploads list
+    activeUploads.push(uploadPromise);
+    allUploads.push(uploadPromise);
+
+    // When this upload completes, remove it from active uploads and start the next one
+    uploadPromise.finally(() => {
+      activeUploads.splice(activeUploads.indexOf(uploadPromise), 1);
+
+      // Start the next upload if there are still files in the queue and space in the pool
+      if (queue.length > 0 && activeUploads.length < parallelCount) {
+        startNextUpload();
+      }
+
+      // If all uploads are completed, resolve the overall promise
+      if (completedUploads === files.length) {
+        processStats.uploadedFiles = completedUploads;
+        return completedUploads;
+      }
+    });
+  };
+
+  // Start the initial batch of uploads (up to parallelCount files)
+  for (let i = 0; i < Math.min(parallelCount, files.length); i++) {
+    startNextUpload();
   }
+
+  // Wait for all uploads to finish
+  for(const promise of allUploads) {
+    await promise;
+  }
+
+  return results;
+}
 
   /**
    * Collects all files to be uploaded from a directory
@@ -240,8 +294,7 @@ class DeployGroup {
         }
         
         const batchSize = this.options.concurrentUploads || 10;
-        console.noQuiet('Found', totalFiles, 'files to process in batches of', batchSize);
-        let count = 0;
+        console.noQuiet('Found', totalFiles, 'files to process concurrently using', batchSize, 'uploaders');
         
         // Stats object to track overall progress
         const processStats = { 
@@ -249,11 +302,9 @@ class DeployGroup {
           startTime: Date.now()
         };
         
-        for (let i = 0; i < files.length; i += batchSize) {
-          const batch = files.slice(i, i + batchSize);
-          count += await this.processBatch(batch, excludeExisting, totalFiles, processStats);
-        }
-        
+        const results = await this.processBatch(files, excludeExisting, totalFiles, processStats, batchSize);
+        const count = [...Object.keys(results)].length;
+                
         const totalTime = ((Date.now() - processStats.startTime) / 1000).toFixed(1);
         const avgSpeed = (count / totalTime).toFixed(1);
         
@@ -272,7 +323,7 @@ class DeployGroup {
           `\n- Average speed: ${avgSpeed} files/sec`
         );
 
-        return count;
+        return results;
       }
       
       throw new Error(`Path is neither a file nor a directory: ${fullPath}`);
