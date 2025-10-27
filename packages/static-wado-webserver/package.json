@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-webserver",
-  "version": "1.6.8",
+  "version": "1.6.9",
   "description": "Webserver to serve a static-wado repo",
   "publishConfig": {
     "access": "public"
