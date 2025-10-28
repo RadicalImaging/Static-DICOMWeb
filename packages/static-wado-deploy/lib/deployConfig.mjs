@@ -33,8 +33,7 @@ const { deployConfig } = ConfigPoint.register({
       },
       {
         key: "--result-file <resultFile>",
-        description:
-          "Store the results in the given file",
+        description: "Store the results in the given file",
       },
       {
         key: "--delete-successful",
@@ -91,9 +90,9 @@ const { deployConfig } = ConfigPoint.register({
 
     programs: [
       {
-        command: "studies [studyUID]",
-        arguments: ["studyUID"],
-        helpShort: "deploydicomweb studies [studyUID]",
+        command: "studies",
+        arguments: ["studies"],
+        helpShort: "deploydicomweb studies studyUID",
         helpDescription: "Deploy DICOMweb files to the cloud",
         options: [
           {
