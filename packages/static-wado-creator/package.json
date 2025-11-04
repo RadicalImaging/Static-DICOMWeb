@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-creator",
-  "version": "1.6.5",
+  "version": "1.6.10",
   "description": "Library to convert DICOMP10 to DICOMweb format. Original upstream: https://github.com/chafey/dicomp10-to-dicomweb-js",
   "publishConfig": {
     "access": "public"
@@ -10,11 +10,9 @@
     "DICOM",
     "DICOMweb"
   ],
-  "author": [
-    "Chris Hafey <chafey@gmail.com>",
-    "Bill Wallace <bill.wallace@radicalimaging.com>"
-  ],
+  "author": "Bill Wallace <bill.wallace@radicalimaging.com>",
   "contributors": [
+    "Chris Hafey <chafey@gmail.com>",
     "Rodolfo Costa <rodolfo.costa@radicalimaging.com>"
   ],
   "engines": {
@@ -56,21 +54,22 @@
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "mkdicomweb": "bun bin/mkdicomwebDev.mjs --",
     "pack:js": "npm pack --",
+    "publishJS": "yarn publish  --no-git-tag-version",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
   },
   "jest": {
     "verbose": true
   },
   "dependencies": {
-    "@radicalimaging/static-wado-util": ">=1.6.1",
     "@radicalimaging/cs3d": ">=1.6.1",
+    "@radicalimaging/static-wado-util": ">=1.6.1",
     "canvas": ">=3.1.0",
     "config-point": ">=0.5.1",
     "dcmjs": "0.35.0",
     "dicom-parser": "^1.8.13",
+    "glob": "^11.0.0",
     "node-object-hash": "^3.0.0",
-    "uuid": "^11.0.2",
-    "glob": "^11.0.0"
+    "uuid": "^11.0.2"
   },
   "devDependencies": {
     "must": "^0.13.4"
