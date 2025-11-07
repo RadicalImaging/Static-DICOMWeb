@@ -230,7 +230,7 @@ class S3Ops {
     const results = [];
 
     for (let continuation = 0; continuation < 1000; continuation++) {
-      console.verbose("continuation", continuation, ContinuationToken);
+      console.verbose('continuation', continuation, ContinuationToken);
       const command = new ListObjectsV2Command({
         Bucket,
         Prefix,
