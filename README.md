@@ -116,6 +116,7 @@ There are deployment scripts in src/s3-deploy which will create an S3 bucket for
 - [Storing Files to/from Cloud Server](./packages/static-wado-deploy/README.md)
 - [Run local DICOMweb webserver](./packages/static-wado-webserver/README.md)
 - [Run local SCP Server](./packages/static-wado-scp/README.md)
+- [Serve off Nginx HTTP Server](./docs/nginx.md)
 - ~~[Proxy DICOMweb to DICOM DIMSE](./packages/static-wado-webserver/dimse-proxy.md)~~
 - ~~[Proxy Static DICOMweb to DICOMweb](./packages/static-wado-webserver/dicomweb-proxy.md)~~
 
