@@ -69,9 +69,19 @@ http {
       try_files /dicomweb/studies/$1/series/$2/metadata.gz =204;
     }
     
+    location ~ ^/dicomweb/studies/([0-9.]+)/series/([0-9.]+)/instances/([0-9.]+)/$ {
+      add_header 'Content-Encoding' 'gzip';
+      default_type multipart/related;
+      try_files /dicomweb/studies/$1/series/$2/instances/$3/frames/$4 /dicomweb/studies/$1/series/$2/instances/$3/index.mht.gz =404;
+    }
+    
     location ~ ^/dicomweb/studies/([0-9.]+)/series/([0-9.]+)/instances/([0-9.]+)/frames/([0-9]+)$ {
       default_type multipart/related;
-      try_files /dicomweb/studies/$1/series/$2/instances/$3/frames/$4 =404;
+      try_files /dicomweb/studies/$1/series/$2/instances/$3/frames/$4 /dicomweb/studies/$1/series/$2/instances/$3/frames/$4.mht =404;
+    }
+    
+    location ~ ^/dicomweb/studies/([0-9.]+)/series/([0-9.]+)/instances/([0-9.]+)/rendered/$ {
+      try_files /dicomweb/studies/$1/series/$2/instances/$3/rendered/index.mp4 =404;
     }
   }
 }
