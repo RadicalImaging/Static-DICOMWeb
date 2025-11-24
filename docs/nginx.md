@@ -51,6 +51,11 @@ http {
       try_files /dicomweb/studies/$1/index.json.gz =204;
     }
     
+    location ~ ^/dicomweb/studies/([0-9.]+)/thumbnail$ {
+      default_type image/jpeg;
+      try_files /dicomweb/studies/$1/thumbnail =204;
+    }
+    
     location ~ ^/dicomweb/studies/([0-9.]+)/series$ {
       add_header 'Content-Encoding' 'gzip';
       default_type application/json;
@@ -61,6 +66,11 @@ http {
       add_header 'Content-Encoding' 'gzip';
       default_type application/json;
       try_files /dicomweb/studies/$1/series/$2/index.json.gz =204;
+    }
+    
+    location ~ ^/dicomweb/studies/([0-9.]+)/series/([0-9.]+)/thumbnail$ {
+      default_type image/jpeg;
+      try_files /dicomweb/studies/$1/series/$2/thumbnail =204;
     }
     
     location ~ ^/dicomweb/studies/([0-9.]+)/series/([0-9.]+)/metadata$ {
