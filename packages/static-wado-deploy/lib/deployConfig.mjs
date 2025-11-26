@@ -33,6 +33,9 @@ const { deployConfig } = ConfigPoint.register({
       },
       {
         key: "--result-file <resultFile>",
+        description:
+          "Store the results in the given file",
+        key: "--result-file <resultFile>",
         description: "Store the results in the given file",
       },
       {
@@ -100,6 +103,12 @@ const { deployConfig } = ConfigPoint.register({
             description: "Don't create or update the index files",
             defaultValue: true,
           },
+          {
+            key: '--skip-store',
+            description: 'Skip storing, so that indexing only is done',
+            defaultValue: false,
+          },
+
         ],
         isDefault: true,
         main: studiesMain,

@@ -32,6 +32,8 @@ export async function studyMainSingle(studyUID, options) {
     return;
   }
 
+  if (!options.skipStore) {
+  await commonMain(this, "root", options, uploadDeploy.bind(null, studyDirectory));
   console.log("Storing studyUID", studyUID);
   await commonMain(
     this,
@@ -39,6 +41,7 @@ export async function studyMainSingle(studyUID, options) {
     options,
     uploadDeploy.bind(null, studyDirectory)
   );
+}
   if (options.index) {
     console.log("Calling commonMain to create index");
     await commonMain(

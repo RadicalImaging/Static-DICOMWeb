@@ -42,12 +42,12 @@ function batchProcessIndices(indices, allStudies) {
 async function getCachedIndex(rootDir, indexPath) {
   const cacheKey = `${rootDir}:${indexPath}`;
   let index = indexCache.get(cacheKey);
-  
+
   if (!index) {
-    index = await JSONReader(rootDir, indexPath, []);
+    index = await JSONReader(rootDir, indexPath);
     indexCache.set(cacheKey, index);
   }
-  
+
   return index;
 }
 
@@ -59,41 +59,55 @@ function clearCache() {
 /**
  * Reads the storeDirectory to get the index file, and adds that to the index directory
  */
-export default async function uploadIndex(storeDirectory, config, name, options, deployPlugin) {
+export default async function uploadIndex(
+  storeDirectory,
+  config,
+  name,
+  options,
+  deployPlugin
+) {
   const deployer = new DeployGroup(config, name, options, deployPlugin);
   const { indexFullName } = deployer;
   if (!indexFullName) {
-    console.log("No index defined in group", deployer.group);
+    console.log('No index defined in group', deployer.group);
     return;
   }
 
   await deployer.loadOps();
-  console.log("Starting to update indices for", storeDirectory);
   const { config: deployConfig } = deployer;
+  const { rootDir } = deployConfig;
+  const remoteUri = `s3://${deployConfig.rootGroup.Bucket}${deployConfig.rootGroup.path}`;
+  const destName = indexFullName.substring(0, indexFullName.length - 3);
+  await deployer.retrieve({ ...options, remoteUri, destName }, 'studies');
+
+  const indexUncompressed = await JSONReader(rootDir, destName);
+  await JSONWriter(rootDir, indexFullName, indexUncompressed, {
+    compression: 'gzip',
+    index: false,
+  });
 
   try {
     // Read indices with caching
     const [allStudies, studyIndex] = await Promise.all([
-      getCachedIndex(deployConfig.rootDir, indexFullName),
-      getCachedIndex(deployConfig.rootDir, `${storeDirectory}/index.json.gz`)
+      getCachedIndex(rootDir, indexFullName),
+      getCachedIndex(rootDir, `${storeDirectory}/index.json.gz`),
     ]);
 
     // Process indices in batch
     const updatedStudies = batchProcessIndices([studyIndex], allStudies);
 
     // Write updated index and upload
-    await JSONWriter(deployConfig.rootDir, indexFullName, updatedStudies, { 
+    await JSONWriter(deployConfig.rootDir, indexFullName, updatedStudies, {
       index: false,
-      compression: 'gzip' // Enable compression for index files
+      compression: 'gzip', // Enable compression for index files
     });
-    
+
     await deployer.store(indexFullName);
-    
+
     // Update cache with new data
     indexCache.set(`${deployConfig.rootDir}:${indexFullName}`, updatedStudies);
-    
   } catch (error) {
-    console.error("Failed to update index:", error);
+    console.error('Failed to update index:', error);
     throw error;
   } finally {
     // Clear the cache to allow process to exit cleanly

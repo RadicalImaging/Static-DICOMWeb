@@ -350,30 +350,45 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
     const { remoteUri } = options;
     const relativeName = joinUri(parentDir, name);
     if (remoteUri) {
-      console.log("Retrieving specific URI", remoteUri);
-      await this.ops.retrieve(joinUri(remoteUri, relativeName), path.join(this.baseDir, relativeName));
+      const destName = options.destName || relativeName;
+      console.noQuiet(
+        'Retrieving specific URI',
+        remoteUri,
+        relativeName,
+        'to',
+        this.baseDir,
+        destName
+      );
+      await this.ops.retrieve(
+        joinUri(remoteUri, relativeName),
+        path.join(this.baseDir, destName)
+      );
       return { skippedItems: 0, retrieved: 1 };
     }
 
     // Doing a directory index here
-    console.verbose("Reading directory", relativeName);
     const contents = await this.ops.dir(relativeName);
     let skippedItems = 0;
     let retrieved = 0;
     if (!contents) {
-      console.log("Directory does not exist:", relativeName);
+      console.log('Directory does not exist:', relativeName);
       return { skippedItems, retrieved };
     }
-    const { include = [], exclude = ["temp"], force } = options;
+    const { include = [], exclude = ['temp'], force } = options;
     for (const item of contents) {
       // item is an object containing information about this object
-      if (!item.relativeUri) throw new Error("Nothing to retrieve");
+      if (!item.relativeUri) throw new Error('Nothing to retrieve');
       const destName = path.join(this.baseDir, item.fileName);
       if (include.length) {
         const foundItem = include.find((it) => destName.indexOf(it) !== -1);
         // Not skipped or retrieved, this is just out of scope
         if (!foundItem) {
-          console.verbose("Skipping", destName, "because it includes", foundItem);
+          console.verbose(
+            'Skipping',
+            destName,
+            'because it includes',
+            foundItem
+          );
           continue;
         }
       }
@@ -383,7 +398,7 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
       }
       if (fs.existsSync(destName) && !force) {
         if (this.ops.shouldSkip(item, destName)) {
-          console.verbose("Skipping", destName);
+          console.verbose('Skipping', destName);
           skippedItems += 1;
           continue;
         }
@@ -391,7 +406,14 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
       await this.ops.retrieve(item.relativeUri, destName);
       retrieved += 1;
     }
-    console.log("Retrieved", retrieved, "items to", this.baseDir, "and skipped", skippedItems);
+    console.log(
+      'Retrieved',
+      retrieved,
+      'items to',
+      this.baseDir,
+      'and skipped',
+      skippedItems
+    );
     return { skippedItems, retrieved };
   }
 }
