@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/cs3d",
-  "version": "1.6.8",
+  "version": "1.6.10",
   "description": "Cornerstone3D CLI Utilities",
   "publishConfig": {
     "access": "public"

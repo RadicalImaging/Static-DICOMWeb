@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-scp",
-  "version": "1.6.8",
+  "version": "1.6.10",
   "description": "DimseScp server to connect to static-wado repo",
   "publishConfig": {
     "access": "public"
@@ -11,10 +11,10 @@
     "DICOMweb"
   ],
   "author": [
-    "Chris Hafey <chafey@gmail.com>",
     "Bill Wallace <bill.wallace@radicalimaging.com>"
   ],
   "contributors": [
+    "Chris Hafey <chafey@gmail.com>",
     "Rodolfo Costa <rodolfo.costa@radicalimaging.com>"
   ],
   "engines": {
