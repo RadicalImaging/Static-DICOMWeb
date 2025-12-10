@@ -1,9 +1,17 @@
-import createImage from "../image/createImage.js";
-import { createCanvas } from "canvas";
-import { utilities } from "@cornerstonejs/core";
-import { setCanvasCreator } from "@cornerstonejs/core";
-import canvasImageToBuffer from "../adapters/canvasImageToBuffer.js";
+import { createCanvas } from 'canvas';
+import { utilities, setCanvasCreator } from '@cornerstonejs/core';
 
+import canvasImageToBuffer from '../adapters/canvasImageToBuffer.js';
+import createImage from '../image/createImage.js';
+
+function getValue(metadata, tag) {
+  const value = metadata[tag];
+
+  if (!value || !value.Value) {
+    return;
+  }
+  return value.Value[0];
+}
 /**
  * It gets through callback call the rendered image into canvas.
  * It simulates rendering of decodedPixel data into server side (fake) canvas.
@@ -18,10 +26,20 @@ async function getRenderedBuffer(
   transferSyntaxUid,
   decodedPixelData,
   metadata,
-  doneCallback
+  doneCallback,
+  options = { quality: 0.3, width: 0, height: 0 }
 ) {
   setCanvasCreator(createCanvas);
-  const canvas = createCanvas(256, 256) as unknown as HTMLCanvasElement;
+  const rows = getValue(metadata, '00280010');
+  const columns = getValue(metadata, '00280011');
+  const quality = options?.quality || 1;
+  const width = options.width || rows || 256;
+  const height = options.height || columns || 256;
+  const canvas = createCanvas(rows, columns) as unknown as HTMLCanvasElement;
+  const canvasDest = createCanvas(
+    parseFloat(width),
+    parseFloat(height)
+  ) as unknown as HTMLCanvasElement;
 
   // try {
   const imageObj = createImage(
@@ -31,10 +49,10 @@ async function getRenderedBuffer(
     canvas
   );
 
-  await utilities.renderToCanvasCPU(canvas, imageObj);
+  await utilities.renderToCanvasCPU(canvasDest, imageObj);
 
-  const buffer = canvasImageToBuffer(canvas);
-  await doneCallback?.(buffer, canvas);
+  const buffer = canvasImageToBuffer(canvasDest, 'image/jpeg', quality);
+  await doneCallback?.(buffer, canvasDest);
 }
 
 module.exports = getRenderedBuffer;

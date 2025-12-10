@@ -5,7 +5,7 @@ module.exports = function createMain(options, program) {
   const finalOptions = adaptProgramOpts(options, {
     ...this,
     // Instance metadata is the instances/<sopUID>/metadata.gz files
-    isInstance: true,
+    isInstance: false,
     // Deduplicated data is single instance deduplicated data
     isDeduplicate: false,
     // Group data is the group file directories
