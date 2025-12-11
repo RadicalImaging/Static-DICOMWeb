@@ -53,18 +53,18 @@ async function cs3dThumbnail(
   dataset,
   metadata,
   transferSyntaxUid,
-  doneCallback,
+  doneCallback
 ) {
   if (!originalImageFrame) {
     throw new Error(`No originalImageFrame data available`);
   }
   if (!dataset && !metadata) {
     throw new Error(
-      `Neither dataset ${!!dataset} nor metadata ${!!metadata} available.`,
+      `Neither dataset ${!!dataset} nor metadata ${!!metadata} available.`
     );
   }
   if (isVideo(transferSyntaxUid)) {
-    console.log("Video data - no thumbnail generator yet");
+    console.log('Video data - no thumbnail generator yet');
     return;
   }
 
@@ -74,10 +74,10 @@ async function cs3dThumbnail(
       originalImageFrame,
       dataset,
       metadata,
-      transferSyntaxUid,
+      transferSyntaxUid
     );
   } catch (error) {
-    console.log("Error while decoding image:", error);
+    console.noQuiet('Error while decoding image:', error);
     return;
   }
 
@@ -90,22 +90,23 @@ async function cs3dThumbnail(
   const pixelData = dicomCodec.getPixelData(
     imageFrame,
     imageInfo,
-    transferSyntaxUid,
+    transferSyntaxUid
   );
   return staticCS.getRenderedBuffer(
     transferSyntaxUid,
     pixelData,
     metadata,
     doneCallback,
+    { quality: 0.6, width: 256, height: 256 }
   );
 }
 
 class StaticWado {
   constructor(configuration) {
     const {
-      rootDir = "~/dicomweb",
-      pathDeduplicated = "deduplicated",
-      pathInstances = "instances",
+      rootDir = '~/dicomweb',
+      pathDeduplicated = 'deduplicated',
+      pathInstances = 'instances',
       verbose,
       quiet = false,
       multipart = false,
@@ -124,7 +125,7 @@ class StaticWado {
       deduplicatedRoot: path.join(directoryName, pathDeduplicated),
       deduplicatedInstancesRoot: path.join(directoryName, pathInstances),
       // TODO - make this configurable and auto-detect by updating the parseDicom library
-      TransferSyntaxUID: "1.2.840.10008.1.2.1",
+      TransferSyntaxUID: '1.2.840.10008.1.2.1',
     };
     this.callback = {
       uids: IdCreator(this.options),
@@ -146,7 +147,7 @@ class StaticWado {
       setStudyData,
       rawDicomWriter: RawDicomWriter(this.options),
       notificationService: new NotificationService(
-        this.options.notificationDir,
+        this.options.notificationDir
       ),
       internalGenerateImage: cs3dThumbnail,
     };
@@ -184,13 +185,13 @@ class StaticWado {
     if (!this.showProgress) return;
     this.processedFiles++;
     const percentage = Math.round(
-      (this.processedFiles / this.totalFiles) * 100,
+      (this.processedFiles / this.totalFiles) * 100
     );
     const progressBar =
-      "=".repeat(Math.floor(percentage / 4)) +
-      "-".repeat(25 - Math.floor(percentage / 4));
+      '='.repeat(Math.floor(percentage / 4)) +
+      '-'.repeat(25 - Math.floor(percentage / 4));
     process.stdout.write(
-      `\r[${progressBar}] ${percentage}% | ${this.processedFiles}/${this.totalFiles} files`,
+      `\r[${progressBar}] ${percentage}% | ${this.processedFiles}/${this.totalFiles} files`
     );
   }
 
@@ -202,20 +203,21 @@ class StaticWado {
           if (fs.statSync(file).isDirectory()) {
             const dirFiles = fs.readdirSync(file, { recursive: true });
             this.totalFiles += dirFiles.filter(
-              (f) => !fs.statSync(path.join(file, f)).isDirectory(),
+              (f) => !fs.statSync(path.join(file, f)).isDirectory()
             ).length;
           } else {
             this.totalFiles++;
           }
         } catch (e) {
+          console.verbose('File not dicom', e);
           this.callback.failure(
-            "File not DICOM",
+            'File not DICOM',
             {
               FailedSOPSequence: [
-                { FailureReason: 0xd000, TextValue: "File not DICOM" },
+                { FailureReason: 0xd000, TextValue: 'File not DICOM' },
               ],
             },
-            file,
+            file
           );
         }
       }
@@ -230,35 +232,36 @@ class StaticWado {
           const dicomp10stream = fs.createReadStream(file);
           await this.importBinaryDicom(dicomp10stream, { ...params, file });
           filesProcessed++;
-          Stats.StudyStats.add("DICOM P10", "Parse DICOM P10 file");
+          Stats.StudyStats.add('DICOM P10', 'Parse DICOM P10 file');
           this.updateProgress();
         } catch (e) {
+          console.noQuiet('Create failure', e);
           this.updateProgress();
           const message = {
             FailedSOPSequence: [
               {
                 FailureReason: 0xd000,
-                TextValue: "File not DICOM",
+                TextValue: 'File not DICOM',
                 StorageURL: file,
               },
             ],
           };
-          this.callback.failure("Not DICOM", message, file, e);
+          this.callback.failure('Not DICOM', message, file, e);
         }
       },
     });
 
     if (!filesProcessed) {
       const message = {
-        action: "metadata",
+        action: 'metadata',
         count: 0,
         status: -1,
       };
-      this.callback.failure("No files processed", message);
+      this.callback.failure('No files processed', message);
     }
 
     if (this.showProgress) {
-      console.log("\n"); // Move to next line after progress bar
+      console.log('\n'); // Move to next line after progress bar
     }
     return result;
   }
@@ -271,7 +274,7 @@ class StaticWado {
   async processStudyDir(studyUids /* , options */) {
     for (const studyUid of studyUids) {
       const study = await this.callback.scanStudy(studyUid);
-      console.log("Processed study", study.studyInstanceUid);
+      console.log('Processed study', study.studyInstanceUid);
     }
   }
 
@@ -282,7 +285,7 @@ class StaticWado {
     // Parse it
     const dataSet = dicomParser.parseDicom(buffer, params);
 
-    const studyInstanceUid = dataSet.string("x0020000d");
+    const studyInstanceUid = dataSet.string('x0020000d');
 
     if (!studyInstanceUid) {
       console.log("No study UID, can't import file", params.file);
@@ -293,17 +296,17 @@ class StaticWado {
     const id = this.callback.uids(
       {
         studyInstanceUid,
-        seriesInstanceUid: dataSet.string("x0020000e"),
-        sopInstanceUid: dataSet.string("x00080018"),
-        transferSyntaxUid: dataSet.string("x00020010"),
+        seriesInstanceUid: dataSet.string('x0020000e'),
+        sopInstanceUid: dataSet.string('x00080018'),
+        transferSyntaxUid: dataSet.string('x00020010'),
       },
-      params.file,
+      params.file
     );
 
     const targetId = transcodeId(
       id,
       this.options,
-      dataSet.uint16(Tags.RawSamplesPerPixel),
+      dataSet.uint16(Tags.RawSamplesPerPixel)
     );
 
     let bulkDataIndex = 0;
@@ -315,15 +318,15 @@ class StaticWado {
         const _bulkDataIndex = bulkDataIndex;
         bulkDataIndex += 1;
         // TODO - handle other types here too as single part rendered
-        if (options?.mimeType === "application/pdf") {
-          console.log("Writing rendered mimeType", options.mimeType);
+        if (options?.mimeType === 'application/pdf') {
+          console.verbose('Writing rendered mimeType', options.mimeType);
           const writeStream = WriteStream(
             id.sopInstanceRootPath,
-            "rendered.pdf",
+            'rendered.pdf',
             {
               gzip: false,
               mkdir: true,
-            },
+            }
           );
           await writeStream.write(bulkData);
           await writeStream.close();
@@ -332,7 +335,7 @@ class StaticWado {
           targetId,
           _bulkDataIndex,
           bulkData,
-          options,
+          options
         );
       },
       imageFrame: async (originalImageFrame) => {
@@ -345,7 +348,7 @@ class StaticWado {
           targetId,
           originalImageFrame,
           dataSet,
-          this.options,
+          this.options
         );
 
         const lossyImage = await generateLossyImage(id, decoded, this.options);
@@ -357,7 +360,7 @@ class StaticWado {
           await this.callback.imageFrame(
             lossyImage.id,
             currentImageFrameIndex,
-            lossyImage.imageFrame,
+            lossyImage.imageFrame
           );
         }
 
@@ -369,13 +372,13 @@ class StaticWado {
             id,
             frameIndex: currentImageFrameIndex,
           },
-          this.options,
+          this.options
         );
 
         return this.callback.imageFrame(
           transcodedId,
           currentImageFrameIndex,
-          transcodedImageFrame,
+          transcodedImageFrame
         );
       },
       videoWriter: async (_dataSet) => this.callback.videoWriter(id, _dataSet),
@@ -394,14 +397,14 @@ class StaticWado {
       dataSet,
       transcodedMeta,
       this.callback,
-      this.options,
+      this.options
     );
     await thumbnailService.generateRendered(
       id,
       dataSet,
       transcodedMeta,
       this.callback,
-      this.options,
+      this.options
     );
     await this.callback.metadata(targetId, transcodedMeta);
 
@@ -418,14 +421,14 @@ class StaticWado {
     dataSet,
     metadata,
     transferSyntaxUid,
-    doneCallback,
+    doneCallback
   ) {
     return cs3dThumbnail(
       originalImageFrame,
       dataSet,
       metadata,
       transferSyntaxUid,
-      doneCallback,
+      doneCallback
     );
   }
 
@@ -437,11 +440,11 @@ class StaticWado {
   async executeCommand(input) {
     this.callback.clearResults();
     if (this.options.scanStudies) {
-      console.log("Scanning study dir", input);
+      console.log('Scanning study dir', input);
       // Scan one of the study directories - in this case, files is a set of study directories
       await this.processStudyDir(input, this.options);
     } else {
-      console.noQuiet("Scanning files", input);
+      console.noQuiet('Scanning files', input);
       await this.processFiles(input, this.options);
     }
     await this.close();
@@ -450,30 +453,30 @@ class StaticWado {
 
   async close() {
     await this.callback.completeStudy(this.callback);
-    Stats.OverallStats.summarize("Completed Study Processing");
+    Stats.OverallStats.summarize('Completed Study Processing');
   }
 
   async reindex() {
     const { directoryName } = this.options;
     const studiesDir = `${directoryName}/studies/`;
 
-    console.log("Re-indexing", studiesDir);
+    console.noQuiet('Re-indexing', studiesDir);
     const dirs = await fs.promises.readdir(studiesDir);
     const studies = [];
     for (const dir of dirs) {
       const study = await JSONReader(
         `${studiesDir}/${dir}`,
-        "index.json.gz",
-        null,
+        'index.json.gz',
+        null
       );
       if (study === null) {
-        console.log("No study found in", dir);
+        console.log('No study found in', dir);
         continue;
       }
-      console.log("Adding study", dir);
+      console.log('Adding study', dir);
       studies.push(...study);
     }
-    return JSONWriter(directoryName, "studies", studies);
+    return JSONWriter(directoryName, 'studies', studies);
   }
 }
 module.exports = StaticWado;

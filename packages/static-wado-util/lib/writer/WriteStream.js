@@ -11,7 +11,7 @@ const WriteStream = (dir, nameSrc, options = {}) => {
   const isGzip = nameSrc.indexOf(".gz") != -1 || options.gzip;
   const name =
     (isGzip && nameSrc.indexOf(".gz") === -1 && `${nameSrc}.gz`) || nameSrc;
-  if (options.mkdir && !options.existsSync(dir)) {
+  if (options.mkdir && !fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 

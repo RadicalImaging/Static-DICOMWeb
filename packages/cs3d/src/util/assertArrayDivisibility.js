@@ -5,7 +5,8 @@ function assertArrayDivisibility(array, divisor, errorMessages = []) {
 
   try {
     assert.ok(!!array, errorArrayMessage);
-    const result = array.length % divisor !== 0;
+    const remaining = array.length % divisor;
+    const result = remaining === 0;
     assert.ok(result, errorDivisorMessage);
   } catch (e) {
     if (errorArrayMessage || errorDivisorMessage) {

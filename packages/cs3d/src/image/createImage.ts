@@ -38,10 +38,6 @@ export function createImage(
   )
   const originalDataConstructor = imageFrame.pixelData.constructor
 
-  // setup the canvas context
-  canvas.height = imageFrame.rows
-  canvas.width = imageFrame.columns
-
   const {
     ModalityLUTSequence: modalityLUTSequence,
     PixelSpacing: pixelSpacing,
