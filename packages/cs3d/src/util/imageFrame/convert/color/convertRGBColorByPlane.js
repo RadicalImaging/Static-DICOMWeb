@@ -10,8 +10,8 @@ const assertArrayDivisibility = require("../../../assertArrayDivisibility");
 function converter(imageFrame, rgbaBuffer) {
   if (
     !assertArrayDivisibility(imageFrame, 3, [
-      "decodeRGB: rgbBuffer must not be undefined",
-      "decodeRGB: rgbBuffer length must be divisble by 3",
+      'decodeRGB: rgbBuffer must not be undefined',
+      'decodeRGB: rgbBuffer length must be divisible by 3',
     ])
   ) {
     return;

@@ -29,30 +29,34 @@ async function getRenderedBuffer(
   doneCallback,
   options = { quality: 0.3, width: 0, height: 0 }
 ) {
-  setCanvasCreator(createCanvas);
-  const rows = getValue(metadata, '00280010');
-  const columns = getValue(metadata, '00280011');
-  const quality = options?.quality || 1;
-  const width = options.width || rows || 256;
-  const height = options.height || columns || 256;
-  const canvas = createCanvas(rows, columns) as unknown as HTMLCanvasElement;
-  const canvasDest = createCanvas(
-    parseFloat(width),
-    parseFloat(height)
-  ) as unknown as HTMLCanvasElement;
+  try {
+    setCanvasCreator(createCanvas);
+    const rows = getValue(metadata, '00280010');
+    const columns = getValue(metadata, '00280011');
+    const quality = options?.quality || 1;
+    const width = options.width || rows || 256;
+    const height = options.height || columns || 256;
+    const canvas = createCanvas(rows, columns) as unknown as HTMLCanvasElement;
+    const canvasDest = createCanvas(
+      parseFloat(width),
+      parseFloat(height)
+    ) as unknown as HTMLCanvasElement;
 
-  // try {
-  const imageObj = createImage(
-    transferSyntaxUid,
-    decodedPixelData,
-    metadata,
-    canvas
-  );
+    // try {
+    const imageObj = createImage(
+      transferSyntaxUid,
+      decodedPixelData,
+      metadata,
+      canvas
+    );
 
-  await utilities.renderToCanvasCPU(canvasDest, imageObj);
+    await utilities.renderToCanvasCPU(canvasDest, imageObj);
 
-  const buffer = canvasImageToBuffer(canvasDest, 'image/jpeg', quality);
-  await doneCallback?.(buffer, canvasDest);
+    const buffer = canvasImageToBuffer(canvasDest, 'image/jpeg', quality);
+    await doneCallback?.(buffer, canvasDest);
+  } catch (e) {
+    console.warn('Unable to create rendered (thumbnail) because:', e);
+  }
 }
 
 module.exports = getRenderedBuffer;
