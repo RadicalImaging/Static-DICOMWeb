@@ -53,8 +53,8 @@
     "publishJS": "yarn publish  --no-git-tag-version"
   },
   "dependencies": {
-    "@cornerstonejs/core": "3.7.14",
-    "canvas": "^3.1.0",
+    "@cornerstonejs/core": "4.14.0",
+    "canvas": "3.1.0",
     "dcmjs": "0.35.0",
     "jsdom": "^26.0.0",
     "jsdom-context-require": "^5.2.4"
