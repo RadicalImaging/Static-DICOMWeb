@@ -29,6 +29,12 @@ See [File Structure](./file-structure.md) for more details on the file structure
 There are two ways to install Static DICOMweb. First, the command line tools are available published in npm. This is easiest if you are just running locally. The second option is to install from source code, locally.
 A third option is to run the tools and deployment in a docker container.
 
+## Prerequisite
+When you choose to install the pre-built version, or build the code yourself, you will need [bun](https://www.npmjs.com/package/bun) installed, e.g.
+```bash
+npm install -g bun
+```
+
 ## NPM Install
 
 To install the command line tools, you need to have a current version of node and npm installed, then run:
