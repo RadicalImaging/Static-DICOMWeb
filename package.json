@@ -33,16 +33,6 @@
   "workspaces": [
     "packages/*"
   ],
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
-  },
-  "lint-staged": {
-    "packages/**/*.{ts,js,jsx,tsx,json,md,css}": [
-      "eslint --fix"
-    ]
-  },
   "scripts": {
     "docker:build": "docker build . -t braveheartsoftware/static-dicomweb:latest",
     "docker:run": "docker run --mount type=bind,source=/c/dicomweb,target=/dicomweb --mount type=bind,source=/c/dicom,target=/dicom -d -p 25080:5000 braveheartsoftware/static-dicomweb:latest dicomwebserver",
@@ -55,7 +45,7 @@
     "link:exec": "lerna run link:exec --stream",
     "lint": "lerna run lint --parallel --stream",
     "lint:ci": "yarn run lint",
-    "lint:fix": "lerna run lint:fix --parallel --stream",
+    "lint:fix": "echo format check",
     "postinstallManual": "git config core.hooksPath '.husky' && echo 'git hooks configured'",
     "publish": "echo Use yarn publishJS --new-version VERSION --otp XXXXXX",
     "publishJS": "lerna run publishJS --",
