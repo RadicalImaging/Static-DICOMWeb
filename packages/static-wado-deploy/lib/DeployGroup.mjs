@@ -1,11 +1,8 @@
-import fs from "fs";
-import {
-  configGroup,
-  handleHomeRelative,
-} from "@radicalimaging/static-wado-util";
-import path from "path";
-import { plugins } from "@radicalimaging/static-wado-plugins";
-import joinUri from "./joinUri.mjs";
+import fs from 'fs';
+import { configGroup, handleHomeRelative } from '@radicalimaging/static-wado-util';
+import path from 'path';
+import { plugins } from '@radicalimaging/static-wado-plugins';
+import joinUri from './joinUri.mjs';
 
 /**
  * Deployment class.
@@ -36,7 +33,7 @@ class DeployGroup {
 
   // Loads the ops
   async loadOps() {
-    const imported = await import(plugins[this.deployPlugin || "s3Plugin"]);
+    const imported = await import(plugins[this.deployPlugin || 's3Plugin']);
     const { createPlugin: CreatePlugin } = imported.default || imported;
     this.ops = new CreatePlugin(this.config, this.groupName, this.options);
   }
@@ -48,13 +45,7 @@ class DeployGroup {
    * @param {number} parallelCount The number of concurrent uploads allowed
    * @returns {Promise<number>} Number of files uploaded
    */
-  async processBatch(
-    files,
-    excludeExisting,
-    totalFiles,
-    processStats,
-    parallelCount = 5
-  ) {
+  async processBatch(files, excludeExisting, totalFiles, processStats, parallelCount = 5) {
     let completedUploads = 0;
     const activeUploads = []; // Array to track active uploads
     const queue = [...files]; // Copy the files array into a queue
@@ -63,12 +54,7 @@ class DeployGroup {
 
     // Function to upload files one by one with concurrency control
     const uploadFile = async ({ baseDir, relativeName }) => {
-      const result = await this.ops.upload(
-        baseDir,
-        relativeName,
-        null,
-        excludeExisting
-      );
+      const result = await this.ops.upload(baseDir, relativeName, null, excludeExisting);
       results[relativeName] = result;
       processStats.count += 1;
 
@@ -85,8 +71,7 @@ class DeployGroup {
         // Format time remaining in a human-readable format
         const etaMinutes = Math.floor(estimatedSecondsLeft / 60);
         const etaSeconds = Math.ceil(estimatedSecondsLeft % 60);
-        const etaDisplay =
-          etaMinutes > 0 ? `${etaMinutes}m ${etaSeconds}s` : `${etaSeconds}s`;
+        const etaDisplay = etaMinutes > 0 ? `${etaMinutes}m ${etaSeconds}s` : `${etaSeconds}s`;
 
         console.log(
           `Progress: ${progress}% (${processStats.count}/${totalFiles}) | ` +
@@ -169,13 +154,11 @@ class DeployGroup {
     // Separate files and directories for optimized processing
     for (const entry of entries) {
       const fullPath = path.join(dirPath, entry.name);
-      const entryRelativePath = path
-        .join(relativePath, entry.name)
-        .replace(/\\/g, "/");
+      const entryRelativePath = path.join(relativePath, entry.name).replace(/\\/g, '/');
 
       // Early exclusion check
       const shouldExclude = Array.from(excludePatterns).some(
-        (pattern) => entryRelativePath.indexOf(pattern) !== -1
+        pattern => entryRelativePath.indexOf(pattern) !== -1
       );
 
       if (shouldExclude) continue;
@@ -196,8 +179,7 @@ class DeployGroup {
           const elapsed = (Date.now() - stats.startTime) / 1000;
           const rate = stats.filesFound / elapsed;
           console.log(
-            `Scanning: found ${stats.filesFound} files ` +
-              `(${rate.toFixed(1)} files/sec)`
+            `Scanning: found ${stats.filesFound} files ` + `(${rate.toFixed(1)} files/sec)`
           );
         }
       }
@@ -210,14 +192,7 @@ class DeployGroup {
     for (let i = 0; i < directories.length; i += batchSize) {
       const batch = directories.slice(i, i + batchSize);
       const batchResults = await Promise.all(
-        batch.map((dir) =>
-          this.processDirectory(
-            dir.path,
-            dir.relativePath,
-            excludePatterns,
-            stats
-          )
-        )
+        batch.map(dir => this.processDirectory(dir.path, dir.relativePath, excludePatterns, stats))
       );
       results.push(...batchResults.flat());
     }
@@ -231,7 +206,7 @@ class DeployGroup {
    * @param {string} name File/directory name
    * @returns {Promise<Array>} Array of file objects
    */
-  async collectFiles(parentDir = "", name = "") {
+  async collectFiles(parentDir = '', name = '') {
     const startPath = path.join(this.baseDir, parentDir, name);
     const stats = {
       startTime: Date.now(),
@@ -239,18 +214,13 @@ class DeployGroup {
     };
 
     // Convert exclude patterns to Set for faster lookups
-    const { exclude = ["temp"] } = this.options;
+    const { exclude = ['temp'] } = this.options;
     const excludePatterns = new Set(exclude);
 
-    console.log("Starting directory scan...");
+    console.log('Starting directory scan...');
 
     try {
-      const files = await this.processDirectory(
-        startPath,
-        parentDir || "",
-        excludePatterns,
-        stats
-      );
+      const files = await this.processDirectory(startPath, parentDir || '', excludePatterns, stats);
 
       const elapsed = ((Date.now() - stats.startTime) / 1000).toFixed(1);
       const rate = (stats.filesFound / elapsed).toFixed(1);
@@ -264,7 +234,7 @@ class DeployGroup {
 
       return files;
     } catch (error) {
-      console.error("Error scanning directory:", error);
+      console.error('Error scanning directory:', error);
       throw error;
     }
   }
@@ -284,7 +254,7 @@ class DeployGroup {
    * @param {Object} excludeExisting Exclusion map
    * @returns {Promise<number>} Number of files uploaded
    */
-  async store(parentDir = "", name = "", excludeExisting = {}) {
+  async store(parentDir = '', name = '', excludeExisting = {}) {
     const fullPath = path.join(this.baseDir, parentDir, name);
 
     try {
@@ -292,38 +262,31 @@ class DeployGroup {
 
       // Handle single file upload
       if (stats.isFile()) {
-        console.log("Processing single file:", name);
-        const relativePath = path.join(parentDir, name).replace(/\\/g, "/");
-        const result = await this.ops.upload(
-          this.baseDir,
-          relativePath,
-          null,
-          excludeExisting
-        );
-        console.log(
-          result ? "File uploaded successfully" : "File upload skipped"
-        );
+        console.log('Processing single file:', name);
+        const relativePath = path.join(parentDir, name).replace(/\\/g, '/');
+        const result = await this.ops.upload(this.baseDir, relativePath, null, excludeExisting);
+        console.log(result ? 'File uploaded successfully' : 'File upload skipped');
         return result ? 1 : 0;
       }
 
       // Handle directory upload
       if (stats.isDirectory()) {
-        console.log("Collecting files from directory...");
+        console.log('Collecting files from directory...');
         const files = await this.collectFiles(parentDir, name);
         const totalFiles = files.length;
 
         if (totalFiles === 0) {
-          console.log("No files to upload");
+          console.log('No files to upload');
           return 0;
         }
 
         const batchSize = this.options.concurrentUploads || 10;
         console.noQuiet(
-          "Found",
+          'Found',
           totalFiles,
-          "files to process concurrently using",
+          'files to process concurrently using',
           batchSize,
-          "uploaders"
+          'uploaders'
         );
 
         // Stats object to track overall progress
@@ -341,19 +304,14 @@ class DeployGroup {
         );
         const count = [...Object.keys(results)].length;
 
-        const totalTime = (
-          (Date.now() - processStats.startTime) /
-          1000
-        ).toFixed(1);
+        const totalTime = ((Date.now() - processStats.startTime) / 1000).toFixed(1);
         const avgSpeed = (count / totalTime).toFixed(1);
 
         // Format total time in a human-readable format
         const totalMinutes = Math.floor(totalTime / 60);
         const totalSeconds = Math.ceil(totalTime % 60);
         const totalTimeDisplay =
-          totalMinutes > 0
-            ? `${totalMinutes}m ${totalSeconds}s`
-            : `${totalSeconds}s`;
+          totalMinutes > 0 ? `${totalMinutes}m ${totalSeconds}s` : `${totalSeconds}s`;
 
         console.log(
           `\nUpload complete:` +
@@ -368,7 +326,7 @@ class DeployGroup {
 
       throw new Error(`Path is neither a file nor a directory: ${fullPath}`);
     } catch (error) {
-      if (error.code === "ENOENT") {
+      if (error.code === 'ENOENT') {
         throw new Error(`Path does not exist: ${fullPath}`);
       }
       throw error;
@@ -386,25 +344,22 @@ class DeployGroup {
   /**
    * Retrieves the contents of uri into the local baseDir, preserving the original naming/directory structure
    */
-  async retrieve(options = {}, parentDir = "", name = "") {
+  async retrieve(options = {}, parentDir = '', name = '') {
     const { remoteUri } = options;
     const relativeName = joinUri(parentDir, name);
     if (remoteUri) {
       const destName = options.destName || relativeName;
       console.noQuiet(
-        "Retrieving specific URI",
+        'Retrieving specific URI',
         remoteUri,
         parentDir,
         name,
         relativeName,
-        "to",
+        'to',
         this.baseDir,
         destName
       );
-      await this.ops.retrieve(
-        joinUri(remoteUri, relativeName),
-        path.join(this.baseDir, destName)
-      );
+      await this.ops.retrieve(joinUri(remoteUri, relativeName), path.join(this.baseDir, destName));
       return { skippedItems: 0, retrieved: 1 };
     }
 
@@ -413,34 +368,29 @@ class DeployGroup {
     let skippedItems = 0;
     let retrieved = 0;
     if (!contents) {
-      console.log("Directory does not exist:", relativeName);
+      console.log('Directory does not exist:', relativeName);
       return { skippedItems, retrieved };
     }
-    const { include = [], exclude = ["temp"], force } = options;
+    const { include = [], exclude = ['temp'], force } = options;
     for (const item of contents) {
       // item is an object containing information about this object
-      if (!item.relativeUri) throw new Error("Nothing to retrieve");
+      if (!item.relativeUri) throw new Error('Nothing to retrieve');
       const destName = path.join(this.baseDir, item.fileName);
       if (include.length) {
-        const foundItem = include.find((it) => destName.indexOf(it) !== -1);
+        const foundItem = include.find(it => destName.indexOf(it) !== -1);
         // Not skipped or retrieved, this is just out of scope
         if (!foundItem) {
-          console.verbose(
-            "Skipping",
-            destName,
-            "because it includes",
-            foundItem
-          );
+          console.verbose('Skipping', destName, 'because it includes', foundItem);
           continue;
         }
       }
-      const isExcluded = exclude.find((it) => destName.indexOf(it) !== -1);
+      const isExcluded = exclude.find(it => destName.indexOf(it) !== -1);
       if (isExcluded) {
         continue;
       }
       if (fs.existsSync(destName) && !force) {
         if (this.ops.shouldSkip(item, destName)) {
-          console.verbose("Skipping", destName);
+          console.verbose('Skipping', destName);
           skippedItems += 1;
           continue;
         }
@@ -448,14 +398,7 @@ class DeployGroup {
       await this.ops.retrieve(item.relativeUri, destName);
       retrieved += 1;
     }
-    console.log(
-      "Retrieved",
-      retrieved,
-      "items to",
-      this.baseDir,
-      "and skipped",
-      skippedItems
-    );
+    console.log('Retrieved', retrieved, 'items to', this.baseDir, 'and skipped', skippedItems);
     return { skippedItems, retrieved };
   }
 }

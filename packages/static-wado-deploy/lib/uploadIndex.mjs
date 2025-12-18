@@ -1,5 +1,5 @@
-import { JSONReader, JSONWriter } from "@radicalimaging/static-wado-util";
-import DeployGroup from "./DeployGroup.mjs";
+import { JSONReader, JSONWriter } from '@radicalimaging/static-wado-util';
+import DeployGroup from './DeployGroup.mjs';
 
 // Simple in-memory cache for the duration of the upload
 const indexCache = new Map();
@@ -11,16 +11,14 @@ const indexCache = new Map();
  * @returns {Array} Updated studies array
  */
 function batchProcessIndices(indices, allStudies) {
-  const sopMap = new Map(
-    allStudies.map((study, index) => [study["0020000D"].Value[0], index])
-  );
+  const sopMap = new Map(allStudies.map((study, index) => [study['0020000D'].Value[0], index]));
 
-  indices.forEach((studyIndex) => {
+  indices.forEach(studyIndex => {
     // Handle both single study and array of studies
     const studies = Array.isArray(studyIndex) ? studyIndex : [studyIndex];
 
-    studies.forEach((studyItem) => {
-      const sop = studyItem["0020000D"].Value[0];
+    studies.forEach(studyItem => {
+      const sop = studyItem['0020000D'].Value[0];
       const existingIndex = sopMap.get(sop);
 
       if (existingIndex === undefined) {
@@ -61,17 +59,11 @@ function clearCache() {
 /**
  * Reads the storeDirectory to get the index file, and adds that to the index directory
  */
-export default async function uploadIndex(
-  storeDirectory,
-  config,
-  name,
-  options,
-  deployPlugin
-) {
+export default async function uploadIndex(storeDirectory, config, name, options, deployPlugin) {
   const deployer = new DeployGroup(config, name, options, deployPlugin);
   const { indexFullName } = deployer;
   if (!indexFullName) {
-    console.log("No index defined in group", deployer.group);
+    console.log('No index defined in group', deployer.group);
     return;
   }
 
@@ -80,7 +72,7 @@ export default async function uploadIndex(
   const { rootDir } = deployConfig;
   const remoteUri = `s3://${deployConfig.rootGroup.Bucket}${deployConfig.rootGroup.path}`;
   const destName = indexFullName; // de-gzip name: .substring(0, indexFullName.length - 3);
-  await deployer.retrieve({ ...options, remoteUri, destName }, "studies");
+  await deployer.retrieve({ ...options, remoteUri, destName }, 'studies');
 
   // const indexUncompressed = await JSONReader(rootDir, destName);
   // await JSONWriter(rootDir, indexFullName, indexUncompressed, {
@@ -101,7 +93,7 @@ export default async function uploadIndex(
     // Write updated index and upload
     await JSONWriter(deployConfig.rootDir, indexFullName, updatedStudies, {
       index: false,
-      compression: "gzip", // Enable compression for index files
+      compression: 'gzip', // Enable compression for index files
     });
 
     await deployer.store(indexFullName);
@@ -109,7 +101,7 @@ export default async function uploadIndex(
     // Update cache with new data
     indexCache.set(`${deployConfig.rootDir}:${indexFullName}`, updatedStudies);
   } catch (error) {
-    console.error("Failed to update index:", error);
+    console.error('Failed to update index:', error);
     throw error;
   } finally {
     // Clear the cache to allow process to exit cleanly
