@@ -1,15 +1,14 @@
-const path = require("path");
-const fs = require("fs");
-const hashFactory = require("node-object-hash");
-const { JSONReader, JSONWriter } = require("@radicalimaging/static-wado-util");
-const { Tags } = require("@radicalimaging/static-wado-util");
-const TagLists = require("../model/TagLists");
+const path = require('path');
+const fs = require('fs');
+const hashFactory = require('node-object-hash');
+const { JSONReader, JSONWriter } = require('@radicalimaging/static-wado-util');
+const { Tags } = require('@radicalimaging/static-wado-util');
+const TagLists = require('../model/TagLists');
 
 const { getValue, setValue, getList, setList } = Tags;
 const hasher = hashFactory.hasher();
 
-const getSeriesInstanceUid = (seriesInstance) =>
-  getValue(seriesInstance, Tags.SeriesInstanceUID);
+const getSeriesInstanceUid = seriesInstance => getValue(seriesInstance, Tags.SeriesInstanceUID);
 
 /**
  * StudyData contains information about the grouped study data.  It is used to create
@@ -23,13 +22,8 @@ const getSeriesInstanceUid = (seriesInstance) =>
  */
 class StudyData {
   constructor(
-    {
-      studyInstanceUid,
-      studyPath,
-      deduplicatedPath,
-      deduplicatedInstancesPath,
-    },
-    { isGroup, clean, hashStudyUidPath },
+    { studyInstanceUid, studyPath, deduplicatedPath, deduplicatedInstancesPath },
+    { isGroup, clean, hashStudyUidPath }
   ) {
     this.studyInstanceUid = studyInstanceUid;
     this.studyPath = studyPath;
@@ -66,48 +60,37 @@ class StudyData {
       // Wipe out the study directory entirely, as well as the deduplicatedRoot and instancesRoot
     }
 
-    console.verbose("studyInstanceUid", this.studyInstanceUid);
-    console.verbose("studyPath", this.studyPath);
-    console.verbose("deduplicatedPath", this.deduplicatedPath);
-    console.verbose(
-      "deduplicatedInstancesPath",
-      this.deduplicatedInstancesPath,
-    );
+    console.verbose('studyInstanceUid', this.studyInstanceUid);
+    console.verbose('studyPath', this.studyPath);
+    console.verbose('deduplicatedPath', this.deduplicatedPath);
+    console.verbose('deduplicatedInstancesPath', this.deduplicatedInstancesPath);
 
     this.groupFiles = 0;
-    const studyDeduplicated = await JSONReader(
-      this.studyPath,
-      "deduplicated/index.json.gz",
-      [],
-    );
+    const studyDeduplicated = await JSONReader(this.studyPath, 'deduplicated/index.json.gz', []);
     const info = studyDeduplicated[0];
     if (info) {
       const hash = getValue(info, Tags.DeduppedHash);
       if (this.hashStudyUidPath) {
         console.verbose(
-          "Reading studies/<studyUIDPath>/<studyUIDSubpath>/<studyUID>/deduplicated/index.json.gz",
+          'Reading studies/<studyUIDPath>/<studyUIDSubpath>/<studyUID>/deduplicated/index.json.gz'
         );
       } else {
-        console.verbose(
-          "Reading studies/<studyUID>/deduplicated/index.json.gz",
-        );
+        console.verbose('Reading studies/<studyUID>/deduplicated/index.json.gz');
       }
-      this.readDeduplicatedData("index.json.gz", studyDeduplicated, hash);
+      this.readDeduplicatedData('index.json.gz', studyDeduplicated, hash);
     } else {
       console.log(
-        "No deduplicated/index.json to read in",
+        'No deduplicated/index.json to read in',
         this.studyPath,
-        "/deduplicated/index.json.gz",
+        '/deduplicated/index.json.gz'
       );
     }
     if (this.deduplicatedPath) {
       this.groupFiles = await this.readDeduplicated(this.deduplicatedPath);
-      console.verbose("Read groupFiles:", this.groupFiles);
+      console.verbose('Read groupFiles:', this.groupFiles);
     }
     if (this.deduplicatedInstancesPath) {
-      this.instanceFiles = await this.readDeduplicated(
-        this.deduplicatedInstancesPath,
-      );
+      this.instanceFiles = await this.readDeduplicated(this.deduplicatedInstancesPath);
     }
   }
 
@@ -121,40 +104,31 @@ class StudyData {
    * a separate type of check.
    */
   get dirty() {
-    return (
-      this.newInstancesAdded > 0 ||
-      this.existingFiles.length > 1 ||
-      this.instanceFiles > 0
-    );
+    return this.newInstancesAdded > 0 || this.existingFiles.length > 1 || this.instanceFiles > 0;
   }
 
   async dirtyMetadata() {
     if (this.dirty) {
-      console.verbose("dirtyMetadata::Group data is dirty");
+      console.verbose('dirtyMetadata::Group data is dirty');
       return true;
     }
     if (this.groupFiles > 0) {
-      console.verbose(
-        "dirtyMetadata::Study level deduplicated doesn't match group files",
-      );
+      console.verbose("dirtyMetadata::Study level deduplicated doesn't match group files");
     }
     try {
-      const studyFile = await JSONReader(this.studyPath, "index.json.gz", null);
+      const studyFile = await JSONReader(this.studyPath, 'index.json.gz', null);
       if (!studyFile) {
-        console.verbose("dirtyMetadata::studyIndex");
+        console.verbose('dirtyMetadata::studyIndex');
         return true;
       }
       const hashValue = getValue(studyFile, Tags.DeduppedHash);
       if (this.existingFiles[0].indexOf(hashValue) == -1) {
         return false;
       }
-      console.verbose("dirtyMetadata::Dedupped hash missing");
+      console.verbose('dirtyMetadata::Dedupped hash missing');
       return true;
     } catch (e) {
-      console.verbose(
-        "dirtyMetadata::Exception, assume study metadata is dirty",
-        e,
-      );
+      console.verbose('dirtyMetadata::Exception, assume study metadata is dirty', e);
       return true;
     }
   }
@@ -169,7 +143,7 @@ class StudyData {
       const reSop = getValue(recombined, Tags.SOPInstanceUID);
       if (!reSop) continue;
       if (sopInstanceUid && reSop !== sopInstanceUid) continue;
-      setValue(this.deduplicated[i], Tags.DeduppedType, "deleted");
+      setValue(this.deduplicated[i], Tags.DeduppedType, 'deleted');
     }
   }
 
@@ -188,7 +162,7 @@ class StudyData {
     if (!item) {
       item = await JSONReader.readHashData(this.studyPath, hashKey);
       if (!item) {
-        console.error("Unable to read hashdata", hashKey);
+        console.error('Unable to read hashdata', hashKey);
         return item;
       }
       this.extractData[hashKey] = item;
@@ -198,7 +172,7 @@ class StudyData {
 
   assignUndefined(ret, item) {
     if (!item) return;
-    Object.keys(item).forEach((key) => {
+    Object.keys(item).forEach(key => {
       if (ret[key]) return;
       ret[key] = item[key];
     });
@@ -208,19 +182,14 @@ class StudyData {
    * Create a full study instance data for instance at index
    */
   async recombine(indexOrSop) {
-    const index =
-      typeof indexOrSop === "string"
-        ? this.sopInstances[indexOrSop]
-        : indexOrSop;
+    const index = typeof indexOrSop === 'string' ? this.sopInstances[indexOrSop] : indexOrSop;
     const deduplicated = this.deduplicated[index];
     if (index < 0 || index >= this.deduplicated.length) {
-      throw new Error(
-        `Can't read index ${index}, out of bounds [0..${this.deduplicated.length})`,
-      );
+      throw new Error(`Can't read index ${index}, out of bounds [0..${this.deduplicated.length})`);
     }
     const refs = getList(deduplicated, Tags.DeduppedRef);
     if (!refs) {
-      console.log("No refs for", deduplicated);
+      console.log('No refs for', deduplicated);
       return deduplicated;
     }
     const ret = { ...deduplicated };
@@ -234,11 +203,7 @@ class StudyData {
   async addExtracted(callback, hashKey, item) {
     if (this.extractData[hashKey]) {
       if (this.verbose)
-        console.log(
-          "Already have extracted",
-          hashKey,
-          getValue(item, Tags.DeduppedType),
-        );
+        console.log('Already have extracted', hashKey, getValue(item, Tags.DeduppedType));
       return;
     }
     await callback.bulkdata(this, hashKey, item);
@@ -259,7 +224,7 @@ class StudyData {
   }
 
   /** Add the instance if not already present */
-  internalAddDeduplicated(data, filename = "internal") {
+  internalAddDeduplicated(data, filename = 'internal') {
     const hashValue = TagLists.addHash(data, Tags.InstanceType);
     if (!hashValue || this.deduplicatedHashes[hashValue]) {
       // console.log('Not adding', hashValue, 'because the hash exists');
@@ -268,13 +233,13 @@ class StudyData {
     const sopValue = getValue(data, Tags.SOPInstanceUID);
     const sopIndex = this.sopInstances[sopValue];
     if (!sopValue) {
-      console.warn("No sop value in", filename, "reading", data);
+      console.warn('No sop value in', filename, 'reading', data);
       return false;
     }
     this.deduplicatedHashes[hashValue] = data;
     this.readHashes[hashValue] = filename;
     if (sopIndex !== undefined) {
-      console.noQuiet("Replacing SOP", sopValue, "at index", sopIndex);
+      console.noQuiet('Replacing SOP', sopValue, 'at index', sopIndex);
       this.deduplicated[sopIndex] = data;
     } else {
       this.sopInstances[sopValue] = this.deduplicated.length;
@@ -287,9 +252,9 @@ class StudyData {
   async listJsonFiles(dir) {
     const names = await fs.promises.readdir(dir);
     if (!names || names.length == 0) return [];
-    const gzNames = names.filter((name) => name.indexOf(".gz") > 0);
+    const gzNames = names.filter(name => name.indexOf('.gz') > 0);
     const statInfo = gzNames
-      .map((name) => {
+      .map(name => {
         const stat = fs.statSync(path.join(dir, name));
         return {
           ...stat,
@@ -318,10 +283,10 @@ class StudyData {
     try {
       const files = await this.listJsonFiles(deduplicatedDirectory);
       if (!files || !files.length) {
-        console.verbose("No deduplicated for", deduplicatedDirectory);
+        console.verbose('No deduplicated for', deduplicatedDirectory);
         return 0;
       }
-      console.verbose("There are", files.length, "files to check");
+      console.verbose('There are', files.length, 'files to check');
       for (let i = 0; i < files.length; i++) {
         const stat = files[i];
         const { hash } = stat;
@@ -331,7 +296,7 @@ class StudyData {
         readCount += 1;
         await this.readDeduplicatedFile(deduplicatedDirectory, stat);
       }
-      console.verbose("Done checking", deduplicatedDirectory);
+      console.verbose('Done checking', deduplicatedDirectory);
     } catch (e) {
       // No-op console.log(e);
     }
@@ -341,11 +306,11 @@ class StudyData {
   async readDeduplicatedFile(dir, stat) {
     const { hash, name } = stat;
     try {
-      console.verbose("Reading deduplicated file", name);
+      console.verbose('Reading deduplicated file', name);
       const data = await JSONReader(dir, name);
       this.readDeduplicatedData(name, data, hash);
     } catch (e) {
-      console.error("Unable to read", dir, name);
+      console.error('Unable to read', dir, name);
     }
   }
 
@@ -353,14 +318,14 @@ class StudyData {
     this.readHashes[hash] = name;
     this.existingFiles.push(name);
     const listData = (Array.isArray(data) && data) || [data];
-    listData.forEach((item) => {
+    listData.forEach(item => {
       const type = getValue(item, Tags.DeduppedType);
       if (type === Tags.InstanceType || type === Tags.DeletedType) {
         this.internalAddDeduplicated(item, name);
-      } else if (type == "info") {
+      } else if (type == 'info') {
         const refs = getList(item, Tags.DeduppedRef);
         if (refs) {
-          refs.forEach((hashValue) => {
+          refs.forEach(hashValue => {
             this.readHashes[hashValue] = `${hashValue}.gz`;
           });
         }
@@ -380,34 +345,22 @@ class StudyData {
     for (let i = 0; i < this.numberOfInstances; i++) {
       const seriesInstance = await this.recombine(i);
       const type = getValue(seriesInstance, Tags.DeduppedType);
-      if (type == "deleted") {
+      if (type == 'deleted') {
         console.log(
-          "Skipping deleted instance",
+          'Skipping deleted instance',
           type,
-          getValue(seriesInstance, Tags.SeriesInstanceUID),
+          getValue(seriesInstance, Tags.SeriesInstanceUID)
         );
         continue;
       }
       const seriesInstanceUid = getSeriesInstanceUid(seriesInstance);
       if (!seriesInstanceUid) {
-        console.log(
-          "Cant get seriesUid from",
-          Tags.SeriesInstanceUID,
-          seriesInstance,
-        );
+        console.log('Cant get seriesUid from', Tags.SeriesInstanceUID, seriesInstance);
         continue;
       }
       if (!series[seriesInstanceUid]) {
-        const seriesQuery = TagLists.extract(
-          seriesInstance,
-          "series",
-          TagLists.SeriesQuery,
-        );
-        const seriesPath = path.join(
-          this.studyPath,
-          "series",
-          seriesInstanceUid,
-        );
+        const seriesQuery = TagLists.extract(seriesInstance, 'series', TagLists.SeriesQuery);
+        const seriesPath = path.join(this.studyPath, 'series', seriesInstanceUid);
         series[seriesInstanceUid] = {
           seriesPath,
           seriesQuery,
@@ -417,7 +370,7 @@ class StudyData {
       }
       series[seriesInstanceUid].instances.push(seriesInstance);
       series[seriesInstanceUid].instancesQuery.push(
-        TagLists.extract(seriesInstance, "instance", TagLists.InstanceQuery),
+        TagLists.extract(seriesInstance, 'instance', TagLists.InstanceQuery)
       );
     }
 
@@ -428,73 +381,57 @@ class StudyData {
 
     for (const seriesUid of Object.keys(series)) {
       const singleSeries = series[seriesUid];
-      const { seriesQuery, seriesPath, instances, instancesQuery } =
-        singleSeries;
+      const { seriesQuery, seriesPath, instances, instancesQuery } = singleSeries;
       seriesQuery[Tags.NumberOfSeriesRelatedInstances] = {
-        vr: "IS",
+        vr: 'IS',
         Value: [instances.length],
       };
       numberOfInstances += instances.length;
       numberOfSeries += 1;
       const modality = getValue(seriesQuery, Tags.Modality);
       seriesList.push(seriesQuery);
-      if (modalitiesInStudy.indexOf(modality) == -1)
-        modalitiesInStudy.push(modality);
-      await JSONWriter(seriesPath, "metadata", instances, {
+      if (modalitiesInStudy.indexOf(modality) == -1) modalitiesInStudy.push(modality);
+      await JSONWriter(seriesPath, 'metadata', instances, {
         gzip: true,
         index: false,
       });
       // Write out a series singleton that has just the series response for a single series.
-      await JSONWriter(seriesPath, "series-singleton.json", [seriesQuery], {
+      await JSONWriter(seriesPath, 'series-singleton.json', [seriesQuery], {
         gzip: true,
         index: false,
       });
-      await JSONWriter(seriesPath, "instances", instancesQuery);
-      console.noQuiet(
-        "Wrote instances",
-        seriesUid,
-        "with",
-        instancesQuery.length,
-      );
+      await JSONWriter(seriesPath, 'instances', instancesQuery);
+      console.noQuiet('Wrote instances', seriesUid, 'with', instancesQuery.length);
     }
 
-    await JSONWriter(this.studyPath, "series", seriesList);
-    console.noQuiet(
-      "Wrote series",
-      this.studyInstanceUid,
-      "with",
-      seriesList.length,
-    );
+    await JSONWriter(this.studyPath, 'series', seriesList);
+    console.noQuiet('Wrote series', this.studyInstanceUid, 'with', seriesList.length);
 
-    const studyQuery = TagLists.extract(
-      anInstance,
-      "study",
-      TagLists.PatientStudyQuery,
-    );
-    studyQuery[Tags.ModalitiesInStudy] = { Value: modalitiesInStudy, vr: "CS" };
+    const studyQuery = TagLists.extract(anInstance, 'study', TagLists.PatientStudyQuery);
+    studyQuery[Tags.ModalitiesInStudy] = { Value: modalitiesInStudy, vr: 'CS' };
     studyQuery[Tags.NumberOfStudyRelatedInstances] = {
       Value: [numberOfInstances],
-      vr: "IS",
+      vr: 'IS',
     };
     studyQuery[Tags.NumberOfStudyRelatedSeries] = {
       Value: [numberOfSeries],
-      vr: "IS",
+      vr: 'IS',
     };
     // Write the index.json directly in the studyPath directory.
-    await JSONWriter(this.studyPath, "index.json", [studyQuery], {
+    await JSONWriter(this.studyPath, 'index.json', [studyQuery], {
       gzip: true,
       index: false,
     });
 
     const infoItem = this.createInfo();
     console.noQuiet(
-      "Writing deduplicated study data with",
+      'Writing deduplicated study data with',
       Object.values(this.extractData).length,
-      "extract items and",
+      'extract items and',
       this.deduplicated.length,
-      "instance items",
+      'instance items'
     );
-    await JSONWriter(this.studyPath, "deduplicated", [
+    await JSONWriter(this.studyPath, 'deduplicated', [
       infoItem,
       ...Object.values(this.extractData),
       ...this.deduplicated,
@@ -510,12 +447,12 @@ class StudyData {
     const data = {};
     const hashValue = hasher.hash(this.deduplicated);
     setValue(data, Tags.DeduppedHash, hashValue);
-    setValue(data, Tags.DeduppedType, "info");
+    setValue(data, Tags.DeduppedType, 'info');
     return data;
   }
 
   removeGz(name) {
-    const gzIndex = name.indexOf(".gz");
+    const gzIndex = name.indexOf('.gz');
     return (gzIndex > 0 && name.substring(0, gzIndex)) || name;
   }
 
@@ -523,28 +460,28 @@ class StudyData {
     const deduplicatedDirectory = this.deduplicatedInstancesPath;
     if (!fs.existsSync(deduplicatedDirectory)) return;
     console.log(
-      "Deleting instances referenced in",
+      'Deleting instances referenced in',
       this.studyInstanceUid,
-      this.deduplicatedInstancesPath,
+      this.deduplicatedInstancesPath
     );
     const files = await this.listJsonFiles(deduplicatedDirectory);
-    console.noQuiet("Deleting", files.length, "files");
+    console.noQuiet('Deleting', files.length, 'files');
     let deleteCount = 0;
     for (let i = 0; i < files.length; i++) {
       const stat = files[i];
       const { hash } = stat;
       if (this.readHashes[hash]) {
-        console.noQuiet("Deleting", deduplicatedDirectory, stat.name);
+        console.noQuiet('Deleting', deduplicatedDirectory, stat.name);
         try {
           fs.unlinkSync(path.join(deduplicatedDirectory, stat.name));
           deleteCount += 1;
         } catch (e) {
-          console.log("Delete failed", e);
+          console.log('Delete failed', e);
         }
       }
     }
     if (deleteCount === files.length) {
-      console.noQuiet("Deleting instances directory", deduplicatedDirectory);
+      console.noQuiet('Deleting instances directory', deduplicatedDirectory);
       fs.rmdirSync(deduplicatedDirectory);
     }
   }
@@ -554,24 +491,18 @@ class StudyData {
     const data = this.createInfo();
     const hashValue = getValue(data, Tags.DeduppedHash);
     console.noQuiet(
-      "Writing deduplicated hash data set data with",
+      'Writing deduplicated hash data set data with',
       Object.values(this.extractData).length,
-      "extract items and",
+      'extract items and',
       this.deduplicated.length,
-      "instance items",
+      'instance items'
     );
     setList(
       data,
       Tags.DeduppedRef,
-      Object.keys(this.readHashes).filter(
-        () => this.deduplicatedHashes[hashValue] == undefined,
-      ),
+      Object.keys(this.readHashes).filter(() => this.deduplicatedHashes[hashValue] == undefined)
     );
-    const deduplicatedList = [
-      data,
-      ...Object.values(this.extractData),
-      ...this.deduplicated,
-    ];
+    const deduplicatedList = [data, ...Object.values(this.extractData), ...this.deduplicated];
     // const naturalList = deduplicatedList.map(Tags.naturalizeDataset);
     // // console.log("naturalList=", JSON.stringify(naturalList,null,2));
     // console.log("Going to write study data", naturalList.length);
@@ -580,7 +511,7 @@ class StudyData {
       gzip: true,
       index: false,
     });
-    console.noQuiet("Wrote naturalized dataset");
+    console.noQuiet('Wrote naturalized dataset');
   }
 
   getSopUids() {

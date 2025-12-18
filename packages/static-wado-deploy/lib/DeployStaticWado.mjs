@@ -1,4 +1,4 @@
-import { plugins } from "@radicalimaging/static-wado-plugins";
+import { plugins } from '@radicalimaging/static-wado-plugins';
 
 /**
  * Class that knows how to handle DICOMweb deployments.
@@ -28,8 +28,8 @@ class DeployStaticWado {
     const imported = await import(plugins[this.config.deployPlugin]);
     if (!imported) throw new Error(`Deploy plugin ${this.config.deployPlugin} not defined`);
     this.deployPlugin = imported.default || imported;
-    this.clientDeploy = this.deployPlugin.factory("client", this.config);
-    this.rootDeploy = this.deployPlugin.factory("root", this.config);
+    this.clientDeploy = this.deployPlugin.factory('client', this.config);
+    this.rootDeploy = this.deployPlugin.factory('root', this.config);
     return { client: this.clientDeploy, root: this.rootDeploy };
   }
 

@@ -1,7 +1,7 @@
-import commonMain from "./commonMain.mjs";
+import commonMain from './commonMain.mjs';
 
 async function indexCurie(jobName, config, name, options, deployer) {
-  console.log("Initiating local index of <curieDir>", jobName, deployer.group);
+  console.log('Initiating local index of <curieDir>', jobName, deployer.group);
   // Search for all files <dicomDir>/studies/metadataTree.json.gz
   // Read the file
   // Combine patient/studies and patient/studies/series
@@ -11,5 +11,5 @@ async function indexCurie(jobName, config, name, options, deployer) {
 }
 
 export default async function (jobName, options) {
-  await commonMain(this, "upload", options, indexCurie.bind(null, jobName));
+  await commonMain(this, 'upload', options, indexCurie.bind(null, jobName));
 }

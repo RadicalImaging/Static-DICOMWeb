@@ -1,8 +1,8 @@
-const fs = require("fs");
-const sleep = require("./sleep");
-const JSONWriter = require("./writer/JSONWriter");
-const handleHomeRelative = require("./handleHomeRelative");
-const JSONReader = require("./reader/JSONReader");
+const fs = require('fs');
+const sleep = require('./sleep');
+const JSONWriter = require('./writer/JSONWriter');
+const handleHomeRelative = require('./handleHomeRelative');
+const JSONReader = require('./reader/JSONReader');
 
 /**
  * Implements a notification service.  This is a very coarse notification service which
@@ -13,7 +13,7 @@ const JSONReader = require("./reader/JSONReader");
  */
 
 class NotificationService {
-  constructor(dir, name = "update") {
+  constructor(dir, name = 'update') {
     if (!dir) {
       return;
     }
@@ -31,7 +31,7 @@ class NotificationService {
    */
   async scan(callback, options = {}) {
     const { retries, delay = 5000 } = options;
-    console.log("Scan", this.dir);
+    console.log('Scan', this.dir);
     for (let i = 0; i < retries; i++) {
       if (i > 0) await sleep(delay);
       await this.scanOnce(callback);
@@ -46,9 +46,9 @@ class NotificationService {
   }
 
   async scanItem(callback, name) {
-    if (name.indexOf(".notify") === -1) return;
+    if (name.indexOf('.notify') === -1) return;
     const newName = `${this.dir}/${name.substring(0, name.length - 6)}progress`;
-    console.log("Scanning item", name);
+    console.log('Scanning item', name);
     try {
       fs.renameSync(`${this.dir}/${name}`, newName);
     } catch (e) {
@@ -56,10 +56,10 @@ class NotificationService {
       return;
     }
     try {
-      const jsonData = await JSONReader(newName, "");
+      const jsonData = await JSONReader(newName, '');
       callback(newName, jsonData);
     } catch (e) {
-      console.warn("Caught error processing", name, e);
+      console.warn('Caught error processing', name, e);
       // callback is supposed to deal with creating new events, so can just proceed
     }
     fs.unlinkSync(newName);
@@ -73,12 +73,12 @@ class NotificationService {
    * @returns notify file name
    */
   notify(message, id) {
-    if (!this.dir) return "";
+    if (!this.dir) return '';
     console.log(
-      "\r\n--boundary-response\r\n" +
-        "content-type: application/json\r\n\r\n" +
+      '\r\n--boundary-response\r\n' +
+        'content-type: application/json\r\n\r\n' +
         JSON.stringify(message, null, 2) +
-        "\r\n--boundary-response--\r\n",
+        '\r\n--boundary-response--\r\n'
     );
     const name = `${id}-${Math.floor(Math.random() * 1000000)}.notify`;
     JSONWriter(this.dir, name, message, { gzip: false });
@@ -92,9 +92,9 @@ class NotificationService {
       {
         ...options,
         StudyInstanceUID: studyUID,
-        action: options.action || "update",
+        action: options.action || 'update',
       },
-      studyUID,
+      studyUID
     );
   }
 }

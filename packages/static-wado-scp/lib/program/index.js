@@ -1,5 +1,5 @@
-const staticWadoUtil = require("@radicalimaging/static-wado-util");
-const loadPlugins = require("../loadPlugins");
+const staticWadoUtil = require('@radicalimaging/static-wado-util');
+const loadPlugins = require('../loadPlugins');
 
 /**
  * Configure static-wado-scp commander program.
@@ -8,11 +8,8 @@ const loadPlugins = require("../loadPlugins");
  * @returns Program object
  */
 async function configureProgram(defaults) {
-  const configurationFile = await staticWadoUtil.loadConfiguration(
-    defaults,
-    process.argv,
-  );
-  console.log("Loaded configuration from", configurationFile);
+  const configurationFile = await staticWadoUtil.loadConfiguration(defaults, process.argv);
+  console.log('Loaded configuration from', configurationFile);
   loadPlugins(defaults);
   staticWadoUtil.configureCommands(defaults);
 }

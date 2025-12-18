@@ -1,4 +1,4 @@
-const fs = require("fs");
+const fs = require('fs');
 
 /**
  * Executes a given callback on the scanned list of names, OR matches up the names present
@@ -10,15 +10,15 @@ async function dirScanner(input, options) {
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     if (!fs.existsSync(file)) {
-      console.warn("File does not exist", file);
+      console.warn('File does not exist', file);
       continue;
     }
     if (fs.lstatSync(file).isDirectory()) {
       const names = await fs.promises.readdir(file);
       if (options.recursive !== false) {
         await dirScanner(
-          names.map((dirFile) => `${file}/${dirFile}`),
-          options,
+          names.map(dirFile => `${file}/${dirFile}`),
+          options
         );
       } else {
         for (let j = 0; j < names.length; j++) {
@@ -36,9 +36,9 @@ async function dirScanner(input, options) {
       try {
         await options.callback(file);
       } catch (e) {
-        if (options.verbose) console.warn("Exception", e);
+        if (options.verbose) console.warn('Exception', e);
         console.error("Couldn't process", file);
-        console.verbose("Error", e);
+        console.verbose('Error', e);
       }
     }
   }

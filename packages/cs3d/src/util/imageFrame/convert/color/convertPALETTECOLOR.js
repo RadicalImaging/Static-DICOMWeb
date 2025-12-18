@@ -29,8 +29,7 @@ function converter(imageFrame, rgbaBuffer) {
   let rgbaIndex = 0;
 
   const start = imageFrame.redPaletteColorLookupTableDescriptor[1];
-  const shift =
-    imageFrame.redPaletteColorLookupTableDescriptor[2] === 8 ? 0 : 8;
+  const shift = imageFrame.redPaletteColorLookupTableDescriptor[2] === 8 ? 0 : 8;
 
   const rDataCleaned = convertLUTto8Bit(rData, shift);
   const gDataCleaned = convertLUTto8Bit(gData, shift);

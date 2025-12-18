@@ -1,9 +1,9 @@
-const { dataDictionary } = require("@radicalimaging/static-wado-util");
+const { dataDictionary } = require('@radicalimaging/static-wado-util');
 
 const nullVrTags = new Set();
-nullVrTags.add("FFFEE00D");
+nullVrTags.add('FFFEE00D');
 
-const getVR = (attr) => {
+const getVR = attr => {
   if (attr.vr) {
     return attr.vr;
   }
@@ -17,8 +17,8 @@ const getVR = (attr) => {
     return null;
   }
 
-  console.log("Unknown VR", tag, attr, dataDictAttr);
-  return "UN";
+  console.log('Unknown VR', tag, attr, dataDictAttr);
+  return 'UN';
 };
 
 module.exports = getVR;

@@ -1,17 +1,17 @@
-import ConfigPoint from "config-point";
-import { staticWadoConfig } from "@radicalimaging/static-wado-util";
-import studiesMain from "./studiesMain.mjs";
-import notificationMain from "./notificationMain.mjs";
-import clientMain from "./clientMain.mjs";
-import deduplicatedMain from "./deduplicatedMain.mjs";
-import themeMain from "./themeMain.mjs";
-import updateConsistency from "./updateConsistencyMain.mjs";
+import ConfigPoint from 'config-point';
+import { staticWadoConfig } from '@radicalimaging/static-wado-util';
+import studiesMain from './studiesMain.mjs';
+import notificationMain from './notificationMain.mjs';
+import clientMain from './clientMain.mjs';
+import deduplicatedMain from './deduplicatedMain.mjs';
+import themeMain from './themeMain.mjs';
+import updateConsistency from './updateConsistencyMain.mjs';
 
 // Define the generic configuration in the base config
-ConfigPoint.extendConfiguration("staticWadoConfig", {
+ConfigPoint.extendConfiguration('staticWadoConfig', {
   // Default deployment is s3 - other ones need customizing
-  deployPlugin: "s3Plugin",
-  deployNotificationName: "deploy",
+  deployPlugin: 's3Plugin',
+  deployNotificationName: 'deploy',
 });
 
 /**
@@ -26,80 +26,78 @@ const { deployConfig } = ConfigPoint.register({
 
     options: [
       {
-        key: "--dry-run",
+        key: '--dry-run',
         description:
-          "Do a dry run, without actually uploading (but DOES check remote existance if configured)",
+          'Do a dry run, without actually uploading (but DOES check remote existance if configured)',
         defaultValue: false,
       },
       {
-        key: "--result-file <resultFile>",
-        description:
-          "Store the results in the given file",
-        key: "--result-file <resultFile>",
-        description: "Store the results in the given file",
+        key: '--result-file <resultFile>',
+        description: 'Store the results in the given file',
+        key: '--result-file <resultFile>',
+        description: 'Store the results in the given file',
       },
       {
-        key: "--delete-successful",
-        description: "Delete successful uploads, including existing uploads",
+        key: '--delete-successful',
+        description: 'Delete successful uploads, including existing uploads',
       },
       {
-        key: "--delete-failure",
-        description: "Delete failed uploads",
+        key: '--delete-failure',
+        description: 'Delete failed uploads',
       },
       {
-        key: "-c, --configuration <json5File>",
-        description: "Use a given JSON5 file",
+        key: '-c, --configuration <json5File>',
+        description: 'Use a given JSON5 file',
       },
       {
-        key: "-d, --deployments <listvalue...>",
-        description:
-          "List of deployments from configuration to deploy to. Separated by space.",
+        key: '-d, --deployments <listvalue...>',
+        description: 'List of deployments from configuration to deploy to. Separated by space.',
         defaultValue: undefined,
       },
       {
-        key: "-v, --verbose",
-        description: "Write verbose output",
+        key: '-v, --verbose',
+        description: 'Write verbose output',
         defaultValue: false,
       },
       {
-        key: "--bucket <bucketName>",
-        description: "Name of the bucket to upload to",
+        key: '--bucket <bucketName>',
+        description: 'Name of the bucket to upload to',
       },
       {
-        key: "--region <regionName>",
-        description: "Name of the bucket to upload to",
+        key: '--region <regionName>',
+        description: 'Name of the bucket to upload to',
       },
       {
-        key: "-r, --retrieve",
-        description: "Retrieve the files instead of storing",
+        key: '-r, --retrieve',
+        description: 'Retrieve the files instead of storing',
         defaultValue: false,
       },
       {
-        key: "--retries <retries>",
-        description: "Set how many retries before failing",
+        key: '--retries <retries>',
+        description: 'Set how many retries before failing',
         defaultValue: 1,
       },
       {
-        key: "--delay <delay>",
-        description: "Set the delay between retries",
+        key: '--delay <delay>',
+        description: 'Set the delay between retries',
         defaultValue: 5000,
       },
       {
-        key: "--concurrent-uploads <count>",
-        description: "Count of how many concurrent uploads are allowed",
+        key: '--concurrent-uploads <count>',
+        description: 'Count of how many concurrent uploads are allowed',
         defaultValue: 3,
       },
     ],
 
     programs: [
       {
-        command: "studies",
-        arguments: ["studies"],
-        helpShort: "deploydicomweb studies studyUID",
-        helpDescription: "Deploy DICOMweb files to the cloud",
+        command: 'studies',
+        arguments: ['studies'],
+        helpShort: 'deploydicomweb studies studyUID',
+        helpDescription: 'Deploy DICOMweb files to the cloud',
         options: [
           {
-            key: "--no-index",
+            key: '--no-index',
             description: "Don't create or update the index files",
             defaultValue: true,
           },
@@ -108,42 +106,39 @@ const { deployConfig } = ConfigPoint.register({
             description: 'Skip storing, so that indexing only is done',
             defaultValue: false,
           },
-
         ],
         isDefault: true,
         main: studiesMain,
       },
       {
-        command: "client",
-        helpShort: "deploydicomweb client",
-        helpDescription: "Deploy client files to the cloud",
+        command: 'client',
+        helpShort: 'deploydicomweb client',
+        helpDescription: 'Deploy client files to the cloud',
         main: clientMain,
       },
       {
-        command: "deduplicated <studyUID>",
-        helpShort: "Store deduplicated files",
-        helpDescription:
-          "Stores the deduplicated files, allowing for later study updates",
+        command: 'deduplicated <studyUID>',
+        helpShort: 'Store deduplicated files',
+        helpDescription: 'Stores the deduplicated files, allowing for later study updates',
         main: deduplicatedMain,
       },
       {
-        command: "update <studyUID>",
-        helpShort: "Update the studyUID in the cloud compared to local",
+        command: 'update <studyUID>',
+        helpShort: 'Update the studyUID in the cloud compared to local',
         helpDescription:
-          "Stores files from the <part10>/<studyUID> directory and upload them, making them eventually consistent",
+          'Stores files from the <part10>/<studyUID> directory and upload them, making them eventually consistent',
         main: updateConsistency,
       },
       {
-        command: "notification",
-        helpShort: "Scan for notifications",
-        helpDescription:
-          "Scans for notifications to run the specified commands",
+        command: 'notification',
+        helpShort: 'Scan for notifications',
+        helpDescription: 'Scans for notifications to run the specified commands',
         main: notificationMain,
       },
       {
-        command: "theme",
-        helpShort: "deploydicomweb theme",
-        helpDescription: "Deploy updated theme files to the cloud",
+        command: 'theme',
+        helpShort: 'deploydicomweb theme',
+        helpDescription: 'Deploy updated theme files to the cloud',
         main: themeMain,
       },
     ],

@@ -1,4 +1,4 @@
-const assertArrayDivisibility = require("../../../assertArrayDivisibility");
+const assertArrayDivisibility = require('../../../assertArrayDivisibility');
 
 /**
  * Convert pixel data with YBR Full 422 (by pixel) Photometric Interpretation to RGBA
@@ -10,8 +10,8 @@ const assertArrayDivisibility = require("../../../assertArrayDivisibility");
 function converter(imageFrame, rgbaBuffer) {
   if (
     !assertArrayDivisibility(imageFrame, 2, [
-      "decodeRGB: ybrBuffer must not be undefined",
-      "decodeRGB: ybrBuffer length must be divisble by 2",
+      'decodeRGB: ybrBuffer must not be undefined',
+      'decodeRGB: ybrBuffer length must be divisble by 2',
     ])
   ) {
     return;

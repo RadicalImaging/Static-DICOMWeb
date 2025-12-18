@@ -1,6 +1,6 @@
 /* eslint-disable import/prefer-default-export */
-import { aeConfig } from "@radicalimaging/static-wado-util";
-import * as cmoveServices from "../../services/cmoveServices.mjs";
+import { aeConfig } from '@radicalimaging/static-wado-util';
+import * as cmoveServices from '../../services/cmoveServices.mjs';
 
 /**
  * Default/common controller for get method to
@@ -16,9 +16,9 @@ import * as cmoveServices from "../../services/cmoveServices.mjs";
 export function defaultGetProxyController(
   params,
   { studyInstanceUIDPattern, seriesInstanceUIDPattern, sopInstanceUIDPattern } = {
-    studyInstanceUIDPattern: "",
-    seriesInstanceUIDPattern: "",
-    sopInstanceUIDPattern: "",
+    studyInstanceUIDPattern: '',
+    seriesInstanceUIDPattern: '',
+    sopInstanceUIDPattern: '',
   },
   bulk = false
 ) {

@@ -6,8 +6,8 @@ export function dicomToXml(json) {
     ' xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">',
   ];
   dicomObjectToXml(xml, json);
-  xml.push("</NativeDicomModel>");
-  return xml.join("\n");
+  xml.push('</NativeDicomModel>');
+  return xml.join('\n');
 }
 
 export function dicomObjectToXml(xml, json) {
@@ -22,20 +22,20 @@ export function dicomTagToXml(xml, tag, value) {
     return xml;
   }
   xml.push(`<DicomAttribute tag="${tag}" vr="${value.vr}">`);
-  const isSQ = value.vr === "SQ";
+  const isSQ = value.vr === 'SQ';
 
   let index = 1;
   if (isSQ) {
     for (const item of value.Value) {
       xml.push(`<Item number="${index++}">`);
       dicomObjectToXml(xml, item);
-      xml.push("</Item>");
+      xml.push('</Item>');
     }
   } else {
     for (const item of value.Value) {
       xml.push(`<Value number="${index++}">${item}</Value>`);
     }
   }
-  xml.push("</DicomAttribute>");
+  xml.push('</DicomAttribute>');
   return xml;
 }

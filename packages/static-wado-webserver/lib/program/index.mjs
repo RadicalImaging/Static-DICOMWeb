@@ -1,11 +1,9 @@
-import * as staticWadoUtil from "@radicalimaging/static-wado-util";
-import dicomWebServerConfig from "../dicomWebServerConfig.mjs";
-import DicomWebServer from "../index.mjs";
+import * as staticWadoUtil from '@radicalimaging/static-wado-util';
+import dicomWebServerConfig from '../dicomWebServerConfig.mjs';
+import DicomWebServer from '../index.mjs';
 
 function main() {
-  return DicomWebServer(this.dicomWebServerConfig).then((value) =>
-    value.listen()
-  );
+  return DicomWebServer(this.dicomWebServerConfig).then(value => value.listen());
 }
 
 /**
@@ -17,51 +15,46 @@ function main() {
 async function configureProgram(defaults = dicomWebServerConfig) {
   await staticWadoUtil.loadConfiguration(defaults, process.argv);
 
-  const {
-    argumentsRequired = [],
-    optionsRequired = [],
-    helpShort,
-    helpDescription,
-  } = defaults;
+  const { argumentsRequired = [], optionsRequired = [], helpShort, helpDescription } = defaults;
 
   const argumentsList = [];
 
   // program command options
   const optionsList = [
     {
-      key: "-v, --verbose",
-      description: "Write verbose output",
+      key: '-v, --verbose',
+      description: 'Write verbose output',
       defaultValue: false,
     },
     {
-      key: "-q, --quiet",
-      description: "Quiet/minimal output",
+      key: '-q, --quiet',
+      description: 'Quiet/minimal output',
       defaultValue: false,
     },
     {
-      key: "-o, --dir <value>",
-      description: "Set output directory (to read from for serving files)",
+      key: '-o, --dir <value>',
+      description: 'Set output directory (to read from for serving files)',
       defaultValue: defaults.rootDir,
     },
     {
-      key: "-p, --port <value>",
-      description: "Choose the port to run on",
+      key: '-p, --port <value>',
+      description: 'Choose the port to run on',
       defaultValue: defaults.port,
     },
     {
-      key: "--hash-study-uid-path",
-      description: "Enable hashing of studyUID folder structure",
+      key: '--hash-study-uid-path',
+      description: 'Enable hashing of studyUID folder structure',
       defaultValue: false,
     },
     {
-      key: "--server-path <path>",
-      description: "Sets the server path to listen to",
-      defaultValue: "/dicomweb",
+      key: '--server-path <path>',
+      description: 'Sets the server path to listen to',
+      defaultValue: '/dicomweb',
     },
     {
-      key: "--client-path <clientPath>",
-      description: "Sets the client path to listen to",
-      defaultValue: "/",
+      key: '--client-path <clientPath>',
+      description: 'Sets the client path to listen to',
+      defaultValue: '/',
     },
   ];
 

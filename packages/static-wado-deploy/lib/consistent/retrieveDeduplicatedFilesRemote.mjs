@@ -1,11 +1,16 @@
-import retrieveF from "../retrieveDeploy.mjs";
+import retrieveF from '../retrieveDeploy.mjs';
 
-export default async function retrieveDeduplicatedFilesRemote(config, deployment, studyUID, options) {
+export default async function retrieveDeduplicatedFilesRemote(
+  config,
+  deployment,
+  studyUID,
+  options
+) {
   if (!deployment.deduplicatedGroup) {
-    console.log("No deduplicatedGroup, not retrieving deduplicated");
+    console.log('No deduplicatedGroup, not retrieving deduplicated');
     return;
   }
-  console.log("retrieve deduplicated files from remote to local");
+  console.log('retrieve deduplicated files from remote to local');
 
   const storeDirectory = `deduplicated/${studyUID}`;
 
@@ -13,7 +18,7 @@ export default async function retrieveDeduplicatedFilesRemote(config, deployment
   retrieveF(
     storeDirectory,
     deployment,
-    "deduplicated",
+    'deduplicated',
     {
       ...options,
     },

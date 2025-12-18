@@ -43,12 +43,7 @@ async function getRenderedBuffer(
     ) as unknown as HTMLCanvasElement;
 
     // try {
-    const imageObj = createImage(
-      transferSyntaxUid,
-      decodedPixelData,
-      metadata,
-      canvas
-    );
+    const imageObj = createImage(transferSyntaxUid, decodedPixelData, metadata, canvas);
 
     await utilities.renderToCanvasCPU(canvasDest, imageObj);
 

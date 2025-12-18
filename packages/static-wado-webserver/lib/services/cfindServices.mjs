@@ -1,5 +1,5 @@
-import dcmjsDimse from "dcmjs-dimse";
-import dcmjs from "dcmjs";
+import dcmjsDimse from 'dcmjs-dimse';
+import dcmjs from 'dcmjs';
 
 const { CFindRequest } = dcmjsDimse.requests;
 const { DicomMetaDictionary } = dcmjs.data;
@@ -20,19 +20,19 @@ export function createRequestFactory(requestOptions) {
   // auxiliary map to direct access to UID param
   // param index mapping to uid
   const refUIDMap = {
-    0: "SOPInstanceUID",
-    1: "SeriesInstanceUID",
-    2: "StudyInstanceUID",
+    0: 'SOPInstanceUID',
+    1: 'SeriesInstanceUID',
+    2: 'StudyInstanceUID',
   };
 
   // list of references to UIDS. Used to get the refs UIDS on request call.
   const paramsRefs = [0, 1, 2];
 
   const elements = {
-    PatientName: "*",
-    StudyInstanceUID: "*",
-    SeriesInstanceUID: "*",
-    SOPInstanceUID: "*",
+    PatientName: '*',
+    StudyInstanceUID: '*',
+    SeriesInstanceUID: '*',
+    SOPInstanceUID: '*',
   };
 
   function* requests(_paramsRefs) {
@@ -41,7 +41,7 @@ export function createRequestFactory(requestOptions) {
     yield [CFindRequest.createSeriesFindRequest, [..._paramsRefs]];
     _paramsRefs.shift();
     yield [CFindRequest.createStudyFindRequest, [..._paramsRefs]];
-    yield Error("There is no enough uid for cfind");
+    yield Error('There is no enough uid for cfind');
   }
 
   for (const request of requests(paramsRefs)) {
@@ -52,12 +52,12 @@ export function createRequestFactory(requestOptions) {
       _paramsRef.shift();
     }
 
-    const invalid = _paramsRef.some((ref) => !requestOptions[refUIDMap[ref]]);
+    const invalid = _paramsRef.some(ref => !requestOptions[refUIDMap[ref]]);
 
     if (!invalid) {
       delete elements.PatientName;
       operation = _operation;
-      _paramsRef.forEach((ref) => {
+      _paramsRef.forEach(ref => {
         const uid = refUIDMap[ref];
         elements[uid] = requestOptions[uid];
       });
@@ -70,11 +70,11 @@ export function createRequestFactory(requestOptions) {
 
 export const callbacks = {
   // adapt data in case this will be outputted (responded).
-  adaptResolve: (response) => {
+  adaptResolve: response => {
     const elements = response?.getDataset()?.getElements() || {};
 
     return DicomMetaDictionary.denaturalizeDataset(elements);
   },
   // adapt data to next operation
-  adaptToNext: (response) => response?.getDataset().getElements(),
+  adaptToNext: response => response?.getDataset().getElements(),
 };

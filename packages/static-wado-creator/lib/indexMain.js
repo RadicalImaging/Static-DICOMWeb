@@ -1,5 +1,5 @@
-const StaticWado = require("./StaticWado");
-const adaptProgramOpts = require("./util/adaptProgramOpts");
+const StaticWado = require('./StaticWado');
+const adaptProgramOpts = require('./util/adaptProgramOpts');
 
 module.exports = function createMain(options) {
   const finalOptions = adaptProgramOpts(options, {

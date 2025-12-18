@@ -25,10 +25,7 @@ function bilinear(src, dest) {
     const ySrc = (y * (srcRows - 1)) / (rows - 1);
     const ySrc1Off = Math.floor(ySrc) * srcColumns;
     // Get the second offset, but duplicate the last row so the lookup works
-    const ySrc2Off = Math.min(
-      ySrc1Off + srcColumns,
-      (srcRows - 1) * srcColumns,
-    );
+    const ySrc2Off = Math.min(ySrc1Off + srcColumns, (srcRows - 1) * srcColumns);
     const yFrac = ySrc - Math.floor(ySrc);
     const yFracInv = 1 - yFrac;
     const yOff = y * columns;
@@ -47,8 +44,7 @@ function bilinear(src, dest) {
       //   console.log("fractions", xFracInv, xFrac[x], yFracInv, yFrac);
 
       pixelData[yOff + x] =
-        (p00 * xFracInv + p10 * xFrac[x]) * yFracInv +
-        (p01 * xFracInv + p11 * xFrac[x]) * yFrac;
+        (p00 * xFracInv + p10 * xFrac[x]) * yFracInv + (p01 * xFracInv + p11 * xFrac[x]) * yFrac;
     }
   }
   return pixelData;
@@ -56,12 +52,7 @@ function bilinear(src, dest) {
 
 /** Handle replicate scaling.  Use this function for samplesPerPixel>1 */
 function replicate(src, dest) {
-  const {
-    rows: srcRows,
-    columns: srcColumns,
-    pixelData: srcData,
-    samplesPerPixel = 1,
-  } = src;
+  const { rows: srcRows, columns: srcColumns, pixelData: srcData, samplesPerPixel = 1 } = src;
   const { rows, columns, pixelData } = dest;
 
   const xSrc1Off = [];

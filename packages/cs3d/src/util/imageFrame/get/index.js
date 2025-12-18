@@ -1,7 +1,7 @@
-const paletteColor = require("./paletteColor");
-const pixelDataMinMax = require("./pixelDataMinMax");
-const pixelDataIntType = require("./pixelDataIntType");
-const fromDataset = require("./fromDataset");
+const paletteColor = require('./paletteColor');
+const pixelDataMinMax = require('./pixelDataMinMax');
+const pixelDataIntType = require('./pixelDataIntType');
+const fromDataset = require('./fromDataset');
 
 exports.fromDataset = fromDataset;
 exports.paletteColor = paletteColor;

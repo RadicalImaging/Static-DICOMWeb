@@ -1,4 +1,4 @@
-const { v4: uuid } = require("uuid");
+const { v4: uuid } = require('uuid');
 
 const WriteMultipart = async (writeStream, headers, content) => {
   const boundaryId = uuid();
@@ -9,14 +9,12 @@ const WriteMultipart = async (writeStream, headers, content) => {
     if (header.attributes) {
       for (let j = 0; j < header.attributes.length; j++) {
         const attribute = header.attributes[j];
-        await writeStream.write(
-          `;${attribute.attributeName}=${attribute.attributeValue}`,
-        );
+        await writeStream.write(`;${attribute.attributeName}=${attribute.attributeValue}`);
       }
     }
-    await writeStream.write("\r\n");
+    await writeStream.write('\r\n');
   }
-  await writeStream.write("\r\n");
+  await writeStream.write('\r\n');
   await writeStream.write(content);
   await writeStream.write(`\r\n--BOUNDARY_${boundaryId}--`);
 };

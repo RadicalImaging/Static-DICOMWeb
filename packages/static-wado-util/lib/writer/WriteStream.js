@@ -1,6 +1,6 @@
-const fs = require("fs");
-const zlib = require("zlib");
-const path = require("path");
+const fs = require('fs');
+const zlib = require('zlib');
+const path = require('path');
 
 /** Create an optionally gzipped stream,
  * where the write operations are performed in order executed,
@@ -8,22 +8,18 @@ const path = require("path");
  * requires syncing.
  */
 const WriteStream = (dir, nameSrc, options = {}) => {
-  const isGzip = nameSrc.indexOf(".gz") != -1 || options.gzip;
-  const name =
-    (isGzip && nameSrc.indexOf(".gz") === -1 && `${nameSrc}.gz`) || nameSrc;
+  const isGzip = nameSrc.indexOf('.gz') != -1 || options.gzip;
+  const name = (isGzip && nameSrc.indexOf('.gz') === -1 && `${nameSrc}.gz`) || nameSrc;
   if (options.mkdir && !fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  const tempName = path.join(
-    dir,
-    `tempFile-${Math.round(Math.random() * 1000000000)}`,
-  );
+  const tempName = path.join(dir, `tempFile-${Math.round(Math.random() * 1000000000)}`);
   const finalName = path.join(dir, name);
   const rawStream = fs.createWriteStream(tempName);
-  const closePromise = new Promise((resolve) => {
-    rawStream.on("close", () => {
-      resolve("closed");
+  const closePromise = new Promise(resolve => {
+    rawStream.on('close', () => {
+      resolve('closed');
     });
   });
 
@@ -31,7 +27,7 @@ const WriteStream = (dir, nameSrc, options = {}) => {
   if (isGzip) {
     writeStream = zlib.createGzip();
     writeStream.pipe(rawStream);
-    writeStream.on("close", () => {
+    writeStream.on('close', () => {
       rawStream.close();
     });
   }

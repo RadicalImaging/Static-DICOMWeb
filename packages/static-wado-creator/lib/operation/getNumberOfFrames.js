@@ -1,6 +1,6 @@
-const getNumberOfFrames = (dataSet) => {
+const getNumberOfFrames = dataSet => {
   if (dataSet.elements.x00280008) {
-    const numberOfFramesString = dataSet.string("x00280008");
+    const numberOfFramesString = dataSet.string('x00280008');
     if (numberOfFramesString.length === 0) {
       return 1;
     }
