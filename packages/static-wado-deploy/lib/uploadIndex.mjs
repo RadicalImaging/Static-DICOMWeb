@@ -71,14 +71,14 @@ export default async function uploadIndex(storeDirectory, config, name, options,
   const { config: deployConfig } = deployer;
   const { rootDir } = deployConfig;
   const remoteUri = `s3://${deployConfig.rootGroup.Bucket}${deployConfig.rootGroup.path}`;
-  const destName = indexFullName.substring(0, indexFullName.length - 3);
+  const destName = indexFullName; // de-gzip name: .substring(0, indexFullName.length - 3);
   await deployer.retrieve({ ...options, remoteUri, destName }, 'studies');
 
-  const indexUncompressed = await JSONReader(rootDir, destName);
-  await JSONWriter(rootDir, indexFullName, indexUncompressed, {
-    compression: 'gzip',
-    index: false,
-  });
+  // const indexUncompressed = await JSONReader(rootDir, destName);
+  // await JSONWriter(rootDir, indexFullName, indexUncompressed, {
+  //   compression: "gzip",
+  //   index: false,
+  // });
 
   try {
     // Read indices with caching

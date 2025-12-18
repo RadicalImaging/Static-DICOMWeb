@@ -352,6 +352,8 @@ class DeployGroup {
       console.noQuiet(
         'Retrieving specific URI',
         remoteUri,
+        parentDir,
+        name,
         relativeName,
         'to',
         this.baseDir,
