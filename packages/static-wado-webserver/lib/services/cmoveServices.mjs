@@ -1,7 +1,10 @@
-import dcmjsDimse from "dcmjs-dimse";
-import { concatMap, takeWhile, Observable } from "rxjs";
-import { createRequestFactory as createCFindRequestFactory, callbacks as cFindCallbacks } from "./cfindServices.mjs";
-import { createRequestResponseObservable } from "./util/requestObservables.mjs";
+import dcmjsDimse from 'dcmjs-dimse';
+import { concatMap, takeWhile, Observable } from 'rxjs';
+import {
+  createRequestFactory as createCFindRequestFactory,
+  callbacks as cFindCallbacks,
+} from './cfindServices.mjs';
+import { createRequestResponseObservable } from './util/requestObservables.mjs';
 
 const { CMoveRequest } = dcmjsDimse.requests;
 
@@ -20,9 +23,9 @@ export function createRequestFactory(requestOptions) {
   // auxiliary map to direct access to UID param
   // param index mapping to uid
   const refUIDMap = {
-    0: "StudyInstanceUID",
-    1: "SeriesInstanceUID",
-    2: "SOPInstanceUID",
+    0: 'StudyInstanceUID',
+    1: 'SeriesInstanceUID',
+    2: 'SOPInstanceUID',
   };
 
   // index position refers to order of param on operation
@@ -39,7 +42,7 @@ export function createRequestFactory(requestOptions) {
     _paramsRefs.pop();
     yield [CMoveRequest.createStudyMoveRequest, [..._paramsRefs]]; // 0
     _paramsRefs.pop();
-    yield Error("There is no enough uid for cmove");
+    yield Error('There is no enough uid for cmove');
   }
 
   for (const request of requests(paramsRefs)) {
@@ -50,13 +53,13 @@ export function createRequestFactory(requestOptions) {
       _paramsRef.pop();
     }
 
-    const invalid = _paramsRef.some((ref) => !requestOptions[refUIDMap[ref]]);
+    const invalid = _paramsRef.some(ref => !requestOptions[refUIDMap[ref]]);
 
     if (!invalid) {
       operation = _operation;
-      _paramsRef.forEach((ref) => {
+      _paramsRef.forEach(ref => {
         const uid = refUIDMap[ref];
-        console.log("Retrieve", ref, uid);
+        console.log('Retrieve', ref, uid);
         // elements index ref to receive requestOptions[uid]
         elements[ref] = requestOptions[uid];
       });
@@ -64,12 +67,12 @@ export function createRequestFactory(requestOptions) {
     }
   }
 
-  console.log("elements", elements, CMoveRequest);
+  console.log('elements', elements, CMoveRequest);
   return operation.call(CMoveRequest, destAeTittle, ...elements, priority);
 }
 
 export const callbacks = {
-  adaptResolve: (response) => response?.getDenaturalizedDataset(),
+  adaptResolve: response => response?.getDenaturalizedDataset(),
 };
 
 /**
@@ -91,17 +94,19 @@ async function runFindMoveRequest(serverOptions, requestOptions, findRequestProp
   const request$ = createRequestResponseObservable(serverOptions, findRequestProp, requestOptions, [
     // turn each find response into a new move event
     // a new incoming from source will wait until previous one is completed
-    concatMap((result) => {
+    concatMap(result => {
       if (result.response.hasDataset()) {
         const findResult = findRequestProp.callbacks.adaptResolve(result.response);
         const resultToMove = findRequestProp.callbacks.adaptToNext(result.response);
         findResults.push(findResult);
         // observe move events and finish when move responses are done.
-        return createRequestResponseObservable(serverOptions, moveRequestProp, resultToMove, [takeWhile((_res) => !_res.done)]);
+        return createRequestResponseObservable(serverOptions, moveRequestProp, resultToMove, [
+          takeWhile(_res => !_res.done),
+        ]);
       }
 
       // safely complete as there is no more findings to move because all previous one are already completed
-      return new Observable((observer) => {
+      return new Observable(observer => {
         observer.complete();
       });
     }),
@@ -109,15 +114,15 @@ async function runFindMoveRequest(serverOptions, requestOptions, findRequestProp
 
   return new Promise((resolve, reject) => {
     request$.subscribe({
-      next: (data) => {
+      next: data => {
         try {
           const result = moveRequestProp.callbacks.adaptResolve(data.response);
           moveResults.push(result);
         } catch (e) {
-          console.log("Error while trying to append moved entity");
+          console.log('Error while trying to append moved entity');
         }
       },
-      error: (err) => reject(err),
+      error: err => reject(err),
       complete: () => resolve([findResults, moveResults]),
     });
   });
@@ -135,17 +140,18 @@ async function runFindMoveRequest(serverOptions, requestOptions, findRequestProp
 export const findMove = async (serverOptions, requestOptions) => {
   try {
     const findReq = {
-      createRequestFactory: (reqOptions) => createCFindRequestFactory(reqOptions),
+      createRequestFactory: reqOptions => createCFindRequestFactory(reqOptions),
       callbacks: cFindCallbacks,
     };
     const moveReq = {
-      createRequestFactory: (previousReqOptions) => createRequestFactory({ ...requestOptions, ...previousReqOptions, bulk: false }),
+      createRequestFactory: previousReqOptions =>
+        createRequestFactory({ ...requestOptions, ...previousReqOptions, bulk: false }),
       callbacks,
     };
 
     return runFindMoveRequest(serverOptions, requestOptions, findReq, moveReq);
   } catch (e) {
-    console.log("Bulk operation has failed", e);
+    console.log('Bulk operation has failed', e);
     return undefined;
   }
 };

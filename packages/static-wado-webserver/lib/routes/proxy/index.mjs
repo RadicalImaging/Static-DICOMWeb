@@ -1,5 +1,5 @@
-import setQueryProxy from "./queryProxy.mjs";
-import setRejectProxy from "./rejectProxy.mjs";
+import setQueryProxy from './queryProxy.mjs';
+import setRejectProxy from './rejectProxy.mjs';
 
 /**
  * Setup server plugin routes.  Plugin routes are defined by the config-point
@@ -13,6 +13,6 @@ export default async function setProxy(routerExpress, params) {
   // setQueryProxy does load from a plugin, but it should be fully defined there, including the
   // registration parameters.
 
-  await setQueryProxy(routerExpress, "/studies", params, "studyQuery");
+  await setQueryProxy(routerExpress, '/studies', params, 'studyQuery');
   setRejectProxy(routerExpress, params);
 }

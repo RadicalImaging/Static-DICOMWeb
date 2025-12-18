@@ -1,5 +1,5 @@
-import { JSONReader, JSONWriter } from "@radicalimaging/static-wado-util";
-import DeployGroup from "./DeployGroup.mjs";
+import { JSONReader, JSONWriter } from '@radicalimaging/static-wado-util';
+import DeployGroup from './DeployGroup.mjs';
 
 // Simple in-memory cache for the duration of the upload
 const indexCache = new Map();
@@ -11,16 +11,16 @@ const indexCache = new Map();
  * @returns {Array} Updated studies array
  */
 function batchProcessIndices(indices, allStudies) {
-  const sopMap = new Map(allStudies.map((study, index) => [study["0020000D"].Value[0], index]));
-  
+  const sopMap = new Map(allStudies.map((study, index) => [study['0020000D'].Value[0], index]));
+
   indices.forEach(studyIndex => {
     // Handle both single study and array of studies
     const studies = Array.isArray(studyIndex) ? studyIndex : [studyIndex];
-    
+
     studies.forEach(studyItem => {
-      const sop = studyItem["0020000D"].Value[0];
+      const sop = studyItem['0020000D'].Value[0];
       const existingIndex = sopMap.get(sop);
-      
+
       if (existingIndex === undefined) {
         allStudies.push(studyItem);
         sopMap.set(sop, allStudies.length - 1);
@@ -29,7 +29,7 @@ function batchProcessIndices(indices, allStudies) {
       }
     });
   });
-  
+
   return allStudies;
 }
 
@@ -59,13 +59,7 @@ function clearCache() {
 /**
  * Reads the storeDirectory to get the index file, and adds that to the index directory
  */
-export default async function uploadIndex(
-  storeDirectory,
-  config,
-  name,
-  options,
-  deployPlugin
-) {
+export default async function uploadIndex(storeDirectory, config, name, options, deployPlugin) {
   const deployer = new DeployGroup(config, name, options, deployPlugin);
   const { indexFullName } = deployer;
   if (!indexFullName) {

@@ -1,15 +1,11 @@
-const {
-  Tags,
-  readBulkData,
-  handleHomeRelative,
-} = require("@radicalimaging/static-wado-util");
-const dcmjs = require("dcmjs");
+const { Tags, readBulkData, handleHomeRelative } = require('@radicalimaging/static-wado-util');
+const dcmjs = require('dcmjs');
 
-const StaticWado = require("./StaticWado");
-const adaptProgramOpts = require("./util/adaptProgramOpts");
-const WriteStream = require("./writer/WriteStream");
+const StaticWado = require('./StaticWado');
+const adaptProgramOpts = require('./util/adaptProgramOpts');
+const WriteStream = require('./writer/WriteStream');
 
-const UncompressedLEIExplicit = "1.2.840.10008.1.2.1";
+const UncompressedLEIExplicit = '1.2.840.10008.1.2.1';
 const { DicomDict, DicomMetaDictionary } = dcmjs.data;
 
 const fileMetaInformationVersionArray = new Uint8Array(2);
@@ -17,18 +13,18 @@ fileMetaInformationVersionArray[1] = 1;
 
 const readBulkDataValue = async (studyDir, instance, value, options) => {
   const { BulkDataURI } = value;
-  value.vr = "OB";
+  value.vr = 'OB';
   const seriesUid = Tags.getValue(instance, Tags.SeriesInstanceUID);
   const numberOfFrames = Tags.getValue(instance, Tags.NumberOfFrames) || 1;
-  if (BulkDataURI.indexOf("/frames") !== -1) {
+  if (BulkDataURI.indexOf('/frames') !== -1) {
     const seriesDir = `${studyDir}/series/${seriesUid}`;
     if (options?.frame === false) {
       return;
     }
     // Really only support a limited number of frames based on memory size
     value.Value = [];
-    if (typeof options?.frame === "number") {
-      console.noQuiet("Reading frame", options.frame);
+    if (typeof options?.frame === 'number') {
+      console.noQuiet('Reading frame', options.frame);
       const bulk = await readBulkData(seriesDir, BulkDataURI, options.frame);
       if (!bulk) {
         return;
@@ -38,7 +34,7 @@ const readBulkDataValue = async (studyDir, instance, value, options) => {
       value.contentType = bulk.contentType;
       return;
     }
-    console.noQuiet("Reading frames", 1, "...", numberOfFrames);
+    console.noQuiet('Reading frames', 1, '...', numberOfFrames);
     for (let frame = 1; frame <= numberOfFrames; frame++) {
       const bulk = await readBulkData(seriesDir, BulkDataURI, frame);
       if (!bulk) break;
@@ -62,15 +58,15 @@ const readBinaryData = async (dir, instance, options = { frame: true }) => {
     }
     if (!v.vr) {
       const value0 = v.Value?.[0];
-      if (typeof value0 === "string") {
-        v.vr = "LT";
+      if (typeof value0 === 'string') {
+        v.vr = 'LT';
       } else {
-        console.log("Deleting", tag, v.Value, v);
+        console.log('Deleting', tag, v.Value, v);
         delete instance[tag];
       }
       continue;
     }
-    if (v.vr === "SQ" && v.Values?.length) {
+    if (v.vr === 'SQ' && v.Values?.length) {
       await Promise.all(v.Values.map(readBinaryData));
       continue;
     }
@@ -92,35 +88,26 @@ module.exports = async function createThumbnail(options, program) {
   const importer = new StaticWado(finalOptions);
   const studyInstanceUid = program.args[0];
   const dir = `${importer.options.rootDir}/studies/${studyInstanceUid}`;
-  console.noQuiet("Creating thumbnail for", studyInstanceUid, dir);
+  console.noQuiet('Creating thumbnail for', studyInstanceUid, dir);
   const study = await importer.callback.scanStudy(studyInstanceUid);
   const outputPath = `./studies/${studyInstanceUid}`;
-  const { sopInstanceUid, seriesInstanceUid, seriesThumbnail, studyThumbnail } =
-    options;
+  const { sopInstanceUid, seriesInstanceUid, seriesThumbnail, studyThumbnail } = options;
   const sops = sopInstanceUid ? new Set() : null;
   if (sopInstanceUid) {
-    for (const sop of sopInstanceUid.split(",").map((s) => s.trim())) {
+    for (const sop of sopInstanceUid.split(',').map(s => s.trim())) {
       sops.add(sop);
     }
   }
   const promises = [];
 
   const writeThumbnail = async (id, buffer) => {
-    console.verbose("Write thumbnail", id, buffer);
-    await importer.callback.thumbWriter(
-      id.sopInstanceRootPath,
-      "thumbnail",
-      buffer,
-    );
+    console.verbose('Write thumbnail', id, buffer);
+    await importer.callback.thumbWriter(id.sopInstanceRootPath, 'thumbnail', buffer);
     if (seriesThumbnail) {
-      await importer.callback.thumbWriter(
-        id.seriesRootPath,
-        "thumbnail",
-        buffer,
-      );
+      await importer.callback.thumbWriter(id.seriesRootPath, 'thumbnail', buffer);
     }
     if (studyThumbnail) {
-      await importer.callback.thumbWriter(id.studyPath, "thumbnail", buffer);
+      await importer.callback.thumbWriter(id.studyPath, 'thumbnail', buffer);
     }
   };
 
@@ -143,21 +130,16 @@ module.exports = async function createThumbnail(options, program) {
 
     await readBinaryData(dir, instance, codecOptions);
 
-    const availableTransferSyntaxUID = Tags.getValue(
-      instance,
-      Tags.AvailableTransferSyntaxUID,
-    );
+    const availableTransferSyntaxUID = Tags.getValue(instance, Tags.AvailableTransferSyntaxUID);
     const pixelData = Tags.getValue(instance, Tags.PixelData);
     if (!pixelData) {
-      console.warn("No pixel data found in instance");
+      console.warn('No pixel data found in instance');
       continue;
     }
     const transferSyntaxUid =
       instance[Tags.PixelData].transferSyntaxUid || availableTransferSyntaxUID;
-    const frame = Array.isArray(pixelData.Value)
-      ? pixelData.Value[0]
-      : pixelData;
-    console.verbose("Use transfer syntax uid:", transferSyntaxUid);
+    const frame = Array.isArray(pixelData.Value) ? pixelData.Value[0] : pixelData;
+    console.verbose('Use transfer syntax uid:', transferSyntaxUid);
     const id = importer.callback.uids({
       studyInstanceUid,
       seriesInstanceUid: Tags.getValue(instance, Tags.SeriesInstanceUID),
@@ -170,7 +152,7 @@ module.exports = async function createThumbnail(options, program) {
       null,
       instance,
       id.transferSyntaxUid,
-      writeThumbnail.bind(null, id),
+      writeThumbnail.bind(null, id)
     );
     promises.push(promise);
     if (seriesThumbnail) {

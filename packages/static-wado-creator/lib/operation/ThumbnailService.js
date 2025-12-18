@@ -1,8 +1,8 @@
-const path = require("path");
-const glob = require("glob");
-const fs = require("fs");
-const { Tags, execSpawn, Stats } = require("@radicalimaging/static-wado-util");
-const { shouldThumbUseTranscoded } = require("./adapter/transcodeImage");
+const path = require('path');
+const glob = require('glob');
+const fs = require('fs');
+const { Tags, execSpawn, Stats } = require('@radicalimaging/static-wado-util');
+const { shouldThumbUseTranscoded } = require('./adapter/transcodeImage');
 
 /**
  * Return the middle index of given list
@@ -46,7 +46,7 @@ class ThumbnailService {
   constructor() {
     this.framesThumbnailObj = [];
     this.favoriteThumbnailObj = {};
-    this.thumbFileName = "thumbnail";
+    this.thumbFileName = 'thumbnail';
   }
 
   /**
@@ -56,12 +56,9 @@ class ThumbnailService {
    * @param {Object} programOpts
    */
   queueThumbnail(thumbObjWrapper, programOpts) {
-    const { id, imageFrame, transcodedId, transcodedImageFrame, frameIndex } =
-      thumbObjWrapper;
+    const { id, imageFrame, transcodedId, transcodedImageFrame, frameIndex } = thumbObjWrapper;
     const getThumbContent = (originalContent, trancodedContent) =>
-      shouldThumbUseTranscoded(id, programOpts)
-        ? trancodedContent
-        : originalContent;
+      shouldThumbUseTranscoded(id, programOpts) ? trancodedContent : originalContent;
 
     const thumbObj = {
       imageFrame: getThumbContent(imageFrame, transcodedImageFrame),
@@ -81,17 +78,15 @@ class ThumbnailService {
   }
 
   ffmpeg(input, output) {
-    execSpawn(
-      `ffmpeg -i "${input}" -y -f image2 -frames:v 1 -update true "${output}"`,
-    );
+    execSpawn(`ffmpeg -i "${input}" -y -f image2 -frames:v 1 -update true "${output}"`);
   }
 
   dcm2jpg(input, output, options) {
-    const script = ["dcm2jpg", `"${input}" "${output}"`];
+    const script = ['dcm2jpg', `"${input}" "${output}"`];
     if (options?.format) {
-      script.push("-F", options.format);
+      script.push('-F', options.format);
     }
-    execSpawn(script.join(" "));
+    execSpawn(script.join(' '));
   }
 
   /** Generates a rendered copy of this, assuming --rendered is set.
@@ -102,8 +97,8 @@ class ThumbnailService {
       return null;
     }
     const { id } = this.favoriteThumbnailObj;
-    const rendered = id.imageFrameRootPath.replace(/frames/, "rendered");
-    return this.dcm2jpg(id.filename, rendered, { format: "png" });
+    const rendered = id.imageFrameRootPath.replace(/frames/, 'rendered');
+    return this.dcm2jpg(id.filename, rendered, { format: 'png' });
   }
 
   /**
@@ -121,21 +116,18 @@ class ThumbnailService {
       const pixelData = metadata[Tags.PixelData];
       if (pixelData) {
         const { BulkDataURI } = pixelData;
-        if (BulkDataURI?.indexOf("mp4")) {
+        if (BulkDataURI?.indexOf('mp4')) {
           fs.mkdirSync(`${itemId.sopInstanceRootPath}/rendered`, {
             recursive: true,
           });
-          const mp4Path = path.join(
-            itemId.sopInstanceRootPath,
-            "rendered/index.mp4",
-          );
-          const thumbPath = path.join(itemId.sopInstanceRootPath, "thumbnail");
-          console.verbose("MP4 - converting video format", mp4Path);
+          const mp4Path = path.join(itemId.sopInstanceRootPath, 'rendered/index.mp4');
+          const thumbPath = path.join(itemId.sopInstanceRootPath, 'thumbnail');
+          console.verbose('MP4 - converting video format', mp4Path);
           this.ffmpeg(mp4Path, thumbPath);
           return thumbPath;
         }
       } else {
-        console.verbose("Series is of other type...", metadata[Tags.Modality]);
+        console.verbose('Series is of other type...', metadata[Tags.Modality]);
       }
       return null;
     }
@@ -145,11 +137,7 @@ class ThumbnailService {
     }
 
     if (options.dcm2jpg) {
-      return this.dcm2jpg(
-        id.filename,
-        id.imageFrameRootPath.replace(/frames/, "thumbnail"),
-        {},
-      );
+      return this.dcm2jpg(id.filename, id.imageFrameRootPath.replace(/frames/, 'thumbnail'), {});
     }
 
     await callback.internalGenerateImage(
@@ -157,28 +145,20 @@ class ThumbnailService {
       dataSet,
       metadata,
       id.transferSyntaxUid,
-      async (thumbBuffer) => {
+      async thumbBuffer => {
         try {
           if (thumbBuffer) {
-            await callback.thumbWriter(
-              id.sopInstanceRootPath,
-              this.thumbFileName,
-              thumbBuffer,
-            );
+            await callback.thumbWriter(id.sopInstanceRootPath, this.thumbFileName, thumbBuffer);
 
             this.copySyncThumbnail(id.sopInstanceRootPath, id.seriesRootPath);
             this.copySyncThumbnail(id.seriesRootPath, id.studyPath);
-            Stats.StudyStats.add(
-              "Thumbnail Write",
-              `Write thumbnail ${this.thumbFileName}`,
-              100,
-            );
+            Stats.StudyStats.add('Thumbnail Write', `Write thumbnail ${this.thumbFileName}`, 100);
           }
           return this.thumbFileName;
         } catch (e) {
           console.log("Couldn't generate thumbnail", this.thumbFileName, e);
         }
-      },
+      }
     );
   }
 
@@ -192,16 +172,14 @@ class ThumbnailService {
    * @returns
    */
   async copySyncThumbnail(sourceFolderPath, targetFolderPath) {
-    const parentPathLevel = path.join(sourceFolderPath, "../");
-    const thumbFilesPath = glob.sync(
-      `${parentPathLevel}*/${this.thumbFileName}`,
-    );
+    const parentPathLevel = path.join(sourceFolderPath, '../');
+    const thumbFilesPath = glob.sync(`${parentPathLevel}*/${this.thumbFileName}`);
 
     const thumbIndex = getThumbIndex(thumbFilesPath.length);
     const thumbFilePath = thumbFilesPath[thumbIndex];
 
     if (!fs.existsSync(thumbFilePath)) {
-      console.verbose("Thumbnail to copy does not exists");
+      console.verbose('Thumbnail to copy does not exists');
       return;
     }
 
@@ -210,12 +188,9 @@ class ThumbnailService {
         throw new Error(`Target path: ${targetFolderPath} is not a directory`);
       }
 
-      fs.copyFileSync(
-        thumbFilePath,
-        `${targetFolderPath}/${this.thumbFileName}`,
-      );
+      fs.copyFileSync(thumbFilePath, `${targetFolderPath}/${this.thumbFileName}`);
     } catch (e) {
-      console.verbose("The file could not be copied", e);
+      console.verbose('The file could not be copied', e);
     }
   }
 }

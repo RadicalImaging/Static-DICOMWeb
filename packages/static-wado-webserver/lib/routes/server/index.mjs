@@ -1,4 +1,4 @@
-import setStudiesRoutes from "./studies.mjs";
+import setStudiesRoutes from './studies.mjs';
 
 /**
  * Set all app server routes.
@@ -8,11 +8,6 @@ import setStudiesRoutes from "./studies.mjs";
  * @param {*} dir static files directory path
  * @param {*} hashStudyUidPath change studies folder structure to path and subpath before studyUID
  */
-export default function setRoutes(
-  routerExpress,
-  params,
-  dir,
-  hashStudyUidPath
-) {
+export default function setRoutes(routerExpress, params, dir, hashStudyUidPath) {
   setStudiesRoutes(routerExpress, params, dir, hashStudyUidPath);
 }

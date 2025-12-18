@@ -10,27 +10,38 @@ import getResponseHeadersPolicy from './getResponseHeadersPolicy.js';
 /**
  * Constructs an S3 bucket definition for dicomweb data, for use by distribution.
  */
-const uploadSite = function(site: Construct, name: string, cloudfrontOAI: cloudfront.OriginAccessIdentity, props: any) {
-  console.log("props:", props);
+const uploadSite = function (
+  site: Construct,
+  name: string,
+  cloudfrontOAI: cloudfront.OriginAccessIdentity,
+  props: any
+) {
+  console.log('props:', props);
 
   const { Bucket: dicomwebName } = props;
 
   const uploadBucket = getBucket(site, dicomwebName, props);
-  new CfnOutput(site, 'Upload BucketURL', { value: uploadBucket.bucketWebsiteUrl});
+  new CfnOutput(site, 'Upload BucketURL', { value: uploadBucket.bucketWebsiteUrl });
 
-  uploadBucket.addToResourcePolicy(new iam.PolicyStatement({
-    actions: ['s3:GetObject'],
-    resources: [uploadBucket.arnForObjects('*')],
-    principals: [new iam.CanonicalUserPrincipal(cloudfrontOAI.cloudFrontOriginAccessIdentityS3CanonicalUserId)]
-  }));
-  
-  const responseHeadersPolicy = getResponseHeadersPolicy(site,name,props);
+  uploadBucket.addToResourcePolicy(
+    new iam.PolicyStatement({
+      actions: ['s3:GetObject'],
+      resources: [uploadBucket.arnForObjects('*')],
+      principals: [
+        new iam.CanonicalUserPrincipal(
+          cloudfrontOAI.cloudFrontOriginAccessIdentityS3CanonicalUserId
+        ),
+      ],
+    })
+  );
+
+  const responseHeadersPolicy = getResponseHeadersPolicy(site, name, props);
 
   return {
-    origin: new cloudfront_origins.S3Origin(uploadBucket, {originAccessIdentity: cloudfrontOAI}),
+    origin: new cloudfront_origins.S3Origin(uploadBucket, { originAccessIdentity: cloudfrontOAI }),
     allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
     responseHeadersPolicy,
   };
-}
+};
 
 export default uploadSite;

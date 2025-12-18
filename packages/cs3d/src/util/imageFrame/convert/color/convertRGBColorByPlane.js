@@ -1,4 +1,4 @@
-const assertArrayDivisibility = require("../../../assertArrayDivisibility");
+const assertArrayDivisibility = require('../../../assertArrayDivisibility');
 
 /**
  * Convert pixel data with RGB (by plane) Photometric Interpretation to RGBA

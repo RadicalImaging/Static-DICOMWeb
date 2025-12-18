@@ -1,10 +1,10 @@
-import { sleep, NotificationService } from "@radicalimaging/static-wado-util";
+import { sleep, NotificationService } from '@radicalimaging/static-wado-util';
 
-import retrieveIndexFilesRemote from "./consistent/retrieveIndexFilesRemote.mjs";
-import retrieveDeduplicatedFilesRemote from "./consistent/retrieveDeduplicatedFilesRemote.mjs";
-import metadataDicom from "./consistent/metadataDicom.mjs";
-import uploadDicomWeb from "./consistent/uploadDicomWeb.mjs";
-import storeDeduplicated from "./consistent/storeDeduplicated.mjs";
+import retrieveIndexFilesRemote from './consistent/retrieveIndexFilesRemote.mjs';
+import retrieveDeduplicatedFilesRemote from './consistent/retrieveDeduplicatedFilesRemote.mjs';
+import metadataDicom from './consistent/metadataDicom.mjs';
+import uploadDicomWeb from './consistent/uploadDicomWeb.mjs';
+import storeDeduplicated from './consistent/storeDeduplicated.mjs';
 
 /**
  * Make the study eventually consistent.
@@ -56,9 +56,9 @@ export async function eventuallyConsistent(config, deployment, studyUID, options
 export default async function updateConsistencyMain(studyUID, options) {
   const { retries, delay = 5000 } = options;
   const deployPlugin = this.deployPlugin;
-  console.log("Store and upload consistent files to", deployPlugin);
+  console.log('Store and upload consistent files to', deployPlugin);
   const deployments = this.deployments;
-  const deployment = deployments.find((it) => it.rootGroup && options.deployments.includes(it.name));
+  const deployment = deployments.find(it => it.rootGroup && options.deployments.includes(it.name));
   if (!deployment) throw new Error(`Deployment ${options.deployments} not found`);
   const notificationService = new NotificationService(options.notificationDir);
 
@@ -67,12 +67,12 @@ export default async function updateConsistencyMain(studyUID, options) {
     try {
       const consistentCount = await eventuallyConsistent(this, deployment, studyUID, options);
       if (consistentCount === 0) {
-        console.log("Consistent study", studyUID);
+        console.log('Consistent study', studyUID);
         return 0;
       }
-      console.log("There were", consistentCount, "uploads required, study not consistent yet");
+      console.log('There were', consistentCount, 'uploads required, study not consistent yet');
     } catch (e) {
-      console.log("Error trying to make consistent:", e);
+      console.log('Error trying to make consistent:', e);
     }
   }
 

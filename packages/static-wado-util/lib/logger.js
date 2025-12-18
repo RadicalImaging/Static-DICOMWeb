@@ -1,4 +1,4 @@
-const loglevelImport = require("loglevel");
+const loglevelImport = require('loglevel');
 
 /** Get the global/shared loglevel version */
 const loglevel = loglevelImport.noConflict();
@@ -11,7 +11,7 @@ const loglevel = loglevelImport.noConflict();
 function getRootLogger(name) {
   const logger = loglevel.getLogger(name[0]);
   logger.getLogger = (...names) => {
-    return getRootLogger(`${name}.${names.join(".")}`);
+    return getRootLogger(`${name}.${names.join('.')}`);
   };
   return logger;
 }
@@ -23,16 +23,16 @@ module.exports.getRootLogger = getRootLogger;
  * it doesn't
  */
 function getLogger(...name) {
-  return getRootLogger(name.join("."));
+  return getRootLogger(name.join('.'));
 }
 
 module.exports.getLogger = getLogger;
 
-const staticDicomWebLog = getLogger("staticdicomweb");
+const staticDicomWebLog = getLogger('staticdicomweb');
 
 module.exports.staticDicomWebLog = staticDicomWebLog;
-module.exports.creatorLog = staticDicomWebLog.getLogger("creator");
-module.exports.utilLog = staticDicomWebLog.getLogger("util");
+module.exports.creatorLog = staticDicomWebLog.getLogger('creator');
+module.exports.utilLog = staticDicomWebLog.getLogger('util');
 
 /**
  * Dicom issue log is for reporting inconsistencies and issues with DICOM logging
@@ -48,10 +48,10 @@ module.exports.utilLog = staticDicomWebLog.getLogger("util");
  *       as not having patient name separated by `^` characters.
  * * debug - an issue in the data which is common and is easily managed
  */
-const dicomConsistencyLog = getLogger("consistency", "dicom");
+const dicomConsistencyLog = getLogger('consistency', 'dicom');
 module.exports.dicomConsistencyLog = dicomConsistencyLog;
 
 /** An image consistency/issue log for reporting image decompression issues */
-module.exports.imageConsistencyLog = getLogger("consistency", "image");
+module.exports.imageConsistencyLog = getLogger('consistency', 'image');
 
 globalThis.log ||= { ...loglevel, getLogger };

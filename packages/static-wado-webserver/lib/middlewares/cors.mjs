@@ -1,5 +1,5 @@
-import cors from "cors";
-import isCorsEnabled from "../util/isCorsEnabled.mjs";
+import cors from 'cors';
+import isCorsEnabled from '../util/isCorsEnabled.mjs';
 
 function getCorsOptions(config = {}) {
   const { corsOptions } = config;
@@ -21,8 +21,8 @@ function getCorsOptions(config = {}) {
 export default function setMiddlewares(appExpress, config) {
   const corsOptions = getCorsOptions(config);
   if (isCorsEnabled(config)) {
-    appExpress.use("/", cors(corsOptions));
+    appExpress.use('/', cors(corsOptions));
   } else {
-    console.log("cors is not enabled");
+    console.log('cors is not enabled');
   }
 }

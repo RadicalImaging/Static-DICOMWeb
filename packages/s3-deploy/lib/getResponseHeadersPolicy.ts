@@ -11,15 +11,19 @@ const getResponseHeadersPolicy = (site: Construct, name: string, props: any) => 
     // responseHeadersPolicy = cloudfront.ResponseHeadersPolicy.fromResponseHeadersPolicyId(site, responseHeadersName, responseHeadersName);
     // responseHeadersPolicy = cloudfront.ResponseHeadersPolicy.fromResponseHeadersPolicyId(site, responseHeadersId, responseHeadersName);
     // responseHeadersPolicy = cloudfront.ResponseHeadersPolicy.fromResponseHeadersPolicyId(site, id, responseHeadersId);
-    const { responseHeadersPolicyGlobalId: id } =  props;
-    if( id ) {
-      console.log("Loading response headers policy", name, id);
-      responseHeadersPolicy = cloudfront.ResponseHeadersPolicy.fromResponseHeadersPolicyId(site, responseHeadersId, id);
+    const { responseHeadersPolicyGlobalId: id } = props;
+    if (id) {
+      console.log('Loading response headers policy', name, id);
+      responseHeadersPolicy = cloudfront.ResponseHeadersPolicy.fromResponseHeadersPolicyId(
+        site,
+        responseHeadersId,
+        id
+      );
     }
-  } catch(e) {
+  } catch (e) {
     console.log("Couldn't find response headers policy", props, name);
   }
-  if( responseHeadersPolicy ) {
+  if (responseHeadersPolicy) {
     return responseHeadersPolicy;
   }
   responseHeadersPolicy = new cloudfront.ResponseHeadersPolicy(site, responseHeadersId, {
@@ -44,6 +48,6 @@ const getResponseHeadersPolicy = (site: Construct, name: string, props: any) => 
     },
   });
   return responseHeadersPolicy;
-}
+};
 
 export default getResponseHeadersPolicy;

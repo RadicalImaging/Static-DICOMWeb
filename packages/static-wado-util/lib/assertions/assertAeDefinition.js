@@ -1,5 +1,5 @@
-const assert = require("assert").strict;
-const aeConfig = require("../aeConfig");
+const assert = require('assert').strict;
+const aeConfig = require('../aeConfig');
 
 /**
  * Checks whether there is an ae definition into aeConfig or not.
@@ -11,11 +11,7 @@ const aeConfig = require("../aeConfig");
  * @param {*} errorMessages array of error messages for missing ae and missing ae def. Where first index is error string for missing ae and second index is error message for missing ae def.
  * @returns boolean
  */
-module.exports = function assertAeDefinition(
-  params,
-  aeStr,
-  errorMessages = [],
-) {
+module.exports = function assertAeDefinition(params, aeStr, errorMessages = []) {
   const aeValue = params[aeStr];
   const [errorAeMessage, errorAeDefMessage] = errorMessages;
 

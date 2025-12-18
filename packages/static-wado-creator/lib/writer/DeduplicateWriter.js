@@ -1,9 +1,9 @@
-const hashFactory = require("node-object-hash");
+const hashFactory = require('node-object-hash');
 
 const hasher = hashFactory.hasher();
-const { JSONWriter } = require("@radicalimaging/static-wado-util");
-const { Tags } = require("@radicalimaging/static-wado-util");
-const TagLists = require("../model/TagLists");
+const { JSONWriter } = require('@radicalimaging/static-wado-util');
+const { Tags } = require('@radicalimaging/static-wado-util');
+const TagLists = require('../model/TagLists');
 
 async function writeDeduplicatedFile(dir, data, hashValueSrc) {
   const hashValue = hashValueSrc || hasher.hash(data);
@@ -19,16 +19,15 @@ const perInstanceWriter = async (id, data) => {
 };
 
 /** Writes out JSON files to the given file name.  Automatically GZips them, and adds the extension */
-const DeduplicateWriter = (options) =>
+const DeduplicateWriter = options =>
   async function DeduplicateWriterInstance(id, data) {
     const studyData = await this.completeStudy.getCurrentStudyData(this, id);
 
     if (options.isDeduplicate) {
-      if (options.verbose)
-        console.log("Writing single instance", id.studyInstanceUid);
+      if (options.verbose) console.log('Writing single instance', id.studyInstanceUid);
       await perInstanceWriter(id, data);
     } else if (options.verbose) {
-      console.log("Not writing single instance deduplicated");
+      console.log('Not writing single instance deduplicated');
     }
     studyData.addDeduplicated(data, id.filename);
   };

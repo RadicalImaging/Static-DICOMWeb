@@ -1,12 +1,12 @@
-import express from "express";
-import http from "http";
-import dicomWebServerConfig from "./dicomWebServerConfig.mjs";
-import "@radicalimaging/static-wado-plugins";
-import "regenerator-runtime";
-import configureProgram from "./program/index.mjs";
+import express from 'express';
+import http from 'http';
+import dicomWebServerConfig from './dicomWebServerConfig.mjs';
+import '@radicalimaging/static-wado-plugins';
+import 'regenerator-runtime';
+import configureProgram from './program/index.mjs';
 
-import setRoutes from "./routes/index.mjs";
-import setMiddlewares from "./middlewares/index.mjs";
+import setRoutes from './routes/index.mjs';
+import setMiddlewares from './middlewares/index.mjs';
 
 /**
  * Serve up the web files
@@ -21,7 +21,7 @@ import setMiddlewares from "./middlewares/index.mjs";
  * @param {*} params
  * @returns
  */
-const DicomWebServer = async (params) => {
+const DicomWebServer = async params => {
   const app = express();
 
   setMiddlewares(app, params);
@@ -35,7 +35,7 @@ const DicomWebServer = async (params) => {
   server.listen(
     {
       port,
-      host: "::", // IPv6 wildcard
+      host: '::', // IPv6 wildcard
       ipv6Only: false, // Allow IPv4 mapped addresses
     },
     () => {

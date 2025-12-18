@@ -1,4 +1,4 @@
-const assertAeDefinition = require("./assertAeDefinition.js");
+const assertAeDefinition = require('./assertAeDefinition.js');
 
 const assertions = {
   assertAeDefinition,

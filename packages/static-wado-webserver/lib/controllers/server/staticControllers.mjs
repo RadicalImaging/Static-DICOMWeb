@@ -1,12 +1,12 @@
 /* eslint-disable import/prefer-default-export */
-import express from "express";
-import { gzipHeaders } from "../../adapters/responseAdapters.mjs";
+import express from 'express';
+import { gzipHeaders } from '../../adapters/responseAdapters.mjs';
 
 export function indexingStaticController(staticFilesDir) {
   return express.static(staticFilesDir, {
-    index: "index.json.gz",
+    index: 'index.json.gz',
     setHeaders: gzipHeaders,
-    extensions: ["gz"],
+    extensions: ['gz'],
     maxAge: 0,
     etag: false,
     redirect: false,

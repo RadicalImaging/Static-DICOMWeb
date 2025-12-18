@@ -1,5 +1,5 @@
-const convertRGBColorByPixel = require("./convertRGBColorByPixel");
-const convertRGBColorByPlane = require("./convertRGBColorByPlane");
+const convertRGBColorByPixel = require('./convertRGBColorByPixel');
+const convertRGBColorByPlane = require('./convertRGBColorByPlane');
 
 /**
  * Convert pixel data with RGB (both pixel and plane) Photometric Interpretation to RGBA

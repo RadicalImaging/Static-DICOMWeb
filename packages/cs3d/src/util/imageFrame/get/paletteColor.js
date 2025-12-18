@@ -14,7 +14,7 @@ function paletteColor(colorLutData, colorLutDescriptor) {
   const numLutEntries = colorLutDescriptor[0];
   const bits = colorLutDescriptor[2];
 
-  const typedArrayToPaletteColorLUT = (typedArray) => {
+  const typedArrayToPaletteColorLUT = typedArray => {
     const lut = [];
 
     if (bits === 16) {
@@ -36,13 +36,9 @@ function paletteColor(colorLutData, colorLutDescriptor) {
     try {
       const paletteStr = colorLutData.InlineBinary;
 
-      const paletteBinaryStr = Buffer.from(paletteStr, "base64").toString(
-        "binary",
-      );
+      const paletteBinaryStr = Buffer.from(paletteStr, 'base64').toString('binary');
 
-      const paletteTypedArray = Uint8Array.from(paletteBinaryStr, (c) =>
-        c.charCodeAt(0),
-      );
+      const paletteTypedArray = Uint8Array.from(paletteBinaryStr, c => c.charCodeAt(0));
 
       result = typedArrayToPaletteColorLUT(paletteTypedArray);
     } catch (e) {

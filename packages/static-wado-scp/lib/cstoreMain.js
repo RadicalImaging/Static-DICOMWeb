@@ -1,4 +1,4 @@
-const { adaptProgramOpts } = require("@radicalimaging/static-wado-creator");
+const { adaptProgramOpts } = require('@radicalimaging/static-wado-creator');
 
 /**
  *
@@ -11,5 +11,5 @@ module.exports = function cstoreMain(destinationAe, studies, defaults) {
     isDeduplicate: true,
     isStudyData: true,
   });
-  console.log("cstoreMain", destinationAe, studies, options);
+  console.log('cstoreMain', destinationAe, studies, options);
 };

@@ -18,9 +18,9 @@ class Stats {
     if (this.parent) this.parent.add(item, description, 0);
   }
 
-  summarize(msg = "") {
+  summarize(msg = '') {
     console.noQuiet(msg, this.description);
-    Object.keys(this.stats).forEach((key) => {
+    Object.keys(this.stats).forEach(key => {
       console.noQuiet(key, this.stats[key]);
     });
     this.reset();
@@ -31,9 +31,9 @@ class Stats {
   }
 }
 
-const OverallStats = new Stats("OverallStats", "Overall statistics");
-const StudyStats = new Stats("StudyStats", "Study Generation", OverallStats);
-const BufferStats = new Stats("BufferStats", "Buffer Statistics", StudyStats);
+const OverallStats = new Stats('OverallStats', 'Overall statistics');
+const StudyStats = new Stats('StudyStats', 'Study Generation', OverallStats);
+const BufferStats = new Stats('BufferStats', 'Buffer Statistics', StudyStats);
 
 exports.Stats = {
   OverallStats,
