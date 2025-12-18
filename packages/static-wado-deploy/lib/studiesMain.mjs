@@ -33,15 +33,20 @@ export async function studyMainSingle(studyUID, options) {
   }
 
   if (!options.skipStore) {
-  await commonMain(this, "root", options, uploadDeploy.bind(null, studyDirectory));
-  console.log("Storing studyUID", studyUID);
-  await commonMain(
-    this,
-    "root",
-    options,
-    uploadDeploy.bind(null, studyDirectory)
-  );
-}
+    await commonMain(
+      this,
+      "root",
+      options,
+      uploadDeploy.bind(null, studyDirectory)
+    );
+    console.log("Storing studyUID", studyUID);
+    await commonMain(
+      this,
+      "root",
+      options,
+      uploadDeploy.bind(null, studyDirectory)
+    );
+  }
   if (options.index) {
     console.log("Calling commonMain to create index");
     await commonMain(

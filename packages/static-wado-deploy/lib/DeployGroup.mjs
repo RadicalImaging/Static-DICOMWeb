@@ -22,8 +22,8 @@ class DeployGroup {
     this.deployPlugin = deployPlugin;
     this.groupName = groupName;
     this.options = {
-      concurrentUploads: 2,  // Default number of concurrent uploads
-      ...options
+      concurrentUploads: 2, // Default number of concurrent uploads
+      ...options,
     };
     this.group = configGroup(config, groupName);
     if (!this.group) throw new Error(`No group ${groupName}`);
@@ -41,101 +41,111 @@ class DeployGroup {
     this.ops = new CreatePlugin(this.config, this.groupName, this.options);
   }
 
-/**
- * Process a batch of files concurrently with a limit on parallel uploads.
- * @param {Array} files Array of {parentDir, name, relativeName, size} objects
- * @param {Object} excludeExisting Exclusion map
- * @param {number} parallelCount The number of concurrent uploads allowed
- * @returns {Promise<number>} Number of files uploaded
- */
-async processBatch(files, excludeExisting, totalFiles, processStats, parallelCount = 5) {
-  let completedUploads = 0;
-  const activeUploads = [];  // Array to track active uploads
-  const queue = [...files];   // Copy the files array into a queue
-  
-  const results = {};
+  /**
+   * Process a batch of files concurrently with a limit on parallel uploads.
+   * @param {Array} files Array of {parentDir, name, relativeName, size} objects
+   * @param {Object} excludeExisting Exclusion map
+   * @param {number} parallelCount The number of concurrent uploads allowed
+   * @returns {Promise<number>} Number of files uploaded
+   */
+  async processBatch(
+    files,
+    excludeExisting,
+    totalFiles,
+    processStats,
+    parallelCount = 5
+  ) {
+    let completedUploads = 0;
+    const activeUploads = []; // Array to track active uploads
+    const queue = [...files]; // Copy the files array into a queue
 
-  // Function to upload files one by one with concurrency control
-  const uploadFile = async ({ baseDir, relativeName }) => {
-    const result = await this.ops.upload(baseDir, relativeName, null, excludeExisting);
-    results[relativeName] = result;
-    processStats.count += 1;
+    const results = {};
 
-    // Calculate progress metrics
-    const elapsedSeconds = (Date.now() - processStats.startTime) / 1000;
-    const overallSpeed = processStats.count / elapsedSeconds;
-    const progress = ((processStats.count / totalFiles) * 100).toFixed(1);
+    // Function to upload files one by one with concurrency control
+    const uploadFile = async ({ baseDir, relativeName }) => {
+      const result = await this.ops.upload(
+        baseDir,
+        relativeName,
+        null,
+        excludeExisting
+      );
+      results[relativeName] = result;
+      processStats.count += 1;
 
-    // Update progress every 100 files or when batch completes
-    if (processStats.count % 100 === 0 || processStats.count === totalFiles) {
-      const remainingFiles = totalFiles - processStats.count;
-      const estimatedSecondsLeft = remainingFiles / overallSpeed;
+      // Calculate progress metrics
+      const elapsedSeconds = (Date.now() - processStats.startTime) / 1000;
+      const overallSpeed = processStats.count / elapsedSeconds;
+      const progress = ((processStats.count / totalFiles) * 100).toFixed(1);
 
-      // Format time remaining in a human-readable format
-      const etaMinutes = Math.floor(estimatedSecondsLeft / 60);
-      const etaSeconds = Math.ceil(estimatedSecondsLeft % 60);
-      const etaDisplay = etaMinutes > 0 
-        ? `${etaMinutes}m ${etaSeconds}s`
-        : `${etaSeconds}s`;
+      // Update progress every 100 files or when batch completes
+      if (processStats.count % 100 === 0 || processStats.count === totalFiles) {
+        const remainingFiles = totalFiles - processStats.count;
+        const estimatedSecondsLeft = remainingFiles / overallSpeed;
 
-      console.log(
-        `Progress: ${progress}% (${processStats.count}/${totalFiles}) | ` +
-        `Speed: ${overallSpeed.toFixed(1)} files/sec | ` +
-          `ETA: ${etaDisplay}`
+        // Format time remaining in a human-readable format
+        const etaMinutes = Math.floor(estimatedSecondsLeft / 60);
+        const etaSeconds = Math.ceil(estimatedSecondsLeft % 60);
+        const etaDisplay =
+          etaMinutes > 0 ? `${etaMinutes}m ${etaSeconds}s` : `${etaSeconds}s`;
+
+        console.log(
+          `Progress: ${progress}% (${processStats.count}/${totalFiles}) | ` +
+            `Speed: ${overallSpeed.toFixed(1)} files/sec | ` +
+            `ETA: ${etaDisplay}`
         );
       }
 
-    completedUploads++;
+      completedUploads++;
       return result;
-  };
+    };
 
-  const allUploads = [];
+    const allUploads = [];
 
-  // Function to start the next file upload if there is space in the parallel pool
-  const startNextUpload = async () => {
-    if (queue.length === 0) {
-      return;  // No more files to process
+    // Function to start the next file upload if there is space in the parallel pool
+    const startNextUpload = async () => {
+      if (queue.length === 0) {
+        return; // No more files to process
+      }
+
+      // Get the next file in the queue
+      const file = queue.shift();
+
+      // Start the upload
+      const uploadPromise = uploadFile(file);
+
+      // Add the upload promise to the active uploads list
+      activeUploads.push(uploadPromise);
+      allUploads.push(uploadPromise);
+
+      // When this upload completes, remove it from active uploads and start the next one
+      uploadPromise.finally(() => {
+        activeUploads.splice(activeUploads.indexOf(uploadPromise), 1);
+
+        // Start the next upload if there are still files in the queue and space in the pool
+        if (queue.length > 0 && activeUploads.length < parallelCount) {
+          startNextUpload();
+        }
+
+        // If all uploads are completed, resolve the overall promise
+        if (completedUploads === files.length) {
+          processStats.uploadedFiles = completedUploads;
+          return completedUploads;
+        }
+      });
+    };
+
+    // Start the initial batch of uploads (up to parallelCount files)
+    for (let i = 0; i < Math.min(parallelCount, files.length); i++) {
+      startNextUpload();
     }
 
-    // Get the next file in the queue
-    const file = queue.shift();
-    
-    // Start the upload
-    const uploadPromise = uploadFile(file);
+    // Wait for all uploads to finish
+    for (const promise of allUploads) {
+      await promise;
+    }
 
-    // Add the upload promise to the active uploads list
-    activeUploads.push(uploadPromise);
-    allUploads.push(uploadPromise);
-
-    // When this upload completes, remove it from active uploads and start the next one
-    uploadPromise.finally(() => {
-      activeUploads.splice(activeUploads.indexOf(uploadPromise), 1);
-
-      // Start the next upload if there are still files in the queue and space in the pool
-      if (queue.length > 0 && activeUploads.length < parallelCount) {
-        startNextUpload();
-      }
-
-      // If all uploads are completed, resolve the overall promise
-      if (completedUploads === files.length) {
-        processStats.uploadedFiles = completedUploads;
-        return completedUploads;
-      }
-    });
-  };
-
-  // Start the initial batch of uploads (up to parallelCount files)
-  for (let i = 0; i < Math.min(parallelCount, files.length); i++) {
-    startNextUpload();
+    return results;
   }
-
-  // Wait for all uploads to finish
-  for(const promise of allUploads) {
-    await promise;
-  }
-
-  return results;
-}
 
   /**
    * Collects all files to be uploaded from a directory
@@ -159,13 +169,15 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
     // Separate files and directories for optimized processing
     for (const entry of entries) {
       const fullPath = path.join(dirPath, entry.name);
-      const entryRelativePath = path.join(relativePath, entry.name).replace(/\\/g, '/');
-      
+      const entryRelativePath = path
+        .join(relativePath, entry.name)
+        .replace(/\\/g, "/");
+
       // Early exclusion check
-      const shouldExclude = Array.from(excludePatterns).some(pattern => 
-        entryRelativePath.indexOf(pattern) !== -1
+      const shouldExclude = Array.from(excludePatterns).some(
+        (pattern) => entryRelativePath.indexOf(pattern) !== -1
       );
-      
+
       if (shouldExclude) continue;
 
       if (entry.isDirectory()) {
@@ -175,9 +187,9 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
         files.push({
           baseDir: this.baseDir,
           relativeName: entryRelativePath,
-          size: stat.size
+          size: stat.size,
         });
-        
+
         // Update scanning progress
         stats.filesFound++;
         if (stats.filesFound % 100 === 0) {
@@ -185,7 +197,7 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
           const rate = stats.filesFound / elapsed;
           console.log(
             `Scanning: found ${stats.filesFound} files ` +
-            `(${rate.toFixed(1)} files/sec)`
+              `(${rate.toFixed(1)} files/sec)`
           );
         }
       }
@@ -194,12 +206,17 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
     // Process subdirectories in parallel with concurrency limit
     const batchSize = 5; // Process 5 directories at a time
     const results = [];
-    
+
     for (let i = 0; i < directories.length; i += batchSize) {
       const batch = directories.slice(i, i + batchSize);
       const batchResults = await Promise.all(
-        batch.map(dir => 
-          this.processDirectory(dir.path, dir.relativePath, excludePatterns, stats)
+        batch.map((dir) =>
+          this.processDirectory(
+            dir.path,
+            dir.relativePath,
+            excludePatterns,
+            stats
+          )
         )
       );
       results.push(...batchResults.flat());
@@ -218,7 +235,7 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
     const startPath = path.join(this.baseDir, parentDir, name);
     const stats = {
       startTime: Date.now(),
-      filesFound: 0
+      filesFound: 0,
     };
 
     // Convert exclude patterns to Set for faster lookups
@@ -226,7 +243,7 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
     const excludePatterns = new Set(exclude);
 
     console.log("Starting directory scan...");
-    
+
     try {
       const files = await this.processDirectory(
         startPath,
@@ -237,12 +254,12 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
 
       const elapsed = ((Date.now() - stats.startTime) / 1000).toFixed(1);
       const rate = (stats.filesFound / elapsed).toFixed(1);
-      
+
       console.log(
         `\nDirectory scan complete:` +
-        `\n- Found ${stats.filesFound} files` +
-        `\n- Scan time: ${elapsed}s` +
-        `\n- Scan rate: ${rate} files/sec`
+          `\n- Found ${stats.filesFound} files` +
+          `\n- Scan time: ${elapsed}s` +
+          `\n- Scan rate: ${rate} files/sec`
       );
 
       return files;
@@ -269,66 +286,89 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
    */
   async store(parentDir = "", name = "", excludeExisting = {}) {
     const fullPath = path.join(this.baseDir, parentDir, name);
-    
+
     try {
       const stats = await fs.promises.stat(fullPath);
-      
+
       // Handle single file upload
       if (stats.isFile()) {
         console.log("Processing single file:", name);
-        const relativePath = path.join(parentDir, name).replace(/\\/g, '/');
-        const result = await this.ops.upload(this.baseDir, relativePath, null, excludeExisting);
-        console.log(result ? "File uploaded successfully" : "File upload skipped");
+        const relativePath = path.join(parentDir, name).replace(/\\/g, "/");
+        const result = await this.ops.upload(
+          this.baseDir,
+          relativePath,
+          null,
+          excludeExisting
+        );
+        console.log(
+          result ? "File uploaded successfully" : "File upload skipped"
+        );
         return result ? 1 : 0;
       }
-      
+
       // Handle directory upload
       if (stats.isDirectory()) {
         console.log("Collecting files from directory...");
         const files = await this.collectFiles(parentDir, name);
         const totalFiles = files.length;
-        
+
         if (totalFiles === 0) {
           console.log("No files to upload");
           return 0;
         }
-        
+
         const batchSize = this.options.concurrentUploads || 10;
-        console.noQuiet('Found', totalFiles, 'files to process concurrently using', batchSize, 'uploaders');
-        
+        console.noQuiet(
+          "Found",
+          totalFiles,
+          "files to process concurrently using",
+          batchSize,
+          "uploaders"
+        );
+
         // Stats object to track overall progress
-        const processStats = { 
+        const processStats = {
           count: 0,
-          startTime: Date.now()
+          startTime: Date.now(),
         };
-        
-        const results = await this.processBatch(files, excludeExisting, totalFiles, processStats, batchSize);
+
+        const results = await this.processBatch(
+          files,
+          excludeExisting,
+          totalFiles,
+          processStats,
+          batchSize
+        );
         const count = [...Object.keys(results)].length;
-                
-        const totalTime = ((Date.now() - processStats.startTime) / 1000).toFixed(1);
+
+        const totalTime = (
+          (Date.now() - processStats.startTime) /
+          1000
+        ).toFixed(1);
         const avgSpeed = (count / totalTime).toFixed(1);
-        
+
         // Format total time in a human-readable format
         const totalMinutes = Math.floor(totalTime / 60);
         const totalSeconds = Math.ceil(totalTime % 60);
-        const totalTimeDisplay = totalMinutes > 0 
-          ? `${totalMinutes}m ${totalSeconds}s`
-          : `${totalSeconds}s`;
-        
+        const totalTimeDisplay =
+          totalMinutes > 0
+            ? `${totalMinutes}m ${totalSeconds}s`
+            : `${totalSeconds}s`;
+
         console.log(
           `\nUpload complete:` +
-          `\n- ${count} files uploaded successfully` +
-          `\n- ${totalFiles - count} files skipped/failed` +
-          `\n- Total time: ${totalTimeDisplay}` +
-          `\n- Average speed: ${avgSpeed} files/sec`
+            `\n- ${count} files uploaded successfully` +
+            `\n- ${totalFiles - count} files skipped/failed` +
+            `\n- Total time: ${totalTimeDisplay}` +
+            `\n- Average speed: ${avgSpeed} files/sec`
         );
 
         return results;
       }
-      
+
       throw new Error(`Path is neither a file nor a directory: ${fullPath}`);
     } catch (error) {
-      if (error.code === 'ENOENT') {
+      if (error.code === "ENOENT") {
         throw new Error(`Path does not exist: ${fullPath}`);
       }
       throw error;
@@ -352,10 +392,12 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
     if (remoteUri) {
       const destName = options.destName || relativeName;
       console.noQuiet(
-        'Retrieving specific URI',
+        "Retrieving specific URI",
         remoteUri,
+        parentDir,
+        name,
         relativeName,
-        'to',
+        "to",
         this.baseDir,
         destName
       );
@@ -371,22 +413,22 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
     let skippedItems = 0;
     let retrieved = 0;
     if (!contents) {
-      console.log('Directory does not exist:', relativeName);
+      console.log("Directory does not exist:", relativeName);
       return { skippedItems, retrieved };
     }
-    const { include = [], exclude = ['temp'], force } = options;
+    const { include = [], exclude = ["temp"], force } = options;
     for (const item of contents) {
       // item is an object containing information about this object
-      if (!item.relativeUri) throw new Error('Nothing to retrieve');
+      if (!item.relativeUri) throw new Error("Nothing to retrieve");
       const destName = path.join(this.baseDir, item.fileName);
       if (include.length) {
         const foundItem = include.find((it) => destName.indexOf(it) !== -1);
         // Not skipped or retrieved, this is just out of scope
         if (!foundItem) {
           console.verbose(
-            'Skipping',
+            "Skipping",
             destName,
-            'because it includes',
+            "because it includes",
             foundItem
           );
           continue;
@@ -398,7 +440,7 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
       }
       if (fs.existsSync(destName) && !force) {
         if (this.ops.shouldSkip(item, destName)) {
-          console.verbose('Skipping', destName);
+          console.verbose("Skipping", destName);
           skippedItems += 1;
           continue;
         }
@@ -407,11 +449,11 @@ async processBatch(files, excludeExisting, totalFiles, processStats, parallelCou
       retrieved += 1;
     }
     console.log(
-      'Retrieved',
+      "Retrieved",
       retrieved,
-      'items to',
+      "items to",
       this.baseDir,
-      'and skipped',
+      "and skipped",
       skippedItems
     );
     return { skippedItems, retrieved };

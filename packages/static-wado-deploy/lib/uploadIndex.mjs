@@ -11,16 +11,18 @@ const indexCache = new Map();
  * @returns {Array} Updated studies array
  */
 function batchProcessIndices(indices, allStudies) {
-  const sopMap = new Map(allStudies.map((study, index) => [study["0020000D"].Value[0], index]));
-  
-  indices.forEach(studyIndex => {
+  const sopMap = new Map(
+    allStudies.map((study, index) => [study["0020000D"].Value[0], index])
+  );
+
+  indices.forEach((studyIndex) => {
     // Handle both single study and array of studies
     const studies = Array.isArray(studyIndex) ? studyIndex : [studyIndex];
-    
-    studies.forEach(studyItem => {
+
+    studies.forEach((studyItem) => {
       const sop = studyItem["0020000D"].Value[0];
       const existingIndex = sopMap.get(sop);
-      
+
       if (existingIndex === undefined) {
         allStudies.push(studyItem);
         sopMap.set(sop, allStudies.length - 1);
@@ -29,7 +31,7 @@ function batchProcessIndices(indices, allStudies) {
       }
     });
   });
-  
+
   return allStudies;
 }
 
@@ -69,7 +71,7 @@ export default async function uploadIndex(
   const deployer = new DeployGroup(config, name, options, deployPlugin);
   const { indexFullName } = deployer;
   if (!indexFullName) {
-    console.log('No index defined in group', deployer.group);
+    console.log("No index defined in group", deployer.group);
     return;
   }
 
@@ -77,14 +79,14 @@ export default async function uploadIndex(
   const { config: deployConfig } = deployer;
   const { rootDir } = deployConfig;
   const remoteUri = `s3://${deployConfig.rootGroup.Bucket}${deployConfig.rootGroup.path}`;
-  const destName = indexFullName.substring(0, indexFullName.length - 3);
-  await deployer.retrieve({ ...options, remoteUri, destName }, 'studies');
+  const destName = indexFullName; // de-gzip name: .substring(0, indexFullName.length - 3);
+  await deployer.retrieve({ ...options, remoteUri, destName }, "studies");
 
-  const indexUncompressed = await JSONReader(rootDir, destName);
-  await JSONWriter(rootDir, indexFullName, indexUncompressed, {
-    compression: 'gzip',
-    index: false,
-  });
+  // const indexUncompressed = await JSONReader(rootDir, destName);
+  // await JSONWriter(rootDir, indexFullName, indexUncompressed, {
+  //   compression: "gzip",
+  //   index: false,
+  // });
 
   try {
     // Read indices with caching
@@ -99,7 +101,7 @@ export default async function uploadIndex(
     // Write updated index and upload
     await JSONWriter(deployConfig.rootDir, indexFullName, updatedStudies, {
       index: false,
-      compression: 'gzip', // Enable compression for index files
+      compression: "gzip", // Enable compression for index files
     });
 
     await deployer.store(indexFullName);
@@ -107,7 +109,7 @@ export default async function uploadIndex(
     // Update cache with new data
     indexCache.set(`${deployConfig.rootDir}:${indexFullName}`, updatedStudies);
   } catch (error) {
-    console.error('Failed to update index:', error);
+    console.error("Failed to update index:", error);
     throw error;
   } finally {
     // Clear the cache to allow process to exit cleanly
