@@ -1,4 +1,4 @@
-const getMinMax = require("./pixelDataMinMax");
+const getMinMax = require('./pixelDataMinMax');
 
 function pixelDataIntType(floatPixelData) {
   const floatMinMax = getMinMax(floatPixelData);

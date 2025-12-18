@@ -1,4 +1,4 @@
-const colorSpace = require("./colorSpace");
+const colorSpace = require('./colorSpace');
 /*
 const convertPALETTECOLOR = require("./convertPALETTECOLOR");
 const convertRGB = require("./convertRGB");

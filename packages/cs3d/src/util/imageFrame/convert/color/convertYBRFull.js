@@ -1,5 +1,5 @@
-const convertYBRFullByPixel = require("./convertYBRFullByPixel");
-const convertYBRFullByPlane = require("./convertYBRFullByPlane");
+const convertYBRFullByPixel = require('./convertYBRFullByPixel');
+const convertYBRFullByPlane = require('./convertYBRFullByPlane');
 
 /**
  * Convert pixel data with YBR Full (both pixel and plane) Photometric Interpretation to RGBA

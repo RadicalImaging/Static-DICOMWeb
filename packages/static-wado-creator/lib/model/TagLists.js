@@ -1,25 +1,13 @@
-const hashFactory = require("node-object-hash");
-const { Tags } = require("@radicalimaging/static-wado-util");
+const hashFactory = require('node-object-hash');
+const { Tags } = require('@radicalimaging/static-wado-util');
 
 /* eslint "no-param-reassign": "off" */
 
 const hasher = hashFactory.hasher();
 
 const { PatientID, PatientName, IssuerOfPatientID } = Tags;
-const {
-  StudyDescription,
-  AccessionNumber,
-  StudyInstanceUID,
-  StudyDate,
-  StudyTime,
-} = Tags;
-const {
-  SeriesDescription,
-  SeriesNumber,
-  SeriesInstanceUID,
-  SeriesDate,
-  SeriesTime,
-} = Tags;
+const { StudyDescription, AccessionNumber, StudyInstanceUID, StudyDate, StudyTime } = Tags;
+const { SeriesDescription, SeriesNumber, SeriesInstanceUID, SeriesDate, SeriesTime } = Tags;
 
 const { DeduppedHash, DeduppedRef, DeduppedType } = Tags;
 
@@ -153,7 +141,7 @@ const TagSets = {
   extract: (data, type, tagSet, options) => {
     const ret = {};
     const { remove, hashRef } = options || {};
-    tagSet.forEach((tag) => {
+    tagSet.forEach(tag => {
       const value = data[tag];
       if (value) {
         ret[tag] = value;

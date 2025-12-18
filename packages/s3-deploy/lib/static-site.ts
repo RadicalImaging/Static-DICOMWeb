@@ -19,59 +19,58 @@ export class StaticSite extends Construct {
   constructor(parent: Stack, name: string, props: any) {
     super(parent, name);
 
-    if ( !props.clientGroup && !props.rootGroup ) {
-      throw new Error("No clientGroup or rootGroup declared in deployment");
+    if (!props.clientGroup && !props.rootGroup) {
+      throw new Error('No clientGroup or rootGroup declared in deployment');
     }
 
     const cloudfrontOAI = new cloudfront.OriginAccessIdentity(this, `${name}-OAI`, {
-      comment: `OAI for ${name}`
+      comment: `OAI for ${name}`,
     });
-    console.warn("******** cloadfrontOAI", name, cloudfrontOAI);
+    console.warn('******** cloadfrontOAI', name, cloudfrontOAI);
 
     const distProps = new Map();
     let defaultDistribution;
-    
 
     if (props.rootGroup) {
-      const rootGroup = configGroup(props,"root");
-      distProps.set('/dicomweb/*',rootSite(this,name,cloudfrontOAI,rootGroup));
+      const rootGroup = configGroup(props, 'root');
+      distProps.set('/dicomweb/*', rootSite(this, name, cloudfrontOAI, rootGroup));
       defaultDistribution = '/dicomweb/*';
     } else {
-      console.log("no rootGroup specified for deployment:", name);
+      console.log('no rootGroup specified for deployment:', name);
     }
 
     if (props.uploadGroup) {
-      const group = configGroup(props,"upload");
-      console.log("Upload Group:", group);
-      distProps.set('/lei/*',uploadSite(this,name,cloudfrontOAI,group));
+      const group = configGroup(props, 'upload');
+      console.log('Upload Group:', group);
+      distProps.set('/lei/*', uploadSite(this, name, cloudfrontOAI, group));
       defaultDistribution = '/lei/*';
     } else {
-      console.log("no extra group specified for deployment:", name);
+      console.log('no extra group specified for deployment:', name);
     }
-    
-    if( props.indexGroup ) {
-      const group = configGroup(props,"index");
-      console.log("Index group", group);
-      createDocumentGroup(this,group);  
+
+    if (props.indexGroup) {
+      const group = configGroup(props, 'index');
+      console.log('Index group', group);
+      createDocumentGroup(this, group);
     }
 
     if (props.clientGroup) {
-      const clientGroup = configGroup(props,"client");
-      console.log("clientGroup:", clientGroup);
-      distProps.set('/', clientSite(this,name,cloudfrontOAI,clientGroup));
+      const clientGroup = configGroup(props, 'client');
+      console.log('clientGroup:', clientGroup);
+      distProps.set('/', clientSite(this, name, cloudfrontOAI, clientGroup));
       defaultDistribution = '/';
     } else {
-      console.log("no clientGroup specified for deployment:", name);
+      console.log('no clientGroup specified for deployment:', name);
     }
-  
+
     // Split the distribution properties into the primary one (first added), and everything else
     const defaultDistProps = distProps.get(defaultDistribution);
     distProps.delete(defaultDistribution);
     const distIterator = distProps.entries();
     const additionalDistProps = distProps.size ? Object.fromEntries(distIterator) : undefined;
-    
+
     const siteInfo = getSiteInfo(this, name, props);
-    const siteDomain = siteInfo?[siteInfo.siteDomain]:undefined;
+    const siteDomain = siteInfo ? [siteInfo.siteDomain] : undefined;
 
     // CloudFront distribution
     const distribution = new cloudfront.Distribution(this, `${name}`, {
@@ -80,19 +79,20 @@ export class StaticSite extends Construct {
       enableIpv6: true,
       defaultBehavior: defaultDistProps,
       additionalBehaviors: additionalDistProps,
-      httpVersion:  cloudfront.HttpVersion.HTTP3,
+      httpVersion: cloudfront.HttpVersion.HTTP3,
     });
 
-  
     new CfnOutput(this, 'DistributionId', { value: distribution.distributionId });
 
     if (siteInfo) {
       configureDomain(this, name, siteInfo.siteDomain, siteInfo.zone, distribution);
     }
-    new CfnOutput(this, 'DistributionDomainName', { value: siteInfo?siteInfo.siteDomain:distribution.distributionDomainName });
-    
+    new CfnOutput(this, 'DistributionDomainName', {
+      value: siteInfo ? siteInfo.siteDomain : distribution.distributionDomainName,
+    });
+
     // Deploy site contents to S3 bucket
     const clientDir = handleHomeRelative(props.clientDir || './site-contents');
-    new CfnOutput(this, 'clientDir', { value: clientDir } );
+    new CfnOutput(this, 'clientDir', { value: clientDir });
   }
 }

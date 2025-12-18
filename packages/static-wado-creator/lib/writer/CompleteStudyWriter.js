@@ -1,10 +1,6 @@
-const {
-  JSONReader,
-  JSONWriter,
-  Stats,
-} = require("@radicalimaging/static-wado-util");
-const { Tags } = require("@radicalimaging/static-wado-util");
-const StudyData = require("../operation/StudyData");
+const { JSONReader, JSONWriter, Stats } = require('@radicalimaging/static-wado-util');
+const { Tags } = require('@radicalimaging/static-wado-util');
+const StudyData = require('../operation/StudyData');
 
 /**
  * CompleteStudyWriter takes the deduplicated data values, all loaded into the study parameter,
@@ -12,13 +8,13 @@ const StudyData = require("../operation/StudyData");
  * written out as.
  * The studyData object is then removed, so that a new one can be created if required.
  */
-const CompleteStudyWriter = (options) => {
+const CompleteStudyWriter = options => {
   async function ret() {
     const { studyData } = this;
     if (!studyData) return;
 
     if (!studyData.numberOfInstances) {
-      console.log("studyData.deduplicated is empty");
+      console.log('studyData.deduplicated is empty');
       delete this.studyData;
       return;
     }
@@ -26,28 +22,24 @@ const CompleteStudyWriter = (options) => {
     if (options.isGroup) {
       if (studyData.dirty) {
         await studyData.writeDeduplicatedGroup();
-        console.noQuiet(
-          "Wrote updated deduplicated data for study",
-          studyData.studyInstanceUid,
-        );
+        console.noQuiet('Wrote updated deduplicated data for study', studyData.studyInstanceUid);
       } else {
         console.noQuiet(
-          "Not writing new deduplicated data because it is clean:",
-          studyData.studyInstanceUid,
+          'Not writing new deduplicated data because it is clean:',
+          studyData.studyInstanceUid
         );
         const message = {
-          text: "Metadata clean, not updating",
+          text: 'Metadata clean, not updating',
           status: 0,
           studyInstanceUid: studyData.studyInstanceUid,
         };
-        this.success("metadataClean", message);
+        this.success('metadataClean', message);
       }
       await studyData.deleteInstancesReferenced();
     }
 
     if (!options.isStudyData) {
-      if (options.notifications)
-        this.notificationService.notifyStudy(studyData.studyInstanceUid);
+      if (options.notifications) this.notificationService.notifyStudy(studyData.studyInstanceUid);
       delete this.studyData;
       Stats.StudyStats.summarize();
       return;
@@ -55,47 +47,42 @@ const CompleteStudyWriter = (options) => {
 
     const isDirtyMetadata = await studyData.dirtyMetadata();
     if (!isDirtyMetadata && !options.force) {
-      console.log("Study metadata", studyData.studyInstanceUid, "is clean.");
+      console.log('Study metadata', studyData.studyInstanceUid, 'is clean.');
       delete this.studyData;
       Stats.StudyStats.summarize(
-        `Study metadata ${studyData.studyInstanceUid} has clean metadata, not writing`,
+        `Study metadata ${studyData.studyInstanceUid} has clean metadata, not writing`
       );
       return;
     }
-    console.noQuiet("Writing study metadata", studyData.studyInstanceUid);
+    console.noQuiet('Writing study metadata', studyData.studyInstanceUid);
 
     const studyQuery = await studyData.writeMetadata();
 
-    const allStudies = await JSONReader(
-      options.directoryName,
-      "studies/index.json.gz",
-      [],
-    );
+    const allStudies = await JSONReader(options.directoryName, 'studies/index.json.gz', []);
     const studyUID = Tags.getValue(studyQuery, Tags.StudyInstanceUID);
     if (!studyUID) {
-      console.error("studyQuery=", studyQuery);
-      throw new Error("Study query has null studyUID");
+      console.error('studyQuery=', studyQuery);
+      throw new Error('Study query has null studyUID');
     }
     const studyIndex = allStudies.findIndex(
-      (item) => Tags.getValue(item, Tags.StudyInstanceUID) == studyUID,
+      item => Tags.getValue(item, Tags.StudyInstanceUID) == studyUID
     );
     if (studyIndex == -1) {
       allStudies.push(studyQuery);
     } else {
       allStudies[studyIndex] = studyQuery;
     }
-    await JSONWriter(options.directoryName, "studies", allStudies);
-    if (options.notifications)
-      this.notificationService.notifyStudy(studyData.studyInstanceUid);
+    await JSONWriter(options.directoryName, 'studies', allStudies);
+    if (options.notifications) this.notificationService.notifyStudy(studyData.studyInstanceUid);
     const message = {
-      action: "metadata",
+      action: 'metadata',
       status: 0,
       studyInstanceUid: studyData.studyInstanceUid,
     };
-    this.success("completeStudyWriter", message);
+    this.success('completeStudyWriter', message);
     delete this.studyData;
     Stats.StudyStats.summarize(
-      `Wrote study metadata/query files for ${studyData.studyInstanceUid}`,
+      `Wrote study metadata/query files for ${studyData.studyInstanceUid}`
     );
   }
 
@@ -115,7 +102,7 @@ const CompleteStudyWriter = (options) => {
     }
     callback.setStudyData(new StudyData(id, options));
     if (!options.isSkipStudyScan) {
-      console.verbose("Initiate StudyData");
+      console.verbose('Initiate StudyData');
       await callback.studyData.init(options);
     }
     return callback.studyData;

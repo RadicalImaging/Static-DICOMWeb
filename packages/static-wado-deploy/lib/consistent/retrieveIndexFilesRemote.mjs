@@ -1,4 +1,4 @@
-import retrieveF from "../retrieveDeploy.mjs";
+import retrieveF from '../retrieveDeploy.mjs';
 
 /**
  * Retrieves the index files from a remote deploy.
@@ -18,10 +18,10 @@ export default async function retrieveIndexFilesRemote(config, deployment, study
   retrieveF(
     storeDirectory,
     deployment,
-    "root",
+    'root',
     {
       ...options,
-      include: ["index.json", "metadata.json"],
+      include: ['index.json', 'metadata.json'],
     },
     config.deployPlugin
   );

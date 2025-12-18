@@ -1,21 +1,21 @@
-const { ConfigPoint } = require("config-point");
+const { ConfigPoint } = require('config-point');
 
 const { aeConfig } = ConfigPoint.register({
   aeConfig: {
     DICOMWEB: {
-      description: "The static-wado SCU and SCP name by default",
-      host: "localhost",
+      description: 'The static-wado SCU and SCP name by default',
+      host: 'localhost',
       port: 11112,
     },
     // Test configurations
     dcmqrscp: {
-      description: "A test AE configuration for sending queries to dcmqrscp",
-      host: "localhost",
+      description: 'A test AE configuration for sending queries to dcmqrscp',
+      host: 'localhost',
       port: 11113,
     },
     AE_PROXY_NAME: {
-      description: "Test AE Proxy Name System",
-      host: "localhost",
+      description: 'Test AE Proxy Name System',
+      host: 'localhost',
       port: 11114,
     },
   },

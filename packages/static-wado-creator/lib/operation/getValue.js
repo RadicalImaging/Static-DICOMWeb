@@ -1,7 +1,7 @@
-const extractImageFrames = require("./extractImageFrames");
+const extractImageFrames = require('./extractImageFrames');
 
 function decodeUtf8(s, options) {
-  if (options?.SpecificCharacterSet === "ISO_IR 192") {
+  if (options?.SpecificCharacterSet === 'ISO_IR 192') {
     return decodeURIComponent(escape(s));
   }
   return s;
@@ -22,19 +22,14 @@ const getStrings = (dataSet, attr, options) => {
 
 const getValuePatientName = (dataSet, attr) => {
   const strings = getStrings(dataSet, attr);
-  return (
-    (strings && strings.map((item) => ({ Alphabetic: item }))) || undefined
-  );
+  return (strings && strings.map(item => ({ Alphabetic: item }))) || undefined;
 };
 
 /** Gets either InlineBinary or BulkDataURI, if already defined */
 const getValueInlineBinary = (dataSet, attr) => {
   if (attr.BulkDataURI) return { BulkDataURI: attr.BulkDataURI };
-  const binaryValue = dataSet.byteArray.slice(
-    attr.dataOffset,
-    attr.dataOffset + attr.length,
-  );
-  return { InlineBinary: binaryValue.toString("base64") };
+  const binaryValue = dataSet.byteArray.slice(attr.dataOffset, attr.dataOffset + attr.length);
+  return { InlineBinary: binaryValue.toString('base64') };
 };
 
 const getValueInlineSignedShort = (dataSet, attr) => {
@@ -79,10 +74,10 @@ const getValueInlineFloat = (dataSet, attr) => {
 };
 
 const getValueInlineIntString = (dataSet, attr) =>
-  getStrings(dataSet, attr).map((val) => parseInt(val));
+  getStrings(dataSet, attr).map(val => parseInt(val));
 
 const getValueInlineFloatString = (dataSet, attr) =>
-  getStrings(dataSet, attr).map((val) => parseFloat(val));
+  getStrings(dataSet, attr).map(val => parseFloat(val));
 
 const getValueInlineFloatDouble = (dataSet, attr) => {
   if (attr.length > 8) {
@@ -105,63 +100,63 @@ const getValueInline = (dataSet, attr, vr, options) => {
   }
 
   switch (vr) {
-    case "AE":
-    case "AS":
+    case 'AE':
+    case 'AS':
       return getValueInlineString(dataSet, attr, options);
-    case "AT":
+    case 'AT':
       return getValueInlineAttributeTag(dataSet, attr);
-    case "DS":
+    case 'DS':
       return getValueInlineFloatString(dataSet, attr);
-    case "CS":
-    case "DA":
-    case "DT":
+    case 'CS':
+    case 'DA':
+    case 'DT':
       return getValueInlineString(dataSet, attr, options);
-    case "FL":
+    case 'FL':
       return getValueInlineFloat(dataSet, attr);
-    case "FD":
+    case 'FD':
       return getValueInlineFloatDouble(dataSet, attr);
-    case "IS":
+    case 'IS':
       return getValueInlineIntString(dataSet, attr);
-    case "LO":
-    case "LT":
+    case 'LO':
+    case 'LT':
       return getValueInlineString(dataSet, attr, options);
-    case "OB":
-    case "OF":
-    case "OW":
+    case 'OB':
+    case 'OF':
+    case 'OW':
       return getValueInlineBinary(dataSet, attr);
-    case "PN":
+    case 'PN':
       return getValuePatientName(dataSet, attr);
-    case "SH":
+    case 'SH':
       return getValueInlineString(dataSet, attr, options);
-    case "SL":
+    case 'SL':
       return getValueInlineSignedLong(dataSet, attr);
-    case "SS":
+    case 'SS':
       return getValueInlineSignedShort(dataSet, attr);
-    case "ST":
-    case "TM":
-    case "UI":
+    case 'ST':
+    case 'TM':
+    case 'UI':
       return getValueInlineString(dataSet, attr, options);
-    case "UL":
+    case 'UL':
       return getValueInlineUnsignedLong(dataSet, attr);
-    case "UN":
+    case 'UN':
       return getValueInlineBinary(dataSet, attr);
-    case "US":
+    case 'US':
       return getValueInlineUnsignedShort(dataSet, attr);
-    case "UT":
+    case 'UT':
       return getValueInlineString(dataSet, attr, options);
     default:
       return getValueInlineBinary(dataSet, attr);
   }
 };
 
-const isPrivate = (attr) => {
+const isPrivate = attr => {
   const { tag } = attr;
   const ch = tag.substr(4, 1);
   const chHex = parseInt(ch, 16);
   return chHex % 2 == 1;
 };
 
-const RawEncapsulatedDocument = "x00420011";
+const RawEncapsulatedDocument = 'x00420011';
 
 const isValueInline = (attr, options) => {
   if (isPrivate(attr)) {
@@ -187,30 +182,15 @@ const isValueInline = (attr, options) => {
  * @param {*} parentAttr attr's parent. If not present means attr is at root level.
  * @returns
  */
-const getValue = async (
-  dataSet,
-  attr,
-  vr,
-  getDataSet,
-  callback,
-  options,
-  parentAttr,
-) => {
+const getValue = async (dataSet, attr, vr, getDataSet, callback, options, parentAttr) => {
   // It will only process pixelData tag if on metadata root. Otherwise it will be skiped.
-  if (attr.tag === "x7fe00010" && !parentAttr) {
-    const BulkDataURI = await extractImageFrames(
-      dataSet,
-      attr,
-      vr,
-      callback,
-      options,
-    );
+  if (attr.tag === 'x7fe00010' && !parentAttr) {
+    const BulkDataURI = await extractImageFrames(dataSet, attr, vr, callback, options);
     return { BulkDataURI };
   }
-  if (attr.tag === "xfffee00d") return undefined;
+  if (attr.tag === 'xfffee00d') return undefined;
   // Group length
-  if (attr.tag.length == 9 && attr.tag.substring(5, 9) === "0000")
-    return undefined;
+  if (attr.tag.length == 9 && attr.tag.substring(5, 9) === '0000') return undefined;
   if (attr.items) {
     // sequences
     const result = [];
@@ -227,11 +207,8 @@ const getValue = async (
   if (isValueInline(attr, options)) {
     return getValueInline(dataSet, attr, vr, options);
   }
-  const binaryValue = dataSet.byteArray.slice(
-    attr.dataOffset,
-    attr.dataOffset + attr.length,
-  );
-  const mimeType = attr.tag == "x00420011" && dataSet.string("x00420012");
+  const binaryValue = dataSet.byteArray.slice(attr.dataOffset, attr.dataOffset + attr.length);
+  const mimeType = attr.tag == 'x00420011' && dataSet.string('x00420012');
 
   const BulkDataURI = await callback.bulkdata(binaryValue, { mimeType });
   return { BulkDataURI, vr };

@@ -1,5 +1,5 @@
-import { NotificationService } from "@radicalimaging/static-wado-util";
-import updateConsistency from "./updateConsistencyMain.mjs";
+import { NotificationService } from '@radicalimaging/static-wado-util';
+import updateConsistency from './updateConsistencyMain.mjs';
 
 /**
  * Scans the notification directory for updates and runs the specified
@@ -24,11 +24,11 @@ import updateConsistency from "./updateConsistencyMain.mjs";
 export default async function (options) {
   const { notificationDir } = this;
   if (!notificationDir) {
-    console.warn("Please specify notificationDir in static-wado configuration");
+    console.warn('Please specify notificationDir in static-wado configuration');
     return -1;
   }
   const notificationService = new NotificationService(notificationDir);
-  console.log("Using notification dir", notificationService.dir);
+  console.log('Using notification dir', notificationService.dir);
 
   const updateFunction = (name, data) => {
     const { StudyInstanceUID } = data;

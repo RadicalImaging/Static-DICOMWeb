@@ -1,9 +1,9 @@
-const ConfigPoint = require("config-point");
-const { JSONReader, qidoFilter } = require("@radicalimaging/static-wado-util");
+const ConfigPoint = require('config-point');
+const { JSONReader, qidoFilter } = require('@radicalimaging/static-wado-util');
 
 const { studiesQueryByIndex } = ConfigPoint.register({
   studiesQueryByIndex: {
-    generator: (params) => {
+    generator: params => {
       let dataTime = 0;
       let studiesData;
       const dataLifetime = 20 * 1000;
@@ -16,7 +16,7 @@ const { studiesQueryByIndex } = ConfigPoint.register({
         if (studiesData) {
           return studiesData;
         }
-        studiesData = await JSONReader(rootDir, "studies/index.json.gz");
+        studiesData = await JSONReader(rootDir, 'studies/index.json.gz');
         dataTime = Date.now();
         return studiesData;
       };

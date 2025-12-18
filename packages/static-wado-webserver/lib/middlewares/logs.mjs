@@ -1,4 +1,4 @@
-import logger from "morgan";
+import logger from 'morgan';
 
 /**
  * Set request logs  middlewares
@@ -6,5 +6,5 @@ import logger from "morgan";
  * @param {*} appExpress express instance
  */
 export default function setMiddlewares(appExpress) {
-  appExpress.use(logger("combined"));
+  appExpress.use(logger('combined'));
 }

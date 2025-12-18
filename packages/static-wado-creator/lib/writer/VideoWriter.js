@@ -1,62 +1,51 @@
 /** Write raw video file */
-const { Tags } = require("@radicalimaging/static-wado-util");
-const WriteStream = require("./WriteStream");
+const { Tags } = require('@radicalimaging/static-wado-util');
+const WriteStream = require('./WriteStream');
 
-const MPEG2 = "mpg";
-const H264 = "mp4";
-const H265 = "h265";
+const MPEG2 = 'mpg';
+const H264 = 'mp4';
+const H265 = 'h265';
 
 const VIDEO_TYPES = {
-  "1.2.840.10008.1.2.4.100": MPEG2,
-  "1.2.840.10008.1.2.4.101": MPEG2,
-  "1.2.840.10008.1.2.4.102": H264,
-  "1.2.840.10008.1.2.4.103": H264,
-  "1.2.840.10008.1.2.4.104": H264,
-  "1.2.840.10008.1.2.4.105": H264,
-  "1.2.840.10008.1.2.4.106": H264,
-  "1.2.840.10008.1.2.4.107": H265,
-  "1.2.840.10008.1.2.4.108": H265,
+  '1.2.840.10008.1.2.4.100': MPEG2,
+  '1.2.840.10008.1.2.4.101': MPEG2,
+  '1.2.840.10008.1.2.4.102': H264,
+  '1.2.840.10008.1.2.4.103': H264,
+  '1.2.840.10008.1.2.4.104': H264,
+  '1.2.840.10008.1.2.4.105': H264,
+  '1.2.840.10008.1.2.4.106': H264,
+  '1.2.840.10008.1.2.4.107': H265,
+  '1.2.840.10008.1.2.4.108': H265,
   // TODO - add the new multi-segment MPEG2 and H264 variants
 };
 
-const isVideo = (value) =>
-  VIDEO_TYPES[
-    value && value.string ? value.string(Tags.RawTransferSyntaxUID) : value
-  ];
+const isVideo = value =>
+  VIDEO_TYPES[value && value.string ? value.string(Tags.RawTransferSyntaxUID) : value];
 
 const VideoWriter = () =>
   async function run(id, dataSet) {
     console.log(`Writing video  ${id.sopInstanceUid}`);
     const extension = VIDEO_TYPES[dataSet.string(Tags.RawTransferSyntaxUID)];
     const filename = `index.${extension}`;
-    const writeStream = WriteStream(
-      `${id.sopInstanceRootPath}/rendered`,
-      filename,
-      {
-        mkdir: true,
-      },
-    );
+    const writeStream = WriteStream(`${id.sopInstanceRootPath}/rendered`, filename, {
+      mkdir: true,
+    });
     let length = 0;
     const { fragments } = dataSet.elements.x7fe00010;
 
     if (!fragments) {
-      console.warn("No video data");
-      return "";
+      console.warn('No video data');
+      return '';
     }
     // The zero position fragment isn't available, even though present in the original data
     for (let i = 0; i < fragments.length; i++) {
       const fragment = fragments[i];
-      const blob = dataSet.byteArray.slice(
-        fragment.position,
-        fragment.position + fragment.length,
-      );
+      const blob = dataSet.byteArray.slice(fragment.position, fragment.position + fragment.length);
       length += blob.length;
       await writeStream.write(blob);
     }
     await writeStream.close();
-    console.log(
-      `Done video ${id.sopInstanceRootPath}\\${filename} of length ${length}`,
-    );
+    console.log(`Done video ${id.sopInstanceRootPath}\\${filename} of length ${length}`);
     return `series/${id.seriesInstanceUid}/instances/${id.sopInstanceUid}/rendered?length=${length}&offset=0&accept=video/mp4`;
   };
 

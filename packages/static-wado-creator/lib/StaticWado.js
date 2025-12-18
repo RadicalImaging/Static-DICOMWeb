@@ -1,5 +1,5 @@
-const dicomCodec = require("@cornerstonejs/dicom-codec");
-const staticCS = require("@radicalimaging/cs3d");
+const dicomCodec = require('@cornerstonejs/dicom-codec');
+const staticCS = require('@radicalimaging/cs3d');
 const {
   Stats,
   handleHomeRelative,
@@ -8,41 +8,36 @@ const {
   JSONWriter,
   asyncIterableToBuffer,
   Tags,
-} = require("@radicalimaging/static-wado-util");
-const dicomParser = require("dicom-parser");
-const fs = require("fs");
-const path = require("path");
-const { NotificationService } = require("@radicalimaging/static-wado-util");
-const getDataSet = require("./operation/getDataSet");
-const InstanceDeduplicate = require("./operation/InstanceDeduplicate");
-const DeduplicateWriter = require("./writer/DeduplicateWriter");
-const ImageFrameWriter = require("./writer/ImageFrameWriter");
-const WriteStream = require("./writer/WriteStream");
-const CompleteStudyWriter = require("./writer/CompleteStudyWriter");
-const IdCreator = require("./util/IdCreator");
-const ScanStudy = require("./operation/ScanStudy");
-const HashDataWriter = require("./writer/HashDataWriter");
-const VideoWriter = require("./writer/VideoWriter");
+} = require('@radicalimaging/static-wado-util');
+const dicomParser = require('dicom-parser');
+const fs = require('fs');
+const path = require('path');
+const { NotificationService } = require('@radicalimaging/static-wado-util');
+const getDataSet = require('./operation/getDataSet');
+const InstanceDeduplicate = require('./operation/InstanceDeduplicate');
+const DeduplicateWriter = require('./writer/DeduplicateWriter');
+const ImageFrameWriter = require('./writer/ImageFrameWriter');
+const WriteStream = require('./writer/WriteStream');
+const CompleteStudyWriter = require('./writer/CompleteStudyWriter');
+const IdCreator = require('./util/IdCreator');
+const ScanStudy = require('./operation/ScanStudy');
+const HashDataWriter = require('./writer/HashDataWriter');
+const VideoWriter = require('./writer/VideoWriter');
 const {
   transcodeImageFrame,
   generateLossyImage,
   transcodeId,
   transcodeMetadata,
-} = require("./operation/adapter/transcodeImage");
-const ThumbnailWriter = require("./writer/ThumbnailWriter");
-const decodeImage = require("./operation/adapter/decodeImage");
-const ThumbnailService = require("./operation/ThumbnailService");
-const DeleteStudy = require("./DeleteStudy");
-const RejectInstance = require("./RejectInstance");
-const RawDicomWriter = require("./writer/RawDicomWriter");
-const { isVideo } = require("./writer/VideoWriter");
-const validateMetadata = require("./operation/validateMetadata.js");
-const {
-  Success,
-  Failure,
-  clearResults,
-  WriteResults,
-} = require("./util/resultsReport");
+} = require('./operation/adapter/transcodeImage');
+const ThumbnailWriter = require('./writer/ThumbnailWriter');
+const decodeImage = require('./operation/adapter/decodeImage');
+const ThumbnailService = require('./operation/ThumbnailService');
+const DeleteStudy = require('./DeleteStudy');
+const RejectInstance = require('./RejectInstance');
+const RawDicomWriter = require('./writer/RawDicomWriter');
+const { isVideo } = require('./writer/VideoWriter');
+const validateMetadata = require('./operation/validateMetadata.js');
+const { Success, Failure, clearResults, WriteResults } = require('./util/resultsReport');
 
 function setStudyData(studyData) {
   this.studyData = studyData;
@@ -59,9 +54,7 @@ async function cs3dThumbnail(
     throw new Error(`No originalImageFrame data available`);
   }
   if (!dataset && !metadata) {
-    throw new Error(
-      `Neither dataset ${!!dataset} nor metadata ${!!metadata} available.`
-    );
+    throw new Error(`Neither dataset ${!!dataset} nor metadata ${!!metadata} available.`);
   }
   if (isVideo(transferSyntaxUid)) {
     console.log('Video data - no thumbnail generator yet');
@@ -70,12 +63,7 @@ async function cs3dThumbnail(
 
   let decodeResult;
   try {
-    decodeResult = await decodeImage(
-      originalImageFrame,
-      dataset,
-      metadata,
-      transferSyntaxUid
-    );
+    decodeResult = await decodeImage(originalImageFrame, dataset, metadata, transferSyntaxUid);
   } catch (error) {
     console.noQuiet('Error while decoding image:', error);
     return;
@@ -87,18 +75,12 @@ async function cs3dThumbnail(
   }
 
   const { imageFrame, imageInfo } = decodeResult;
-  const pixelData = dicomCodec.getPixelData(
-    imageFrame,
-    imageInfo,
-    transferSyntaxUid
-  );
-  return staticCS.getRenderedBuffer(
-    transferSyntaxUid,
-    pixelData,
-    metadata,
-    doneCallback,
-    { quality: 0.6, width: 256, height: 256 }
-  );
+  const pixelData = dicomCodec.getPixelData(imageFrame, imageInfo, transferSyntaxUid);
+  return staticCS.getRenderedBuffer(transferSyntaxUid, pixelData, metadata, doneCallback, {
+    quality: 0.6,
+    width: 256,
+    height: 256,
+  });
 }
 
 class StaticWado {
@@ -146,9 +128,7 @@ class StaticWado {
       clearResults,
       setStudyData,
       rawDicomWriter: RawDicomWriter(this.options),
-      notificationService: new NotificationService(
-        this.options.notificationDir
-      ),
+      notificationService: new NotificationService(this.options.notificationDir),
       internalGenerateImage: cs3dThumbnail,
     };
   }
@@ -170,7 +150,7 @@ class StaticWado {
    * @param {string[]} args listing the studies to remove
    */
   async delete(args) {
-    args.forEach((studyUID) => this.callback.delete(studyUID));
+    args.forEach(studyUID => this.callback.delete(studyUID));
   }
 
   /**
@@ -184,12 +164,9 @@ class StaticWado {
   updateProgress() {
     if (!this.showProgress) return;
     this.processedFiles++;
-    const percentage = Math.round(
-      (this.processedFiles / this.totalFiles) * 100
-    );
+    const percentage = Math.round((this.processedFiles / this.totalFiles) * 100);
     const progressBar =
-      '='.repeat(Math.floor(percentage / 4)) +
-      '-'.repeat(25 - Math.floor(percentage / 4));
+      '='.repeat(Math.floor(percentage / 4)) + '-'.repeat(25 - Math.floor(percentage / 4));
     process.stdout.write(
       `\r[${progressBar}] ${percentage}% | ${this.processedFiles}/${this.totalFiles} files`
     );
@@ -203,7 +180,7 @@ class StaticWado {
           if (fs.statSync(file).isDirectory()) {
             const dirFiles = fs.readdirSync(file, { recursive: true });
             this.totalFiles += dirFiles.filter(
-              (f) => !fs.statSync(path.join(file, f)).isDirectory()
+              f => !fs.statSync(path.join(file, f)).isDirectory()
             ).length;
           } else {
             this.totalFiles++;
@@ -213,9 +190,7 @@ class StaticWado {
           this.callback.failure(
             'File not DICOM',
             {
-              FailedSOPSequence: [
-                { FailureReason: 0xd000, TextValue: 'File not DICOM' },
-              ],
+              FailedSOPSequence: [{ FailureReason: 0xd000, TextValue: 'File not DICOM' }],
             },
             file
           );
@@ -227,7 +202,7 @@ class StaticWado {
     let filesProcessed = 0;
     const result = await dirScanner(files, {
       ...params,
-      callback: async (file) => {
+      callback: async file => {
         try {
           const dicomp10stream = fs.createReadStream(file);
           await this.importBinaryDicom(dicomp10stream, { ...params, file });
@@ -303,11 +278,7 @@ class StaticWado {
       params.file
     );
 
-    const targetId = transcodeId(
-      id,
-      this.options,
-      dataSet.uint16(Tags.RawSamplesPerPixel)
-    );
+    const targetId = transcodeId(id, this.options, dataSet.uint16(Tags.RawSamplesPerPixel));
 
     let bulkDataIndex = 0;
     let imageFrameIndex = 0;
@@ -320,36 +291,21 @@ class StaticWado {
         // TODO - handle other types here too as single part rendered
         if (options?.mimeType === 'application/pdf') {
           console.verbose('Writing rendered mimeType', options.mimeType);
-          const writeStream = WriteStream(
-            id.sopInstanceRootPath,
-            'rendered.pdf',
-            {
-              gzip: false,
-              mkdir: true,
-            }
-          );
+          const writeStream = WriteStream(id.sopInstanceRootPath, 'rendered.pdf', {
+            gzip: false,
+            mkdir: true,
+          });
           await writeStream.write(bulkData);
           await writeStream.close();
         }
-        return this.callback.bulkdata(
-          targetId,
-          _bulkDataIndex,
-          bulkData,
-          options
-        );
+        return this.callback.bulkdata(targetId, _bulkDataIndex, bulkData, options);
       },
-      imageFrame: async (originalImageFrame) => {
+      imageFrame: async originalImageFrame => {
         const {
           imageFrame: transcodedImageFrame,
           decoded,
           id: transcodedId,
-        } = await transcodeImageFrame(
-          id,
-          targetId,
-          originalImageFrame,
-          dataSet,
-          this.options
-        );
+        } = await transcodeImageFrame(id, targetId, originalImageFrame, dataSet, this.options);
 
         const lossyImage = await generateLossyImage(id, decoded, this.options);
 
@@ -375,13 +331,9 @@ class StaticWado {
           this.options
         );
 
-        return this.callback.imageFrame(
-          transcodedId,
-          currentImageFrameIndex,
-          transcodedImageFrame
-        );
+        return this.callback.imageFrame(transcodedId, currentImageFrameIndex, transcodedImageFrame);
       },
-      videoWriter: async (_dataSet) => this.callback.videoWriter(id, _dataSet),
+      videoWriter: async _dataSet => this.callback.videoWriter(id, _dataSet),
     };
 
     // convert to DICOMweb MetaData and BulkData
@@ -423,13 +375,7 @@ class StaticWado {
     transferSyntaxUid,
     doneCallback
   ) {
-    return cs3dThumbnail(
-      originalImageFrame,
-      dataSet,
-      metadata,
-      transferSyntaxUid,
-      doneCallback
-    );
+    return cs3dThumbnail(originalImageFrame, dataSet, metadata, transferSyntaxUid, doneCallback);
   }
 
   /**
@@ -464,11 +410,7 @@ class StaticWado {
     const dirs = await fs.promises.readdir(studiesDir);
     const studies = [];
     for (const dir of dirs) {
-      const study = await JSONReader(
-        `${studiesDir}/${dir}`,
-        'index.json.gz',
-        null
-      );
+      const study = await JSONReader(`${studiesDir}/${dir}`, 'index.json.gz', null);
       if (study === null) {
         console.log('No study found in', dir);
         continue;

@@ -1,6 +1,6 @@
-import DeployGroup from "./DeployGroup.mjs";
-import fs from "fs";
-import { handleHomeRelative } from "@radicalimaging/static-wado-util";
+import DeployGroup from './DeployGroup.mjs';
+import fs from 'fs';
+import { handleHomeRelative } from '@radicalimaging/static-wado-util';
 
 export default async function uploadDeploy(directory, config, name, options, deployPlugin) {
   const deployer = new DeployGroup(config, name, options, deployPlugin);
@@ -8,24 +8,24 @@ export default async function uploadDeploy(directory, config, name, options, dep
 
   const contents = await deployer.dir(directory);
 
-  const results = await deployer.store(directory, "", contents);
+  const results = await deployer.store(directory, '', contents);
 
-  if( options.resultFile) {
-    fs.writeFileSync(options.resultFile, JSON.stringify(results,null,2));
-    console.noQuiet("Wrote results to", options.resultFile);
+  if (options.resultFile) {
+    fs.writeFileSync(options.resultFile, JSON.stringify(results, null, 2));
+    console.noQuiet('Wrote results to', options.resultFile);
   }
-  if( options.deleteSuccessful || options.deleteFailure ) {
+  if (options.deleteSuccessful || options.deleteFailure) {
     const rootDir = handleHomeRelative(config.rootDir);
-    for(const [key,value] of Object.entries(results) ) {
+    for (const [key, value] of Object.entries(results)) {
       const name = `${rootDir}/${key}`;
-      if( options.deleteSuccessful && value ) {
+      if (options.deleteSuccessful && value) {
         fs.unlinkSync(name);
       }
-      if( options.deleteFailure && !value ) {
+      if (options.deleteFailure && !value) {
         fs.unlinkSync(name);
       }
     }
   }
-  
+
   return results;
 }

@@ -1,8 +1,8 @@
-const dcmjsDimse = require("dcmjs-dimse");
-const dicomWebScpConfig = require("./dicomWebScpConfig");
-const DcmjsDimseScp = require("./DcmjsDimseScp");
-const loadPlugins = require("./loadPlugins");
-const configureProgram = require("./program");
+const dcmjsDimse = require('dcmjs-dimse');
+const dicomWebScpConfig = require('./dicomWebScpConfig');
+const DcmjsDimseScp = require('./DcmjsDimseScp');
+const loadPlugins = require('./loadPlugins');
+const configureProgram = require('./program');
 
 const { Server } = dcmjsDimse;
 

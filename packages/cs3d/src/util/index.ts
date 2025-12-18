@@ -1,4 +1,4 @@
-import * as imageFrameUtils from "./imageFrame"
-import assertArrayDivisibility from "./assertArrayDivisibility"
+import * as imageFrameUtils from './imageFrame';
+import assertArrayDivisibility from './assertArrayDivisibility';
 
-export { imageFrameUtils, assertArrayDivisibility }
+export { imageFrameUtils, assertArrayDivisibility };

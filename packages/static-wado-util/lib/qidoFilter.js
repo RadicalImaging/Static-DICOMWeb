@@ -1,11 +1,11 @@
 const filterKeys = {
-  studyinstanceuid: "0020000D",
-  patientname: "00100010",
-  patientid: "00100020",
-  studydescription: "00081030",
-  studydate: "00080020",
-  modalitiesinstudy: "00080061",
-  accessionnumber: "00080050",
+  studyinstanceuid: '0020000D',
+  patientname: '00100010',
+  patientid: '00100020',
+  studydescription: '00081030',
+  studydate: '00080020',
+  modalitiesinstudy: '00080061',
+  accessionnumber: '00080050',
 };
 
 /**
@@ -23,28 +23,25 @@ const filterKeys = {
 const compareValues = (desired, actualSrc) => {
   let actual = actualSrc;
   if (Array.isArray(desired)) {
-    return desired.find((item) => compareValues(item, actual));
+    return desired.find(item => compareValues(item, actual));
   }
   if (Array.isArray(actual)) {
-    return actual.find((actualItem) => compareValues(desired, actualItem));
+    return actual.find(actualItem => compareValues(desired, actualItem));
   }
   if (actual?.Alphabetic) {
     actual = actual.Alphabetic;
   }
-  if (typeof actual == "string") {
+  if (typeof actual == 'string') {
     if (actual.length === 0) return true;
-    if (desired.length === 0 || desired === "*") return true;
-    if (desired[0] === "*" && desired[desired.length - 1] === "*") {
+    if (desired.length === 0 || desired === '*') return true;
+    if (desired[0] === '*' && desired[desired.length - 1] === '*') {
       return actual.indexOf(desired.substring(1, desired.length - 1)) != -1;
     }
-    if (desired[desired.length - 1] === "*") {
+    if (desired[desired.length - 1] === '*') {
       return actual.indexOf(desired.substring(0, desired.length - 1)) != -1;
     }
-    if (desired[0] === "*") {
-      return (
-        actual.indexOf(desired.substring(1)) ===
-        actual.length - desired.length + 1
-      );
+    if (desired[0] === '*') {
+      return actual.indexOf(desired.substring(1)) === actual.length - desired.length + 1;
     }
   }
   return desired === actual;
@@ -53,7 +50,7 @@ const compareValues = (desired, actualSrc) => {
 /** Compares a pair of dates to see if the value is within the range */
 const compareDateRange = (range, value) => {
   if (!value) return true;
-  const dash = range.indexOf("-");
+  const dash = range.indexOf('-');
   if (dash === -1) return compareValues(range, value);
   const start = range.substring(0, dash);
   const end = range.substring(dash + 1);
@@ -83,7 +80,7 @@ const filterItem = (key, queryParams, study) => {
     // this only on known values
     return true;
   }
-  if (valueElem.vr == "DA") {
+  if (valueElem.vr == 'DA') {
     return compareDateRange(testValue, valueElem.Value[0]);
   }
   const value = valueElem.Value ?? valueElem;
@@ -91,7 +88,7 @@ const filterItem = (key, queryParams, study) => {
 };
 
 const qidoFilter = (list, queryParams) => {
-  const filtered = list.filter((item) => {
+  const filtered = list.filter(item => {
     for (const key of Object.keys(queryParams)) {
       if (!filterItem(key, queryParams, item)) return false;
     }

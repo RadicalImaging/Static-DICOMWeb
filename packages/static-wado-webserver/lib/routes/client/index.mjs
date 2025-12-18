@@ -1,4 +1,4 @@
-import setViewerRoutes from "./viewer.mjs";
+import setViewerRoutes from './viewer.mjs';
 
 /**
  * Set all app client routes.

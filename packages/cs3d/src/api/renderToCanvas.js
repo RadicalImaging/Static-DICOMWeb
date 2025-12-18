@@ -4,9 +4,9 @@
  * Value of each key property defines the canvas style object. But if its not a valid style property so it will just be ignored.
  */
 const DEFAULT_STYLES = {
-  textStyle: { font: "16px serif", fillStyle: "red" },
-  lineStyle: { strokeStyle: "black" },
-  pointStyle: { strokeStyle: "red", fillStyle: "red" },
+  textStyle: { font: '16px serif', fillStyle: 'red' },
+  lineStyle: { strokeStyle: 'black' },
+  pointStyle: { strokeStyle: 'red', fillStyle: 'red' },
 };
 
 function setContextProperty(ctx, property, value) {
@@ -16,10 +16,10 @@ function setContextProperty(ctx, property, value) {
 }
 
 function setContextStyles(ctx, styles, styleKeys) {
-  styleKeys.forEach((styleKey) => {
+  styleKeys.forEach(styleKey => {
     const styleObject = styles[styleKey];
     if (styleObject) {
-      Object.keys(styleObject).forEach((key) => {
+      Object.keys(styleObject).forEach(key => {
         setContextProperty(ctx, key, styleObject[key]);
       });
     }
@@ -30,11 +30,11 @@ function renderTextToCanvas(
   text,
   pos,
   size,
-  styles = { textStyle: DEFAULT_STYLES.textStyle },
+  styles = { textStyle: DEFAULT_STYLES.textStyle }
 ) {
   const [x, y] = pos;
-  const ctx = canvas.getContext("2d");
-  setContextStyles(ctx, styles, ["textStyle"]);
+  const ctx = canvas.getContext('2d');
+  setContextStyles(ctx, styles, ['textStyle']);
 
   const { width, height = 16 } = ctx.measureText(text);
   ctx.fillText(text, x, y);
@@ -49,15 +49,15 @@ function renderLinesToCanvas(
   canvas,
   points,
   size,
-  styles = { lineStyle: DEFAULT_STYLES.lineStyle },
+  styles = { lineStyle: DEFAULT_STYLES.lineStyle }
 ) {
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext('2d');
 
   if (!points.length || !ctx) {
     return;
   }
 
-  setContextStyles(ctx, styles, ["lineStyle"]);
+  setContextStyles(ctx, styles, ['lineStyle']);
 
   const [[x, y], ...rest] = points;
   ctx.beginPath();
@@ -75,15 +75,15 @@ function renderPointToCanvas(
   canvas,
   point,
   size,
-  styles = { pointSyle: DEFAULT_STYLES.pointStyle },
+  styles = { pointSyle: DEFAULT_STYLES.pointStyle }
 ) {
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext('2d');
 
   if (!point || !ctx) {
     return;
   }
 
-  setContextStyles(ctx, styles, ["pointStyle"]);
+  setContextStyles(ctx, styles, ['pointStyle']);
 
   const [x, y] = point;
   ctx.beginPath();
@@ -96,7 +96,7 @@ function renderHLineToCanvas(
   position,
   width,
   height,
-  styles = { lineStyle: DEFAULT_STYLES.lineStyle },
+  styles = { lineStyle: DEFAULT_STYLES.lineStyle }
 ) {
   const points = [
     [position[0], position[1]],
@@ -149,20 +149,20 @@ function renderPointsToCanvas(
   styles = {
     lineStyle: DEFAULT_STYLES.lineStyle,
     pointStyle: DEFAULT_STYLES.pointStyle,
-  },
+  }
 ) {
   points.forEach((point, index) => {
     const useStyles = { ...styles };
     // Grab indexed values to allow assigning each point a different style.
-    Object.keys(styles).forEach((key) => {
+    Object.keys(styles).forEach(key => {
       const value = styles[key];
       if (Array.isArray(value)) useStyles[key] = value[index % value.length];
     });
     switch (strategy) {
-      case "cross":
+      case 'cross':
         renderCross(canvas, point, size, useStyles);
         break;
-      case "semicross":
+      case 'semicross':
         renderSemiCross(canvas, point, size, useStyles);
         break;
       default:
@@ -179,31 +179,31 @@ function renderContentToCanvas(enabledElement, content, styles) {
 
   let result;
   switch (content.type) {
-    case "text":
+    case 'text':
       result = renderTextToCanvas(
         enabledElement.canvas,
         content.text,
         content.position,
         content.size,
-        styles,
+        styles
       );
       break;
-    case "hLine":
+    case 'hLine':
       result = renderHLineToCanvas(
         enabledElement.canvas,
         content.position,
         content.width,
         content.height * content.size,
-        styles,
+        styles
       );
       break;
-    case "points":
+    case 'points':
       result = renderPointsToCanvas(
         enabledElement.canvas,
         content.points,
         content.strategy,
         content.size,
-        styles,
+        styles
       );
       break;
     default:

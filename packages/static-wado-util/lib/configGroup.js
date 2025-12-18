@@ -5,8 +5,8 @@ function configGroup(config, name, options = {}) {
   if (!dir) {
     throw new Error(`Must supply configuration ${name}Dir in ${config}`);
   }
-  Object.defineProperty(group, "dir", { value: dir });
-  Object.defineProperty(group, "name", { value: name });
+  Object.defineProperty(group, 'dir', { value: dir });
+  Object.defineProperty(group, 'name', { value: name });
   if (!group.region) {
     // Set the region at the overall level
     group.region = config.region;

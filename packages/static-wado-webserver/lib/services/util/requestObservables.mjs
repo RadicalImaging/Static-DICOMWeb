@@ -1,6 +1,6 @@
-import dcmjsDimse from "dcmjs-dimse";
-import { fromEvent, map, takeUntil, race } from "rxjs";
-import requestFactory from "./requestFactory.mjs";
+import dcmjsDimse from 'dcmjs-dimse';
+import { fromEvent, map, takeUntil, race } from 'rxjs';
+import requestFactory from './requestFactory.mjs';
 
 const { Status } = dcmjsDimse.constants;
 
@@ -9,12 +9,12 @@ const { Status } = dcmjsDimse.constants;
  * Constants hardcoded from (private) dcmjs-dimse event names
  */
 const NET_EVENT_NAMES = {
-  CLOSED: "closed",
-  NETWORK_ERROR: "networkError",
+  CLOSED: 'closed',
+  NETWORK_ERROR: 'networkError',
 };
 
 const REQUEST_EVENT_NAMES = {
-  RESPONSE: "response",
+  RESPONSE: 'response',
 };
 
 /**
@@ -32,7 +32,9 @@ export function fromResponseEvent(serverOptions, requestProp, requestOptions) {
   const closed$ = fromEvent(clientEntity, NET_EVENT_NAMES.CLOSED);
   const networkError$ = fromEvent(clientEntity, NET_EVENT_NAMES.NETWORK_ERROR);
 
-  return fromEvent(requestEntity, REQUEST_EVENT_NAMES.RESPONSE).pipe(takeUntil(race(closed$, networkError$)));
+  return fromEvent(requestEntity, REQUEST_EVENT_NAMES.RESPONSE).pipe(
+    takeUntil(race(closed$, networkError$))
+  );
 }
 
 /**
@@ -45,9 +47,14 @@ export function fromResponseEvent(serverOptions, requestProp, requestOptions) {
  * @param {*} pipeOperations
  * @returns
  */
-export function createRequestResponseObservable(serverOptions, requestProp, requestOptions = {}, pipeOperations = []) {
+export function createRequestResponseObservable(
+  serverOptions,
+  requestProp,
+  requestOptions = {},
+  pipeOperations = []
+) {
   return fromResponseEvent(serverOptions, requestProp, requestOptions).pipe(
-    map((response) => ({
+    map(response => ({
       response,
       done: response.getStatus() === Status.Success,
     })),

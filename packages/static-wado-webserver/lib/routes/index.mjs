@@ -1,9 +1,9 @@
-import { handleHomeRelative } from "@radicalimaging/static-wado-util";
-import express from "express";
-import setServerRoutes from "./server/index.mjs";
-import setClientRoutes from "./client/index.mjs";
-import setProxy from "./proxy/index.mjs";
-import setPluginRoutes from "./plugins/index.mjs";
+import { handleHomeRelative } from '@radicalimaging/static-wado-util';
+import express from 'express';
+import setServerRoutes from './server/index.mjs';
+import setClientRoutes from './client/index.mjs';
+import setProxy from './proxy/index.mjs';
+import setPluginRoutes from './plugins/index.mjs';
 
 /**
  * Set all app routes.
@@ -15,13 +15,13 @@ export default async function setRoutes(appExpress, params) {
   const {
     rootDir: serverRootDir,
     clientDir: clientRootDir,
-    serverPath = "/dicomweb",
-    clientPath = "/",
+    serverPath = '/dicomweb',
+    clientPath = '/',
     hashStudyUidPath,
   } = params;
 
   if (!serverRootDir || !clientRootDir) {
-    console.log("Missing static files source directory");
+    console.log('Missing static files source directory');
     return;
   }
 
@@ -36,11 +36,11 @@ export default async function setRoutes(appExpress, params) {
   appExpress.use(clientPath, clientServer);
 
   // Adds the plugin routes, proxy routes and then server default routes
-  await setPluginRoutes(routerServer, params.rootGroup, "plugins");
+  await setPluginRoutes(routerServer, params.rootGroup, 'plugins');
   await setProxy(routerServer, params, serverDir);
   setServerRoutes(routerServer, params, serverDir, hashStudyUidPath);
 
   // set client routes, first plugin, then the default routes
-  await setPluginRoutes(clientServer, params.clientGroup, "plugins");
+  await setPluginRoutes(clientServer, params.clientGroup, 'plugins');
   setClientRoutes(clientServer, params, clientDir);
 }

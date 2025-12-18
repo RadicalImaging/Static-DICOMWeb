@@ -1,20 +1,20 @@
-import { createCanvas } from "canvas"
-import { utilities } from "@cornerstonejs/core"
-import { VOILUTFunctionType } from "@cornerstonejs/core/enums"
-import { JSDOM } from "jsdom"
+import { createCanvas } from 'canvas';
+import { utilities } from '@cornerstonejs/core';
+import { VOILUTFunctionType } from '@cornerstonejs/core/enums';
+import { JSDOM } from 'jsdom';
 
-const dom = new JSDOM(`<!DOCTYPE html>`, { pretendToBeVisual: true })
-global.window = dom.window
-global.document = window.document
+const dom = new JSDOM(`<!DOCTYPE html>`, { pretendToBeVisual: true });
+global.window = dom.window;
+global.document = window.document;
 
-const rows = 64
-const columns = 64
-const numberOfComponents = 1
+const rows = 64;
+const columns = 64;
+const numberOfComponents = 1;
 
-const bytePixelData = new Uint8Array(rows * columns * numberOfComponents)
+const bytePixelData = new Uint8Array(rows * columns * numberOfComponents);
 
 const image = {
-  imageId: "test:123",
+  imageId: 'test:123',
   isPreScaled: false,
   minPixelValue: 0,
   maxPixelValue: 255,
@@ -43,20 +43,17 @@ const image = {
     scalarData: bytePixelData,
     numberOfComponents,
   }),
-}
+};
 
 async function main() {
-  const canvas = createCanvas(rows, columns)
+  const canvas = createCanvas(rows, columns);
   for (let i = 0; i < rows * columns; i++) {
-    bytePixelData[i] = i % columns
+    bytePixelData[i] = i % columns;
   }
-  await utilities.renderToCanvasCPU(
-    canvas as unknown as HTMLCanvasElement,
-    image
-  )
-  console.log("canvas", canvas.toDataURL("image/png"))
+  await utilities.renderToCanvasCPU(canvas as unknown as HTMLCanvasElement, image);
+  console.log('canvas', canvas.toDataURL('image/png'));
 }
 
 main().then(() => {
-  console.log("Done converting")
-})
+  console.log('Done converting');
+});

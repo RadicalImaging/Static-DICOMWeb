@@ -1,10 +1,10 @@
-import ConfigPoint from "config-point";
-import { staticWadoConfig } from "@radicalimaging/static-wado-util";
-import uploadMain from "./uploadMain.js";
-import convertCurieMain from "./convertCurieMain.js";
-import leiMain from "./leiMain.js";
-import downloadCurieJobMain from "./downloadCurieJobMain.js";
-import indexCurieMain from "./indexCurieMain.js";
+import ConfigPoint from 'config-point';
+import { staticWadoConfig } from '@radicalimaging/static-wado-util';
+import uploadMain from './uploadMain.js';
+import convertCurieMain from './convertCurieMain.js';
+import leiMain from './leiMain.js';
+import downloadCurieJobMain from './downloadCurieJobMain.js';
+import indexCurieMain from './indexCurieMain.js';
 
 /**
  * Defines the basic configuration values for deploying to the cloud.
@@ -18,73 +18,74 @@ const { curieStoreConfig } = ConfigPoint.register({
 
     options: [
       {
-        key: "--dry-run",
-        description: "Do a dry run, without actually uploading (but DOES check remote existance if configured)",
+        key: '--dry-run',
+        description:
+          'Do a dry run, without actually uploading (but DOES check remote existance if configured)',
         defaultValue: false,
       },
       {
-        key: "-d, --deployments <listvalue...>",
-        description: "List of deployments from configuration to deploy to. Separated by space.",
+        key: '-d, --deployments <listvalue...>',
+        description: 'List of deployments from configuration to deploy to. Separated by space.',
         defaultValue: undefined,
       },
       {
-        key: "-v, --verbose",
-        description: "Write verbose output",
+        key: '-v, --verbose',
+        description: 'Write verbose output',
         defaultValue: false,
       },
       {
-        key: "-n, --name <name>",
-        description: "Specify the name of the output.",
+        key: '-n, --name <name>',
+        description: 'Specify the name of the output.',
       },
     ],
 
     programs: [
       {
-        command: "lei <dicomFiles>",
-        arguments: ["input"],
-        helpShort: "curiestore lei {dicomFiles}",
-        helpDescription: "Convert DICOM files to LEI, in preparation for upload",
+        command: 'lei <dicomFiles>',
+        arguments: ['input'],
+        helpShort: 'curiestore lei {dicomFiles}',
+        helpDescription: 'Convert DICOM files to LEI, in preparation for upload',
         isDefault: true,
         main: leiMain,
       },
       {
-        command: "upload <name>",
-        arguments: ["input"],
-        helpShort: "curiestore upload",
-        helpDescription: "Upload LEI converted studyUID to S3",
+        command: 'upload <name>',
+        arguments: ['input'],
+        helpShort: 'curiestore upload',
+        helpDescription: 'Upload LEI converted studyUID to S3',
         main: uploadMain,
       },
       {
-        command: "convert <input>",
-        arguments: ["input"],
-        helpShort: "curiestore convert {studyUID}",
-        helpDescription: "Convert the curie stored data",
+        command: 'convert <input>',
+        arguments: ['input'],
+        helpShort: 'curiestore convert {studyUID}',
+        helpDescription: 'Convert the curie stored data',
         main: convertCurieMain,
         options: [
           {
-            key: "-j, --jobName <jobName>",
-            description: "Sets the job name",
+            key: '-j, --jobName <jobName>',
+            description: 'Sets the job name',
           },
         ],
       },
       {
-        command: "download <input>",
-        helpShort: "curiestore download {jobName/ID}",
-        helpDescription: "Download the given jobID results into <dicomDir>/studies/<studyUID>/...",
+        command: 'download <input>',
+        helpShort: 'curiestore download {jobName/ID}',
+        helpDescription: 'Download the given jobID results into <dicomDir>/studies/<studyUID>/...',
         main: downloadCurieJobMain,
         options: [
           {
-            key: "-i, --download-images",
-            description: "Include images in the download",
+            key: '-i, --download-images',
+            description: 'Include images in the download',
             defaultValue: false,
           },
         ],
       },
 
       {
-        command: "index",
-        helpShort: "curiestore index {jobName/ID}",
-        helpDescription: "Create an index of the locally downloaded data",
+        command: 'index',
+        helpShort: 'curiestore index {jobName/ID}',
+        helpDescription: 'Create an index of the locally downloaded data',
         main: indexCurieMain,
       },
 

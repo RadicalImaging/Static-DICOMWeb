@@ -14,21 +14,32 @@ import getResponseHeadersPolicy from './getResponseHeadersPolicy.js';
  * The site redirects from HTTP to HTTPS, using a CloudFront distribution,
  * Route53 alias record, and ACM certificate.
  */
-const clientSite = function (site: Construct, name: string, cloudfrontOAI: cloudfront.OriginAccessIdentity, props: any) {
+const clientSite = function (
+  site: Construct,
+  name: string,
+  cloudfrontOAI: cloudfront.OriginAccessIdentity,
+  props: any
+) {
   const { Bucket: ohifName } = props;
 
   // Content bucket
-  const ohifBucket = getBucket(site, ohifName, props);;
+  const ohifBucket = getBucket(site, ohifName, props);
   new CfnOutput(site, 'OHIF BucketURL', { value: ohifBucket.bucketWebsiteUrl });
 
   // Grant access to cloudfront
-  ohifBucket.addToResourcePolicy(new iam.PolicyStatement({
-    actions: ['s3:GetObject'],
-    resources: [ohifBucket.arnForObjects('*')],
-    principals: [new iam.CanonicalUserPrincipal(cloudfrontOAI.cloudFrontOriginAccessIdentityS3CanonicalUserId)]
-  }));
+  ohifBucket.addToResourcePolicy(
+    new iam.PolicyStatement({
+      actions: ['s3:GetObject'],
+      resources: [ohifBucket.arnForObjects('*')],
+      principals: [
+        new iam.CanonicalUserPrincipal(
+          cloudfrontOAI.cloudFrontOriginAccessIdentityS3CanonicalUserId
+        ),
+      ],
+    })
+  );
 
-  const responseHeadersPolicy = getResponseHeadersPolicy(site,name,props);
+  const responseHeadersPolicy = getResponseHeadersPolicy(site, name, props);
 
   const rewriteFunction = new Function(site, `${name}-rf`, {
     code: FunctionCode.fromInline(`
@@ -40,8 +51,7 @@ const clientSite = function (site: Construct, name: string, cloudfrontOAI: cloud
         } 
     
         return request;
-      }`
-    )
+      }`),
   });
 
   return {
@@ -52,9 +62,9 @@ const clientSite = function (site: Construct, name: string, cloudfrontOAI: cloud
       {
         function: rewriteFunction,
         eventType: FunctionEventType.VIEWER_REQUEST,
-      }
+      },
     ],
   };
-}
+};
 
 export default clientSite;

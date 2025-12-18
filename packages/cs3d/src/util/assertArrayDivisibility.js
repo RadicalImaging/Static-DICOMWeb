@@ -1,4 +1,4 @@
-const assert = require("assert").strict;
+const assert = require('assert').strict;
 
 function assertArrayDivisibility(array, divisor, errorMessages = []) {
   const [errorArrayMessage, errorDivisorMessage] = errorMessages;

@@ -1,5 +1,5 @@
 const assignDefined = (dest, src) => {
-  Object.keys(src).forEach((key) => {
+  Object.keys(src).forEach(key => {
     const val = src[key];
     if (val !== undefined) {
       dest[key] = val;
@@ -34,6 +34,6 @@ module.exports = function adaptProgramOpts(programOpts, defaults) {
       encapsulatedImage: encapsulatedImage ?? singlePartImage !== true,
       singlePartImage: singlePartImage ?? encapsulatedImage === false,
       delete: deleteInstances,
-    },
+    }
   );
 };

@@ -4,10 +4,10 @@
  */
 export function defaultNotFoundController(req, res, next) {
   console.log(
-    "Not found",
+    'Not found',
     req.params.studyUID,
     req.staticWadoPath,
-    req.path === req.staticWadoPath ? "" : `Was ${req.path}`
+    req.path === req.staticWadoPath ? '' : `Was ${req.path}`
   );
 
   res

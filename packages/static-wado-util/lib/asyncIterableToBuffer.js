@@ -1,31 +1,31 @@
-const { Stats } = require("./stats");
+const { Stats } = require('./stats');
 /* eslint "no-param-reassign": "off" */
 
 const handler = {
   get(obj, key) {
-    const isSymbol = typeof key == "symbol";
+    const isSymbol = typeof key == 'symbol';
     const ikey = isSymbol || parseInt(key);
     if (ikey == key) return obj.index_get(ikey);
     const handlerFunc = handler[key];
-    if (handlerFunc && key != "get") return handlerFunc(obj, key);
+    if (handlerFunc && key != 'get') return handlerFunc(obj, key);
     if (!obj._keys[key]) {
-      console.log("New call to", key);
+      console.log('New call to', key);
       obj._keys[key] = true;
     }
     return obj[key];
   },
 
-  length: (obj) => obj.combinedLength,
-  byteLength: (obj) => obj.combinedLength,
+  length: obj => obj.combinedLength,
+  byteLength: obj => obj.combinedLength,
 };
 
 const StreamingFunctions = {
   addChunks(chunks) {
     if (!this.chunks) this.chunks = [];
-    chunks.forEach((chunk) => this.chunks.push(chunk));
+    chunks.forEach(chunk => this.chunks.push(chunk));
     this.combinedLength = 0;
     let i = 0;
-    this.chunks.forEach((chunk) => {
+    this.chunks.forEach(chunk => {
       chunk.start = this.combinedLength;
       chunk.i = i;
       i += 1;
@@ -36,8 +36,7 @@ const StreamingFunctions = {
 
   index_get(ikey) {
     const found = this.findChunk(ikey);
-    if (!found)
-      throw Error(`index ${ikey} not found between 0..${this.combinedLength}`);
+    if (!found) throw Error(`index ${ikey} not found between 0..${this.combinedLength}`);
     return found[ikey - found.start];
   },
 
@@ -80,8 +79,7 @@ const StreamingFunctions = {
    */
   copy(target, targetStart = 0, srcStart = 0, srcEnd = 0) {
     const { length } = target;
-    const srcLength =
-      (srcEnd === undefined && Math.min(this.length, srcEnd)) || this.length;
+    const srcLength = (srcEnd === undefined && Math.min(this.length, srcEnd)) || this.length;
     const copied = 0;
     while (targetStart < length && srcStart < srcLength) {
       target[targetStart] = this[srcStart];
@@ -94,27 +92,23 @@ const StreamingFunctions = {
   _keys: { then: true, lastChunk: true, chunks: true },
 };
 
-Object.keys(StreamingFunctions).forEach((key) => {
+Object.keys(StreamingFunctions).forEach(key => {
   StreamingFunctions._keys[key] = true;
 });
 
-const StreamingBuffer = (chunks) => {
-  const buf = Buffer.from("NotUsed");
+const StreamingBuffer = chunks => {
+  const buf = Buffer.from('NotUsed');
   Object.assign(buf, StreamingFunctions);
   buf.addChunks(chunks);
   return new Proxy(buf, handler);
 };
 
-const asyncIteratorToBuffer = async (readable) => {
+const asyncIteratorToBuffer = async readable => {
   if (ArrayBuffer.isView(readable)) return readable;
   const chunks = [];
   for await (const chunk of readable) {
     chunks.push(chunk);
-    Stats.BufferStats.add(
-      "Read Async",
-      `Read async buffer ${chunks.length}`,
-      65536,
-    );
+    Stats.BufferStats.add('Read Async', `Read async buffer ${chunks.length}`, 65536);
   }
   Stats.BufferStats.reset();
   return StreamingBuffer(chunks);

@@ -1,4 +1,4 @@
-import dcmjsDimse from "dcmjs-dimse";
+import dcmjsDimse from 'dcmjs-dimse';
 
 const { Client } = dcmjsDimse;
 

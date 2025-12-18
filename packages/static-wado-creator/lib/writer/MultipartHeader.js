@@ -1,4 +1,4 @@
-const MultipartAttribute = require("./MultipartAttribute");
+const MultipartAttribute = require('./MultipartAttribute');
 
 class MultipartHeader {
   constructor(headerName, headerValue, attributes = []) {
