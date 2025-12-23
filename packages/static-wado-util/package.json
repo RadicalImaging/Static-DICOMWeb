@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-util",
-  "version": "1.6.10",
+  "version": "1.6.11",
   "description": "Utils for other packages.",
   "publishConfig": {
     "access": "public"
