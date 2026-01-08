@@ -62,15 +62,18 @@ bun link:exec
 There are scripts in the root package to create a new docker deployment and to run it linking ports 25080 and 25104 to the DICOMweb and SCP endpoint. To create/start this, run:
 
 ```bash
-yarn docker:build
-yarn docker:run
+bun docker:build
+bun docker:run
 ```
 
-After this is running, you can use the `mkdicomweb create <DICMFILES>` to store to the dicomwebserver, and query
-against `http://localhost:25080/dicomweb/studies`. You should store to `/dicomweb` or you can run some specific commands to store to the system:
+This will drop you into a bash shell and you can run mkdicomweb create or other
+commands such as dicomwebserver to convert dicom data.  The /dicom directory
+will have been mounted from `/a/dicom` as an available mount point.
+
+You can then run the dicom websererver using:
 
 ```bash
-bun docker:run
+bun docker:dicomwebserver
 ```
 
 Another option is to use the [dcm4che](https://sourceforge.net/projects/dcm4che/files/dcm4che3/5.33.1/) stowrs command, like this:
