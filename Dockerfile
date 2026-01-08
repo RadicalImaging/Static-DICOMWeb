@@ -2,7 +2,7 @@
 FROM node:24 as builder
 ENV PATH /app/node_modules/.bin:$PATH
 # Install global tools
-RUN npm install -g lerna@8.2.4 bun@1.2.19
+RUN npm install -g lerna@8.2.4 bun@1.3.5
 
 # Setup workdir
 WORKDIR /app
@@ -24,7 +24,7 @@ RUN bun run build && bun run pack:js
 FROM node:24 as installer
 
 # Install minimal global tools
-RUN npm install -g bun@1.2.19 commander@10.0.1
+RUN npm install -g bun@1.3.5 commander@10.0.1
 
 # Setup workdir and PATH
 WORKDIR /app
@@ -50,7 +50,7 @@ RUN npm install \
 
 ############## Copy the installation locally for minimal size service
 
-FROM oven/bun as dicomwebserver
+FROM oven/bun:1.3.5 as dicomwebserver
 
 # Setup workdir and PATH
 RUN mkdir /app
