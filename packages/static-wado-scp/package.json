@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-scp",
-  "version": "1.6.11",
+  "version": "1.6.12",
   "description": "DimseScp server to connect to static-wado repo",
   "publishConfig": {
     "access": "public"
