@@ -28,6 +28,7 @@
   },
   "resolutions": {
     "@cornerstonejs/codec-openjph": ">=2.4.5",
+    "@cornerstonejs/metadata": "link:@cornerstonejs/metadata",
     "canvas": "3.1.0"
   },
   "workspaces": [
