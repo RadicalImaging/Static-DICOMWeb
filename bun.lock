@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "static-dicomweb",
@@ -25,13 +26,34 @@
         "webpack-cli": "^5.1.4",
       },
     },
+    "packages/create-dicomweb": {
+      "name": "@radicalimaging/create-dicomweb",
+      "version": "1.6.12",
+      "bin": {
+        "createdicomweb": "bin/createdicomweb.mjs",
+      },
+      "dependencies": {
+        "@radicalimaging/cs3d": ">=1.6.1",
+        "@radicalimaging/static-wado-util": ">=1.6.1",
+        "canvas": ">=3.1.0",
+        "config-point": ">=0.5.1",
+        "dcmjs": "0.47.1",
+        "dicom-parser": "^1.8.13",
+        "glob": "^11.0.0",
+        "node-object-hash": "^3.0.0",
+        "uuid": "^11.0.2",
+      },
+      "devDependencies": {
+        "must": "^0.13.4",
+      },
+    },
     "packages/cs3d": {
       "name": "@radicalimaging/cs3d",
-      "version": "1.6.10",
+      "version": "1.6.12",
       "dependencies": {
         "@cornerstonejs/core": "4.14.5",
         "canvas": "3.1.0",
-        "dcmjs": "0.35.0",
+        "dcmjs": "0.47.1",
         "jsdom": "^26.0.0",
         "jsdom-context-require": "^5.2.4",
       },
@@ -52,7 +74,7 @@
         "@radicalimaging/static-wado-util": "^1.5.0",
         "config-point": ">=0.5.1",
         "cross-env": "^7.0.3",
-        "dcmjs": "0.35.0",
+        "dcmjs": "0.47.1",
         "dicom-parser": "^1.8.13",
       },
       "devDependencies": {
@@ -62,7 +84,7 @@
     },
     "packages/s3-deploy": {
       "name": "@radicalimaging/s3-deploy",
-      "version": "1.6.10",
+      "version": "1.6.12",
       "dependencies": {
         "@aws-sdk/client-s3": "^3.374.0",
         "@aws-sdk/lib-storage": "^3.862.0",
@@ -79,7 +101,7 @@
     },
     "packages/static-wado-creator": {
       "name": "@radicalimaging/static-wado-creator",
-      "version": "1.6.10",
+      "version": "1.6.12",
       "bin": {
         "mkdicomweb": "bin/mkdicomweb.mjs",
       },
@@ -88,7 +110,7 @@
         "@radicalimaging/static-wado-util": ">=1.6.1",
         "canvas": ">=3.1.0",
         "config-point": ">=0.5.1",
-        "dcmjs": "0.35.0",
+        "dcmjs": "0.47.1",
         "dicom-parser": "^1.8.13",
         "glob": "^11.0.0",
         "node-object-hash": "^3.0.0",
@@ -100,7 +122,7 @@
     },
     "packages/static-wado-deploy": {
       "name": "@radicalimaging/static-wado-deploy",
-      "version": "1.6.10",
+      "version": "1.6.12",
       "bin": {
         "deploydicomweb": "bin/deploydicomweb.mjs",
       },
@@ -117,7 +139,7 @@
     },
     "packages/static-wado-plugins": {
       "name": "@radicalimaging/static-wado-plugins",
-      "version": "1.6.10",
+      "version": "1.6.12",
       "dependencies": {
         "@radicalimaging/static-wado-util": "^1.5.0",
         "config-point": ">=0.5.1",
@@ -130,7 +152,7 @@
     },
     "packages/static-wado-scp": {
       "name": "@radicalimaging/static-wado-scp",
-      "version": "1.6.10",
+      "version": "1.6.12",
       "bin": {
         "dicomwebscp": "bin/dicomwebscp.js",
       },
@@ -139,7 +161,7 @@
         "@radicalimaging/static-wado-plugins": "^1.5.0",
         "@radicalimaging/static-wado-util": "^1.5.0",
         "config-point": ">=0.5.1",
-        "dcmjs": "0.35.0",
+        "dcmjs": "0.47.1",
         "dcmjs-dimse": "^0.1.30",
       },
       "devDependencies": {
@@ -148,14 +170,14 @@
     },
     "packages/static-wado-util": {
       "name": "@radicalimaging/static-wado-util",
-      "version": "1.6.10",
+      "version": "1.6.12",
       "dependencies": {
         "@cornerstonejs/codec-openjpeg": ">=1.2.3",
         "@cornerstonejs/codec-openjph": ">=2.4.5",
         "@cornerstonejs/dicom-codec": ">=1.0.5",
         "commander": "^10.0.0",
         "config-point": ">=0.5.1",
-        "dcmjs": "0.35.0",
+        "dcmjs": "0.47.1",
         "imurmurhash": "^0.1.4",
         "jpeg-lossless-decoder-js": ">=2.0.4",
         "json5": "^2.2.1",
@@ -167,17 +189,17 @@
     },
     "packages/static-wado-webserver": {
       "name": "@radicalimaging/static-wado-webserver",
-      "version": "1.6.10",
+      "version": "1.6.12",
       "bin": {
         "dicomwebserver": "bin/dicomwebserver.mjs",
         "dicomwebserverBun": "bin/dicomwebserverBun.mjs",
       },
       "dependencies": {
         "@radicalimaging/static-wado-plugins": ">=1.5.0",
-        "@radicalimaging/static-wado-util": ">=1.5.0",
+        "@radicalimaging/static-wado-util": ">=1.6.8",
         "config-point": ">=0.5.1",
         "cors": "^2.8.5",
-        "dcmjs": "0.35.0",
+        "dcmjs": "0.47.1",
         "dcmjs-dimse": "^0.1.30",
         "express": "^4.18.2",
         "formidable": "^3.5.4",
@@ -774,6 +796,8 @@
 
     "@pkgr/core": ["@pkgr/core@0.2.1", "", {}, "sha512-VzgHzGblFmUeBmmrk55zPyrQIArQN4vujc9shWytaPdB3P7qhi0cpaiKIr7tlCmFv2lYUwnLospIqjL9ZSAhhg=="],
 
+    "@radicalimaging/create-dicomweb": ["@radicalimaging/create-dicomweb@workspace:packages/create-dicomweb"],
+
     "@radicalimaging/cs3d": ["@radicalimaging/cs3d@workspace:packages/cs3d"],
 
     "@radicalimaging/healthlakestore": ["@radicalimaging/healthlakestore@workspace:packages/healthlake"],
@@ -1308,7 +1332,7 @@
 
     "dateformat": ["dateformat@3.0.3", "", {}, "sha512-jyCETtSl3VMZMWeRo7iY1FL19ges1t55hMo5yaam4Jrsm5EPL89UQkoQRyiI+Yf4k8r2ZpdngkV8hr1lIdjb3Q=="],
 
-    "dcmjs": ["dcmjs@0.35.0", "", { "dependencies": { "@babel/runtime-corejs3": "^7.22.5", "adm-zip": "^0.5.10", "gl-matrix": "^3.1.0", "lodash.clonedeep": "^4.5.0", "loglevel": "^1.8.1", "ndarray": "^1.0.19", "pako": "^2.0.4" } }, "sha512-kKOX4y0XoSQsDx7xYh9HJLfAWizrvYNJPU/d+DGOehdGz1frvimBZDEL0iaCK46Lhy7amAmtv4g5hkjcxVF+kg=="],
+    "dcmjs": ["dcmjs@0.47.1", "", { "dependencies": { "@babel/runtime-corejs3": "^7.22.5", "adm-zip": "^0.5.10", "gl-matrix": "^3.1.0", "lodash.clonedeep": "^4.5.0", "loglevel": "^1.8.1", "ndarray": "^1.0.19", "pako": "^2.0.4" } }, "sha512-ZpsF4c2+Gcdg2bNkDJY470EkaoHiOEfl6uH1uw2M88JUSrSf73gaNNMv1RuS+zKTw/695iDkueRyNU5OUsUanQ=="],
 
     "dcmjs-dimse": ["dcmjs-dimse@0.1.31", "", { "dependencies": { "async-eventemitter": "^0.2.4", "dcmjs": "^0.38.1", "smart-buffer": "^4.2.0", "ts-mixer": "^6.0.4", "winston": "^3.17.0" } }, "sha512-77rTn3LpZCVyA4a3fCVcXVGVh9FjcJtCZScYhi1l/U0fPMGScVSagEGCEdtakmgZT0CM3aPRgFM38MxMw8fz3Q=="],
 
