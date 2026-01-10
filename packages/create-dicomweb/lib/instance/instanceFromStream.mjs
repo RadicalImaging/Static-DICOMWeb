@@ -1,5 +1,5 @@
 import { async, utilities } from 'dcmjs';
-import { writeMultipartFramesFilter } from './writeMultipartFramesFilter.js';
+import { writeMultipartFramesFilter } from './writeMultipartFramesFilter.mjs';
 
 const { AsyncDicomReader } = async;
 const { DicomMetadataListener } = utilities;

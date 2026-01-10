@@ -1,5 +1,5 @@
 import fs from "fs";
-import { instanceFromStream } from '../instance/instanceFromStream';
+import { instanceFromStream } from '../instance/instanceFromStream.mjs';
 
 export async function instanceMain(fileNames, options) {
     for(const fileName of fileNames) {

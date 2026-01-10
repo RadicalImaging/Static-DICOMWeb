@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { Command } from 'commander';
-import { instanceMain } from '../lib';
+import { instanceMain } from '../lib/index.mjs';
 
 const program = new Command();
 

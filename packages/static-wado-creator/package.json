@@ -48,7 +48,7 @@
   "scripts": {
     "test": "jest --config ./jest.config.js",
     "build": "bun run build:esm",
-    "build:esm": "bun build lib/index.js --target node --outdir dist --",
+    "build:esm": "bun build lib/index.mjs --target node --outdir dist --",
     "clean": "rimraf dist",
     "link:exec": "npm install -g && npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",

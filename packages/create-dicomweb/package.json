@@ -61,7 +61,7 @@
     "must": "^0.13.4"
   },
   "scripts": {
-    "test": "bun jest --config ./jest.config.js",
+    "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --config ./jest.config.js",
     "build": "bun run build:esm",
     "build:esm": "bun build lib/index.mjs --target node --outdir dist --",
     "clean": "rimraf dist",
