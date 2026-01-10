@@ -1,7 +1,7 @@
 {
-  "name": "@radicalimaging/static-wado-creator",
+  "name": "@radicalimaging/create-dicomweb",
   "version": "1.6.12",
-  "description": "Library to convert DICOMP10 to DICOMweb format. Original upstream: https://github.com/chafey/dicomp10-to-dicomweb-js",
+  "description": "Library to convert part 10 to DICOMweb file format using the streaming dcmjs parser",
   "publishConfig": {
     "access": "public"
   },
@@ -11,10 +11,6 @@
     "DICOMweb"
   ],
   "author": "Bill Wallace <bill.wallace@radicalimaging.com>",
-  "contributors": [
-    "Chris Hafey <chafey@gmail.com>",
-    "Rodolfo Costa <rodolfo.costa@radicalimaging.com>"
-  ],
   "engines": {
     "node": ">=14.18.1",
     "npm": ">=6.14.15",
@@ -23,7 +19,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/radicalimaging/static-dicomweb",
-    "directory": "packages/static-wado-creator"
+    "directory": "packages/create-dicomweb"
   },
   "bugs": {
     "url": "https://github.com/radicalimaging/static-dicomweb/issues"
@@ -43,19 +39,7 @@
     "lib"
   ],
   "bin": {
-    "mkdicomweb": "bin/mkdicomweb.mjs"
-  },
-  "scripts": {
-    "test": "jest --config ./jest.config.js",
-    "build": "bun run build:esm",
-    "build:esm": "bun build lib/index.mjs --target node --outdir dist --",
-    "clean": "rimraf dist",
-    "link:exec": "npm install -g && npm link",
-    "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
-    "mkdicomweb": "bun bin/mkdicomwebDev.mjs --",
-    "pack:js": "npm pack --",
-    "publishJS": "yarn publish  --no-git-tag-version",
-    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
+    "createdicomweb": "bin/createdicomweb.mjs"
   },
   "jest": {
     "verbose": true
@@ -63,6 +47,8 @@
   "dependencies": {
     "@radicalimaging/cs3d": ">=1.6.1",
     "@radicalimaging/static-wado-util": ">=1.6.1",
+    "@radicalimaging/static-wado-creator": ">=1.6.1",
+    "@cornerstonejs/metadata": ">=4.15.5",
     "canvas": ">=3.1.0",
     "config-point": ">=0.5.1",
     "dcmjs": "0.47.1",
@@ -73,5 +59,17 @@
   },
   "devDependencies": {
     "must": "^0.13.4"
+  },
+  "scripts": {
+    "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --config ./jest.config.js",
+    "build": "bun run build:esm",
+    "build:esm": "bun build lib/index.mjs --target node --outdir dist --",
+    "clean": "rimraf dist",
+    "link:exec": "npm install -g && npm link",
+    "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
+    "createdicomweb": "bun bin/createdicomweb.mjs --",
+    "pack:js": "npm pack --",
+    "publishJS": "yarn publish  --no-git-tag-version",
+    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
   }
 }

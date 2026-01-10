@@ -1,7 +1,7 @@
 import { utilities } from '@cornerstonejs/core';
 import { IImage } from '@cornerstonejs/core/types';
 import { VOILUTFunctionType } from '@cornerstonejs/core/enums';
-import dcmjs from 'dcmjs';
+import * as dcmjs from 'dcmjs';
 import { imageFrameUtils } from '../util';
 
 /**
@@ -22,6 +22,7 @@ export function createImage(
   canvas,
   options = { convertFloatPixelDataToInt: null, targetBuffer: null }
 ): IImage {
+  // @ts-ignore
   const dataSet = dcmjs.data.DicomMetaDictionary.naturalizeDataset(
     JSON.parse(JSON.stringify(metadata))
   );

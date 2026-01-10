@@ -60,7 +60,7 @@
     "@radicalimaging/static-wado-util": ">=1.6.8",
     "config-point": ">=0.5.1",
     "cors": "^2.8.5",
-    "dcmjs": "0.35.0",
+    "dcmjs": "0.47.1",
     "dcmjs-dimse": "^0.1.30",
     "express": "^4.18.2",
     "formidable": "^3.5.4",

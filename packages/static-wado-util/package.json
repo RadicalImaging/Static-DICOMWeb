@@ -43,14 +43,14 @@
     "@cornerstonejs/dicom-codec": ">=1.0.5",
     "commander": "^10.0.0",
     "config-point": ">=0.5.1",
-    "dcmjs": "0.35.0",
+    "dcmjs": "0.47.1",
     "imurmurhash": "^0.1.4",
     "jpeg-lossless-decoder-js": ">=2.0.4",
     "json5": "^2.2.1",
     "must": "^0.13.4"
   },
   "scripts": {
-    "test": "jest --config ./jest.config.js",
+    "test": "jest --config ./jest.config.mjs",
     "build": "bun run build:esm",
     "build:esm": "bun build lib/index.ts --format esm --outdir dist --target node",
     "clean": "rimraf dist",
