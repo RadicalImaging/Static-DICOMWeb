@@ -1,7 +1,6 @@
 {
   "name": "@radicalimaging/create-dicomweb",
   "version": "1.6.12",
-  "type": "module",
   "description": "Library to convert part 10 to DICOMweb file format using the streaming dcmjs parser",
   "publishConfig": {
     "access": "public"
@@ -48,6 +47,7 @@
   "dependencies": {
     "@radicalimaging/cs3d": ">=1.6.1",
     "@radicalimaging/static-wado-util": ">=1.6.1",
+    "@radicalimaging/static-wado-creator": ">=1.6.1",
     "@cornerstonejs/metadata": ">=4.15.5",
     "canvas": ">=3.1.0",
     "config-point": ">=0.5.1",
@@ -61,9 +61,9 @@
     "must": "^0.13.4"
   },
   "scripts": {
-    "test": "jest --config ./jest.config.js",
+    "test": "bun jest --config ./jest.config.js",
     "build": "bun run build:esm",
-    "build:esm": "bun build lib/index.js --target node --outdir dist --",
+    "build:esm": "bun build lib/index.mjs --target node --outdir dist --",
     "clean": "rimraf dist",
     "link:exec": "npm install -g && npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
