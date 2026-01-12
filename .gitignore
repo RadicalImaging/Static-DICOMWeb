@@ -4,6 +4,8 @@ package-lock.json
 **/package-lock.json
 .DS_Store
 tmp/
+.cursorrules
+*.cmd
 
 # Logs
 logs
