@@ -1,6 +1,6 @@
 import must from "must";
 
-import { plugins } from "../../lib/index.js";
+import { plugins } from '../../lib/index.mjs';
 
 describe("@radicalimaging/static-wado-plugins", () => {
   beforeAll(() => import(plugins.readSeriesIndex));

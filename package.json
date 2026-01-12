@@ -9,6 +9,7 @@
     "@babel/core": "^7.26.0",
     "@babel/eslint-parser": "^7.25.9",
     "@babel/plugin-transform-class-properties": "^7.25.9",
+    "@babel/plugin-transform-class-static-block": "^7.28.3",
     "@babel/plugin-transform-modules-commonjs": "^7.16.8",
     "@babel/preset-env": "^7.16.11",
     "eslint": "^9.14.0",
