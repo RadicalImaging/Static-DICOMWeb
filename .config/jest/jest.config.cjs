@@ -1,7 +1,8 @@
-// https://github.com/facebook/jest/issues/3613
-// Yarn Doctor: `npx @yarnpkg/doctor .` -->
-// '<rootDir>' warning:
-// Strings should avoid referencing the node_modules directory (prefer require.resolve)
+const path = require('path');
+
+const packageRoot = path.resolve(process.cwd());
+const parentPackageRoot = path.resolve(__dirname, '../../');
+const configRoot = path.join(parentPackageRoot, '/.config/jest');
 
 module.exports = {
   // roots: ['<rootDir>/src'],
@@ -34,4 +35,8 @@ module.exports = {
     '!**/__tests__/**',
     '!<rootDir>/dist/**',
   ],
+  globals: {
+    TEST_DATA_PATH: path.join(parentPackageRoot, '/testdata'),
+    OUTPUT_TEMP_PATH: path.join(packageRoot, '/tmp/dicomweb'),
+  },
 };

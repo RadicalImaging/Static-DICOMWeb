@@ -1,6 +1,7 @@
 const { loadFile } = require('config-point');
 const fs = require('fs');
 const handleHomeRelative = require('./handleHomeRelative');
+const path = require('path');
 
 const getConfigurationFile = (args, defValue) => {
   for (let i = 1; i < args.length - 1; i++) {
@@ -27,8 +28,8 @@ module.exports = (defaults, argvSrc) => {
   ];
   for (const configFile of configurationFiles) {
     const filename = handleHomeRelative(configFile);
+    console.warn('filename=', filename, path.resolve(filename));
     if (fs.existsSync(filename)) {
-      // console.log("Using configuration", filename);
       return loadFile(filename, fs.promises).then(() => filename);
     }
   }
