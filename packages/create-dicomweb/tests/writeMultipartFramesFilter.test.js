@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { instanceFromStream } = require('../dist/instance/instanceFromStream.js');
+const { instanceFromStream } = require('../dist/index.js');
 
 describe('writeMultipartFramesFilter', () => {
   test('should parse jpeg8bit.dcm and write 96 frames', async () => {
