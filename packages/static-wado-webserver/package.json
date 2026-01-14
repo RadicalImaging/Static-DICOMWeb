@@ -49,7 +49,7 @@
     "test": "jest --config ./jest.config.js",
     "build": "bun run build:esm",
     "build:esm": "bun build lib/index.mjs --target node --outdir dist --",
-    "link:exec": "npm install -g && npm link",
+    "link:exec": "bun link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
     "pack:js": "npm pack --",
