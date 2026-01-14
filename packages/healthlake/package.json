@@ -1,6 +1,5 @@
 {
   "name": "@radicalimaging/healthlakestore",
-  "type": "module",
   "version": "1.6.5",
   "description": "Tool to upload Part 10 DICOM to Curie and download the result into static-dicomweb",
   "publishConfig": {
@@ -45,7 +44,7 @@
     "dev:dicom-pdf": "yarn run dev",
     "link:exec": "npm install -g && npm link",
     "build": "echo disabled for now due to dependency issues",
-    "test": "jest --config ./jest.config.js",
+    "test": "jest --config ./jest.config.js --passWithNoTests",
     "build:package": "yarn run build",
     "start": "yarn run dev"
   },

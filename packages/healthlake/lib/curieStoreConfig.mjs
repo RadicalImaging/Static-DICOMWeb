@@ -1,10 +1,10 @@
 import ConfigPoint from 'config-point';
 import { staticWadoConfig } from '@radicalimaging/static-wado-util';
-import uploadMain from './uploadMain.js';
-import convertCurieMain from './convertCurieMain.js';
-import leiMain from './leiMain.js';
-import downloadCurieJobMain from './downloadCurieJobMain.js';
-import indexCurieMain from './indexCurieMain.js';
+import uploadMain from './uploadMain.mjs';
+import convertCurieMain from './convertCurieMain.mjs';
+import leiMain from './leiMain.mjs';
+import downloadCurieJobMain from './downloadCurieJobMain.mjs';
+import indexCurieMain from './indexCurieMain.mjs';
 
 /**
  * Defines the basic configuration values for deploying to the cloud.

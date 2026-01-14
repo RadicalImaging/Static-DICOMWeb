@@ -1,10 +1,25 @@
-import baseConfig from "../../.config/jest/jest.config.js";
+const baseConfig = require('../../.config/jest/jest.config.cjs');
 
-export default {
+module.exports = {
   ...baseConfig,
-  preset: "ts-jest",
+  moduleFileExtensions: ['js', 'jsx', 'ts', 'tsx', 'mjs'],
+  transformIgnorePatterns: [
+    // Transform all ESM modules in node_modules
+    '/node_modules/(?!(@cornerstonejs|@kitware|d3-scale|d3-array|d3-color|d3-format|d3-interpolate|d3-time|d3-time-format|internmap))',
+  ],
+  testEnvironment: 'node',
   transform: {
-    "^.+\\.(ts|tsx)?$": "ts-jest",
-    "^.+\\.(js|mjs)$": "babel-jest",
+    '^.+\\.(js|jsx|ts|tsx|mjs)$': [
+      'babel-jest',
+      {
+        presets: [['@babel/preset-env', { targets: { node: 'current' } }]],
+        plugins: [
+          'babel-plugin-transform-import-meta',
+          '@babel/plugin-proposal-class-properties',
+          '@babel/plugin-transform-modules-commonjs',
+          '@babel/plugin-transform-class-static-block',
+        ],
+      },
+    ],
   },
 };
