@@ -1,5 +1,5 @@
 // const fs = require("fs");
-const StaticWado = require("../../lib");
+const { default: StaticWado } = require("../../lib");
 
 describe("index", () => {
   // let dicomp10stream;
