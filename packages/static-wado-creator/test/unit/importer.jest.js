@@ -20,7 +20,7 @@ describe("index", () => {
   });
 
   it("exports", () => {
-    importer.must.not.be.undefined();
+    expect(importer).not.toBeUndefined();
   });
 
   // TODO - add integration tests
