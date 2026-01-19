@@ -33,6 +33,9 @@ export function writeMultipartFramesFilter(options = {}) {
   
   // Track frame number per pixel data tag (increments for each value() call)
   let currentFrameNumber = 0;
+  
+  // Track pending frame writes
+  const pendingFrameWrites = [];
 
   /**
    * Gets or creates the writer, using the listener's information
@@ -69,12 +72,8 @@ export function writeMultipartFramesFilter(options = {}) {
     const currentVR = current?.vr;
     const level = current?.level ?? 0;
 
-    console.log('Filter value() called:', { currentTag, level, isPixelData: currentTag === TAGS.PixelData });
-
     // Only process pixel data at the top level (level <2) and only for pixel data tag
     if (currentTag === TAGS.PixelData && level < 2) {
-      console.log('Processing pixel data frame');
-      
       // Get the writer (creates it if needed using the listener's information)
       const frameWriter = getWriter(this);
       if (!frameWriter) {
@@ -87,47 +86,38 @@ export function writeMultipartFramesFilter(options = {}) {
       const frameNumber = currentFrameNumber;
 
       const frame = Array.isArray(v) ? v : [v];
-      console.log('Frame data:', { frameNumber, isArray: Array.isArray(v), elementCount: frame.length });
       
-      // Array means all elements together form ONE frame - write incrementally
-      const setup = frameWriter.prepareFrameSetup(this, frameNumber, dicomdir);
-      console.log('Setup result:', setup ? 'success' : 'failed');
-      if (!setup) {
-        return next(undefined);
-      }
+      // Start async frame write (don't await here to keep filter synchronous)
+      const frameWritePromise = (async () => {
+        try {
+          // Open a frame stream using the DicomWebWriter API
+          const streamInfo = await frameWriter.openFrameStream(frameNumber);
+          
+          // Write each array element to the stream
+          // Each element is written immediately to avoid large buffers in memory
+          for (const element of frame) {
+            if (element instanceof ArrayBuffer) {
+              const buffer = Buffer.from(element);
+              streamInfo.stream.write(buffer);
+            }
+          }
 
-      // Ensure output directory exists synchronously (needed before stream writes)
-      if (!fs.existsSync(setup.outputDir)) {
-        fs.mkdirSync(setup.outputDir, { recursive: true });
-      }
+          // Close the stream to finalize the frame
+          await frameWriter.closeStream(streamInfo.streamKey);
 
-      // Start incremental frame write immediately
-      frameWriter.startIncrementalFrame(
-        frameNumber,
-        setup.filename,
-        setup.contentTypeHeader,
-        setup.boundary,
-        setup.outputDir,
-        setup.needsGzip
-      );
-
-      // Write each array element incrementally (don't concatenate into single buffer)
-      // Each element is written immediately to avoid large buffers in memory
-      for (const element of frame) {
-        if (element instanceof ArrayBuffer) {
-          const buffer = Buffer.from(element);
-          frameWriter.writeIncrementalBuffer(buffer, frameNumber);
+          // Return the filename for reference
+          return streamInfo.filename;
+        } catch (error) {
+          console.error(`Error writing frame ${frameNumber}:`, error);
+          throw error;
         }
-      }
+      })();
+      
+      // Track the pending write
+      pendingFrameWrites.push(frameWritePromise);
 
-      // Finalize the frame after all elements are written
-      frameWriter.finalizeIncrementalFrame(frameNumber).catch(error => {
-        console.error(`Error finalizing frame ${frameNumber}:`, error);
-        frameWriter.activeStreams.delete(frameNumber);
-      });
-
-      // Return relative path string as URI format: frames/<frameNumber>.mht or frames/<frameNumber>.mht.gz
-      const relativePath = `frames/${setup.filename}`;
+      // Return relative path string as URI format (synchronously)
+      const relativePath = `frames/${frameNumber}.mht`;
       return next(relativePath);
     }
 
@@ -135,8 +125,32 @@ export function writeMultipartFramesFilter(options = {}) {
     return next(v);
   }
 
+  /**
+   * Filter method: Called when a tag is being closed (popped from stack)
+   * Replaces the pixel data Value with a BulkDataURI reference
+   */
+  function pop(next, result) {
+    // Access the current tag context
+    const current = this.current;
+    const currentTag = current?.tag;
+    const level = current?.level ?? 0;
+    const dest = current?.dest;
+
+    // If we're closing a PixelData tag at the top level, modify the dest object
+    if (currentTag === TAGS.PixelData && level === 0 && dest) {
+      // Delete the Value property and add BulkDataURI
+      delete dest.Value;
+      dest.BulkDataURI = './frames';
+    }
+
+    // Always call next with the result
+    return next(result);
+  }
+  
   return {
     addTag,
     value,
+    pop,
+    getWriter: () => writer,
   };
 }

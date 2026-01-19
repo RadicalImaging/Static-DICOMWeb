@@ -28,7 +28,15 @@ describe('writeMultipartFramesFilter', () => {
     const stream = fs.createReadStream(dicomFilePath);
 
     // Process the DICOM file with the filter
-    await instanceFromStream(stream, { dicomdir: tempDir });
+    const result = await instanceFromStream(stream, { dicomdir: tempDir });
+    console.log('instanceFromStream result:', {
+      hasWriter: !!result.writer,
+      hasMeta: !!result.meta,
+      hasDict: !!result.dict,
+      dictKeys: result.dict ? Object.keys(result.dict).length : 0,
+      information: result.information,
+      studyUID: result.dict?.['0020000D']?.Value?.[0]
+    });
 
     // Helper function to find the frames directory
     const findFramesDir = baseDir => {
@@ -55,34 +63,26 @@ describe('writeMultipartFramesFilter', () => {
       return fs.existsSync(framesDir) ? framesDir : null;
     };
 
-    // Poll for frames directory and files to be written (async writes)
-    const maxWaitTime = 10000; // 10 seconds
-    const pollInterval = 100; // 100ms
-    const startTime = Date.now();
-    let framesDir = null;
-
-    while (!framesDir && Date.now() - startTime < maxWaitTime) {
-      framesDir = findFramesDir(tempDir);
-      if (!framesDir) {
-        await new Promise(resolve => setTimeout(resolve, pollInterval));
-      }
-    }
+    // Check for frames directory immediately after instanceFromStream completes
+    const framesDir = findFramesDir(tempDir);
 
     expect(framesDir).not.toBeNull();
     expect(fs.existsSync(framesDir)).toBe(true);
 
-    // Poll for exactly 96 frames to be written
-    let frameFiles = [];
-    while (frameFiles.length < 96 && Date.now() - startTime < maxWaitTime) {
-      frameFiles = fs
-        .readdirSync(framesDir)
-        .filter(file => file.endsWith('.mht') || file.endsWith('.mht.gz'));
-      if (frameFiles.length < 96) {
-        await new Promise(resolve => setTimeout(resolve, pollInterval));
-      }
-    }
+    // Check for exactly 96 frames immediately
+    const frameFiles = fs
+      .readdirSync(framesDir)
+      .filter(file => file.endsWith('.mht') || file.endsWith('.mht.gz'));
 
     // Assert that we have exactly 96 frames
     expect(frameFiles.length).toBe(96);
+    
+    // Assert that the PixelData tag has BulkDataURI instead of Value array
+    const pixelDataTag = result.dict['7FE00010'];
+    expect(pixelDataTag).toBeDefined();
+    expect(pixelDataTag.BulkDataURI).toBe('./frames');
+    expect(pixelDataTag.Value).toBeUndefined();
+    
+    console.log("PixelData tag:", JSON.stringify(result.dict, null, 2));
   }, 30000); // 30 second timeout for file operations
 });
