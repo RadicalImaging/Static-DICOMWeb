@@ -1,5 +1,6 @@
 import { async, utilities } from 'dcmjs';
 import { writeMultipartFramesFilter } from './writeMultipartFramesFilter.mjs';
+import { writeBulkdataFilter } from './writeBulkdataFilter.mjs';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
 
 const { AsyncDicomReader } = async;
@@ -14,6 +15,9 @@ const { DicomMetadataListener, createInformationFilter } = utilities;
  * @param {string} options.dicomdir - Base directory for writing files (required if DicomWebWriter is not provided)
  * @param {Function} options.DicomWebWriter - Constructor for DicomWebWriter. Defaults to FileDicomWebWriter if dicomdir is provided
  * @param {Object} options.writerOptions - Additional options to pass to the DicomWebWriter constructor
+ * @param {boolean} options.bulkdata - Enable bulkdata filter (default: true if writer exists). Set to false to use frames filter instead
+ * @param {number} options.sizeBulkdataTags - Size threshold in bytes for public tags (default: 128k + 2 bytes)
+ * @param {number} options.sizePrivateBulkdataTags - Size threshold in bytes for private tags (default: 128 bytes)
  * @returns {Promise<{meta, dict, writer, informationFilter}>} - Parsed metadata and optional writer/filter instances
  */
 export async function instanceFromStream(stream, options = {}) {
@@ -35,9 +39,24 @@ export async function instanceFromStream(stream, options = {}) {
     writer = new DicomWebWriterClass(information, writerOptions);
   }
 
-  // Add binary multipart filter if needed
+  // Add bulkdata filter if writer is present (activated by default)
+  // Set bulkdata: false to disable and use frames filter instead
+  let bulkdataFilter = null;
+  const useBulkdata = writer && options.writeBulkdata !== false;
+  
+  if (useBulkdata) {
+    bulkdataFilter = writeBulkdataFilter({
+      dicomdir: options.dicomdir,
+      writer,
+      sizeBulkdataTags: options.sizeBulkdataTags,
+      sizePrivateBulkdataTags: options.sizePrivateBulkdataTags,
+    });
+    filters.push(bulkdataFilter);
+  }
+
+  // Add binary multipart filter only if bulkdata is explicitly disabled
   let frameFilter = null;
-  if (writer) {
+  if (writer && options?.writeFrames!==false) {
     frameFilter = writeMultipartFramesFilter({
       dicomdir: options.dicomdir,
       writer,
