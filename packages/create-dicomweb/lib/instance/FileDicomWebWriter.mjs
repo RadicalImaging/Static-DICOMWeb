@@ -40,6 +40,7 @@ export class FileDicomWebWriter extends DicomWebWriter {
    * @protected
    */
   async _openStream(relativePath, filename, options = {}) {
+    console.log("openStream", relativePath, filename);
     const fullPath = path.join(this.options.baseDir, relativePath);
     
     // Ensure directory exists

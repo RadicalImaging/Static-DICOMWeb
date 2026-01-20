@@ -1,14 +1,12 @@
 import fs from "fs";
+import { dirScanner } from '@radicalimaging/static-wado-util';
 import { instanceFromStream } from '../instance/instanceFromStream.mjs';
 
 export async function instanceMain(fileNames, options) {
-    for(const fileName of fileNames) {
-        await instanceFromFile(fileName, options);
-    }
+    await dirScanner(fileNames, { ...options, recursive: true, callback: (filename) => instanceFromFile(filename, options) })
 }
 
 export function instanceFromFile(fileName, options = {}) {
-    console.warn("Converting instance", fileName);
     const stream = fs.createReadStream(fileName);
     return instanceFromStream(stream, options);
 }

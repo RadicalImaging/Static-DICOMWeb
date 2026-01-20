@@ -213,6 +213,7 @@ export class DicomWebWriter {
     if (tsUID) {
       contentTypeHeader = `${contentType};transfer-syntax=${tsUID}`;
     }
+    console.log("contentTypeHeader", contentTypeHeader, tsUID)
     
     // Generate filename based on frame number and compression
     const shouldGzip = options.gzip ?? this._shouldGzipFrame(tsUID);

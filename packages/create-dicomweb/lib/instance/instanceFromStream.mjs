@@ -71,10 +71,17 @@ export async function instanceFromStream(stream, options = {}) {
   // The listener will automatically create its own information filter and call init()
   const listener = new DicomMetadataListener({ information }, ...filters);
 
-  const { meta, dict } = await reader.readFile({ listener });
+  const { fmi, dict } = await reader.readFile({ listener });
+
+  if( writer ) {
+    const metadataStream = await writer.openInstanceStream('metadata.json', { gzip: true });
+    metadataStream.stream.write(Buffer.from(JSON.stringify([dict])));
+    writer.closeStream(metadataStream.streamKey);
+  }
 
   // Wait for all frame writes to complete before returning
   await writer?.awaitAllStreams();
+  console.log("awaitAllStreams is done")
 
-  return { meta, dict, writer, information: listener.information };
+  return { fmi, dict, writer, information: listener.information };
 }
