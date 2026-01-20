@@ -1,6 +1,7 @@
 import { async, utilities } from 'dcmjs';
 import { writeMultipartFramesFilter } from './writeMultipartFramesFilter.mjs';
 import { writeBulkdataFilter } from './writeBulkdataFilter.mjs';
+import { inlineBinaryFilter } from './inlineBinaryFilter.mjs';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
 
 const { AsyncDicomReader } = async;
@@ -63,6 +64,8 @@ export async function instanceFromStream(stream, options = {}) {
     });
     filters.push(frameFilter);
   }
+
+  filters.push(inlineBinaryFilter());
 
   // Create listener with filters
   // The listener will automatically create its own information filter and call init()

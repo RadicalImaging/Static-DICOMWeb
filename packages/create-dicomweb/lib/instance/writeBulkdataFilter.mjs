@@ -142,35 +142,31 @@ export function writeBulkdataFilter(options = {}) {
    */
   function addTag(next, tag, tagInfo) {
     const result = next(tag, tagInfo) || {};
-    
+
     // Get tag info from result or tagInfo
     const vr = result?.vr || tagInfo?.vr;
     const length = tagInfo?.length;
     const level = this.current?.level ?? 0;
-    
+
     // Check if this tag could qualify for bulkdata
     // Never request raw for top-level PixelData (handled by frame writer)
     if (tag === TagHex.PixelData && level <= 2) {
       return result;
     }
-    
-    // Only request raw data if:
-    // 1. VR is appropriate for bulkdata
-    // 2. Length is present
-    // 3. Length exceeds the appropriate threshold
-    if (!vr || !BULKDATA_VRS.has(vr) || length === undefined || length === null) {
+
+    // Only request raw data if VR is appropriate for bulkdata
+    if (!vr || !BULKDATA_VRS.has(vr) || !length) {
       return result;
     }
-    
-    // Determine if this is a private tag
+
     const isPrivate = isPrivateTag(tag);
     const threshold = isPrivate ? sizePrivateBulkdataTags : sizeBulkdataTags;
-    
+
     // Only request raw data if the length exceeds the threshold
     if (length >= threshold) {
       return { ...result, expectsRaw: true };
     }
-    
+
     return result;
   }
 
@@ -201,7 +197,7 @@ export function writeBulkdataFilter(options = {}) {
     const threshold = isPrivate ? sizePrivateBulkdataTags : sizeBulkdataTags;
 
     // Calculate the total size of all values
-    const totalSize = dest.length ?? calculateDataSize(dest.Value);
+    const totalSize = current?.length ?? calculateDataSize(dest.Value);
 
     // If total size is below threshold, don't convert to bulkdata
     if (totalSize < threshold) {
