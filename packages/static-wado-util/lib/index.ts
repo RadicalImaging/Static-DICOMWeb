@@ -25,6 +25,7 @@ import getStudyUIDPathAndSubPath from './getStudyUIDPathAndSubPath';
 export { program, configureProgram, configureCommands } from './program';
 export * from './dicomToXml';
 import createStudyDirectories from './createStudyDirectories';
+import TagLists from './TagLists.mjs';
 
 export {
   extractMultipart,
@@ -51,4 +52,5 @@ export {
   NotificationService,
   getStudyUIDPathAndSubPath,
   createStudyDirectories,
+  TagLists,
 };

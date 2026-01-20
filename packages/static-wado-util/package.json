@@ -47,7 +47,8 @@
     "imurmurhash": "^0.1.4",
     "jpeg-lossless-decoder-js": ">=2.0.4",
     "json5": "^2.2.1",
-    "must": "^0.13.4"
+    "must": "^0.13.4",
+    "node-object-hash": "^3.0.0"
   },
   "scripts": {
     "test": "jest --config ./jest.config.cjs",
