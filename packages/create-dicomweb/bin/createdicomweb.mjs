@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { Command } from 'commander';
-import { instanceMain, seriesMain, studyMain } from '../lib/index.mjs';
+import { instanceMain, seriesMain, studyMain, createMain } from '../lib/index.mjs';
 import { handleHomeRelative } from '@radicalimaging/static-wado-util';
 
 const program = new Command();
@@ -52,6 +52,19 @@ program
       studyOptions.dicomdir = handleHomeRelative(options.dicomdir);
     }
     await studyMain(studyUID, studyOptions);
+  });
+
+program
+  .command('create')
+  .description('Process instances and generate series and study metadata for all discovered studies')
+  .argument('<part10>', 'part 10 file(s) or directory(ies)')
+  .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
+  .action(async (fileName, options) => {
+    const createOptions = {};
+    if (options.dicomdir) {
+      createOptions.dicomdir = handleHomeRelative(options.dicomdir);
+    }
+    await createMain([fileName], createOptions);
   });
 
 program.parse();
