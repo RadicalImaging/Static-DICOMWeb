@@ -163,7 +163,10 @@ export class DicomWebWriter {
     if (!studyUID || !seriesUID) {
       throw new Error('StudyInstanceUID and SeriesInstanceUID are required to open series stream');
     }
-    const path = `studies/${studyUID}/series/${seriesUID}`;
+    let path = `studies/${studyUID}/series/${seriesUID}`;
+    if( options.path ) {
+      path += (options.path.startsWith('/') ? '' : '/') + options.path;
+    }
     return this.openStream(path, filename, options);
   }
 

@@ -119,8 +119,9 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
 
   // Step 3: Compare sets - if they match exactly, return early
   if (existingInstanceUIDs.size === actualInstanceUIDs.size &&
-      [...existingInstanceUIDs].every(uid => actualInstanceUIDs.has(uid))) {
-    return; // Metadata is up to date
+      [...existingInstanceUIDs].every(uid => actualInstanceUIDs.has(uid))) {  
+    console.warn('seriesSummary: instance index is up to date');
+    // return; // Metadata is up to date
   }
 
   // Step 4: Read all instance metadata files and collect them
@@ -130,10 +131,10 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
     const instancePath = reader.getInstancePath(studyUID, seriesUID, instanceUID);
     const instanceMetadataPath = `${instancePath}/metadata`;
     
-    const metadataFileInfo = reader.fileExists(instanceMetadataPath, 'metadata.json');
+    const metadataFileInfo = reader.fileExists(instanceMetadataPath, 'index.json');
     if (metadataFileInfo?.exists) {
       try {
-        let instanceMetadata = await reader.readJsonFile(instanceMetadataPath, 'metadata.json');
+        let instanceMetadata = await reader.readJsonFile(instanceMetadataPath, 'index.json');
         
         // Instance metadata files are arrays with one element
         if (Array.isArray(instanceMetadata) && instanceMetadata.length > 0) {
@@ -177,6 +178,7 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
     // Extract series query from the first instance
     const firstInstance = instanceMetadataArray[0];
     seriesQuery = TagLists.extract(firstInstance, 'series', TagLists.SeriesQuery);
+    // console.warn('seriesSummary: seriesQuery:', seriesQuery);
     
     // Add NumberOfSeriesRelatedInstances to series query
     setValue(seriesQuery, Tags.NumberOfSeriesRelatedInstances, instanceMetadataArray.length);
