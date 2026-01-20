@@ -22,7 +22,7 @@ function getValue(metadata, tag) {
  * @param {*} metadata
  * @param {*} doneCallback Callback method that is invoked once image is rendered
  */
-async function getRenderedBuffer(
+export async function getRenderedBuffer(
   transferSyntaxUid,
   decodedPixelData,
   metadata,
@@ -54,4 +54,4 @@ async function getRenderedBuffer(
   }
 }
 
-module.exports = getRenderedBuffer;
+export default getRenderedBuffer;

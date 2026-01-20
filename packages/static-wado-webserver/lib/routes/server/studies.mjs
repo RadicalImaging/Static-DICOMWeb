@@ -12,7 +12,8 @@ import {
   seriesSingleMap,
   studySingleMap,
 } from '../../adapters/requestAdapters.mjs';
-import { defaultPostController as postController } from '../../controllers/server/commonControllers.mjs';
+import { defaultPostController as oldPostController } from '../../controllers/server/commonControllers.mjs';
+import { streamPostController, completePostController } from '../../controllers/server/streamPostController.mjs';
 import { defaultNotFoundController as notFoundController } from '../../controllers/server/notFoundControllers.mjs';
 import { defaultGetProxyController } from '../../controllers/server/proxyControllers.mjs';
 import {
@@ -113,9 +114,11 @@ export default function setRoutes(routerExpress, params, dir, hashStudyUidPath) 
     otherJsonMap
   );
 
+  const postController = params.useOldPostController ? oldPostController : streamPostController;
   routerExpress.post(
     ['/studies', '/studies/:studyUID/series', '/studies/:studyUID/series/:seriesUID/instances'],
-    postController(params, hashStudyUidPath)
+    postController(params, hashStudyUidPath),
+    completePostController
   );
   // Handle the QIDO queries
   routerExpress.use(indexingStaticController(dir));

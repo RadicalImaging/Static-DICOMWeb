@@ -11,7 +11,6 @@
     "@babel/plugin-transform-class-properties": "^7.25.9",
     "@babel/plugin-transform-class-static-block": "^7.28.3",
     "@babel/plugin-transform-modules-commonjs": "^7.16.8",
-    "@babel/plugin-transform-private-methods": "^7.28.6",
     "@babel/preset-env": "^7.16.11",
     "eslint": "^9.14.0",
     "eslint-config-prettier": "^9.1.0",
@@ -30,7 +29,6 @@
   },
   "resolutions": {
     "@cornerstonejs/codec-openjph": ">=2.4.5",
-    "@cornerstonejs/metadata": "link:@cornerstonejs/metadata",
     "dcmjs": "link:dcmjs",
     "canvas": "3.1.0"
   },

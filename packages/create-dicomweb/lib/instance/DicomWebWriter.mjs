@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid';
-import { uids } from '@radicalimaging/static-wado-creator';
+import { uids } from '@radicalimaging/static-wado-util';
 import { MultipartStreamWriter } from './MultipartStreamWriter.mjs';
 
 /**

@@ -4,8 +4,8 @@ import { VOILUTFunctionType } from '@cornerstonejs/core/enums';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM(`<!DOCTYPE html>`, { pretendToBeVisual: true });
-global.window = dom.window;
-global.document = window.document;
+globalThis.window = dom.window;
+globalThis.document = window.document;
 
 const rows = 64;
 const columns = 64;
