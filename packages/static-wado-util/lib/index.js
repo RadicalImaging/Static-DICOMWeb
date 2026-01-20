@@ -31,6 +31,7 @@ module.exports.program = program;
 module.exports.Stats = Stats;
 module.exports.getStudyUIDPathAndSubPath = require('./getStudyUIDPathAndSubPath');
 module.exports.createStudyDirectories = require('./createStudyDirectories');
+module.exports.uids = require('./uids.js');
 
 module.exports.default = {
   ...module.exports,

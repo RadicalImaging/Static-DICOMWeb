@@ -1,3 +1,6 @@
+// CommonJS version for compatibility
+// Note: The primary version is Tags.mjs (ES module)
+// This file exists for CommonJS compatibility in index.js
 const dcmjs = require('dcmjs');
 const dataDictionary = require('./dataDictionary');
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { Command } from 'commander';
-import { instanceMain } from '../lib/index.mjs';
+import { instanceMain, seriesMain } from '../lib/index.mjs';
 import { handleHomeRelative } from '@radicalimaging/static-wado-util';
 
 const program = new Command();
@@ -24,5 +24,21 @@ program
     await instanceMain([fileName], instanceOptions);
   });
 
+program
+  .command('series')
+  .description('Generate series metadata files')
+  .argument('<studyUID>', 'Study Instance UID')
+  .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
+  .option('--series-uid <seriesUID>', 'Specific Series Instance UID to process (if not provided, processes all series in the study)')
+  .action(async (studyUID, options) => {
+    const seriesOptions = {};
+    if (options.dicomdir) {
+      seriesOptions.dicomdir = handleHomeRelative(options.dicomdir);
+    }
+    if (options.seriesUid) {
+      seriesOptions.seriesUid = options.seriesUid;
+    }
+    await seriesMain(studyUID, seriesOptions);
+  });
 
 program.parse();

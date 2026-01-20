@@ -13,7 +13,7 @@ import assertions from './assertions';
 import configDiff from './update/configDiff';
 import configGroup from './configGroup.js';
 import asyncIterableToBuffer from './asyncIterableToBuffer';
-import Tags from './dictionary/Tags';
+import Tags from './dictionary/Tags.mjs';
 import dataDictionary from './dictionary/dataDictionary';
 import sleep from './sleep';
 import endsWith from './endsWith';
@@ -26,6 +26,7 @@ export { program, configureProgram, configureCommands } from './program';
 export * from './dicomToXml';
 import createStudyDirectories from './createStudyDirectories';
 import TagLists from './TagLists.mjs';
+import uids from './uids.mjs';
 
 export {
   extractMultipart,
@@ -53,4 +54,5 @@ export {
   getStudyUIDPathAndSubPath,
   createStudyDirectories,
   TagLists,
+  uids,
 };

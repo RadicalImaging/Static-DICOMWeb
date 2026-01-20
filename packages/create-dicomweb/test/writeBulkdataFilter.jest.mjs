@@ -50,7 +50,7 @@ describe('writeBulkdataFilter', () => {
       information: result.information,
       studyUID: result.dict?.['0020000D']?.Value?.[0],
     });
-    console.warn("result:\n", JSON.stringify(result.dict,null,2));
+    // console.warn("result:\n", JSON.stringify(result.dict,null,2));
   }, 30_000);
 
   // Helper function to find the bulkdata directory

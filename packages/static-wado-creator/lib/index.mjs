@@ -4,7 +4,7 @@ import programIndex from './program/index.js';
 import createMain from './createMain.js';
 import deleteMain from './deleteMain.js';
 import adaptProgramOpts from './util/adaptProgramOpts.js';
-import uids from './model/uids.js';
+import { uids } from '@radicalimaging/static-wado-util';
 
 const { configureProgram } = programIndex;
 

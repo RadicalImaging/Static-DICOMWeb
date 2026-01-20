@@ -1,5 +1,5 @@
 import hashFactory from 'node-object-hash';
-import { Tags } from './dictionary/Tags.js';
+import Tags from './dictionary/Tags.mjs';
 
 /* eslint "no-param-reassign": "off" */
 

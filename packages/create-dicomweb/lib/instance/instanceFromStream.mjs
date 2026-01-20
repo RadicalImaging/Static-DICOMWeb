@@ -74,14 +74,13 @@ export async function instanceFromStream(stream, options = {}) {
   const { fmi, dict } = await reader.readFile({ listener });
 
   if( writer ) {
-    const metadataStream = await writer.openInstanceStream('metadata.json', { gzip: true });
+    const metadataStream = await writer.openInstanceStream('index.json', { gzip: true, path: '/metadata' });
     metadataStream.stream.write(Buffer.from(JSON.stringify([dict])));
     writer.closeStream(metadataStream.streamKey);
   }
 
   // Wait for all frame writes to complete before returning
   await writer?.awaitAllStreams();
-  console.log("awaitAllStreams is done")
 
   return { fmi, dict, writer, information: listener.information };
 }

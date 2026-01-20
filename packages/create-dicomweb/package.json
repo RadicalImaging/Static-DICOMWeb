@@ -47,7 +47,6 @@
   "dependencies": {
     "@radicalimaging/cs3d": ">=1.6.1",
     "@radicalimaging/static-wado-util": ">=1.6.1",
-    "@radicalimaging/static-wado-creator": ">=1.6.1",
     "@cornerstonejs/metadata": ">=4.15.5",
     "canvas": ">=3.1.0",
     "config-point": ">=0.5.1",
