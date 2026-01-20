@@ -213,7 +213,8 @@ async function createMultipartBodyMultiple(files, boundary) {
     const parts = [];
     
     // Process each file
-    for (const { filePath } of files) {
+    for (let i = 0; i < files.length; i++) {
+        const { filePath } = files[i];
         const fileName = path.basename(filePath);
         const fileStream = fs.createReadStream(filePath);
         const chunks = [];
@@ -225,8 +226,10 @@ async function createMultipartBodyMultiple(files, boundary) {
         const fileData = Buffer.concat(chunks);
         
         // Build multipart part header
+        // First part starts with --boundary, subsequent parts need \r\n before --boundary
+        const boundaryPrefix = i === 0 ? '' : '\r\n';
         const partHeader = [
-            `--${boundary}\r\n`,
+            `${boundaryPrefix}--${boundary}\r\n`,
             `Content-Type: application/dicom\r\n`,
             `Content-Location: ${fileName}\r\n`,
             `\r\n`
@@ -236,7 +239,7 @@ async function createMultipartBodyMultiple(files, boundary) {
         parts.push(fileData);
     }
     
-    // Add closing boundary
+    // Add closing boundary (preceded by \r\n)
     const footer = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf-8');
     parts.push(footer);
     

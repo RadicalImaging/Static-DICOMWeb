@@ -99,6 +99,7 @@ export function multipartStream(opts) {
       }
 
       partCount += 1;
+      console.warn(`[multipartStream] Part ${partCount} detected`);
 
       if (limits?.parts && partCount > limits.parts) {
         part.resume();
@@ -110,12 +111,19 @@ export function multipartStream(opts) {
       // We need to pause the part and wait for headers before processing
       let headers = {};
       let headersCollected = false;
+      let partProcessed = false; // Ensure we only process each part once
       
       // Pause the part stream until we have headers
       part.pause();
       
       // Function to process the part once we have headers
       const processPart = () => {
+        if (aborted || partProcessed) {
+          part.resume();
+          return;
+        }
+        partProcessed = true;
+        
         if (aborted) {
           part.resume();
           return;
@@ -131,7 +139,8 @@ export function multipartStream(opts) {
       // Listen for header events on the part stream
       part.on('header', (header) => {
         // Dicer provides headers as an object with lowercase keys and array values
-        if (header && typeof header === 'object') {
+        if (header && typeof header === 'object' && !partProcessed) {
+          console.warn(`[multipartStream] Part ${partCount} headers received:`, Object.keys(header));
           headers = header;
           headersCollected = true;
           processPart();
@@ -148,13 +157,16 @@ export function multipartStream(opts) {
       
       // If headers aren't available, try to resume after a short delay
       // This handles cases where headers might come via data events
+      // Increased timeout to ensure headers are collected for all parts
       setTimeout(() => {
-        if (!headersCollected) {
+        if (!headersCollected && !partProcessed) {
+          console.warn(`[multipartStream] Part ${partCount} processing without headers (timeout)`);
           processPart();
         }
-      }, 10);
+      }, 100);
       
       // Function to continue processing the part once headers are available
+      // This creates a fresh buffer stream for each part
       const continuePartProcessing = () => {
         const getHeader = (name) => {
         const lowerName = name.toLowerCase();
@@ -188,14 +200,16 @@ export function multipartStream(opts) {
         const contentId = getHeader("content-id");
         const contentLocation = getHeader("content-location");
         
+        console.warn(`[multipartStream] Part ${partCount} headers - content-type: ${rawContentType}, content-location: ${contentLocation}, headers keys: ${Object.keys(headers).join(', ')}`);
+        
         // If Content-Type is missing, try to infer from Content-Location
         let inferredContentType = rawContentType;
-      if (!inferredContentType && contentLocation) {
-        // If Content-Location has .dcm extension, likely DICOM
-        if (contentLocation.toLowerCase().endsWith('.dcm')) {
-          inferredContentType = 'application/dicom';
+        if (!inferredContentType && contentLocation) {
+          // If Content-Location has .dcm extension, likely DICOM
+          if (contentLocation.toLowerCase().endsWith('.dcm')) {
+            inferredContentType = 'application/dicom';
+          }
         }
-      }
         
         const partContentType = (inferredContentType || "application/octet-stream").toLowerCase().trim();
 
@@ -208,11 +222,13 @@ export function multipartStream(opts) {
 
         // If you want to skip non-DICOM parts (e.g. metadata JSON), do it here:
         if (!isDicomPart) {
+          console.warn(`[multipartStream] Part ${partCount} skipped - not DICOM (content-type: ${partContentType})`);
           // Drain the stream so the request can complete cleanly
           part.resume();
           return;
         }
 
+        console.warn(`[multipartStream] Part ${partCount} processing as DICOM file`);
         const fileId = randomUUID();
 
         // You won't have Busboy's fieldname/filename concept in STOW-RS,
@@ -230,12 +246,15 @@ export function multipartStream(opts) {
           },
         };
 
+        // Create a fresh buffer stream for this specific part/file
+        // Each file gets its own isolated buffer stream instance
         const readBufferStream = new ReadBufferStream(null, true, { noCopy: true });
 
         // Kick off your listener (do NOT await)
         try {
           const p = Promise.resolve(listener(fileInfo, readBufferStream));
           req.uploadListenerPromises.push(p);
+          console.warn(`[multipartStream] Part ${partCount} added to uploadListenerPromises (total: ${req.uploadListenerPromises.length})`);
         } catch (err) {
           if (onStreamError) onStreamError(err, fileInfo);
           part.resume();
@@ -243,10 +262,14 @@ export function multipartStream(opts) {
         }
 
         req.uploadStreams.push({ fileInfo, stream: readBufferStream });
+        console.warn(`[multipartStream] Part ${partCount} added to uploadStreams (total: ${req.uploadStreams.length})`);
 
+        // Create a closure-scoped variable to track bytes for this specific part
         let partBytes = 0;
 
-        part.on("data", (chunk) => {
+        // Set up event handlers for this specific part and buffer stream
+        // These handlers are scoped to this part instance only
+        const dataHandler = (chunk) => {
           if (aborted) return;
 
           partBytes += chunk.length;
@@ -256,6 +279,7 @@ export function multipartStream(opts) {
             const err = Object.assign(new Error("File too large"), { statusCode: 413 });
             if (onStreamError) onStreamError(err, fileInfo);
             part.pause();
+            part.removeListener("data", dataHandler);
             return abort(err);
           }
 
@@ -263,34 +287,54 @@ export function multipartStream(opts) {
             const err = Object.assign(new Error("Request too large"), { statusCode: 413 });
             if (onStreamError) onStreamError(err, fileInfo);
             part.pause();
+            part.removeListener("data", dataHandler);
             return abort(err);
           }
 
           try {
             // Copy the buffer to avoid reuse issues - Node.js streams can reuse buffers
+            // Each chunk is added to this part's dedicated buffer stream
             const chunkCopy = Buffer.from(chunk);
             readBufferStream.addBuffer(chunkCopy);
           } catch (err) {
             if (onStreamError) onStreamError(err, fileInfo);
             part.pause();
+            part.removeListener("data", dataHandler);
             return abort(err);
           }
-        });
+        };
 
-        part.on("end", () => {
-          if (aborted) return;
+        const endHandler = () => {
+          if (aborted) {
+            console.warn("********* Setting file complete (aborted)");
+            readBufferStream.setComplete();
+            return;
+          }
+          // Clean up event listeners for this part
+          part.removeListener("data", dataHandler);
+          part.removeListener("end", endHandler);
           try {
+            // Mark this part's buffer stream as complete
+            console.warn("********* Setting file complete");
             readBufferStream.setComplete();
           } catch (err) {
             if (onStreamError) onStreamError(err, fileInfo);
             return abort(err);
           }
-        });
+        };
 
-        part.on("error", (err) => {
+        const errorHandler = (err) => {
+          // Clean up event listeners for this part
+          part.removeListener("data", dataHandler);
+          part.removeListener("end", endHandler);
+          part.removeListener("error", errorHandler);
           if (onStreamError) onStreamError(err, fileInfo);
           abort(err);
-        });
+        };
+
+        part.on("data", dataHandler);
+        part.on("end", endHandler);
+        part.on("error", errorHandler);
       }; // end of continuePartProcessing
     });
 
@@ -299,6 +343,7 @@ export function multipartStream(opts) {
     // Dicer signals "no more parts" with finish.
     dicer.on("finish", () => {
       if (aborted) return;
+      console.warn(`[multipartStream] All parts processed. Total parts: ${partCount}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`);
       next();
     });
 
