@@ -1,4 +1,4 @@
-import { async, utilities } from 'dcmjs';
+import { async, utilities, data } from 'dcmjs';
 import { writeMultipartFramesFilter } from './writeMultipartFramesFilter.mjs';
 import { writeBulkdataFilter } from './writeBulkdataFilter.mjs';
 import { inlineBinaryFilter } from './inlineBinaryFilter.mjs';
@@ -6,12 +6,13 @@ import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
 
 const { AsyncDicomReader } = async;
 const { DicomMetadataListener, createInformationFilter } = utilities;
+const { ReadBufferStream } = data;
 
 
 /**
  * Processes a DICOM stream and optionally writes multipart frames
  * 
- * @param {Stream} stream - The DICOM stream to process
+ * @param {Stream|ReadBufferStream} stream - The DICOM stream or ReadBufferStream to process
  * @param {Object} options - Configuration options
  * @param {string} options.dicomdir - Base directory for writing files (required if DicomWebWriter is not provided)
  * @param {Function} options.DicomWebWriter - Constructor for DicomWebWriter. Defaults to FileDicomWebWriter if dicomdir is provided
@@ -23,7 +24,15 @@ const { DicomMetadataListener, createInformationFilter } = utilities;
  */
 export async function instanceFromStream(stream, options = {}) {
   const reader = new AsyncDicomReader();
-  await reader.stream.fromAsyncStream(stream);
+  
+  // Check if the input is a ReadBufferStream instance
+  if (stream instanceof ReadBufferStream) {
+    // If it's already a ReadBufferStream, use it directly
+    reader.stream = stream;
+  } else {
+    // Otherwise, treat it as a regular stream and read from it
+    await reader.stream.fromAsyncStream(stream);
+  }
 
   // Build filters array
   const information = {} ;

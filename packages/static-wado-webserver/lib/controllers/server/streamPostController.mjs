@@ -6,6 +6,8 @@ import fs from 'fs';
 import { dicomToXml, handleHomeRelative } from '@radicalimaging/static-wado-util';
 import { instanceFromStream } from '@radicalimaging/create-dicomweb';
 
+import { multipartStream } from './multipartStream.mjs';
+
 const { denaturalizeDataset } = dcmjs.data.DicomMetaDictionary;
 
 const maxFileSize = 4 * 1024 * 1024 * 1024;
@@ -38,9 +40,10 @@ export function streamPostController(params) {
 
 export const completePostController = async (req, res, next) => {
   try {
-    const results = await Promise.allSettled(req.uploadListenerPromises);
+    console.log('uploadListenerPromises length:', req.uploadListenerPromises?.length);
+    const results = await Promise.allSettled(req.uploadListenerPromises || []);
 
-    const files = req.uploadStreams.map((entry, index) => {
+    const files = (req.uploadStreams || []).map((entry, index) => {
       const r = results[index];
 
       if (r.status === "fulfilled") {
