@@ -5,6 +5,9 @@ import dcmjs from 'dcmjs';
 import fs from 'fs';
 import { dicomToXml, handleHomeRelative } from '@radicalimaging/static-wado-util';
 import { instanceFromStream } from '@radicalimaging/create-dicomweb';
+import { seriesMain } from '@radicalimaging/create-dicomweb';
+import { studyMain } from '@radicalimaging/create-dicomweb';
+import { SagaBusMessaging } from './SagaBusMessaging.mjs';
 
 import { multipartStream } from './multipartStream.mjs';
 
@@ -12,6 +15,71 @@ const { denaturalizeDataset } = dcmjs.data.DicomMetaDictionary;
 
 const maxFileSize = 4 * 1024 * 1024 * 1024;
 const maxTotalFileSize = 10 * maxFileSize;
+
+// Track if handlers have been initialized
+let handlersInitialized = false;
+let messagingInstance = null;
+
+// Create a simple in-memory transport compatible with @saga-bus/core
+function createInMemoryTransport() {
+  const subscriptions = new Map(); // messageType -> Set of handlers
+  let started = false;
+  
+  return {
+    start: async () => {
+      started = true;
+    },
+    stop: async () => {
+      started = false;
+      subscriptions.clear();
+    },
+    publish: async (message) => {
+      if (!started) {
+        throw new Error('Transport not started');
+      }
+      // Find all handlers for this message type
+      const handlers = subscriptions.get(message.type) || new Set();
+      // Also check for wildcard handlers if needed
+      const allHandlers = subscriptions.get('*') || new Set();
+      
+      // Process handlers asynchronously
+      const all = new Set([...handlers, ...allHandlers]);
+      if (all.size > 0) {
+        // Use Promise.all to properly handle async handlers
+        const promises = Array.from(all).map(async (handler) => {
+          try {
+            // Handler might expect ctx.message or just the message directly
+            const result = handler(message);
+            if (result && typeof result.then === 'function') {
+              await result;
+            }
+          } catch (err) {
+            console.error('[InMemoryTransport] Handler error:', err);
+            throw err; // Re-throw to allow bus retry logic
+          }
+        });
+        await Promise.all(promises);
+      }
+    },
+    subscribe: (messageType, handler) => {
+      if (!subscriptions.has(messageType)) {
+        subscriptions.set(messageType, new Set());
+      }
+      subscriptions.get(messageType).add(handler);
+      
+      // Return unsubscribe function
+      return () => {
+        const handlers = subscriptions.get(messageType);
+        if (handlers) {
+          handlers.delete(handler);
+          if (handlers.size === 0) {
+            subscriptions.delete(messageType);
+          }
+        }
+      };
+    },
+  };
+}
 
 /**
  * Handles an incoming stow-rs POST data, either in application/dicom (single instance), or in
@@ -26,16 +94,91 @@ export function streamPostController(params) {
   const dicomdir = handleHomeRelative(params.rootDir);
   console.warn("Storing POST uploads to:", dicomdir);
   
+  // Initialize messaging service and register handlers (only once)
+  if (!messagingInstance) {
+    const transport = params.messaging?.transport || createInMemoryTransport();
+    messagingInstance = new SagaBusMessaging({
+      transport,
+      ...(params.messaging || {}),
+    });
+    setupMessageHandlers(messagingInstance, dicomdir);
+    if (messagingInstance.start) {
+      messagingInstance.start().catch(err => {
+        console.error("Failed to start messaging service:", err);
+      });
+    }
+    handlersInitialized = true;
+  }
+  
   return multipartStream({
-    listener: (headers, stream) => {
+    listener: async (headers, stream) => {
       // Called immediately when a file part starts.
       // You can kick off downstream processing and return a promise.
       // This promise is *not awaited* by middleware.
       console.warn("Processing POST upload:", headers);
-      return instanceFromStream(stream, { dicomdir });
+      const result = await instanceFromStream(stream, { dicomdir });
+      const { information } = result;
+      console.log("************* information:", information);
+      
+      return result;
     },
     limits: { files: 1_000, fileSize: 250 * 1_000_000_000 }, // 250GB, 1000 files
   })
+}
+
+/**
+ * Set up message handlers for updateSeries and updateStudy
+ */
+function setupMessageHandlers(messaging, dicomdir) {
+  // Register handler for updateSeries
+  messaging.registerHandler('updateSeries', async (msg) => {
+    const { id, data } = msg;
+    const [studyUid, seriesUID] = id.split('&');
+    
+    if (!studyUid || !seriesUID) {
+      console.error(`Invalid updateSeries message id format: ${id}`);
+      return;
+    }
+    
+    try {
+      console.log(`Processing updateSeries for study ${studyUid}, series ${seriesUID}`);
+      // Call seriesMain to update the series
+      await seriesMain(studyUid, {
+        dicomdir,
+        seriesUid: seriesUID,
+      });
+      
+      // After series update completes, send updateStudy message
+      await messaging.sendMessage('updateStudy', studyUid, data);
+      console.log(`Sent updateStudy message for study ${studyUid}`);
+    } catch (err) {
+      console.error(`Error processing updateSeries for ${id}:`, err);
+      throw err; // Re-throw to allow retry/redelivery
+    }
+  });
+  
+  // Register handler for updateStudy
+  messaging.registerHandler('updateStudy', async (msg) => {
+    const { id, data } = msg;
+    const studyUid = id;
+    
+    if (!studyUid) {
+      console.error(`Invalid updateStudy message id: ${id}`);
+      return;
+    }
+    
+    try {
+      console.log(`Processing updateStudy for study ${studyUid}`);
+      // Call studyMain to update the study
+      await studyMain(studyUid, {
+        dicomdir,
+      });
+      console.log(`Completed updateStudy for study ${studyUid}`);
+    } catch (err) {
+      console.error(`Error processing updateStudy for ${studyUid}:`, err);
+      throw err; // Re-throw to allow retry/redelivery
+    }
+  });
 }
 
 /**
@@ -219,6 +362,38 @@ export const completePostController = async (req, res, next) => {
         error: String(r.reason),
       };
     });
+
+    // Send updateSeries messages for unique seriesUIDs after all instances are processed
+    if (messagingInstance) {
+      const seriesMap = new Map(); // seriesId -> information object
+      
+      // Collect unique series from successfully processed files
+      for (const file of files) {
+        if (file.ok && file.result?.information) {
+          const { information } = file.result;
+          if (information?.studyInstanceUid && information?.seriesInstanceUid) {
+            const studyUid = information.studyInstanceUid;
+            const seriesUID = information.seriesInstanceUid;
+            const seriesId = `${studyUid}&${seriesUID}`;
+            
+            // Only keep the latest information for each series (or first, doesn't matter for dedupe)
+            if (!seriesMap.has(seriesId)) {
+              seriesMap.set(seriesId, information);
+            }
+          }
+        }
+      }
+      
+      // Send one message per unique seriesUID
+      for (const [seriesId, information] of seriesMap.entries()) {
+        try {
+          await messagingInstance.sendMessage('updateSeries', seriesId, information);
+          console.log(`Sent updateSeries message for ${seriesId}`);
+        } catch (err) {
+          console.error(`Failed to send updateSeries message for ${seriesId}:`, err);
+        }
+      }
+    }
 
     // Check Accept header to determine response format
     const acceptHeader = req.headers.accept || '';
