@@ -53,5 +53,3 @@ export async function getRenderedBuffer(
     console.warn('Unable to create rendered (thumbnail) because:', e);
   }
 }
-
-export default getRenderedBuffer;

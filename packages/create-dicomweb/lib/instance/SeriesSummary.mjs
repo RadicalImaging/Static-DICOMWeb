@@ -66,15 +66,14 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
   const instancesPath = `${seriesPath}/instances`;
 
   // Step 1: Check if series metadata/index.json.gz exists
-  const seriesMetadataPath = `${seriesPath}/metadata`;
-  const indexFileInfo = reader.fileExists(seriesMetadataPath, 'index.json');
+  const indexFileInfo = reader.fileExists(seriesPath, 'metadata');
   
   let existingMetadata = null;
   let existingInstanceUIDs = new Set();
 
   if (indexFileInfo?.exists) {
     try {
-      existingMetadata = await reader.readJsonFile(seriesMetadataPath, 'index.json');
+      existingMetadata = await reader.readJsonFile(seriesPath, 'metadata');
       
       // Extract SOP Instance UIDs from existing metadata
       if (Array.isArray(existingMetadata)) {
@@ -129,12 +128,11 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
   
   for (const instanceUID of actualInstanceUIDs) {
     const instancePath = reader.getInstancePath(studyUID, seriesUID, instanceUID);
-    const instanceMetadataPath = `${instancePath}/metadata`;
     
-    const metadataFileInfo = reader.fileExists(instanceMetadataPath, 'index.json');
+    const metadataFileInfo = reader.fileExists(instancePath, 'metadata');
     if (metadataFileInfo?.exists) {
       try {
-        let instanceMetadata = await reader.readJsonFile(instanceMetadataPath, 'index.json');
+        let instanceMetadata = await reader.readJsonFile(instancePath, 'metadata');
         
         // Instance metadata files are arrays with one element
         if (Array.isArray(instanceMetadata) && instanceMetadata.length > 0) {
@@ -193,7 +191,7 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
   // Step 7: Write new series metadata file
   console.warn('seriesSummary: writing new series metadata file');
   const writer = new FileDicomWebWriter({ studyInstanceUid: studyUID, seriesInstanceUid: seriesUID }, { baseDir });
-  const metadataStreamInfo = await writer.openSeriesStream('index.json', { gzip: true, path: '/metadata' });
+  const metadataStreamInfo = await writer.openSeriesStream('metadata', { gzip: true });
   metadataStreamInfo.stream.write(Buffer.from(JSON.stringify(instanceMetadataArray)));
   await writer.closeStream(metadataStreamInfo.streamKey);
   console.warn('seriesSummary: metadata file written:', metadataStreamInfo.filepath);

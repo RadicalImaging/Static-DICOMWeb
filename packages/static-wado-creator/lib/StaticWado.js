@@ -39,6 +39,8 @@ const { isVideo } = require('./writer/VideoWriter');
 const validateMetadata = require('./operation/validateMetadata.js');
 const { Success, Failure, clearResults, WriteResults } = require('./util/resultsReport');
 
+console.warn("staticCS.getRenderedBuffer=", staticCS.getRenderedBuffer, staticCS.getRenderedBuffer.getRenderedBuffer);
+
 function setStudyData(studyData) {
   this.studyData = studyData;
 }

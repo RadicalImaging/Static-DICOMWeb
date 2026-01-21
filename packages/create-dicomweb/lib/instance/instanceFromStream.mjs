@@ -86,7 +86,7 @@ export async function instanceFromStream(stream, options = {}) {
 
   if( writer ) {
     console.log("Writing metadata to file", information.sopInstanceUid);
-    const metadataStream = await writer.openInstanceStream('index.json', { gzip: true, path: '/metadata' });
+    const metadataStream = await writer.openInstanceStream('metadata', { gzip: true });
     metadataStream.stream.write(Buffer.from(JSON.stringify([dict])));
     writer.closeStream(metadataStream.streamKey);
   }
