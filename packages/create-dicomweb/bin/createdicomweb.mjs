@@ -15,7 +15,6 @@ program
   .description('Store instance data')
   .argument('<part10>', 'part 10 file(s)')
   .option('--dicomdir <path>', 'Base directory path where binary .mht files will be written in DICOMweb structure','~/dicomweb')
-  // .option('-s, --separator <char>', 'separator character', ',')
   .action(async (fileName, options) => {
     const instanceOptions = {};
     if (options.dicomdir) {
@@ -57,25 +56,25 @@ program
 program
   .command('create')
   .description('Process instances and generate series and study metadata for all discovered studies')
-  .argument('<part10>', 'part 10 file(s) or directory(ies)')
+  .argument('<part10...>', 'part 10 file(s) or directory(ies)')
   .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
-  .action(async (fileName, options) => {
+  .action(async (fileNames, options) => {
     const createOptions = {};
     if (options.dicomdir) {
       createOptions.dicomdir = handleHomeRelative(options.dicomdir);
     }
-    await createMain([fileName], createOptions);
+    await createMain(fileNames, createOptions);
   });
 
 program
   .command('stow')
   .description('Store DICOM files to a STOW-RS endpoint')
-  .argument('<part10>', 'part 10 file(s) or directory(ies)')
-  .requiredOption('--url <url>', 'URL endpoint for STOW-RS storage')
+  .argument('<part10...>', 'part 10 file(s) or directory(ies)')
+  .option('--url <url>', 'URL endpoint for STOW-RS storage', 'http://localhost:5000/dicomweb/studies')
   .option('--header <header>', 'Additional HTTP header in format "Key: Value" (can be specified multiple times)')
   .option('--max-group-size <size>', 'Maximum size in bytes for grouping files (default: 10MB)', '10485760')
   .option('--send-as-single-files', 'Send each file individually instead of grouping')
-  .action(async (fileName, options) => {
+  .action(async (fileNames, options) => {
     const stowOptions = {
       url: options.url
     };
@@ -111,7 +110,7 @@ program
       stowOptions.sendAsSingleFiles = true;
     }
     
-    await stowMain([fileName], stowOptions);
+    await stowMain(fileNames, stowOptions);
   });
 
 program.parse();
