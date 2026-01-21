@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "node:crypto";
+import { Readable } from "node:stream";
 import { dirScanner } from '@radicalimaging/static-wado-util';
 
 /**
@@ -130,17 +131,23 @@ export async function stowFile(filePath, endpointUrl, additionalHeaders = {}) {
     const boundary = `StaticWadoBoundary${randomUUID()}`;
     const contentType = `multipart/related; type="application/dicom"; boundary=${boundary}`;
     
-    // Create a readable stream from the file
-    const fileStream = fs.createReadStream(filePath);
     const fileName = path.basename(filePath);
     
-    // Create multipart body
-    const body = await createMultipartBody(fileStream, boundary, fileName);
+    const stats = fs.statSync(filePath);
+    const fileSize = stats.size;
+
+    // Create streaming multipart body
+    const { bodyStream, contentLength } = createMultipartBodyStreamSingle({
+        filePath,
+        boundary,
+        fileName,
+        fileSize,
+    });
     
     // Prepare headers
     const requestHeaders = {
         'Content-Type': contentType,
-        'Content-Length': body.length.toString(),
+        'Content-Length': contentLength.toString(),
         ...additionalHeaders
     };
 
@@ -148,7 +155,10 @@ export async function stowFile(filePath, endpointUrl, additionalHeaders = {}) {
     const response = await fetch(endpointUrl, {
         method: 'POST',
         headers: requestHeaders,
-        body: body
+        // Node.js fetch requires duplex for streaming request bodies.
+        // Safe to include even if the runtime ignores it.
+        duplex: 'half',
+        body: bodyStream
     });
 
     if (!response.ok) {
@@ -178,13 +188,13 @@ export async function stowFiles(files, endpointUrl, additionalHeaders = {}) {
     const boundary = `StaticWadoBoundary${randomUUID()}`;
     const contentType = `multipart/related; type="application/dicom"; boundary=${boundary}`;
     
-    // Create multipart body with multiple files
-    const body = await createMultipartBodyMultiple(files, boundary);
+    // Create streaming multipart body with multiple files
+    const { bodyStream, contentLength } = createMultipartBodyStreamMultiple(files, boundary);
     
     // Prepare headers
     const requestHeaders = {
         'Content-Type': contentType,
-        'Content-Length': body.length.toString(),
+        'Content-Length': contentLength.toString(),
         ...additionalHeaders
     };
 
@@ -192,7 +202,8 @@ export async function stowFiles(files, endpointUrl, additionalHeaders = {}) {
     const response = await fetch(endpointUrl, {
         method: 'POST',
         headers: requestHeaders,
-        body: body
+        duplex: 'half',
+        body: bodyStream
     });
 
     if (!response.ok) {
@@ -209,41 +220,37 @@ export async function stowFiles(files, endpointUrl, additionalHeaders = {}) {
  * @param {string} boundary - Multipart boundary
  * @returns {Promise<Buffer>} Complete multipart body as buffer
  */
-async function createMultipartBodyMultiple(files, boundary) {
-    const parts = [];
-    
-    // Process each file
+function createMultipartBodyStreamMultiple(files, boundary) {
+    const footerStr = `\r\n--${boundary}--\r\n`;
+    const footerLen = Buffer.byteLength(footerStr, 'utf-8');
+
+    let contentLength = footerLen;
+
     for (let i = 0; i < files.length; i++) {
-        const { filePath } = files[i];
+        const { filePath, fileSize } = files[i];
         const fileName = path.basename(filePath);
-        const fileStream = fs.createReadStream(filePath);
-        const chunks = [];
-        
-        // Read file stream into chunks
-        for await (const chunk of fileStream) {
-            chunks.push(chunk);
-        }
-        const fileData = Buffer.concat(chunks);
-        
-        // Build multipart part header
-        // First part starts with --boundary, subsequent parts need \r\n before --boundary
-        const boundaryPrefix = i === 0 ? '' : '\r\n';
-        const partHeader = [
-            `${boundaryPrefix}--${boundary}\r\n`,
-            `Content-Type: application/dicom\r\n`,
-            `Content-Location: ${fileName}\r\n`,
-            `\r\n`
-        ].join('');
-        
-        parts.push(Buffer.from(partHeader, 'utf-8'));
-        parts.push(fileData);
+        const headerStr = multipartPartHeader(boundary, fileName, i === 0);
+        const headerLen = Buffer.byteLength(headerStr, 'utf-8');
+        contentLength += headerLen + fileSize;
     }
-    
-    // Add closing boundary (preceded by \r\n)
-    const footer = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf-8');
-    parts.push(footer);
-    
-    return Buffer.concat(parts);
+
+    async function* gen() {
+        for (let i = 0; i < files.length; i++) {
+            const { filePath } = files[i];
+            const fileName = path.basename(filePath);
+
+            yield Buffer.from(multipartPartHeader(boundary, fileName, i === 0), 'utf-8');
+
+            const fileStream = fs.createReadStream(filePath);
+            for await (const chunk of fileStream) {
+                yield chunk;
+            }
+        }
+
+        yield Buffer.from(footerStr, 'utf-8');
+    }
+
+    return { bodyStream: Readable.from(gen()), contentLength };
 }
 
 /**
@@ -253,28 +260,34 @@ async function createMultipartBodyMultiple(files, boundary) {
  * @param {string} fileName - Name of the file
  * @returns {Promise<Buffer>} Complete multipart body as buffer
  */
-async function createMultipartBody(fileStream, boundary, fileName) {
-    const chunks = [];
-    
-    // Read file stream into chunks
-    for await (const chunk of fileStream) {
-        chunks.push(chunk);
+function createMultipartBodyStreamSingle({ filePath, boundary, fileName, fileSize }) {
+    const headerStr = multipartPartHeader(boundary, fileName, true);
+    const footerStr = `\r\n--${boundary}--\r\n`;
+
+    const contentLength =
+        Buffer.byteLength(headerStr, 'utf-8') +
+        fileSize +
+        Buffer.byteLength(footerStr, 'utf-8');
+
+    async function* gen() {
+        yield Buffer.from(headerStr, 'utf-8');
+        const fileStream = fs.createReadStream(filePath);
+        for await (const chunk of fileStream) {
+            yield chunk;
+        }
+        yield Buffer.from(footerStr, 'utf-8');
     }
-    const fileData = Buffer.concat(chunks);
-    
-    // Build multipart body
-    const header = [
-        `--${boundary}\r\n`,
+
+    return { bodyStream: Readable.from(gen()), contentLength };
+}
+
+function multipartPartHeader(boundary, fileName, isFirstPart) {
+    // First part starts with --boundary, subsequent parts need \r\n before --boundary
+    const boundaryPrefix = isFirstPart ? '' : '\r\n';
+    return [
+        `${boundaryPrefix}--${boundary}\r\n`,
         `Content-Type: application/dicom\r\n`,
         `Content-Location: ${fileName}\r\n`,
-        `\r\n`
+        `\r\n`,
     ].join('');
-    
-    const footer = `\r\n--${boundary}--\r\n`;
-    
-    return Buffer.concat([
-        Buffer.from(header, 'utf-8'),
-        fileData,
-        Buffer.from(footer, 'utf-8')
-    ]);
 }
