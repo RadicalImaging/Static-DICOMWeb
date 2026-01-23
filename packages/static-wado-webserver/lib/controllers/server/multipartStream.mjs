@@ -253,6 +253,12 @@ export function multipartStream(opts) {
         // Kick off your listener (do NOT await)
         try {
           const p = Promise.resolve(listener(fileInfo, readBufferStream));
+          // Add error handler to prevent unhandled promise rejections
+          // The error will still be caught by Promise.allSettled in completePostController
+          p.catch((err) => {
+            console.error(`[multipartStream] Unhandled error in listener for Part ${partCount}:`, err.message || String(err));
+            if (onStreamError) onStreamError(err, fileInfo);
+          });
           req.uploadListenerPromises.push(p);
           console.warn(`[multipartStream] Part ${partCount} added to uploadListenerPromises (total: ${req.uploadListenerPromises.length})`);
         } catch (err) {

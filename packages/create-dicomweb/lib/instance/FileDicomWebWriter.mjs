@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import { createGzip } from 'zlib';
 import { DicomWebWriter } from './DicomWebWriter.mjs';
 
 /**
@@ -8,28 +7,6 @@ import { DicomWebWriter } from './DicomWebWriter.mjs';
  * Writes DICOMweb files to the filesystem
  */
 export class FileDicomWebWriter extends DicomWebWriter {
-
-  /**
-   * Creates a write stream (with optional gzip compression)
-   * @param {string} filepath - Full path to the file
-   * @param {boolean} shouldGzip - Whether to gzip the stream
-   * @returns {Object} - { stream, fileStream }
-   * @private
-   */
-  _createWriteStream(filepath, shouldGzip) {
-    const fileWriteStream = fs.createWriteStream(filepath);
-
-    if (shouldGzip) {
-      const gzipStream = createGzip();
-      gzipStream.pipe(fileWriteStream);
-      gzipStream.on('error', (error) => {
-        fileWriteStream.destroy(error);
-      });
-      return { stream: gzipStream, fileStream: fileWriteStream };
-    }
-
-    return { stream: fileWriteStream, fileStream: fileWriteStream };
-  }
 
   /**
    * Protected method to create the actual stream implementation
@@ -47,22 +24,16 @@ export class FileDicomWebWriter extends DicomWebWriter {
     if (!fs.existsSync(fullPath)) {
       fs.mkdirSync(fullPath, { recursive: true });
     }
-
-    const shouldGzip = options.gzip ?? false;
-    const actualFilename = shouldGzip && !filename.endsWith('.gz') 
-      ? `${filename}.gz` 
-      : filename;
     
-    const filepath = path.join(fullPath, actualFilename);
-    const { stream, fileStream } = this._createWriteStream(filepath, shouldGzip);
+    const filepath = path.join(fullPath, filename);
+    const fileStream = fs.createWriteStream(filepath);
     
     const streamInfo = {
-      stream,
+      stream: fileStream,
       fileStream,
       filepath,
-      filename: actualFilename,
+      filename,
       relativePath,
-      gzipped: shouldGzip,
       contentType: options.contentType || 'application/octet-stream',
       ...options
     };
@@ -78,7 +49,8 @@ export class FileDicomWebWriter extends DicomWebWriter {
    * @protected
    */
   async _closeStream(streamKey, streamInfo) {
-    // End the stream (could be multipart-wrapped or direct)
+    // End the stream (could be gzip-wrapped, multipart-wrapped, or direct)
+    // If gzip, this will flush and end, cascading to multipart (if present) or fileStream
     // If multipart, this will trigger the footer writing and then end the wrapped stream
     streamInfo.stream.end();
 

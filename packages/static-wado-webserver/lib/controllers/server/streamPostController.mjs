@@ -111,16 +111,29 @@ export function streamPostController(params) {
   }
   
   return multipartStream({
-    listener: async (headers, stream) => {
+    listener: async (fileInfo, stream) => {
       // Called immediately when a file part starts.
       // You can kick off downstream processing and return a promise.
       // This promise is *not awaited* by middleware.
-      console.warn("Processing POST upload:", headers);
-      const result = await instanceFromStream(stream, { dicomdir });
-      const { information } = result;
-      console.log("************* information:", information);
-      
-      return result;
+      console.warn("Processing POST upload:", fileInfo);
+      try {
+        const result = await instanceFromStream(stream, { dicomdir });
+        const { information } = result;
+        console.log("************* information:", information);
+        
+        return result;
+      } catch (error) {
+        // Handle errors gracefully - non-DICOM files or invalid DICOM files
+        // The error will be caught by Promise.allSettled in completePostController
+        // and included in the response as a failed file entry
+        const errorMessage = error.message || String(error);
+        const contentType = fileInfo?.mimeType || fileInfo?.headers?.['content-type'] || 'unknown';
+        const fieldname = fileInfo?.fieldname || fileInfo?.headers?.['content-location'] || 'unknown';
+        console.error(`[streamPostController] Error processing stream (Part: ${fieldname}, Content-Type: ${contentType}):`, errorMessage);
+        // Re-throw so it's caught by Promise.allSettled and included in the response
+        // This ensures the error is properly handled and doesn't cause unhandled rejections
+        throw error;
+      }
     },
     limits: { files: 1_000, fileSize: 250 * 1_000_000_000 }, // 250GB, 1000 files
   })

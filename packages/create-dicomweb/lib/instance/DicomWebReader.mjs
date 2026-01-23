@@ -29,28 +29,32 @@ export class DicomWebReader {
   /**
    * Creates a path for study level
    * @param {string} studyUID - Study Instance UID
-   * @param {string} [additionalPath] - Additional path to append
+   * @param {Object} [options] - Options object
+   * @param {string} [options.path] - Additional path to append
    * @returns {string} - Relative path
    */
-  getStudyPath(studyUID, additionalPath = '') {
+  getStudyPath(studyUID, options = {}) {
     if (!studyUID) {
       throw new Error('studyUID is required');
     }
-    return joinPath(`studies/${studyUID}`, additionalPath);
+    const basePath = `studies/${studyUID}`;
+    return options.path ? joinPath(basePath, options.path) : basePath;
   }
 
   /**
    * Creates a path for series level
    * @param {string} studyUID - Study Instance UID
    * @param {string} seriesUID - Series Instance UID
-   * @param {string} [additionalPath] - Additional path to append
+   * @param {Object} [options] - Options object
+   * @param {string} [options.path] - Additional path to append
    * @returns {string} - Relative path
    */
-  getSeriesPath(studyUID, seriesUID, additionalPath = '') {
+  getSeriesPath(studyUID, seriesUID, options = {}) {
     if (!studyUID || !seriesUID) {
       throw new Error('studyUID and seriesUID are required');
     }
-    return joinPath(`studies/${studyUID}/series/${seriesUID}`, additionalPath);
+    const basePath = `studies/${studyUID}/series/${seriesUID}`;
+    return options.path ? joinPath(basePath, options.path) : basePath;
   }
 
   /**
@@ -58,14 +62,16 @@ export class DicomWebReader {
    * @param {string} studyUID - Study Instance UID
    * @param {string} seriesUID - Series Instance UID
    * @param {string} instanceUID - SOP Instance UID
-   * @param {string} [additionalPath] - Additional path to append
+   * @param {Object} [options] - Options object
+   * @param {string} [options.path] - Additional path to append
    * @returns {string} - Relative path
    */
-  getInstancePath(studyUID, seriesUID, instanceUID, additionalPath = '') {
+  getInstancePath(studyUID, seriesUID, instanceUID, options = {}) {
     if (!studyUID || !seriesUID || !instanceUID) {
       throw new Error('studyUID, seriesUID, and instanceUID are required');
     }
-    return joinPath(`studies/${studyUID}/series/${seriesUID}/instances/${instanceUID}`, additionalPath);
+    const basePath = `studies/${studyUID}/series/${seriesUID}/instances/${instanceUID}`;
+    return options.path ? joinPath(basePath, options.path) : basePath;
   }
 
   /**
@@ -196,10 +202,13 @@ export class DicomWebReader {
      * Reads a JSON file from a relative path
      * @param {string} relativePath - Relative path within baseDir
      * @param {string} filename - Filename to read
-     * @returns {Promise<Object>} - Parsed JSON object
+     * @returns {Promise<Object|undefined>} - Parsed JSON object or undefined if file doesn't exist
      */
     async readJsonFile(relativePath, filename) {
       const stream = await this.openInputStream(relativePath, filename);
+      if (!stream) {
+        return undefined;
+      }
       return this.readJsonFromStream(stream);
     }
   

@@ -66,29 +66,25 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
   const instancesPath = `${seriesPath}/instances`;
 
   // Step 1: Check if series metadata/index.json.gz exists
-  const indexFileInfo = reader.fileExists(seriesPath, 'metadata');
-  
   let existingMetadata = null;
   let existingInstanceUIDs = new Set();
 
-  if (indexFileInfo?.exists) {
-    try {
-      existingMetadata = await reader.readJsonFile(seriesPath, 'metadata');
-      
-      // Extract SOP Instance UIDs from existing metadata
-      if (Array.isArray(existingMetadata)) {
-        for (const instance of existingMetadata) {
-          const sopUID = getValue(instance, Tags.SOPInstanceUID);
-          if (sopUID) {
-            existingInstanceUIDs.add(sopUID);
-          }
+  try {
+    existingMetadata = await reader.readJsonFile(seriesPath, 'metadata');
+    
+    // Extract SOP Instance UIDs from existing metadata
+    if (existingMetadata && Array.isArray(existingMetadata)) {
+      for (const instance of existingMetadata) {
+        const sopUID = getValue(instance, Tags.SOPInstanceUID);
+        if (sopUID) {
+          existingInstanceUIDs.add(sopUID);
         }
       }
-    } catch (error) {
-      console.warn(`Failed to read existing series metadata: ${error.message}`);
-      existingMetadata = null;
-      existingInstanceUIDs = new Set();
     }
+  } catch (error) {
+    console.warn(`Failed to read existing series metadata: ${error.message}`);
+    existingMetadata = null;
+    existingInstanceUIDs = new Set();
   }
 
   // Step 2: Scan the instances directory to get actual instance UIDs
@@ -129,11 +125,10 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
   for (const instanceUID of actualInstanceUIDs) {
     const instancePath = reader.getInstancePath(studyUID, seriesUID, instanceUID);
     
-    const metadataFileInfo = reader.fileExists(instancePath, 'metadata');
-    if (metadataFileInfo?.exists) {
-      try {
-        let instanceMetadata = await reader.readJsonFile(instancePath, 'metadata');
-        
+    try {
+      let instanceMetadata = await reader.readJsonFile(instancePath, 'metadata');
+      
+      if (instanceMetadata) {
         // Instance metadata files are arrays with one element
         if (Array.isArray(instanceMetadata) && instanceMetadata.length > 0) {
           instanceMetadata = instanceMetadata[0];
@@ -143,9 +138,9 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
         instanceMetadata = updateLocation(instanceMetadata, instanceUID);
         
         instanceMetadataArray.push(instanceMetadata);
-      } catch (error) {
-        console.warn(`Failed to read metadata for instance ${instanceUID}: ${error.message}`);
       }
+    } catch (error) {
+      console.warn(`Failed to read metadata for instance ${instanceUID}: ${error.message}`);
     }
   }
 

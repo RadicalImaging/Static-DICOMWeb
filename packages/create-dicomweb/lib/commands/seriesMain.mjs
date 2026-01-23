@@ -26,7 +26,7 @@ export async function seriesMain(studyUID, options = {}) {
     seriesUIDs = [seriesUid];
   } else {
     // Scan for all series in the study
-    const seriesPath = reader.getStudyPath(studyUID, 'series');
+    const seriesPath = reader.getStudyPath(studyUID, { path: 'series' });
     const seriesDirectories = await reader.scanDirectory(seriesPath, { withFileTypes: true });
     
     for (const entry of seriesDirectories) {

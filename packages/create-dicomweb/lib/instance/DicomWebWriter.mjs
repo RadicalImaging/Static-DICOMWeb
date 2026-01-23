@@ -1,4 +1,5 @@
 import { v4 as uuid } from 'uuid';
+import { createGzip } from 'zlib';
 import { uids } from '@radicalimaging/static-wado-util';
 import { MultipartStreamWriter } from './MultipartStreamWriter.mjs';
 
@@ -77,28 +78,66 @@ export class DicomWebWriter {
    * @param {string} path - The relative path within baseDir (e.g., 'studies/{studyUID}')
    * @param {string} filename - The filename to write
    * @param {Object} options - Stream options (contentType, gzip, multipart, etc.)
+   * @param {string} options.path - Additional path segment to append to the base path
+   * @param {boolean} options.gzip - Whether to gzip the stream
    * @param {boolean} options.multipart - Whether to wrap as multipart/related
    * @param {string} options.boundary - Multipart boundary (required if multipart=true)
    * @param {string} options.contentType - Content type for multipart part
    * @returns {Promise<Object>} - Stream info object with promise property
    */
   async openStream(path, filename, options = {}) {
-    // Call the protected implementation to get the base stream
-    const streamInfo = await this._openStream(path, filename, options);
+    // Handle path options - append additional path if provided
+    if (options.path) {
+      path += (options.path.startsWith('/') ? '' : '/') + options.path;
+    }
     
-    // Wrap with multipart if requested
+    // Determine if gzip is needed and update filename if necessary
+    const shouldGzip = options.gzip ?? false;
+    const actualFilename = shouldGzip && !filename.endsWith('.gz') 
+      ? `${filename}.gz` 
+      : filename;
+    
+    // Call the protected implementation to get the base stream (with updated filename)
+    const streamInfo = await this._openStream(path, actualFilename, options);
+    
+    // Track the target stream for wrapping (starts as the file stream)
+    let targetStream = streamInfo.stream;
+    
+    // Wrap with multipart if requested (before gzip)
     if (options.multipart) {
-      const multipartStream = new MultipartStreamWriter(streamInfo.stream, {
+      const multipartStream = new MultipartStreamWriter(targetStream, {
         boundary: options.boundary,
         contentType: options.contentType || 'application/octet-stream',
         contentLocation: streamInfo.filename
       });
       
-      // Store the original stream and replace with multipart wrapper
-      streamInfo.wrappedStream = streamInfo.stream;
-      streamInfo.stream = multipartStream;
+      // Store the original stream and update target for potential gzip wrapping
+      streamInfo.wrappedStream = targetStream;
+      targetStream = multipartStream;
       streamInfo.isMultipart = true;
     }
+    
+    // Wrap with gzip if requested (after multipart, so multipart gets gzipped)
+    if (shouldGzip) {
+      const gzipStream = createGzip();
+      gzipStream.pipe(targetStream);
+      gzipStream.on('error', (error) => {
+        targetStream.destroy(error);
+      });
+      
+      // Store the gzip stream info
+      streamInfo.gzipStream = gzipStream;
+      streamInfo.gzipped = true;
+      
+      // Update target to be the gzip stream (this is what users will write to)
+      targetStream = gzipStream;
+    }
+    
+    // Update the stream that users will write to
+    streamInfo.stream = targetStream;
+    
+    // Update filename in streamInfo to reflect actual filename
+    streamInfo.filename = actualFilename;
     
     // Create a promise that will be resolved when the stream is closed
     let resolvePromise;
@@ -154,7 +193,8 @@ export class DicomWebWriter {
   /**
    * Opens a stream at the series level
    * @param {string} filename - The filename to write
-   * @param {Object} options - Stream options (contentType, gzip, etc.)
+   * @param {Object} options - Stream options (contentType, gzip, path, etc.)
+   * @param {string} options.path - Additional path segment to append
    * @returns {Promise<Object>} - Stream info object
    */
   async openSeriesStream(filename, options = {}) {
@@ -163,17 +203,15 @@ export class DicomWebWriter {
     if (!studyUID || !seriesUID) {
       throw new Error('StudyInstanceUID and SeriesInstanceUID are required to open series stream');
     }
-    let path = `studies/${studyUID}/series/${seriesUID}`;
-    if( options.path ) {
-      path += (options.path.startsWith('/') ? '' : '/') + options.path;
-    }
+    const path = `studies/${studyUID}/series/${seriesUID}`;
     return this.openStream(path, filename, options);
   }
 
   /**
    * Opens a stream at the instance level
    * @param {string} filename - The filename to write
-   * @param {Object} options - Stream options (contentType, gzip, etc.)
+   * @param {Object} options - Stream options (contentType, gzip, path, etc.)
+   * @param {string} options.path - Additional path segment to append
    * @returns {Promise<Object>} - Stream info object
    */
   async openInstanceStream(filename, options = {}) {
@@ -183,10 +221,7 @@ export class DicomWebWriter {
     if (!studyUID || !seriesUID || !sopUID) {
       throw new Error('StudyInstanceUID, SeriesInstanceUID, and SOPInstanceUID are required to open instance stream');
     }
-    let path = `studies/${studyUID}/series/${seriesUID}/instances/${sopUID}`;
-    if( options.path ) {
-      path += (options.path.startsWith('/') ? '' : '/') + options.path;
-    }
+    const path = `studies/${studyUID}/series/${seriesUID}/instances/${sopUID}`;
     return this.openStream(path, filename, options);
   }
 

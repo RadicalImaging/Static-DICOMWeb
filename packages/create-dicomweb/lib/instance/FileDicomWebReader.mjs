@@ -60,18 +60,18 @@ export class FileDicomWebReader extends DicomWebReader {
   }
 
   /**
-   * Opens an input stream to an uncompressed file
+   * Protected method to open an input stream to an uncompressed file
    * Automatically handles gzip decompression if the file is compressed
    * @param {string} relativePath - Relative path within baseDir
    * @param {string} filename - Filename to read
-   * @returns {Promise<Readable>} - Readable stream (uncompressed)
-   * @throws {Error} - If file does not exist
+   * @returns {Promise<Readable|undefined>} - Readable stream (uncompressed) or undefined if file doesn't exist
+   * @protected
    */
-  async openInputStream(relativePath, filename) {
+  async _openStream(relativePath, filename) {
     const fileInfo = this.fileExists(relativePath, filename);
     
     if (!fileInfo) {
-      throw new Error(`File not found: ${this._getFullPath(relativePath, filename)}`);
+      return undefined;
     }
 
     const readStream = fs.createReadStream(fileInfo.path);
@@ -90,6 +90,17 @@ export class FileDicomWebReader extends DicomWebReader {
     }
     
     return readStream;
+  }
+
+  /**
+   * Opens an input stream to an uncompressed file
+   * Automatically handles gzip decompression if the file is compressed
+   * @param {string} relativePath - Relative path within baseDir
+   * @param {string} filename - Filename to read
+   * @returns {Promise<Readable|undefined>} - Readable stream (uncompressed) or undefined if file doesn't exist
+   */
+  async openInputStream(relativePath, filename) {
+    return this._openStream(relativePath, filename);
   }
 
   /**

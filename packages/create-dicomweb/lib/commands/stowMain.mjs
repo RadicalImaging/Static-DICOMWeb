@@ -32,6 +32,7 @@ export async function stowMain(fileNames, options = {}) {
     // Group files by size
     const fileGroup = [];
     let currentGroupSize = 0;
+    let isFirstAttempt = true;
 
     const flushGroup = async () => {
         if (fileGroup.length === 0) return;
@@ -41,12 +42,33 @@ export async function stowMain(fileNames, options = {}) {
             results.success += fileGroup.length;
             const fileCount = fileGroup.length;
             console.log(`Stored group of ${fileCount} file(s)`);
+            isFirstAttempt = false;
         } catch (error) {
+            // Check if this is a connection failure (not an HTTP error)
+            const isConnectionError = error.message.includes('fetch failed') ||
+                error.message.includes('ECONNREFUSED') ||
+                error.message.includes('ENOTFOUND') ||
+                error.message.includes('ETIMEDOUT') ||
+                error.message.includes('ECONNRESET') ||
+                error.cause?.code === 'ECONNREFUSED' ||
+                error.cause?.code === 'ENOTFOUND' ||
+                error.cause?.code === 'ETIMEDOUT' ||
+                error.cause?.code === 'ECONNRESET';
+
+            // If it's a connection error on the first attempt, exit immediately
+            if (isFirstAttempt && isConnectionError) {
+                console.error(`Failed to connect to endpoint ${url}: ${error.message}`);
+                console.error('Exiting due to connection failure');
+                process.exit(1);
+            }
+
+            // Otherwise, treat it as a regular error and continue
             results.failed += fileGroup.length;
             fileGroup.forEach(({ filePath }) => {
                 results.errors.push({ file: filePath, error: error.message });
                 console.error(`Failed to store ${filePath}: ${error.message}`);
             });
+            isFirstAttempt = false;
         }
 
         fileGroup.length = 0;
@@ -161,6 +183,8 @@ function createMultipartBodyStreamMultiple(files, boundary) {
         for (let i = 0; i < files.length; i++) {
             const { filePath } = files[i];
             const fileName = path.basename(filePath);
+
+            console.log(`Reading file: ${filePath}`);
 
             yield Buffer.from(multipartPartHeader(boundary, fileName, i === 0), 'utf-8');
 

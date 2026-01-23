@@ -24,15 +24,14 @@ export async function studySummary(baseDir, studyUID) {
 
   // Step 1: Check if series/index.json.gz exists
   const seriesIndexPath = `${seriesPath}`;
-  const seriesIndexFileInfo = reader.fileExists(seriesIndexPath, 'index.json');
   console.warn('studySummary: seriesIndexFileInfo:', seriesIndexPath);
   
   let existingSeriesUIDs = new Set();
 
-  if (seriesIndexFileInfo?.exists) {
-    try {
-      const existingSeriesIndex = await reader.readJsonFile(seriesIndexPath, 'index.json') || [];
-      
+  try {
+    const existingSeriesIndex = await reader.readJsonFile(seriesIndexPath, 'index.json');
+    
+    if (existingSeriesIndex) {
       // Extract Series Instance UIDs from existing series index
       for (const seriesQuery of existingSeriesIndex) {
         const seriesUID = getValue(seriesQuery, Tags.SeriesInstanceUID);
@@ -42,10 +41,10 @@ export async function studySummary(baseDir, studyUID) {
       }
 
       console.warn('studySummary: existingSeriesUIDs:', existingSeriesUIDs.size);
-    } catch (error) {
-      console.warn('Failed to read existing series index:', error.message);
-      existingSeriesUIDs = new Set();
     }
+  } catch (error) {
+    console.warn('Failed to read existing series index:', error.message);
+    existingSeriesUIDs = new Set();
   }
 
   // Step 2: Scan the series directory to get actual series UIDs
@@ -87,12 +86,11 @@ export async function studySummary(baseDir, studyUID) {
   
   for (const seriesUID of actualSeriesUIDs) {
     const seriesSingletonPath = reader.getSeriesPath(studyUID, seriesUID);
-    const seriesSingletonFileInfo = reader.fileExists(seriesSingletonPath, 'series-singleton.json');
     
-    if (seriesSingletonFileInfo?.exists) {
-      try {
-        let seriesSingleton = await reader.readJsonFile(seriesSingletonPath, 'series-singleton.json');
-        
+    try {
+      let seriesSingleton = await reader.readJsonFile(seriesSingletonPath, 'series-singleton.json');
+      
+      if (seriesSingleton) {
         // Series singleton files are arrays with one element
         if (Array.isArray(seriesSingleton) && seriesSingleton.length > 0) {
           seriesSingleton = seriesSingleton[0];
@@ -111,13 +109,12 @@ export async function studySummary(baseDir, studyUID) {
         if (numberOfInstances !== undefined) {
           totalInstances += Number(numberOfInstances) || 0;
         }
-      } catch (error) {
-        console.warn(`Failed to read series singleton for series ${seriesUID}: ${error.message}`);
+      } else {
+        console.warn('studySummary: series singleton file not found:', seriesSingletonPath);
       }
-    } else {
-      console.warn('studySummary: series singleton file not found:', seriesSingletonPath);
-      continue;
-    } 
+    } catch (error) {
+      console.warn(`Failed to read series singleton for series ${seriesUID}: ${error.message}`);
+    }
   }
 
   // Step 5: Sort series by SeriesNumber
