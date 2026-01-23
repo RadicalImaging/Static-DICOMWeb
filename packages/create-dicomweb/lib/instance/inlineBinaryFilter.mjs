@@ -23,13 +23,17 @@ export function inlineBinaryFilter(options = {}) {
     const dest = current?.dest;
 
     // Check if this tag has a Value array and is eligible for bulkdata
-    if (!Array.isArray(dest?.Value) || !dest.Value.every(value => value instanceof ArrayBuffer || Buffer.isBuffer(value))) {
+    if( dest?.InlineBinary ) {
+      console.log('********* InlineBinary already set', dest, this.current);
+    }
+    if (!Array.isArray(dest?.Value) || !dest.Value.length || !dest.Value.every(value => value instanceof ArrayBuffer || Buffer.isBuffer(value))) {
       return next(result);
     }
 
     const buffer = Array.isArray(dest.Value) ? Buffer.concat(dest.Value.map(value => Buffer.from(value))) : dest.Value;
     const base64 = Buffer.from(buffer).toString('base64');
     delete dest.Value;
+    console.log('********* Setting InlineBinary', dest, this.current);
     dest.InlineBinary = base64;
 
     // Always call next with the result (synchronously)
