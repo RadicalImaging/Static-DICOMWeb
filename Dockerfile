@@ -2,13 +2,13 @@
 FROM node:24 as builder
 ENV PATH /app/node_modules/.bin:$PATH
 # Install global tools
-RUN npm install -g lerna@8.2.4 bun@1.3.5
+RUN npm install -g lerna@8.2.4 bun@1.3.6
 
 # Setup workdir
 WORKDIR /app
 
 # Copy dependency files first to leverage Docker cache
-COPY --parents bun.lock *.tgz package.json packages/*/package.json ./
+COPY --parents bun.lock external/ package.json packages/*/package.json ./
 
 # Install dependencies
 ENV PATH=/app/node_modules/.bin:$PATH
@@ -37,14 +37,15 @@ COPY *.tgz ./
 COPY --from=builder /app/packages/cs3d/*.tgz cs3d.tgz
 COPY --from=builder /app/packages/static-wado-util/*.tgz static-wado-util.tgz
 COPY --from=builder /app/packages/static-wado-creator/*.tgz static-wado-creator.tgz
+COPY --from=builder /app/packages/create-dicomweb/*.tgz create-dicomweb.tgz
 COPY --from=builder /app/packages/static-wado-webserver/*.tgz static-wado-webserver.tgz
 
 # Install all modules at once
 RUN npm install \
-  ./cornerstonejs-dicom-codec-1.0.7.tgz \
   ./cs3d.tgz \
   ./static-wado-util.tgz \
   ./static-wado-creator.tgz \
+  ./create-dicomweb.tgz \
   ./static-wado-webserver.tgz \
   && rm *.tgz
 

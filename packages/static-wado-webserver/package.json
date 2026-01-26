@@ -48,7 +48,7 @@
   "scripts": {
     "test": "jest --config ./jest.config.js",
     "build": "bun run build:esm",
-    "build:esm": "bun build lib/index.mjs --target node --outdir dist --",
+    "build:esm": "bun build lib/index.mjs --target node --outdir dist --external dcmjs --",
     "link:exec": "bun link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
@@ -62,7 +62,7 @@
     "@saga-bus/core": "0.2.2",
     "config-point": ">=0.5.1",
     "cors": "^2.8.5",
-    "dcmjs": "0.47.1",
+    "dcmjs": "file:../../external/dcmjs",
     "dcmjs-dimse": "^0.1.30",
     "dicer": "0.3.1",
     "express": "^4.18.2",

@@ -24,12 +24,12 @@
   },
   "dependencies": {
     "canvas": "3.1.0",
-    "@cornerstonejs/dicom-codec": "file:./cornerstonejs-dicom-codec-1.0.7.tgz",
     "typescript": "^5.8.2"
   },
   "resolutions": {
+    "@cornerstonejs/dicom-codec": "1.0.9",
     "@cornerstonejs/codec-openjph": ">=2.4.5",
-    "dcmjs": "file:dcmjs-async.tgz",
+    "dcmjs": "file:./external/dcmjs",
     "canvas": "3.1.0"
   },
   "workspaces": [
