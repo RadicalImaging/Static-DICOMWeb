@@ -29,7 +29,7 @@
   },
   "resolutions": {
     "@cornerstonejs/codec-openjph": ">=2.4.5",
-    "dcmjs": "link:dcmjs",
+    "dcmjs": "file:dcmjs-async.tgz",
     "canvas": "3.1.0"
   },
   "workspaces": [

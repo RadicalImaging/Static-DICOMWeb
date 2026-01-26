@@ -23,7 +23,7 @@ The tools will write to a dicomweb folder created by default in the users home d
 DICOM part 10 files can be converted to DICOMweb.  By default, LEI grayscale images will be converted to JPEG-LS compressed images and a thumbnail will be generated.  This can be done with:
 
 ```bash
-mkdicomweb create <DICOM-FILES-DIR>
+createdicomweb create <DICOM-FILES-DIR ...>
 ```
 
 Note there is no glob support on the input parameter, so either directories or files need to be fully specified.

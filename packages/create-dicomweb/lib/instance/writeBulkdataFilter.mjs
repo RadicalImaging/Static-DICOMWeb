@@ -272,6 +272,8 @@ export function writeBulkdataFilter(options = {}) {
             streamInfo.stream.write(buffer);
           } else if (Buffer.isBuffer(value)) {
             streamInfo.stream.write(value);
+          } else {
+            throw new Error(`Unsupported value type: ${typeof value}`);
           }
         }
 
