@@ -128,3 +128,4 @@ exports.configureProgram = configureProgram;
 exports.program = program;
 exports.configureCommands = configureCommands;
 exports.loadConfiguration = loadConfiguration;
+exports.createVerboseLog = createVerboseLog;

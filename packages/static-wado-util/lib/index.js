@@ -1,4 +1,4 @@
-const { program, configureProgram, configureCommands } = require('./program');
+const { program, configureProgram, configureCommands, createVerboseLog } = require('./program');
 const { Stats } = require('./stats');
 const { bilinear, replicate } = require('./image/bilinear');
 module.exports.handleHomeRelative = require('./handleHomeRelative');
@@ -28,6 +28,7 @@ module.exports.replicate = replicate;
 module.exports.configureProgram = configureProgram;
 module.exports.configureCommands = configureCommands;
 module.exports.program = program;
+module.exports.createVerboseLog = createVerboseLog;
 module.exports.Stats = Stats;
 module.exports.getStudyUIDPathAndSubPath = require('./getStudyUIDPathAndSubPath');
 module.exports.createStudyDirectories = require('./createStudyDirectories');

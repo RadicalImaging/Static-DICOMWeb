@@ -22,7 +22,7 @@ import execSpawn from './execSpawn';
 import logger from './logger.js';
 import { extractMultipart, uint8ArrayToString } from './extractMultipart';
 import getStudyUIDPathAndSubPath from './getStudyUIDPathAndSubPath';
-export { program, configureProgram, configureCommands } from './program';
+export { program, configureProgram, configureCommands, createVerboseLog } from './program';
 export * from './dicomToXml';
 import createStudyDirectories from './createStudyDirectories';
 import TagLists from './TagLists.mjs';
