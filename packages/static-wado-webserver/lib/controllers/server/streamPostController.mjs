@@ -207,79 +207,100 @@ function setupMessageHandlers(messaging, dicomdir) {
 }
 
 /**
- * Creates the dataset response array from files
+ * Helper function to extract SOP Class UID from information object
+ * Only uses information object, assumes it's non-null when called
+ */
+function getSOPClassUID(information) {
+  return information?.sopClassUid || null;
+}
+
+/**
+ * Helper function to extract SOP Instance UID from information object
+ * Only uses information object, assumes it's non-null when called
+ */
+function getSOPInstanceUID(information) {
+  return information?.sopInstanceUid || null;
+}
+
+/**
+ * Creates the STOW-RS response in the correct format
+ * Returns an object with 00081199 (ReferencedSOPSequence) for successes
+ * and 00081198 (FailedSOPSequence) for failures
+ * 
+ * If information object doesn't exist, the instance is treated as failed
  */
 function createDatasetResponse(files) {
-  const responseArray = files.map((file) => {
-    const dataset = {};
-    
-    // Add SOP Instance UID if available
-    if (file.result?.information?.sopInstanceUid) {
-      dataset['00080018'] = {
-        vr: 'UI',
-        Value: [file.result.information.sopInstanceUid],
-      };
-    } else if (file.result?.dict?.['00080018']) {
-      // Extract from dict if available
-      const sopInstanceUid = file.result.dict['00080018'];
-      if (sopInstanceUid?.Value?.[0]) {
-        dataset['00080018'] = {
-          vr: sopInstanceUid.vr || 'UI',
-          Value: [sopInstanceUid.Value[0]],
-        };
-      }
-    }
-    
-    // Add status (Performed Procedure Step Status)
-    dataset['00400252'] = {
-      vr: 'CS',
-      Value: [file.ok ? 'COMPLETED' : 'FAILED'],
-    };
-    
-    // Add error message if failed
-    if (!file.ok && file.error) {
-      dataset['00404002'] = {
-        vr: 'ST',
-        Value: [file.error],
-      };
-    }
-    
-    // Add Study Instance UID if available
-    if (file.result?.information?.studyInstanceUid) {
-      dataset['0020000D'] = {
-        vr: 'UI',
-        Value: [file.result.information.studyInstanceUid],
-      };
-    } else if (file.result?.dict?.['0020000D']) {
-      const studyInstanceUid = file.result.dict['0020000D'];
-      if (studyInstanceUid?.Value?.[0]) {
-        dataset['0020000D'] = {
-          vr: studyInstanceUid.vr || 'UI',
-          Value: [studyInstanceUid.Value[0]],
-        };
-      }
-    }
-    
-    // Add Series Instance UID if available
-    if (file.result?.information?.seriesInstanceUid) {
-      dataset['0020000E'] = {
-        vr: 'UI',
-        Value: [file.result.information.seriesInstanceUid],
-      };
-    } else if (file.result?.dict?.['0020000E']) {
-      const seriesInstanceUid = file.result.dict['0020000E'];
-      if (seriesInstanceUid?.Value?.[0]) {
-        dataset['0020000E'] = {
-          vr: seriesInstanceUid.vr || 'UI',
-          Value: [seriesInstanceUid.Value[0]],
-        };
-      }
-    }
-    
-    return dataset;
-  });
+  const response = {};
+  const successItems = [];
+  const failedItems = [];
   
-  return responseArray;
+  for (const file of files) {
+    // Check if information object exists - if not, treat as failed
+    const information = file.result?.information;
+    const hasInformation = !!information;
+    
+    // Determine if this is a valid success (ok AND has information)
+    const isValidSuccess = file.ok && hasInformation;
+    
+    // Extract UIDs only from information object (if it exists)
+    const sopClassUID = hasInformation ? getSOPClassUID(information) : null;
+    const sopInstanceUID = hasInformation ? getSOPInstanceUID(information) : null;
+    
+    // Create sequence item
+    const item = {};
+    
+    // Add ReferencedSOPClassUID (00081150) if available
+    if (sopClassUID) {
+      item['00081150'] = {
+        vr: 'UI',
+        Value: [sopClassUID],
+      };
+    }
+    
+    // Add ReferencedSOPInstanceUID (00081155) if available
+    if (sopInstanceUID) {
+      item['00081155'] = {
+        vr: 'UI',
+        Value: [sopInstanceUID],
+      };
+    }
+    
+    if (isValidSuccess) {
+      // Success - add to ReferencedSOPSequence (00081199)
+      successItems.push(item);
+    } else {
+      // Failure - add to FailedSOPSequence (00081198)
+      // This includes cases where:
+      // - file.ok is false (processing error)
+      // - information object doesn't exist (invalid DICOM or parsing failure)
+      
+      // Add Failure Reason (00081197)
+      item['00081197'] = {
+        vr: 'US',
+        Value: [0xC000], // Processing failure (generic error code)
+      };
+      
+      failedItems.push(item);
+    }
+  }
+  
+  // Add ReferencedSOPSequence (00081199) if there are successful items
+  if (successItems.length > 0) {
+    response['00081199'] = {
+      vr: 'SQ',
+      Value: successItems,
+    };
+  }
+  
+  // Add FailedSOPSequence (00081198) if there are failed items
+  if (failedItems.length > 0) {
+    response['00081198'] = {
+      vr: 'SQ',
+      Value: failedItems,
+    };
+  }
+  
+  return response;
 }
 
 export const completePostController = async (req, res, next) => {
@@ -356,20 +377,13 @@ export const completePostController = async (req, res, next) => {
     const useXml = prefersXml && !prefersJson;
 
     if (useXml) {
-      // For XML, wrap the dataset array in a sequence structure
-      const xmlDataset = {
-        '00400275': {  // Referenced SOP Sequence
-          vr: 'SQ',
-          Value: datasetResponse,
-        },
-      };
-      const xml = dicomToXml(xmlDataset);
+      const xml = dicomToXml(datasetResponse);
       
       res.status(200)
          .setHeader('Content-Type', 'application/dicom+xml; charset=utf-8')
          .send(xml);
     } else {
-      // Format as DICOM JSON (use dataset directly)
+      // Format as DICOM JSON (use dataset directly - it's already a single object)
       res.status(200)
          .setHeader('Content-Type', 'application/dicom+json; charset=utf-8')
          .json(datasetResponse);

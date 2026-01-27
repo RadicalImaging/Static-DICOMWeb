@@ -35,29 +35,22 @@ export async function parseAndLogDicomJsonErrors(response, responseText, files) 
         // Parse JSON response
         const jsonResponse = JSON.parse(responseText);
         
-        // Check if it's a valid DICOM JSON response (should be an array)
-        if (!Array.isArray(jsonResponse)) {
+        // Check if it's a valid DICOM JSON response (should be an object with sequences)
+        if (typeof jsonResponse !== 'object' || Array.isArray(jsonResponse)) {
             return;
         }
 
-        // Check for any items that are not COMPLETED
-        const nonCompletedItems = [];
-        for (let i = 0; i < jsonResponse.length; i++) {
-            const responseItem = jsonResponse[i];
-            const statusTag = responseItem['00400252'];
-            const status = statusTag?.Value?.[0];
-            if (status && status !== 'COMPLETED') {
-                nonCompletedItems.push({ index: i, responseItem, status });
-            }
-        }
-
-        // If all items are completed, nothing to log
-        if (nonCompletedItems.length === 0) {
+        // Extract FailedSOPSequence (00081198) if present
+        const failedSequence = jsonResponse['00081198'];
+        const failedItems = failedSequence?.Value || [];
+        
+        // If no failed items, nothing to log
+        if (failedItems.length === 0) {
             return;
         }
 
         // Extract SOP Instance UIDs from uploaded files using AsyncDicomReader
-        // Only do this if we have non-completed items to process
+        // Only do this if we have failed items to process
         const fileSopInstanceUids = await Promise.all(
             files.map(async ({ filePath }) => {
                 try {
@@ -81,19 +74,28 @@ export async function parseAndLogDicomJsonErrors(response, responseText, files) 
         );
 
         // Match response items to files and log warnings
-        for (const { index: i, responseItem, status } of nonCompletedItems) {
-            // Extract error message from tag 00404002 if available
-            const errorTag = responseItem['00404002'];
-            const errorMessage = errorTag?.Value?.[0];
+        for (let i = 0; i < failedItems.length; i++) {
+            const failedItem = failedItems[i];
+            
+            // Extract Failure Reason (00081197) if available
+            const failureReasonTag = failedItem['00081197'];
+            const failureReason = failureReasonTag?.Value?.[0];
             
             // Build the warning message
-            let warningMessage = `Status: ${status}`;
-            if (errorMessage) {
-                warningMessage += ` - ${errorMessage}`;
+            let warningMessage = 'Failed';
+            if (failureReason !== undefined) {
+                // Failure reason is typically a US (unsigned short) error code
+                // Convert to hex for readability if it's a number
+                if (typeof failureReason === 'number') {
+                    warningMessage = `Failure Reason: 0x${failureReason.toString(16).toUpperCase()}`;
+                } else {
+                    warningMessage = `Failure Reason: ${failureReason}`;
+                }
             }
             
             // Try to match by SOP Instance UID first
-            const responseSopInstanceUid = responseItem['00080018']?.Value?.[0];
+            // In STOW-RS format, this is ReferencedSOPInstanceUID (00081155)
+            const responseSopInstanceUid = failedItem['00081155']?.Value?.[0];
             let matchedFile = null;
             
             if (responseSopInstanceUid) {
@@ -103,6 +105,7 @@ export async function parseAndLogDicomJsonErrors(response, responseText, files) 
             }
             
             // Fall back to position-based matching if SOP Instance UID match failed
+            // Note: This is less reliable since we don't know the exact order
             if (!matchedFile && i < files.length) {
                 matchedFile = { filePath: files[i].filePath };
             }
