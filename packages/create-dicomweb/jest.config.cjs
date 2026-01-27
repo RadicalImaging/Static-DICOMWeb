@@ -2,6 +2,7 @@ const baseConfig = require('../../.config/jest/jest.config.cjs');
 
 module.exports = {
   ...baseConfig,
+  setupFilesAfterEnv: ['<rootDir>/test/jestSetup.mjs'],
   moduleFileExtensions: ['js', 'jsx', 'ts', 'tsx', 'mjs'],
   transformIgnorePatterns: [
     // Transform all ESM modules in node_modules, including Bun's .bun directory structure

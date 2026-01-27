@@ -1,5 +1,5 @@
-import fs from 'fs';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
+import { createFrameWriter } from './streamWriters.mjs';
 
 /**
  * DICOM tag hex values for UIDs and Transfer Syntax
@@ -33,9 +33,6 @@ export function writeMultipartFramesFilter(options = {}) {
   
   // Track frame number per pixel data tag (increments for each value() call)
   let currentFrameNumber = 0;
-  
-  // Track pending frame writes
-  const pendingFrameWrites = [];
 
   /**
    * Gets or creates the writer, using the listener's information
@@ -49,6 +46,7 @@ export function writeMultipartFramesFilter(options = {}) {
     }
     return writer;
   }
+
 
   /**
    * Filter method: Called when a tag is added
@@ -85,37 +83,15 @@ export function writeMultipartFramesFilter(options = {}) {
       currentFrameNumber++;
       const frameNumber = currentFrameNumber;
 
-      const frame = Array.isArray(v) ? v : [v];
+      // Create a writer function bound with the frame data
+      const frameDataWriter = createFrameWriter(v);
       
-      // Start async frame write (don't await here to keep filter synchronous)
-      const frameWritePromise = (async () => {
-        try {
-          // Open a frame stream using the DicomWebWriter API
-          const streamInfo = await frameWriter.openFrameStream(frameNumber);
-          
-          // Write each array element to the stream
-          // Each element is written immediately to avoid large buffers in memory
-          for (const element of frame) {
-            if (element instanceof ArrayBuffer) {
-              const buffer = Buffer.from(element);
-              streamInfo.stream.write(buffer);
-            }
-          }
-
-          // Close the stream to finalize the frame
-          await frameWriter.closeStream(streamInfo.streamKey);
-
-          // Return the filename for reference
-          return streamInfo.filename;
-        } catch (error) {
-          console.error(`Error writing frame ${frameNumber}:`, error);
-          throw error;
-        }
-      })();
+      // Use writeToStream to handle writing, closing, and error handling
+      // This ensures proper cleanup in all cases (errors are handled and streams are cleaned up)
+      // Errors are recorded internally and the promise resolves (doesn't throw)
+      // writeToStream now handles all promise rejections internally to prevent process termination
+      streamInfo.write(v);
       
-      // Track the pending write
-      pendingFrameWrites.push(frameWritePromise);
-
       // Return relative path string as URI format (synchronously)
       const relativePath = `frames/${frameNumber}.mht`;
       return next(relativePath);

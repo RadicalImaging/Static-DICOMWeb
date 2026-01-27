@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { constants } from 'dcmjs';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
+import { createBulkdataWriter } from './streamWriters.mjs';
 
 const { TagHex, BULKDATA_VRS } = constants;
 
@@ -239,8 +240,14 @@ export function writeBulkdataFilter(options = {}) {
       return next(result);
     }
 
+    // Create a writer function bound with the value array
+    const bulkdataDataWriter = createBulkdataWriter(valueArray);
+
     // Write the bulkdata file asynchronously (don't await here)
     (async () => {
+      // Generate streamKey upfront so we can use it for error reporting
+      const streamKey = `bulkdata:${currentTag}@${level}:${hashPath}`;
+      
       try {
         const relativePath = `studies/${studyUID}/bulkdata/${hashPath.substring(0, hashPath.lastIndexOf('/'))}`;
         const filename = hashPath.substring(hashPath.lastIndexOf('/') + 1);
@@ -257,31 +264,23 @@ export function writeBulkdataFilter(options = {}) {
         const contentTypeHeader = `${contentType}`;
 
         // Open the stream with multipart wrapping
-        const streamInfo = await bulkdataWriter.openStream(relativePath, filename, {
+        const streamInfo = bulkdataWriter.openStream(relativePath, filename, {
           multipart: true,
           contentType: contentTypeHeader,
           boundary,
           gzip: true,
-          streamKey: `bulkdata:${currentTag}@${level}:${hashPath}`
+          streamKey
         });
 
-        // Write each ArrayBuffer or Buffer to the stream
-        for (const value of valueArray) {
-          if (value instanceof ArrayBuffer) {
-            const buffer = Buffer.from(value);
-            streamInfo.stream.write(buffer);
-          } else if (Buffer.isBuffer(value)) {
-            streamInfo.stream.write(value);
-          } else {
-            throw new Error(`Unsupported value type: ${typeof value}`);
-          }
-        }
-
-        // Close the stream
-        await bulkdataWriter.closeStream(streamInfo.streamKey);
+        // Use writeToStream to handle writing, closing, and error handling
+        // Errors are recorded internally and the promise resolves (doesn't throw)
+        await bulkdataWriter.writeToStream(streamInfo, bulkdataDataWriter);
 
       } catch (error) {
+        // Only catch unexpected errors (e.g., from openStream)
+        // writeToStream handles its own errors internally
         console.error(`Error writing bulkdata for tag ${currentTag}:`, error);
+        bulkdataWriter.recordStreamError(streamKey, error);
       }
     })();
 

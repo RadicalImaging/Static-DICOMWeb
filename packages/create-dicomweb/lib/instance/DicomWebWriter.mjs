@@ -2,6 +2,7 @@ import { v4 as uuid } from 'uuid';
 import { createGzip } from 'zlib';
 import { uids } from '@radicalimaging/static-wado-util';
 import { MultipartStreamWriter } from './MultipartStreamWriter.mjs';
+import { StreamInfo } from './StreamInfo.mjs';
 
 /**
  * Base class for writing DICOMweb outputs
@@ -26,6 +27,7 @@ export class DicomWebWriter {
     this.informationProvider = informationProvider;
     this.options = options;
     this.openStreams = new Map(); // key -> stream info
+    this.streamErrors = new Map(); // key -> error
   }
 
   /**
@@ -74,6 +76,109 @@ export class DicomWebWriter {
   }
 
   /**
+   * Private async method that performs the actual writing with error handling
+   * @param {Object} streamInfo - The stream info object from openStream
+   * @param {Function} writer - Async or sync function that writes to streamInfo.stream
+   * @returns {Promise<string|undefined>} - Resolves with the relative path when writing completes successfully, or undefined if an error occurred (error is recorded)
+   * @private
+   */
+  async _writeToStream(streamInfo, writer) {
+    const streamKey = streamInfo.streamKey;
+
+    // Wrap writer execution in try-catch to handle synchronous errors
+    // This ensures errors are caught before they become unhandled promise rejections
+    try {
+      // Execute the writer function (can be async or sync)
+      let writerResult;
+      try {
+        writerResult = writer(streamInfo.stream, streamInfo);
+      } catch (syncError) {
+        // Synchronous error from writer - handle it immediately
+        // Record the error and return undefined to prevent unhandled rejection
+        try {
+          this.recordStreamError(streamKey, syncError, true);
+        } catch (recordError) {
+          // If recordStreamError itself throws, log it but don't let it propagate
+          console.error(`Error in recordStreamError for ${streamKey}:`, recordError);
+        }
+        // Return undefined synchronously - this prevents the error from propagating
+        return undefined;
+      }
+
+      // No synchronous error - proceed with async handling
+      // If writerResult is a promise, await it; otherwise it's already resolved
+      await Promise.resolve(writerResult);
+      
+      // If we get here, writing succeeded - close the stream
+      return await this.closeStream(streamKey);
+    } catch (error) {
+      // Record the error and ensure cleanup (recordStreamError handles stream termination)
+      // Pass skipPromiseReject=true because the promise is handled by writeToStream's catch handler
+      try {
+        this.recordStreamError(streamKey, error, true);
+      } catch (recordError) {
+        // If recordStreamError itself throws, log it but don't let it propagate
+        console.error(`Error in recordStreamError for ${streamKey}:`, recordError);
+      }
+      // Return undefined to indicate failure (error is already recorded)
+      return undefined;
+    }
+  }
+
+  /**
+   * Writes to a stream using a writer function, handling errors and cleanup automatically
+   * This method ensures the stream is properly closed and errors are recorded
+   * @param {Object} streamInfo - The stream info object from openStream
+   * @param {Function} writer - Async or sync function that writes to streamInfo.stream
+   * @returns {Promise<string|undefined>} - Resolves with the relative path when writing completes successfully, or undefined if an error occurred (error is recorded)
+   */
+  writeToStream(streamInfo, writer) {
+    if (!streamInfo || !streamInfo.streamKey) {
+      throw new Error('Invalid streamInfo: must have streamKey property');
+    }
+    if (typeof writer !== 'function') {
+      throw new Error('writer must be a function');
+    }
+
+    try {
+      // Create promise and attach catch handler IMMEDIATELY before any async work
+      // This ensures the catch handler is always in place to prevent unhandled rejections
+      const promise = this._writeToStream(streamInfo, writer);
+      
+      // Wrap in Promise.resolve to ensure we have full control and catch handler is attached
+      // This promise will NEVER reject unhandled - it always resolves (with result or undefined)
+      return Promise.resolve(promise).catch((error) => {
+        // Error should already be recorded internally by _writeToStream, but catch
+        // any unexpected rejections to prevent process termination
+        const streamKey = streamInfo?.streamKey || 'unknown';
+        if (!this.streamErrors.has(streamKey)) {
+          // Only log if error wasn't already recorded (shouldn't happen, but safety net)
+          console.warn(`Unexpected error in writeToStream for ${streamKey}:`, error.message);
+          try {
+            this.recordStreamError(streamKey, error, true);
+          } catch (recordError) {
+            console.error(`Error in recordStreamError:`, recordError);
+          }
+        }
+        // Always return undefined to indicate failure (error is already recorded)
+        // This ensures the promise resolves (never rejects), preventing unhandled rejections
+        return undefined;
+      });
+    } catch (syncError) {
+      // Handle any synchronous errors (shouldn't happen since _writeToStream is async, but safety net)
+      const streamKey = streamInfo?.streamKey || 'unknown';
+      console.warn(`Synchronous error in writeToStream for ${streamKey}:`, syncError.message);
+      try {
+        this.recordStreamError(streamKey, syncError, true);
+      } catch (recordError) {
+        console.error(`Error in recordStreamError:`, recordError);
+      }
+      // Return a resolved promise with undefined to indicate failure
+      return Promise.resolve(undefined);
+    }
+  }
+
+  /**
    * Opens a stream at a given path (concrete implementation)
    * @param {string} path - The relative path within baseDir (e.g., 'studies/{studyUID}')
    * @param {string} filename - The filename to write
@@ -83,9 +188,10 @@ export class DicomWebWriter {
    * @param {boolean} options.multipart - Whether to wrap as multipart/related
    * @param {string} options.boundary - Multipart boundary (required if multipart=true)
    * @param {string} options.contentType - Content type for multipart part
-   * @returns {Promise<Object>} - Stream info object with promise property
+   * @param {Function} options.frameWriter - Optional writer function that will be called with the stream and streamInfo. If provided, writeToStream will be called automatically.
+   * @returns {Object} - Stream info object with promise property (or promise from writeToStream if frameWriter is provided)
    */
-  async openStream(path, filename, options = {}) {
+  openStream(path, filename, options = {}) {
     // Handle path options - append additional path if provided
     if (options.path) {
       path += (options.path.startsWith('/') ? '' : '/') + options.path;
@@ -98,66 +204,52 @@ export class DicomWebWriter {
       : filename;
     
     // Call the protected implementation to get the base stream (with updated filename)
-    const streamInfo = await this._openStream(path, actualFilename, options);
+    const data = this._openStream(path, actualFilename, options);
     
     // Track the target stream for wrapping (starts as the file stream)
-    let targetStream = streamInfo.stream;
-    
-    // Wrap with multipart if requested (before gzip)
-    if (options.multipart) {
-      const multipartStream = new MultipartStreamWriter(targetStream, {
-        boundary: options.boundary,
-        contentType: options.contentType || 'application/octet-stream',
-        contentLocation: streamInfo.filename
-      });
-      
-      // Store the original stream and update target for potential gzip wrapping
-      streamInfo.wrappedStream = targetStream;
-      targetStream = multipartStream;
-      streamInfo.isMultipart = true;
-    }
-    
-    // Wrap with gzip if requested (after multipart, so multipart gets gzipped)
+    let targetStream = data.stream;
     if (shouldGzip) {
       const gzipStream = createGzip();
-      gzipStream.pipe(targetStream);
+      gzipStream.pipe(targetStream); // gzip pipes to file stream
       gzipStream.on('error', (error) => {
         targetStream.destroy(error);
       });
       
-      // Store the gzip stream info
-      streamInfo.gzipStream = gzipStream;
-      streamInfo.gzipped = true;
-      
-      // Update target to be the gzip stream (this is what users will write to)
+      data.gzipStream = gzipStream;
+      data.gzipped = true;
       targetStream = gzipStream;
     }
     
-    // Update the stream that users will write to
-    streamInfo.stream = targetStream;
+    if (options.multipart) {
+      const multipartStream = new MultipartStreamWriter(targetStream, {
+        boundary: options.boundary,
+        contentType: options.contentType || 'application/octet-stream',
+        contentLocation: data.filename
+      });
+      
+      data.wrappedStream = targetStream;
+      targetStream = multipartStream;
+      data.isMultipart = true;
+    }
     
-    // Update filename in streamInfo to reflect actual filename
-    streamInfo.filename = actualFilename;
+    data.stream = targetStream;
+    data.filename = actualFilename;
     
-    // Create a promise that will be resolved when the stream is closed
-    let resolvePromise;
-    let rejectPromise;
-    const completionPromise = new Promise((resolve, reject) => {
-      resolvePromise = resolve;
-      rejectPromise = reject;
-    });
+    const streamKey = options.streamKey || `${path.replace(/\\/g, '/')}:${data.filename}`;
+    data.streamKey = streamKey;
     
-    // Add promise resolvers to the stream info
-    streamInfo.promise = completionPromise;
-    streamInfo._resolve = resolvePromise;
-    streamInfo._reject = rejectPromise;
-    
-    // Generate a unique stream key if not provided
-    const streamKey = options.streamKey || `${path.replace(/\\/g, '/')}:${streamInfo.filename}`;
-    streamInfo.streamKey = streamKey;
-    
-    // Add to open streams
+    const streamInfo = new StreamInfo(this, data);
     this.openStreams.set(streamKey, streamInfo);
+    
+    // If frameWriter is provided, automatically handle writing and cleanup
+    if (options.frameWriter) {
+      // Call writeToStream which will handle writing, closing, and error handling
+      const writePromise = this.writeToStream(streamInfo, options.frameWriter);
+      // Replace the promise in streamInfo with the writeToStream promise
+      streamInfo.promise = writePromise;
+      // Return streamInfo with the write promise
+      return streamInfo;
+    }
     
     return streamInfo;
   }
@@ -168,10 +260,10 @@ export class DicomWebWriter {
    * @param {string} path - The relative path within baseDir
    * @param {string} filename - The filename to write
    * @param {Object} options - Stream options
-   * @returns {Promise<Object>} - Stream info object (without promise)
+   * @returns {Object} - Stream info object (without promise)
    * @protected
    */
-  async _openStream(path, filename, options = {}) {
+  _openStream(path, filename, options = {}) {
     throw new Error('_openStream must be implemented by subclass');
   }
 
@@ -229,9 +321,9 @@ export class DicomWebWriter {
    * Opens a stream at the frame level
    * @param {number} frameNumber - The frame number (1-based)
    * @param {Object} options - Stream options (contentType, gzip, boundary, etc.)
-   * @returns {Promise<Object>} - Stream info object
+   * @returns {Object} - Stream info object
    */
-  async openFrameStream(frameNumber, options = {}) {
+  openFrameStream(frameNumber, options = {}) {
     const studyUID = this.getStudyUID();
     const seriesUID = this.getSeriesUID();
     const sopUID = this.getSOPInstanceUID();
@@ -261,7 +353,7 @@ export class DicomWebWriter {
     const filename = shouldGzip ? `${frameNumber}.mht.gz` : `${frameNumber}.mht`;
     
     // Open the stream with multipart wrapping
-    const streamInfo = await this.openStream(path, filename, { 
+    const streamInfo = this.openStream(path, filename, { 
       ...options, 
       gzip: shouldGzip, 
       multipart: true,
@@ -300,30 +392,36 @@ export class DicomWebWriter {
     }
 
     try {
-      // Call the protected close implementation
-      // (multipart footer is written automatically by MultipartStreamWriter.end())
+      await streamInfo.end();
       const relativePath = await this._closeStream(streamKey, streamInfo);
       
-      // Resolve the promise
       if (streamInfo._resolve) {
         streamInfo._resolve(relativePath);
       }
       
-      // Remove from open streams
       this.openStreams.delete(streamKey);
       
       return relativePath;
     } catch (error) {
-      // Reject the promise on error
       if (streamInfo._reject) {
         streamInfo._reject(error);
       }
       
-      // Still remove from open streams
       this.openStreams.delete(streamKey);
       
       throw error;
     }
+  }
+
+  /**
+   * Called by StreamInfo.recordFailure. Records the error and terminates the stream.
+   * @param {string} streamKey - The key identifying the stream
+   * @param {StreamInfo} streamInfo - The stream info (unused, kept for signature)
+   * @param {Error} error - The error that occurred
+   * @private
+   */
+  _recordStreamFailure(streamKey, streamInfo, error) {
+    this.recordStreamError(streamKey, error, true);
   }
 
   /**
@@ -358,6 +456,90 @@ export class DicomWebWriter {
         promises.push(streamInfo.promise);
       }
     }
-    return Promise.all(promises);
+    return Promise.allSettled(promises);
+  }
+
+  /**
+   * Records an error that occurred during writing for a specific stream
+   * This terminates the stream handling and marks it as failed
+   * @param {string} streamKey - The key identifying the stream
+   * @param {Error} error - The error that occurred
+   * @param {boolean} skipPromiseReject - If true, don't reject the promise (used when error is already handled by writeToStream)
+   */
+  recordStreamError(streamKey, error, skipPromiseReject = false) {
+    const streamInfo = this.openStreams.get(streamKey);
+    if (!streamInfo) {
+      // Stream not found, but still record the error
+      this.streamErrors.set(streamKey, error);
+      return;
+    }
+
+    // Record the error
+    this.streamErrors.set(streamKey, error);
+    streamInfo.error = error;
+    streamInfo.failed = true;
+
+    // Terminate the stream by destroying it
+    try {
+      if (streamInfo.stream && typeof streamInfo.stream.destroy === 'function') {
+        streamInfo.stream.destroy(error);
+      }
+      // Also destroy gzip stream if present
+      if (streamInfo.gzipStream && typeof streamInfo.gzipStream.destroy === 'function') {
+        streamInfo.gzipStream.destroy(error);
+      }
+      // Also destroy file stream if present
+      if (streamInfo.fileStream && typeof streamInfo.fileStream.destroy === 'function') {
+        streamInfo.fileStream.destroy(error);
+      }
+    } catch (destroyError) {
+      // Ignore errors during stream destruction
+      console.warn(`Error destroying stream ${streamKey}:`, destroyError);
+    }
+
+    // Only reject the promise if it hasn't been replaced and we're not skipping rejection
+    // When called from _writeToStream, the promise is handled by writeToStream's catch handler,
+    // so we don't need to reject the original promise (which could cause unhandled rejection)
+    if (!skipPromiseReject && streamInfo._reject) {
+      // Check if the promise has been replaced (if promise !== the original completion promise)
+      // If it has been replaced, the new promise is already handled by writeToStream
+      const originalPromise = streamInfo.promise;
+      try {
+        streamInfo._reject(error);
+      } catch (rejectError) {
+        // If rejecting causes an error (e.g., promise already settled), ignore it
+        // This prevents unhandled rejections from terminating the process
+      }
+    }
+
+    // Remove from open streams (stream is terminated, no longer active)
+    this.openStreams.delete(streamKey);
+  }
+
+  /**
+   * Gets all stream errors that occurred during writing
+   * @returns {Map<string, Error>} - Map of streamKey -> error
+   */
+  getStreamErrors() {
+    return this.streamErrors;
+  }
+
+  /**
+   * Checks if any stream errors occurred
+   * @returns {boolean} - True if any errors were recorded
+   */
+  hasStreamErrors() {
+    return this.streamErrors.size > 0;
+  }
+
+  /**
+   * Gets a summary of all stream errors
+   * @returns {Array<{streamKey: string, error: Error}>} - Array of error objects
+   */
+  getStreamErrorSummary() {
+    return Array.from(this.streamErrors.entries()).map(([streamKey, error]) => ({
+      streamKey,
+      error
+    }));
   }
 }

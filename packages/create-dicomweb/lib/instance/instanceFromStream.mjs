@@ -162,7 +162,7 @@ export async function instanceFromStream(stream, options = {}) {
     console.log("Writing metadata to file", information.sopInstanceUid);
     const metadataStream = await writer.openInstanceStream('metadata', { gzip: true });
     metadataStream.stream.write(Buffer.from(JSON.stringify([dict])));
-    writer.closeStream(metadataStream.streamKey);
+    await writer.closeStream(metadataStream.streamKey);
   }
 
   // Wait for all frame writes to complete before returning
@@ -170,4 +170,22 @@ export async function instanceFromStream(stream, options = {}) {
   console.log("Finished writing metadata to file", information.sopInstanceUid);
 
   return { fmi, dict, writer, information: listener.information };
+}
+
+/**
+ * Wraps instanceFromStream and returns a promise that always resolves to a result object.
+ * Never throws: on success returns { ok: true, ...result }; on failure returns { ok: false, error }.
+ *
+ * @param {Stream|ReadBufferStream} stream - The DICOM stream or ReadBufferStream to process
+ * @param {Object} options - Same options as instanceFromStream
+ * @returns {Promise<{ok: true, fmi, dict, writer, information}|{ok: false, error: string}>}
+ */
+export async function instanceFromStreamToResult(stream, options = {}) {
+  try {
+    const result = await instanceFromStream(stream, options);
+    return { ok: true, ...result };
+  } catch (err) {
+    const errorMessage = err?.message ?? String(err);
+    return { ok: false, error: errorMessage };
+  }
 }
