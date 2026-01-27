@@ -184,7 +184,7 @@ function createMultipartBodyStreamMultiple(files, boundary) {
             const { filePath } = files[i];
             const fileName = path.basename(filePath);
 
-            console.log(`Reading file: ${filePath}`);
+            console.verbose(`Reading file: ${filePath}`);
 
             yield Buffer.from(multipartPartHeader(boundary, fileName, i === 0), 'utf-8');
 
