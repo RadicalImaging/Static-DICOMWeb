@@ -33,9 +33,6 @@ ENV PATH=/app/node_modules/.bin:$PATH
 # Copy all .tgz packages
 COPY *.tgz ./
 
-# bring in external/dcmjs folder
-COPY --from=builder /app/external ./external
-
 # Copy prebuilt tgz artifacts from builder stage
 COPY *.tgz ./
 COPY --from=builder /app/packages/cs3d/*.tgz cs3d.tgz
