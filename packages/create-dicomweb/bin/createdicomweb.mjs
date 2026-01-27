@@ -89,6 +89,7 @@ program
   .option('--header <header>', 'Additional HTTP header in format "Key: Value" (can be specified multiple times)')
   .option('--max-group-size <size>', 'Maximum size in bytes for grouping files (default: 10MB)', '10485760')
   .option('--send-as-single-files', 'Send each file individually instead of grouping')
+  .option('--xml-response', 'Request XML response format instead of JSON')
   .action(async (fileNames, options) => {
     updateVerboseLog();
     const stowOptions = {
@@ -124,6 +125,11 @@ program
     // Add sendAsSingleFiles flag if specified
     if (options.sendAsSingleFiles) {
       stowOptions.sendAsSingleFiles = true;
+    }
+    
+    // Add xmlResponse flag if specified
+    if (options.xmlResponse) {
+      stowOptions.xmlResponse = true;
     }
     
     await stowMain(fileNames, stowOptions);

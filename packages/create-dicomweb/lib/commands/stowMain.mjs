@@ -3,6 +3,7 @@ import path from "path";
 import { randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
 import { dirScanner } from '@radicalimaging/static-wado-util';
+import { parseAndLogDicomJsonErrors } from './parseDicomJsonErrors.mjs';
 
 /**
  * Stores DICOM files to a STOW-RS endpoint
@@ -12,9 +13,10 @@ import { dirScanner } from '@radicalimaging/static-wado-util';
  * @param {Object} [options.headers] - Additional HTTP headers to include
  * @param {number} [options.maxGroupSize] - Maximum size in bytes for grouping files (default: 10MB)
  * @param {boolean} [options.sendAsSingleFiles] - If true, send each file individually instead of grouping (default: false)
+ * @param {boolean} [options.xmlResponse] - If true, request XML response format instead of JSON (default: false)
  */
 export async function stowMain(fileNames, options = {}) {
-    const { url, headers = {}, maxGroupSize = 10 * 1024 * 1024, sendAsSingleFiles = false } = options; // Default 10MB
+    const { url, headers = {}, maxGroupSize = 10 * 1024 * 1024, sendAsSingleFiles = false, xmlResponse = false } = options; // Default 10MB
     
     if (!url) {
         throw new Error('url option is required');
@@ -38,7 +40,7 @@ export async function stowMain(fileNames, options = {}) {
         if (fileGroup.length === 0) return;
 
         try {
-            await stowFiles(fileGroup, url, headers);
+            await stowFiles(fileGroup, url, headers, xmlResponse);
             results.success += fileGroup.length;
             const fileCount = fileGroup.length;
             console.log(`Stored group of ${fileCount} file(s)`);
@@ -124,8 +126,9 @@ export async function stowMain(fileNames, options = {}) {
  * @param {Array<{filePath: string, fileSize: number}>} files - Array of file objects with path and size
  * @param {string} endpointUrl - URL endpoint for STOW-RS storage
  * @param {Object} additionalHeaders - Additional HTTP headers to include
+ * @param {boolean} [xmlResponse=false] - If true, request XML response format instead of JSON
  */
-export async function stowFiles(files, endpointUrl, additionalHeaders = {}) {
+export async function stowFiles(files, endpointUrl, additionalHeaders = {}, xmlResponse = false) {
     if (files.length === 0) {
         return;
     }
@@ -140,6 +143,7 @@ export async function stowFiles(files, endpointUrl, additionalHeaders = {}) {
     const requestHeaders = {
         'Content-Type': contentType,
         'Content-Length': contentLength.toString(),
+        'Accept': xmlResponse ? 'application/dicom+xml' : 'application/dicom+json',
         ...additionalHeaders
     };
 
@@ -151,10 +155,19 @@ export async function stowFiles(files, endpointUrl, additionalHeaders = {}) {
         body: bodyStream
     });
 
-    if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        throw new Error(`HTTP ${response.status} ${response.statusText}: ${errorText}`);
+    console.verbose('Server response status:', response.status, response.statusText);
+    console.verbose('Server response headers:', Object.fromEntries(response.headers.entries()));
+    const responseText = await response.text().catch(() => '');
+    if (responseText) {
+        console.verbose('Server response body:', responseText);
     }
+
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status} ${response.statusText}: ${responseText}`);
+    }
+
+    // Parse JSON DICOM response if applicable and log errors
+    await parseAndLogDicomJsonErrors(response, responseText, files);
 
     return response;
 }
@@ -210,3 +223,4 @@ function multipartPartHeader(boundary, fileName, isFirstPart) {
         `\r\n`,
     ].join('');
 }
+

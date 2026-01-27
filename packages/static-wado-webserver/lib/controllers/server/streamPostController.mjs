@@ -1,7 +1,6 @@
 /* eslint-disable import/prefer-default-export */
 import formidable from 'formidable';
 import * as storeServices from '../../services/storeServices.mjs';
-import dcmjs from 'dcmjs';
 import fs from 'fs';
 import { dicomToXml, handleHomeRelative } from '@radicalimaging/static-wado-util';
 import { instanceFromStream } from '@radicalimaging/create-dicomweb';
@@ -10,8 +9,6 @@ import { studyMain } from '@radicalimaging/create-dicomweb';
 import { SagaBusMessaging } from './SagaBusMessaging.mjs';
 
 import { multipartStream } from './multipartStream.mjs';
-
-const { denaturalizeDataset } = dcmjs.data.DicomMetaDictionary;
 
 const maxFileSize = 4 * 1024 * 1024 * 1024;
 const maxTotalFileSize = 10 * maxFileSize;
@@ -92,7 +89,7 @@ function createInMemoryTransport() {
  */
 export function streamPostController(params) {
   const dicomdir = handleHomeRelative(params.rootDir);
-  console.warn("Storing POST uploads to:", dicomdir);
+  console.noQuiet("Storing POST uploads to:", dicomdir);
   
   // Initialize messaging service and register handlers (only once)
   if (!messagingInstance) {
@@ -119,7 +116,7 @@ export function streamPostController(params) {
       try {
         const result = await instanceFromStream(stream, { dicomdir });
         const { information } = result;
-        console.log("************* information:", information);
+        console.verbose("information:", information);
         
         return result;
       } catch (error) {
@@ -129,7 +126,7 @@ export function streamPostController(params) {
         const errorMessage = error.message || String(error);
         const contentType = fileInfo?.mimeType || fileInfo?.headers?.['content-type'] || 'unknown';
         const fieldname = fileInfo?.fieldname || fileInfo?.headers?.['content-location'] || 'unknown';
-        console.error(`[streamPostController] Error processing stream (Part: ${fieldname}, Content-Type: ${contentType}):`, errorMessage);
+        console.warn(`[streamPostController] Error processing stream (Part: ${fieldname}, Content-Type: ${contentType}):`, errorMessage);
         // Re-throw so it's caught by Promise.allSettled and included in the response
         // This ensures the error is properly handled and doesn't cause unhandled rejections
         throw error;
@@ -420,10 +417,9 @@ export const completePostController = async (req, res, next) => {
     const useXml = prefersXml && !prefersJson;
 
     if (useXml) {
-      // Format as DICOM XML
+      // Format as DICOM XML (already in native DICOM format)
       const xmlDataset = formatDicomXmlResponse(files);
-      const denaturalized = denaturalizeDataset(xmlDataset);
-      const xml = dicomToXml(denaturalized);
+      const xml = dicomToXml(xmlDataset);
       
       res.status(200)
          .setHeader('Content-Type', 'application/dicom+xml; charset=utf-8')

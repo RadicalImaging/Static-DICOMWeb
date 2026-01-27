@@ -312,7 +312,7 @@ export function multipartStream(opts) {
 
         const endHandler = () => {
           if (aborted) {
-            console.warn("********* Setting file complete (aborted)");
+            console.noQuiet("Setting file complete (aborted)");
             readBufferStream.setComplete();
             return;
           }
