@@ -46,7 +46,7 @@
     "build:esm:watch": "tsc --project ./tsconfig.json --watch",
     "cs3d": "bun run build:esm && bun run dist/cs3d.js --",
     "clean": "rimraf dist",
-    "link:exec": "npm install -g . && npm link",
+    "link:exec": "bun link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "pack:js": "npm pack --",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
@@ -55,7 +55,7 @@
   "dependencies": {
     "@cornerstonejs/core": "4.14.5",
     "canvas": "3.1.0",
-    "dcmjs": "0.35.0",
+    "dcmjs": "0.49.0",
     "jsdom": "^26.0.0",
     "jsdom-context-require": "^5.2.4"
   },

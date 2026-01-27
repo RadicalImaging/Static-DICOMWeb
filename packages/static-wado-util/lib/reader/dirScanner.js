@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 
 /**
  * Executes a given callback on the scanned list of names, OR matches up the names present
@@ -8,7 +9,11 @@ async function dirScanner(input, options) {
   let files = input;
   if (!Array.isArray(files)) files = [files];
   for (let i = 0; i < files.length; i++) {
-    const file = files[i];
+    let file = files[i];
+    // Resolve "." to the current working directory
+    if (file === '.') {
+      file = process.cwd();
+    }
     if (!fs.existsSync(file)) {
       console.warn('File does not exist', file);
       continue;

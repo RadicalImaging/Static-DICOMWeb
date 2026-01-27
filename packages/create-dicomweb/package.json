@@ -1,0 +1,73 @@
+{
+  "name": "@radicalimaging/create-dicomweb",
+  "version": "1.6.12",
+  "description": "Library to convert part 10 to DICOMweb file format using the streaming dcmjs parser",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "StaticWado",
+    "DICOM",
+    "DICOMweb"
+  ],
+  "author": "Bill Wallace <bill.wallace@radicalimaging.com>",
+  "engines": {
+    "node": ">=14.18.1",
+    "npm": ">=6.14.15",
+    "yarn": ">=1.22.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/radicalimaging/static-dicomweb",
+    "directory": "packages/create-dicomweb"
+  },
+  "bugs": {
+    "url": "https://github.com/radicalimaging/static-dicomweb/issues"
+  },
+  "homepage": "https://github.com/radicalimaging/static-dicomweb#readme",
+  "license": "ISC",
+  "main": "lib/index.mjs",
+  "module": "dist/index.js",
+  "directories": {
+    "lib": "lib",
+    "dist": "dist",
+    "bin": "bin"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "lib"
+  ],
+  "bin": {
+    "createdicomweb": "bin/createdicomweb.mjs"
+  },
+  "jest": {
+    "verbose": true
+  },
+  "dependencies": {
+    "@radicalimaging/cs3d": ">=1.6.1",
+    "@radicalimaging/static-wado-util": ">=1.6.1",
+    "canvas": ">=3.1.0",
+    "config-point": ">=0.5.1",
+    "dcmjs": "0.49.0",
+    "dicom-parser": "^1.8.13",
+    "glob": "^11.0.0",
+    "node-object-hash": "^3.0.0",
+    "uuid": "^11.0.2"
+  },
+  "devDependencies": {
+    "must": "^0.13.4"
+  },
+  "scripts": {
+    "test": "jest --config ./jest.config.cjs",
+    "build": "bun run build:esm",
+    "build:esm": "bun build lib/index.mjs --target node --outdir dist --",
+    "clean": "rimraf dist",
+    "link:exec": "bun link",
+    "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
+    "createdicomweb": "bun bin/createdicomweb.mjs --",
+    "pack:js": "npm pack --",
+    "publishJS": "yarn publish  --no-git-tag-version",
+    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
+  }
+}

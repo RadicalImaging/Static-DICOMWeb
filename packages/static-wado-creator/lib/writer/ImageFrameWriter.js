@@ -1,4 +1,4 @@
-const uids = require('../model/uids');
+const { uids } = require('@radicalimaging/static-wado-util');
 const WriteStream = require('./WriteStream');
 const WriteMultipart = require('./WriteMultipart');
 const ExpandUriPath = require('./ExpandUriPath');

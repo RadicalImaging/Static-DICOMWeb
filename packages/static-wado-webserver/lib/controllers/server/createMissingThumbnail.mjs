@@ -1,6 +1,6 @@
 import { handleHomeRelative } from '@radicalimaging/static-wado-util';
+import { thumbnailMain } from '@radicalimaging/create-dicomweb';
 import fs from 'fs';
-import { mkdicomwebSpawn } from '../../services/util/serverSpawn.mjs';
 
 export default function createMissingThumbnail(options) {
   const { dir } = options;
@@ -24,21 +24,29 @@ export default function createMissingThumbnail(options) {
       seriesUID,
       instanceUID
     );
-    let execPath = ['thumbnail', studyUID];
-    if (instanceUID) {
-      execPath.push('--sop-instance-uid', instanceUID);
-    } else if (seriesUID) {
-      execPath.push('--series-instance-uid', seriesUID, '--series-thumbnail');
-    } else {
-      execPath.push('--study-thumbnail');
-    }
-
-    if (options?.hashStudyUidPath) {
-      execPath.push('--hash-study-uid-path');
-    }
 
     try {
-      await mkdicomwebSpawn(execPath, { parseResults: false });
+      const thumbnailOptions = {
+        dicomdir: baseDir,
+      };
+
+      if (instanceUID) {
+        // Generate thumbnail for specific instance
+        thumbnailOptions.instanceUid = instanceUID;
+        if (seriesUID) {
+          thumbnailOptions.seriesUid = seriesUID;
+        }
+      } else if (seriesUID) {
+        // Generate series thumbnail (middle SOP instance, middle frame)
+        thumbnailOptions.seriesUid = seriesUID;
+        thumbnailOptions.seriesThumbnail = true;
+      } else {
+        // Only studyUID provided - use default behavior (first series, first instance)
+        // Note: study-level thumbnails are not currently supported
+        console.verbose('Only studyUID provided, using default behavior');
+      }
+
+      await thumbnailMain(studyUID, thumbnailOptions);
       console.verbose('Created missing thumbnail');
     } catch (e) {
       // Ignore e
