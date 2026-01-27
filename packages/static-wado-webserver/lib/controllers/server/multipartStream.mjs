@@ -79,6 +79,9 @@ export function multipartStream(opts) {
     let partCount = 0;
     let totalBytes = 0;
     let aborted = false;
+    let completedParts = 0; // Track how many parts have completed
+    let dicerFinished = false; // Track if Dicer has finished parsing
+    let nextCalled = false; // Prevent multiple calls to next()
 
     const abort = (err) => {
       if (aborted) return;
@@ -223,6 +226,14 @@ export function multipartStream(opts) {
         // If you want to skip non-DICOM parts (e.g. metadata JSON), do it here:
         if (!isDicomPart) {
           console.warn(`[multipartStream] Part ${partCount} skipped - not DICOM (content-type: ${partContentType})`);
+          // Set up handler to track when skipped part completes
+          const skippedEndHandler = () => {
+            completedParts += 1;
+            console.warn(`[multipartStream] Skipped part ${partCount} completed. Completed: ${completedParts}/${partCount}`);
+            part.removeListener("end", skippedEndHandler);
+            checkAllPartsComplete();
+          };
+          part.on("end", skippedEndHandler);
           // Drain the stream so the request can complete cleanly
           part.resume();
           return;
@@ -314,6 +325,8 @@ export function multipartStream(opts) {
           if (aborted) {
             console.noQuiet("Setting file complete (aborted)");
             readBufferStream.setComplete();
+            completedParts += 1;
+            checkAllPartsComplete();
             return;
           }
           // Clean up event listeners for this part
@@ -323,8 +336,12 @@ export function multipartStream(opts) {
             // Mark this part's buffer stream as complete
             console.warn("********* Setting file complete");
             readBufferStream.setComplete();
+            completedParts += 1;
+            console.warn(`[multipartStream] Part ${partCount} completed. Completed: ${completedParts}/${partCount}`);
+            checkAllPartsComplete();
           } catch (err) {
             if (onStreamError) onStreamError(err, fileInfo);
+            // Don't increment completedParts or check completion on error - abort immediately
             return abort(err);
           }
         };
@@ -346,11 +363,52 @@ export function multipartStream(opts) {
 
     dicer.on("error", (err) => abort(err));
 
+    // Function to check if all parts have completed and call next() if ready
+    // This now waits for listener promises to ensure streams are fully processed
+    const checkAllPartsComplete = async () => {
+      if (aborted || nextCalled) return;
+      
+      // If no parts were detected, proceed immediately when Dicer finishes
+      if (dicerFinished && partCount === 0) {
+        console.warn(`[multipartStream] Dicer finished with no parts detected`);
+        nextCalled = true;
+        next();
+        return;
+      }
+      
+      // Only proceed if Dicer has finished parsing AND all parts have completed
+      if (dicerFinished && completedParts >= partCount && partCount > 0) {
+        console.warn(`[multipartStream] All parts completed. Total parts: ${partCount}, Completed: ${completedParts}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`);
+        
+        // Wait for all listener promises to complete before calling next()
+        // This ensures streams are fully processed and not deallocated prematurely
+        if (req.uploadListenerPromises && req.uploadListenerPromises.length > 0) {
+          try {
+            console.warn(`[multipartStream] Waiting for ${req.uploadListenerPromises.length} listener promise(s) to complete...`);
+            await Promise.allSettled(req.uploadListenerPromises);
+            console.warn(`[multipartStream] All listener promises completed`);
+          } catch (err) {
+            // Errors in individual promises are handled by completePostController
+            // We just need to wait for them to finish
+            console.warn(`[multipartStream] Some listener promises had errors (will be handled by completePostController)`);
+          }
+        }
+        
+        if (!nextCalled) {
+          nextCalled = true;
+          next();
+        }
+      }
+    };
+
     // Dicer signals "no more parts" with finish.
+    // This means all parts have been detected, but individual part streams may still be active.
     dicer.on("finish", () => {
       if (aborted) return;
-      console.warn(`[multipartStream] All parts processed. Total parts: ${partCount}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`);
-      next();
+      dicerFinished = true;
+      console.warn(`[multipartStream] Dicer finished parsing. Total parts: ${partCount}, Completed: ${completedParts}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`);
+      // Check if all parts have already completed (might happen if parts finish before Dicer finishes)
+      checkAllPartsComplete();
     });
 
     // Pipe request directly to Dicer

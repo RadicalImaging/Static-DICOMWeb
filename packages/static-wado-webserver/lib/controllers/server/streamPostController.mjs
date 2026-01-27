@@ -1,7 +1,4 @@
 /* eslint-disable import/prefer-default-export */
-import formidable from 'formidable';
-import * as storeServices from '../../services/storeServices.mjs';
-import fs from 'fs';
 import { dicomToXml, handleHomeRelative } from '@radicalimaging/static-wado-util';
 import { instanceFromStream } from '@radicalimaging/create-dicomweb';
 import { seriesMain } from '@radicalimaging/create-dicomweb';
@@ -42,7 +39,7 @@ function createInMemoryTransport() {
       // Process handlers asynchronously
       const all = new Set([...handlers, ...allHandlers]);
       if (all.size > 0) {
-        // Use Promise.all to properly handle async handlers
+        // Use Promise.allSettled to ensure handler exceptions don't crash the server
         const promises = Array.from(all).map(async (handler) => {
           try {
             // Handler might expect ctx.message or just the message directly
@@ -51,11 +48,29 @@ function createInMemoryTransport() {
               await result;
             }
           } catch (err) {
-            console.error('[InMemoryTransport] Handler error:', err);
-            throw err; // Re-throw to allow bus retry logic
+            // Log detailed error information including the message
+            const errorMessage = err?.message || String(err);
+            const errorStack = err?.stack || 'No stack trace available';
+            console.error('[InMemoryTransport] Handler error:', {
+              error: errorMessage,
+              stack: errorStack,
+              messageType: message?.type,
+              messageId: message?.id || message?.messageId,
+              messageData: message?.data,
+              fullMessage: message,
+            });
+            // Don't re-throw - we want to continue processing other handlers
+            // The handler's own retry logic (if any) should handle retries
           }
         });
-        await Promise.all(promises);
+        // Use allSettled so one handler failure doesn't crash the publish operation
+        const results = await Promise.allSettled(promises);
+        // Log any rejected promises for visibility (though we already logged in catch above)
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            console.error(`[InMemoryTransport] Handler promise rejected (handler ${index}):`, result.reason);
+          }
+        });
       }
     },
     subscribe: (messageType, handler) => {
@@ -192,9 +207,9 @@ function setupMessageHandlers(messaging, dicomdir) {
 }
 
 /**
- * Formats results into DICOM Part 19 JSON format
+ * Creates the dataset response array from files
  */
-function formatDicomJsonResponse(files) {
+function createDatasetResponse(files) {
   const responseArray = files.map((file) => {
     const dataset = {};
     
@@ -267,93 +282,11 @@ function formatDicomJsonResponse(files) {
   return responseArray;
 }
 
-/**
- * Formats results into DICOM Part 19 XML format using dicomToXml
- */
-function formatDicomXmlResponse(files) {
-  // For XML, we need to create a sequence of items
-  // Since dicomToXml expects a single dataset, we'll create a wrapper sequence
-  const responseDataset = {
-    '00400275': {  // Referenced SOP Sequence
-      vr: 'SQ',
-      Value: files.map((file) => {
-        const item = {};
-        
-        // Add SOP Instance UID if available
-        if (file.result?.information?.sopInstanceUid) {
-          item['00080018'] = {
-            vr: 'UI',
-            Value: [file.result.information.sopInstanceUid],
-          };
-        } else if (file.result?.dict?.['00080018']) {
-          const sopInstanceUid = file.result.dict['00080018'];
-          if (sopInstanceUid?.Value?.[0]) {
-            item['00080018'] = {
-              vr: sopInstanceUid.vr || 'UI',
-              Value: [sopInstanceUid.Value[0]],
-            };
-          }
-        }
-        
-        // Add status
-        item['00400252'] = {
-          vr: 'CS',
-          Value: [file.ok ? 'COMPLETED' : 'FAILED'],
-        };
-        
-        // Add error message if failed
-        if (!file.ok && file.error) {
-          item['00404002'] = {
-            vr: 'ST',
-            Value: [file.error],
-          };
-        }
-        
-        // Add Study Instance UID if available
-        if (file.result?.information?.studyInstanceUid) {
-          item['0020000D'] = {
-            vr: 'UI',
-            Value: [file.result.information.studyInstanceUid],
-          };
-        } else if (file.result?.dict?.['0020000D']) {
-          const studyInstanceUid = file.result.dict['0020000D'];
-          if (studyInstanceUid?.Value?.[0]) {
-            item['0020000D'] = {
-              vr: studyInstanceUid.vr || 'UI',
-              Value: [studyInstanceUid.Value[0]],
-            };
-          }
-        }
-        
-        // Add Series Instance UID if available
-        if (file.result?.information?.seriesInstanceUid) {
-          item['0020000E'] = {
-            vr: 'UI',
-            Value: [file.result.information.seriesInstanceUid],
-          };
-        } else if (file.result?.dict?.['0020000E']) {
-          const seriesInstanceUid = file.result.dict['0020000E'];
-          if (seriesInstanceUid?.Value?.[0]) {
-            item['0020000E'] = {
-              vr: seriesInstanceUid.vr || 'UI',
-              Value: [seriesInstanceUid.Value[0]],
-            };
-          }
-        }
-        
-        return item;
-      }),
-    },
-  };
-  
-  return responseDataset;
-}
-
 export const completePostController = async (req, res, next) => {
   try {
-    console.log('************* uploadListenerPromises length:', req.uploadListenerPromises?.length);
+    console.noQuiet('uploadListenerPromises length:', req.uploadListenerPromises?.length);
     const results = await Promise.allSettled(req.uploadListenerPromises || []);
-    console.log('************* results length:', results.length);
+    console.noQuiet('results length:', results.length);
 
     const files = (req.uploadStreams || []).map((entry, index) => {
       const r = results[index];
@@ -405,6 +338,12 @@ export const completePostController = async (req, res, next) => {
       }
     }
 
+    // Create the dataset response (used for both JSON and XML)
+    const datasetResponse = createDatasetResponse(files);
+    
+    // Dump dataset response to console.warn
+    console.warn('Dataset response:', JSON.stringify(datasetResponse, null, 2));
+
     // Check Accept header to determine response format
     const acceptHeader = req.headers.accept || '';
     const prefersXml = acceptHeader.includes('application/dicom+xml') || 
@@ -417,20 +356,23 @@ export const completePostController = async (req, res, next) => {
     const useXml = prefersXml && !prefersJson;
 
     if (useXml) {
-      // Format as DICOM XML (already in native DICOM format)
-      const xmlDataset = formatDicomXmlResponse(files);
+      // For XML, wrap the dataset array in a sequence structure
+      const xmlDataset = {
+        '00400275': {  // Referenced SOP Sequence
+          vr: 'SQ',
+          Value: datasetResponse,
+        },
+      };
       const xml = dicomToXml(xmlDataset);
       
       res.status(200)
          .setHeader('Content-Type', 'application/dicom+xml; charset=utf-8')
          .send(xml);
     } else {
-      // Format as DICOM JSON
-      const jsonResponse = formatDicomJsonResponse(files);
-      
+      // Format as DICOM JSON (use dataset directly)
       res.status(200)
          .setHeader('Content-Type', 'application/dicom+json; charset=utf-8')
-         .json(jsonResponse);
+         .json(datasetResponse);
     }
   } catch (err) {
     // This should rarely happen now, but keep it safe

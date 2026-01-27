@@ -28,6 +28,57 @@ export async function instanceFromStream(stream, options = {}) {
   // Check if the input is a ReadBufferStream instance
   if (stream instanceof ReadBufferStream) {
     // If it's already a ReadBufferStream, use it directly
+    // Ensure endOffset is synchronized with the actual buffer size before resetting
+    // Check multiple possible sources for the buffer size
+    let bufferSize = undefined;
+    if (stream.view && stream.view.size !== undefined) {
+      bufferSize = stream.view.size;
+    } else if (stream.size !== undefined && !isNaN(stream.size)) {
+      bufferSize = stream.size;
+    } else if (stream.buffer && stream.buffer.length !== undefined) {
+      bufferSize = stream.buffer.length;
+    }
+    
+    // Only set endOffset if we have a valid buffer size
+    if (bufferSize !== undefined && !isNaN(bufferSize) && bufferSize >= 0) {
+      stream.size = bufferSize;
+      stream.endOffset = bufferSize;
+    } else {
+      // If we don't have a size yet, ensure endOffset is at least set to a valid number
+      // The stream might still be receiving data, so we'll let it be set when complete
+      if (stream.endOffset === undefined || isNaN(stream.endOffset)) {
+        stream.endOffset = stream.startOffset || 0;
+      }
+    }
+    
+    // Ensure startOffset is valid before reset (reset uses startOffset)
+    if (stream.startOffset === undefined || isNaN(stream.startOffset)) {
+      stream.startOffset = 0;
+    }
+    
+    // Ensure the stream is reset to start reading from the beginning
+    // This sets offset to startOffset, which should be 0 for a fresh stream
+    stream.reset();
+    
+    // Validate that offset is a valid number after reset
+    if (isNaN(stream.offset) || stream.offset < 0) {
+      stream.offset = stream.startOffset || 0;
+    }
+    
+    // Ensure endOffset is still valid after reset
+    // Re-check buffer size after reset in case it was updated
+    if (stream.view && stream.view.size !== undefined && !isNaN(stream.view.size)) {
+      stream.size = stream.view.size;
+      stream.endOffset = stream.view.size;
+    } else if (stream.endOffset === undefined || isNaN(stream.endOffset)) {
+      stream.endOffset = stream.size || stream.startOffset || 0;
+    }
+    
+    // Final validation: ensure all position properties are valid numbers
+    if (isNaN(stream.startOffset)) stream.startOffset = 0;
+    if (isNaN(stream.offset)) stream.offset = stream.startOffset;
+    if (isNaN(stream.endOffset)) stream.endOffset = stream.size || 0;
+    
     reader.stream = stream;
   } else {
     // Otherwise, treat it as a regular stream and read from it
@@ -80,9 +131,32 @@ export async function instanceFromStream(stream, options = {}) {
   // The listener will automatically create its own information filter and call init()
   const listener = new DicomMetadataListener({ information }, ...filters);
 
+  // Final validation of stream state before reading (especially for ReadBufferStream)
+  if (reader.stream instanceof ReadBufferStream) {
+    // Re-check and update stream properties right before reading
+    // The stream might have received more data since initialization
+    if (reader.stream.view && reader.stream.view.size !== undefined && !isNaN(reader.stream.view.size)) {
+      reader.stream.size = reader.stream.view.size;
+      reader.stream.endOffset = reader.stream.view.size;
+    }
+    // Ensure all position properties are valid numbers
+    if (isNaN(reader.stream.startOffset)) reader.stream.startOffset = 0;
+    if (isNaN(reader.stream.offset)) reader.stream.offset = reader.stream.startOffset;
+    if (isNaN(reader.stream.endOffset)) {
+      reader.stream.endOffset = reader.stream.size || reader.stream.startOffset || 0;
+    }
+    // Ensure offset is within valid range
+    if (reader.stream.offset < reader.stream.startOffset) {
+      reader.stream.offset = reader.stream.startOffset;
+    }
+    if (reader.stream.offset > reader.stream.endOffset) {
+      reader.stream.offset = reader.stream.endOffset;
+    }
+  }
+
   const { fmi, dict } = await reader.readFile({ listener });
 
-  console.log("Finished parsing file", information.sopInstanceUid);
+  console.log("****************** Finished parsing file", information.sopInstanceUid);
 
   if( writer ) {
     console.log("Writing metadata to file", information.sopInstanceUid);
