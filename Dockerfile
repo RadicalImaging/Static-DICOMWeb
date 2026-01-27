@@ -2,7 +2,7 @@
 FROM node:24 as builder
 ENV PATH /app/node_modules/.bin:$PATH
 # Install global tools
-RUN npm install -g lerna@8.2.4 bun@1.3.5
+RUN npm install -g lerna@8.2.4 bun@1.3.6
 
 # Setup workdir
 WORKDIR /app
@@ -12,8 +12,8 @@ COPY --parents bun.lock *.tgz package.json packages/*/package.json ./
 
 # Install dependencies
 ENV PATH=/app/node_modules/.bin:$PATH
-RUN bun install --frozen-lockfile
-
+RUN bun install ./dcmjs-0.49.0.tgz
+RUN bun install 
 # Copy remaining source code
 COPY --link --exclude=node_modules --exclude=**/dist . .
 
@@ -33,30 +33,37 @@ ENV PATH=/app/node_modules/.bin:$PATH
 # Copy all .tgz packages
 COPY *.tgz ./
 
+# bring in external/dcmjs folder
+COPY --from=builder /app/external ./external
+
 # Copy prebuilt tgz artifacts from builder stage
+COPY *.tgz ./
 COPY --from=builder /app/packages/cs3d/*.tgz cs3d.tgz
 COPY --from=builder /app/packages/static-wado-util/*.tgz static-wado-util.tgz
 COPY --from=builder /app/packages/static-wado-creator/*.tgz static-wado-creator.tgz
+COPY --from=builder /app/packages/create-dicomweb/*.tgz create-dicomweb.tgz
 COPY --from=builder /app/packages/static-wado-webserver/*.tgz static-wado-webserver.tgz
 
 # Install all modules at once
+RUN bun install ./dcmjs-0.49.0.tgz
 RUN npm install \
-  ./cornerstonejs-dicom-codec-1.0.7.tgz \
   ./cs3d.tgz \
   ./static-wado-util.tgz \
   ./static-wado-creator.tgz \
+  ./create-dicomweb.tgz \
   ./static-wado-webserver.tgz \
   && rm *.tgz
 
 ############## Copy the installation locally for minimal size service
 
-FROM oven/bun:1.3.5 as dicomwebserver
+FROM oven/bun:1.3.6 as dicomwebserver
 
 # Setup workdir and PATH
 RUN mkdir /app
 WORKDIR /app
 ENV PATH=/app/node_modules/.bin:$PATH
 
+# In installer stage
 COPY --from=installer /app ./
 
 # Set up runtime directories

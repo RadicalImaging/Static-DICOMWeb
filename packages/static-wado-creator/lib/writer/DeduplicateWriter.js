@@ -1,9 +1,7 @@
 const hashFactory = require('node-object-hash');
 
 const hasher = hashFactory.hasher();
-const { JSONWriter } = require('@radicalimaging/static-wado-util');
-const { Tags } = require('@radicalimaging/static-wado-util');
-const TagLists = require('../model/TagLists');
+const { JSONWriter, Tags, TagLists } = require('@radicalimaging/static-wado-util');
 
 async function writeDeduplicatedFile(dir, data, hashValueSrc) {
   const hashValue = hashValueSrc || hasher.hash(data);

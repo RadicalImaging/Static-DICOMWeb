@@ -13,7 +13,7 @@ import assertions from './assertions';
 import configDiff from './update/configDiff';
 import configGroup from './configGroup.js';
 import asyncIterableToBuffer from './asyncIterableToBuffer';
-import Tags from './dictionary/Tags';
+import Tags from './dictionary/Tags.mjs';
 import dataDictionary from './dictionary/dataDictionary';
 import sleep from './sleep';
 import endsWith from './endsWith';
@@ -22,9 +22,11 @@ import execSpawn from './execSpawn';
 import logger from './logger.js';
 import { extractMultipart, uint8ArrayToString } from './extractMultipart';
 import getStudyUIDPathAndSubPath from './getStudyUIDPathAndSubPath';
-export { program, configureProgram, configureCommands } from './program';
+export { program, configureProgram, configureCommands, createVerboseLog } from './program';
 export * from './dicomToXml';
 import createStudyDirectories from './createStudyDirectories';
+import TagLists from './TagLists.mjs';
+import uids from './uids.mjs';
 
 export {
   extractMultipart,
@@ -51,4 +53,6 @@ export {
   NotificationService,
   getStudyUIDPathAndSubPath,
   createStudyDirectories,
+  TagLists,
+  uids,
 };
