@@ -362,8 +362,7 @@ export const completePostController = async (req, res, next) => {
     // Create the dataset response (used for both JSON and XML)
     const datasetResponse = createDatasetResponse(files);
     
-    // Dump dataset response to console.warn
-    console.warn('Dataset response:', JSON.stringify(datasetResponse, null, 2));
+    console.verbose('Dataset response:', JSON.stringify(datasetResponse, null, 2));
 
     // Check Accept header to determine response format
     const acceptHeader = req.headers.accept || '';

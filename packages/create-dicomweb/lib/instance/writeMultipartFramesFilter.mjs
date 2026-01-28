@@ -74,7 +74,6 @@ export function writeMultipartFramesFilter(options = {}) {
    * Filter method: Called when a tag is added
    */
   function addTag(next, tag, tagInfo) {
-    console.log('addTag', tag);
     if (tag === TAGS.PixelData && this.current?.level < 3) {
       currentFrameNumber = 0;
       pixelDataStreamInfo = null;
