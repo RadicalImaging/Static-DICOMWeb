@@ -8,11 +8,15 @@ const { getValue, setValue } = Tags;
 
 /**
  * Updates BulkDataURI values from instance-relative paths to series-relative paths
- * Instance-relative paths use "../../../../bulkdata/" (4 levels up)
- * Series-relative paths should use "../../bulkdata/" (2 levels up from series)
- * 
+ * so that series-level metadata can resolve bulk data and frames when read from
+ * the series directory.
+ *
+ * Instance-relative paths:
+ * - "../../../../bulkdata/" (4 levels up from instance) -> "../../bulkdata/" (2 levels up from series)
+ * - "./frames" -> "instances/<sopUID>/frames"
+ *
  * @param {Object} instanceMetadata - Instance metadata object to update
- * @param {string} instanceUID - The instance UID (for debugging/logging)
+ * @param {string} instanceUID - The instance (SOP Instance) UID for this metadata
  * @returns {Object} - Updated instance metadata
  */
 function updateLocation(instanceMetadata, instanceUID) {
@@ -20,32 +24,33 @@ function updateLocation(instanceMetadata, instanceUID) {
     return instanceMetadata;
   }
 
-  // Recursively process the metadata object
-  function processObject(obj) {
+  function processObject(obj, instanceUid) {
     if (Array.isArray(obj)) {
-      return obj.map(item => processObject(item));
+      return obj.map((item) => processObject(item, instanceUid));
     }
-    
+
     if (obj && typeof obj === 'object') {
       const result = {};
-      
+
       for (const [key, value] of Object.entries(obj)) {
         if (key === 'BulkDataURI' && typeof value === 'string') {
-          // Replace instance-relative path with series-relative path
-          // "../../../../bulkdata/" -> "../../bulkdata/"
-          result[key] = value.replace(/^(\.\.\/){4}bulkdata\//, '../../bulkdata/');
+          if (value === './frames' || value.startsWith('./frames')) {
+            result[key] = `./instances/${instanceUid}/frames`;
+          } else {
+            result[key] = value.replace(/^(\.\.\/){4}bulkdata\//, '../../bulkdata/');
+          }
         } else {
-          result[key] = processObject(value);
+          result[key] = processObject(value, instanceUid);
         }
       }
-      
+
       return result;
     }
-    
+
     return obj;
   }
 
-  return processObject(instanceMetadata);
+  return processObject(instanceMetadata, instanceUID);
 }
 
 /**

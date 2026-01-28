@@ -1,17 +1,18 @@
 import { async, utilities, data } from 'dcmjs';
+import { Tags } from '@radicalimaging/static-wado-util';
 import { writeMultipartFramesFilter } from './writeMultipartFramesFilter.mjs';
 import { writeBulkdataFilter } from './writeBulkdataFilter.mjs';
 import { inlineBinaryFilter } from './inlineBinaryFilter.mjs';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
 
 const { AsyncDicomReader } = async;
+const { setValue } = Tags;
 const { DicomMetadataListener, createInformationFilter } = utilities;
 const { ReadBufferStream } = data;
 
-
 /**
  * Processes a DICOM stream and optionally writes multipart frames
- * 
+ *
  * @param {Stream|ReadBufferStream} stream - The DICOM stream or ReadBufferStream to process
  * @param {Object} options - Configuration options
  * @param {string} options.dicomdir - Base directory for writing files (required if DicomWebWriter is not provided)
@@ -24,7 +25,7 @@ const { ReadBufferStream } = data;
  */
 export async function instanceFromStream(stream, options = {}) {
   const reader = new AsyncDicomReader();
-  
+
   // Check if the input is a ReadBufferStream instance
   if (stream instanceof ReadBufferStream) {
     // If it's already a ReadBufferStream, use it directly
@@ -38,7 +39,7 @@ export async function instanceFromStream(stream, options = {}) {
     } else if (stream.buffer && stream.buffer.length !== undefined) {
       bufferSize = stream.buffer.length;
     }
-    
+
     // Only set endOffset if we have a valid buffer size
     if (bufferSize !== undefined && !isNaN(bufferSize) && bufferSize >= 0) {
       stream.size = bufferSize;
@@ -50,21 +51,21 @@ export async function instanceFromStream(stream, options = {}) {
         stream.endOffset = stream.startOffset || 0;
       }
     }
-    
+
     // Ensure startOffset is valid before reset (reset uses startOffset)
     if (stream.startOffset === undefined || isNaN(stream.startOffset)) {
       stream.startOffset = 0;
     }
-    
+
     // Ensure the stream is reset to start reading from the beginning
     // This sets offset to startOffset, which should be 0 for a fresh stream
     stream.reset();
-    
+
     // Validate that offset is a valid number after reset
     if (isNaN(stream.offset) || stream.offset < 0) {
       stream.offset = stream.startOffset || 0;
     }
-    
+
     // Ensure endOffset is still valid after reset
     // Re-check buffer size after reset in case it was updated
     if (stream.view && stream.view.size !== undefined && !isNaN(stream.view.size)) {
@@ -73,12 +74,12 @@ export async function instanceFromStream(stream, options = {}) {
     } else if (stream.endOffset === undefined || isNaN(stream.endOffset)) {
       stream.endOffset = stream.size || stream.startOffset || 0;
     }
-    
+
     // Final validation: ensure all position properties are valid numbers
     if (isNaN(stream.startOffset)) stream.startOffset = 0;
     if (isNaN(stream.offset)) stream.offset = stream.startOffset;
     if (isNaN(stream.endOffset)) stream.endOffset = stream.size || 0;
-    
+
     reader.stream = stream;
   } else {
     // Otherwise, treat it as a regular stream and read from it
@@ -86,12 +87,13 @@ export async function instanceFromStream(stream, options = {}) {
   }
 
   // Build filters array
-  const information = {} ;
+  const information = {};
   const filters = [];
 
   // Determine which DicomWebWriter to use
   // Default to FileDicomWebWriter if dicomdir is provided but no writer type is specified
-  const DicomWebWriterClass = options.DicomWebWriter || (options.dicomdir ? FileDicomWebWriter : null);
+  const DicomWebWriterClass =
+    options.DicomWebWriter || (options.dicomdir ? FileDicomWebWriter : null);
 
   // Create writer using the listener's information object
   let writer = null;
@@ -104,7 +106,7 @@ export async function instanceFromStream(stream, options = {}) {
   // Set bulkdata: false to disable and use frames filter instead
   let bulkdataFilter = null;
   const useBulkdata = writer && options.writeBulkdata !== false;
-  
+
   if (useBulkdata) {
     bulkdataFilter = writeBulkdataFilter({
       dicomdir: options.dicomdir,
@@ -117,7 +119,7 @@ export async function instanceFromStream(stream, options = {}) {
 
   // Add binary multipart filter only if bulkdata is explicitly disabled
   let frameFilter = null;
-  if (writer && options?.writeFrames!==false) {
+  if (writer && options?.writeFrames !== false) {
     frameFilter = writeMultipartFramesFilter({
       dicomdir: options.dicomdir,
       writer,
@@ -135,7 +137,11 @@ export async function instanceFromStream(stream, options = {}) {
   if (reader.stream instanceof ReadBufferStream) {
     // Re-check and update stream properties right before reading
     // The stream might have received more data since initialization
-    if (reader.stream.view && reader.stream.view.size !== undefined && !isNaN(reader.stream.view.size)) {
+    if (
+      reader.stream.view &&
+      reader.stream.view.size !== undefined &&
+      !isNaN(reader.stream.view.size)
+    ) {
       reader.stream.size = reader.stream.view.size;
       reader.stream.endOffset = reader.stream.view.size;
     }
@@ -156,10 +162,18 @@ export async function instanceFromStream(stream, options = {}) {
 
   const { fmi, dict } = await reader.readFile({ listener });
 
-  console.log("****************** Finished parsing file", information.sopInstanceUid);
+  if (dict && reader.meta) {
+    const meta = reader.meta;
+    const transferSyntax = meta['00020010']?.Value?.[0];
+    if (transferSyntax) {
+      setValue(dict, Tags.AvailableTransferSyntaxUID, transferSyntax);
+    }
+  }
 
-  if( writer ) {
-    console.log("Writing metadata to file", information.sopInstanceUid);
+  console.noQuiet('Finished parsing file', information.sopInstanceUid);
+
+  if (writer) {
+    console.log('Writing metadata to file', information.sopInstanceUid);
     const metadataStream = await writer.openInstanceStream('metadata', { gzip: true });
     metadataStream.stream.write(Buffer.from(JSON.stringify([dict])));
     await writer.closeStream(metadataStream.streamKey);
@@ -167,7 +181,7 @@ export async function instanceFromStream(stream, options = {}) {
 
   // Wait for all frame writes to complete before returning
   await writer?.awaitAllStreams();
-  console.log("Finished writing metadata to file", information.sopInstanceUid);
+  console.log('Finished writing metadata to file', information.sopInstanceUid);
 
   return { fmi, dict, writer, information: listener.information };
 }
