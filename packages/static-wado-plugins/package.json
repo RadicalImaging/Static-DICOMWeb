@@ -54,7 +54,7 @@
     "verbose": true
   },
   "dependencies": {
-    "@radicalimaging/static-wado-util": "workspace:*",
+    "@radicalimaging/static-wado-util": ">=1.7.0",
     "config-point": ">=0.5.1",
     "dcmjs-dimse": "^0.1.30",
     "http-proxy-middleware": "^2.0.6"

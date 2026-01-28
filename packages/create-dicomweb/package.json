@@ -45,9 +45,9 @@
     "verbose": true
   },
   "dependencies": {
-    "@radicalimaging/cs3d": "workspace:*",
-    "@radicalimaging/static-wado-creator": "workspace:*",
-    "@radicalimaging/static-wado-util": "workspace:*",
+    "@radicalimaging/cs3d": ">=1.7.0",
+    "@radicalimaging/static-wado-creator": ">=1.7.0",
+    "@radicalimaging/static-wado-util": ">=1.7.0",
     "canvas": ">=3.1.0",
     "commander": "^12.0.0",
     "config-point": ">=0.5.1",
