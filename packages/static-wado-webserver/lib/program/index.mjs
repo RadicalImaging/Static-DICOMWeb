@@ -47,6 +47,11 @@ async function configureProgram(defaults = dicomWebServerConfig) {
       defaultValue: false,
     },
     {
+      key: '--no-study-index',
+      description: 'Skip creating/updating studies/index.json.gz file',
+      defaultValue: true,
+    },
+    {
       key: '--server-path <path>',
       description: 'Sets the server path to listen to',
       defaultValue: '/dicomweb',

@@ -30,9 +30,14 @@
   "homepage": "https://github.com/radicalimaging/static-dicomweb#readme",
   "license": "ISC",
   "main": "lib/index.mjs",
+  "exports": {
+    ".": "./lib/index.mjs",
+    "./mocks/MockPlugin.mjs": "./mocks/MockPlugin.mjs"
+  },
   "files": [
     "bin",
-    "lib"
+    "lib",
+    "mocks"
   ],
   "bin": {
     "deploydicomweb": "bin/deploydicomweb.mjs"
@@ -41,9 +46,9 @@
     "verbose": true
   },
   "dependencies": {
-    "@radicalimaging/s3-deploy": "^1.5.0",
-    "@radicalimaging/static-wado-plugins": "^1.5.0",
-    "@radicalimaging/static-wado-util": "^1.5.0",
+    "@radicalimaging/s3-deploy": "workspace:*",
+    "@radicalimaging/static-wado-plugins": "workspace:*",
+    "@radicalimaging/static-wado-util": "workspace:*",
     "config-point": ">=0.5.1"
   },
   "devDependencies": {

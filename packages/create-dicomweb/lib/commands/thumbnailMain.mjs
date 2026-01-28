@@ -1,13 +1,10 @@
 import fs from 'fs';
 import path from 'path';
-import { createRequire } from 'module';
 import { FileDicomWebReader } from '../instance/FileDicomWebReader.mjs';
 import { FileDicomWebWriter } from '../instance/FileDicomWebWriter.mjs';
 import { Tags } from '@radicalimaging/static-wado-util';
 import { readBulkData } from '@radicalimaging/static-wado-util';
-
-const requireFromMeta = createRequire(import.meta.url);
-const StaticWado = requireFromMeta('@radicalimaging/static-wado-creator/lib/StaticWado.js');
+import StaticWado from '@radicalimaging/static-wado-creator';
 
 const { getValue } = Tags;
 

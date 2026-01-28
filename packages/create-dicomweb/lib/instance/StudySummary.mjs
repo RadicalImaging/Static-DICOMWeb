@@ -118,7 +118,6 @@ export async function studySummary(baseDir, studyUID) {
   }
 
   // Step 5: Sort series by SeriesNumber
-  console.warn('studySummary: sorting series by SeriesNumber', seriesQueryArray.length);
   seriesQueryArray.sort((a, b) => {
     const seriesNumberA = getValue(a, Tags.SeriesNumber);
     const seriesNumberB = getValue(b, Tags.SeriesNumber);

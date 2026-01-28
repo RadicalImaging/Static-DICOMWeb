@@ -57,9 +57,10 @@
   },
   "dependencies": {
     "@cornerstonejs/dicom-codec": "1.0.9",
-    "@radicalimaging/create-dicomweb": ">=1.6.8",
-    "@radicalimaging/static-wado-plugins": ">=1.5.0",
-    "@radicalimaging/static-wado-util": ">=1.6.8",
+    "@radicalimaging/create-dicomweb": "workspace:*",
+    "@radicalimaging/static-wado-plugins": "workspace:*",
+    "@radicalimaging/static-wado-util": "workspace:*",
+    "@radicalimaging/static-wado-webserver": "workspace:*",
     "@saga-bus/core": "0.2.2",
     "config-point": ">=0.5.1",
     "content-type": "1.0.5",

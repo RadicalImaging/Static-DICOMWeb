@@ -52,10 +52,10 @@
     "verbose": true
   },
   "dependencies": {
-    "@radicalimaging/s3-deploy": "^1.5.0",
-    "@radicalimaging/static-wado-deploy": "^1.5.0",
-    "@radicalimaging/static-wado-plugins": "^1.5.0",
-    "@radicalimaging/static-wado-util": "^1.5.0",
+    "@radicalimaging/s3-deploy": "workspace:*",
+    "@radicalimaging/static-wado-deploy": "workspace:*",
+    "@radicalimaging/static-wado-plugins": "workspace:*",
+    "@radicalimaging/static-wado-util": "workspace:*",
     "config-point": ">=0.5.1",
     "cross-env": "^7.0.3",
     "dcmjs": "0.49.0",

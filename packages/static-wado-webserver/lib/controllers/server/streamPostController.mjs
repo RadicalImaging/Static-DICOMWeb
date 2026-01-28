@@ -3,6 +3,7 @@ import { dicomToXml, handleHomeRelative } from '@radicalimaging/static-wado-util
 import { instanceFromStream } from '@radicalimaging/create-dicomweb';
 import { seriesMain } from '@radicalimaging/create-dicomweb';
 import { studyMain } from '@radicalimaging/create-dicomweb';
+import { indexSummary } from '@radicalimaging/create-dicomweb';
 import { SagaBusMessaging } from './SagaBusMessaging.mjs';
 
 import { multipartStream } from './multipartStream.mjs';
@@ -113,7 +114,7 @@ export function streamPostController(params) {
       transport,
       ...(params.messaging || {}),
     });
-    setupMessageHandlers(messagingInstance, dicomdir);
+    setupMessageHandlers(messagingInstance, dicomdir, params);
     if (messagingInstance.start) {
       messagingInstance.start().catch(err => {
         console.error("Failed to start messaging service:", err);
@@ -154,7 +155,7 @@ export function streamPostController(params) {
 /**
  * Set up message handlers for updateSeries and updateStudy
  */
-function setupMessageHandlers(messaging, dicomdir) {
+function setupMessageHandlers(messaging, dicomdir, params = {}) {
   // Register handler for updateSeries
   messaging.registerHandler('updateSeries', async (msg) => {
     const { id, data } = msg;
@@ -198,6 +199,14 @@ function setupMessageHandlers(messaging, dicomdir) {
       await studyMain(studyUid, {
         dicomdir,
       });
+      
+      // Create/update studies/index.json.gz file unless disabled
+      const studyIndex = params.studyIndex !== false; // Default to true unless explicitly disabled
+      if (studyIndex) {
+        console.log(`Creating/updating studies index for study ${studyUid}`);
+        await indexSummary(dicomdir, [studyUid]);
+      }
+      
       console.log(`Completed updateStudy for study ${studyUid}`);
     } catch (err) {
       console.error(`Error processing updateStudy for ${studyUid}:`, err);

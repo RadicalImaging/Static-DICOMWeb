@@ -13,10 +13,15 @@
       "devDependencies": {
         "@babel/core": "^7.26.0",
         "@babel/eslint-parser": "^7.25.9",
+        "@babel/plugin-proposal-class-properties": "^7.18.6",
         "@babel/plugin-transform-class-properties": "^7.25.9",
         "@babel/plugin-transform-class-static-block": "^7.28.3",
         "@babel/plugin-transform-modules-commonjs": "^7.16.8",
+        "@babel/plugin-transform-private-methods": "^7.28.6",
+        "@babel/plugin-transform-runtime": "^7.17.0",
         "@babel/preset-env": "^7.16.11",
+        "@babel/runtime": "^7.17.0",
+        "babel-plugin-transform-import-meta": "^2.3.3",
         "eslint": "^9.14.0",
         "eslint-config-prettier": "^9.1.0",
         "eslint-plugin-jest": "^28.8.3",
@@ -36,9 +41,11 @@
         "createdicomweb": "bin/createdicomweb.mjs",
       },
       "dependencies": {
-        "@radicalimaging/cs3d": ">=1.6.1",
-        "@radicalimaging/static-wado-util": ">=1.6.1",
+        "@radicalimaging/cs3d": "workspace:*",
+        "@radicalimaging/static-wado-creator": "workspace:*",
+        "@radicalimaging/static-wado-util": "workspace:*",
         "canvas": ">=3.1.0",
+        "commander": "^12.0.0",
         "config-point": ">=0.5.1",
         "dcmjs": "0.49.0",
         "dicom-parser": "^1.8.13",
@@ -72,10 +79,10 @@
         "curiestore": "bin/healthlakestore.mjs",
       },
       "dependencies": {
-        "@radicalimaging/s3-deploy": "^1.5.0",
-        "@radicalimaging/static-wado-deploy": "^1.5.0",
-        "@radicalimaging/static-wado-plugins": "^1.5.0",
-        "@radicalimaging/static-wado-util": "^1.5.0",
+        "@radicalimaging/s3-deploy": "workspace:*",
+        "@radicalimaging/static-wado-deploy": "workspace:*",
+        "@radicalimaging/static-wado-plugins": "workspace:*",
+        "@radicalimaging/static-wado-util": "workspace:*",
         "config-point": ">=0.5.1",
         "cross-env": "^7.0.3",
         "dcmjs": "0.49.0",
@@ -92,8 +99,8 @@
       "dependencies": {
         "@aws-sdk/client-s3": "^3.374.0",
         "@aws-sdk/lib-storage": "^3.862.0",
-        "@radicalimaging/static-wado-plugins": "^1.5.0",
-        "@radicalimaging/static-wado-util": "^1.5.0",
+        "@radicalimaging/static-wado-plugins": "workspace:*",
+        "@radicalimaging/static-wado-util": "workspace:*",
         "aws-cdk-lib": "^2.144.0",
         "config-point": ">=0.5.1",
         "constructs": "^10.0.94",
@@ -110,8 +117,8 @@
         "mkdicomweb": "bin/mkdicomweb.mjs",
       },
       "dependencies": {
-        "@radicalimaging/cs3d": ">=1.6.1",
-        "@radicalimaging/static-wado-util": ">=1.6.1",
+        "@radicalimaging/cs3d": "workspace:*",
+        "@radicalimaging/static-wado-util": "workspace:*",
         "canvas": ">=3.1.0",
         "config-point": ">=0.5.1",
         "dcmjs": "0.49.0",
@@ -131,9 +138,9 @@
         "deploydicomweb": "bin/deploydicomweb.mjs",
       },
       "dependencies": {
-        "@radicalimaging/s3-deploy": "^1.5.0",
-        "@radicalimaging/static-wado-plugins": "^1.5.0",
-        "@radicalimaging/static-wado-util": "^1.5.0",
+        "@radicalimaging/s3-deploy": "workspace:*",
+        "@radicalimaging/static-wado-plugins": "workspace:*",
+        "@radicalimaging/static-wado-util": "workspace:*",
         "config-point": ">=0.5.1",
       },
       "devDependencies": {
@@ -145,7 +152,7 @@
       "name": "@radicalimaging/static-wado-plugins",
       "version": "1.7.0",
       "dependencies": {
-        "@radicalimaging/static-wado-util": "^1.5.0",
+        "@radicalimaging/static-wado-util": "workspace:*",
         "config-point": ">=0.5.1",
         "dcmjs-dimse": "^0.1.30",
         "http-proxy-middleware": "^2.0.6",
@@ -202,9 +209,10 @@
       },
       "dependencies": {
         "@cornerstonejs/dicom-codec": "1.0.9",
-        "@radicalimaging/create-dicomweb": ">=1.6.8",
-        "@radicalimaging/static-wado-plugins": ">=1.5.0",
-        "@radicalimaging/static-wado-util": ">=1.6.8",
+        "@radicalimaging/create-dicomweb": "workspace:*",
+        "@radicalimaging/static-wado-plugins": "workspace:*",
+        "@radicalimaging/static-wado-util": "workspace:*",
+        "@radicalimaging/static-wado-webserver": "workspace:*",
         "@saga-bus/core": "0.2.2",
         "config-point": ">=0.5.1",
         "content-type": "1.0.5",
@@ -533,7 +541,7 @@
 
     "@babel/preset-modules": ["@babel/preset-modules@0.1.6-no-external-plugins", "", { "dependencies": { "@babel/helper-plugin-utils": "^7.0.0", "@babel/types": "^7.4.4", "esutils": "^2.0.2" }, "peerDependencies": { "@babel/core": "^7.0.0-0 || ^8.0.0-0 <8.0.0" } }, "sha512-HrcgcIESLm9aIR842yhJ5RWan/gebQUJ6E/E5+rf0y9o6oj7w0Br+sWuL6kEQ/o/AdfvR1Je9jG18/gnpwjEyA=="],
 
-    "@babel/runtime": ["@babel/runtime@7.17.9", "", { "dependencies": { "regenerator-runtime": "^0.13.4" } }, "sha512-lSiBBvodq29uShpWGNbgFdKYNiFDo5/HIYsaCEY9ff4sb10x9jizo2+pRrSyF4jKZCXqgzuqBOQKbUm90gQwJg=="],
+    "@babel/runtime": ["@babel/runtime@7.28.6", "", {}, "sha512-05WQkdpL9COIMz4LjTxGpPNCdlpyimKppYNoJ5Di5EUObifl8t4tuLuUBBZEpoLYOmfvIWrsp9fCl0HoPRVTdA=="],
 
     "@babel/runtime-corejs3": ["@babel/runtime-corejs3@7.28.6", "", { "dependencies": { "core-js-pure": "^3.43.0" } }, "sha512-kz2fAQ5UzjV7X7D3ySxmj3vRq89dTpqOZWv76Z6pNPztkwb/0Yj1Mtx1xFrYj6mbIHysxtBot8J4o0JLCblcFw=="],
 
@@ -1285,7 +1293,7 @@
 
     "comlink": ["comlink@4.4.2", "", {}, "sha512-OxGdvBmJuNKSCMO4NTl1L47VRp6xn2wG4F/2hYzB6tiCb709otOxtEYCSvK80PtjODfXXZu8ds+Nw5kVCjqd2g=="],
 
-    "commander": ["commander@10.0.1", "", {}, "sha512-y4Mg2tXshplEbSGzx7amzPwKKOCGuoSRP/CjEdwwk0FOGlUbq6lKuoyDZTNZkmxHdJtp54hdfY/JUrdL7Xfdug=="],
+    "commander": ["commander@12.1.0", "", {}, "sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA=="],
 
     "common-ancestor-path": ["common-ancestor-path@1.0.1", "", {}, "sha512-L3sHRo1pXXEqX8VU28kfgUY+YGsk09hPqZiZmLacNib6XNTCM8ubYeT7ryXQw8asB1sKgcU5lkB7ONug08aB8w=="],
 
@@ -2621,8 +2629,6 @@
 
     "@aws-sdk/util-endpoints/@aws-sdk/types": ["@aws-sdk/types@3.972.0", "", { "dependencies": { "@smithy/types": "^4.12.0", "tslib": "^2.6.2" } }, "sha512-U7xBIbLSetONxb2bNzHyDgND3oKGoIfmknrEVnoEU4GUSs+0augUOIn9DIWGUO2ETcRFdsRUnmx9KhPT9Ojbug=="],
 
-    "@babel/runtime/regenerator-runtime": ["regenerator-runtime@0.13.11", "", {}, "sha512-kY1AZVr2Ra+t+piVaJ4gxaFaReZVH40AKNo7UCX6W+dEwBo/2oZJzqfuN1qLq1oL45o56cPaTXELwrTh8Fpggg=="],
-
     "@cornerstonejs/core/gl-matrix": ["gl-matrix@3.4.3", "", {}, "sha512-wcCp8vu8FT22BnvKVPjXa/ICBWRq/zjFfdofZy1WSpQZpphblv12/bOQLBC1rMM7SGOFS9ltVmKOHil5+Ml7gA=="],
 
     "@eslint-community/eslint-utils/eslint-visitor-keys": ["eslint-visitor-keys@3.4.3", "", {}, "sha512-wpc+LXeiyiisxPlEkUzU6svyS1frIO3Mgxj1fdy7Pm8Ygzguax2N3Fa/D/ag1WqbOprdI+uY6wMUl8/a2G+iag=="],
@@ -2656,8 +2662,6 @@
     "@jest/transform/jest-util": ["jest-util@29.7.0", "", { "dependencies": { "@jest/types": "^29.6.3", "@types/node": "*", "chalk": "^4.0.0", "ci-info": "^3.2.0", "graceful-fs": "^4.2.9", "picomatch": "^2.2.3" } }, "sha512-z6EbKajIpqGKU56y5KBUgy1dt1ihhQJgWzUlZHArA/+X2ad7Cb5iF+AK1EWVL/Bo7Rz9uurpqw6SiBCefUbCGA=="],
 
     "@jest/transform/write-file-atomic": ["write-file-atomic@4.0.2", "", { "dependencies": { "imurmurhash": "^0.1.4", "signal-exit": "^3.0.7" } }, "sha512-7KxauUdBmSdWnmpaGFg+ppNjKF8uNLry8LyzjauQDOVONfFLNKrKvQOxZ/VuTIcS/gge/YNahf5RIIQWTSarlg=="],
-
-    "@kitware/vtk.js/@babel/runtime": ["@babel/runtime@7.28.6", "", {}, "sha512-05WQkdpL9COIMz4LjTxGpPNCdlpyimKppYNoJ5Di5EUObifl8t4tuLuUBBZEpoLYOmfvIWrsp9fCl0HoPRVTdA=="],
 
     "@kitware/vtk.js/commander": ["commander@9.2.0", "", {}, "sha512-e2i4wANQiSXgnrBlIatyHtP1odfUp0BbV5Y5nEGbxtIrStkEOAAzCUirvLBNXHLr7kwLvJl6V+4V3XV9x7Wd9w=="],
 
@@ -2711,6 +2715,8 @@
 
     "@nx/devkit/semver": ["semver@7.7.3", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-SdsKMrI9TdgjdweUSR9MweHA4EJ8YxHn8DFaDisvhVlUOe4BF1tLD7GAj0lIqWVl+dPb/rExr0Btby5loQm20Q=="],
 
+    "@radicalimaging/static-wado-util/commander": ["commander@10.0.1", "", {}, "sha512-y4Mg2tXshplEbSGzx7amzPwKKOCGuoSRP/CjEdwwk0FOGlUbq6lKuoyDZTNZkmxHdJtp54hdfY/JUrdL7Xfdug=="],
+
     "@rollup/plugin-commonjs/glob": ["glob@8.1.0", "", { "dependencies": { "fs.realpath": "^1.0.0", "inflight": "^1.0.4", "inherits": "2", "minimatch": "^5.0.1", "once": "^1.3.0" } }, "sha512-r8hpEjiQEYlF2QU0df3dS+nxxSIreXQS1qRhMJM0Q5NDdR386C7jb7Hwwod8Fgiuex+k0GFjgft18yvxm5XoCQ=="],
 
     "@tufjs/models/minimatch": ["minimatch@9.0.5", "", { "dependencies": { "brace-expansion": "^2.0.1" } }, "sha512-G6T0ZX48xgozx7587koeX9Ys2NYy6Gmv//P89sEte9V9whIapMNF4idKxnW2QtCcLiTWlb/wfCabAtAFWhhBow=="],
@@ -2756,6 +2762,8 @@
     "color/color-convert": ["color-convert@3.1.3", "", { "dependencies": { "color-name": "^2.0.0" } }, "sha512-fasDH2ont2GqF5HpyO4w0+BcewlhHEZOFn9c1ckZdHpJ56Qb7MHhH/IcJZbBGgvdtwdwNbLvxiBEdg336iA9Sg=="],
 
     "color-string/color-name": ["color-name@2.1.0", "", {}, "sha512-1bPaDNFm0axzE4MEAzKPuqKWeRaT43U/hyxKPBdqTfmPF+d6n7FSoTFxLVULUJOmiLp01KjhIPPH+HrXZJN4Rg=="],
+
+    "config-point/@babel/runtime": ["@babel/runtime@7.17.9", "", { "dependencies": { "regenerator-runtime": "^0.13.4" } }, "sha512-lSiBBvodq29uShpWGNbgFdKYNiFDo5/HIYsaCEY9ff4sb10x9jizo2+pRrSyF4jKZCXqgzuqBOQKbUm90gQwJg=="],
 
     "conventional-changelog-core/normalize-package-data": ["normalize-package-data@3.0.3", "", { "dependencies": { "hosted-git-info": "^4.0.1", "is-core-module": "^2.5.0", "semver": "^7.3.4", "validate-npm-package-license": "^3.0.1" } }, "sha512-p2W1sgqij3zMMyRC067Dg16bfzVH+w7hyegmpIvZ4JNjqtGOVAIvLmjBx3yP7YTe9vKJgkoNOPjwQGogDoMXFA=="],
 
@@ -2989,6 +2997,8 @@
 
     "webpack/json-parse-even-better-errors": ["json-parse-even-better-errors@2.3.1", "", {}, "sha512-xyFwyhro/JEof6Ghe2iz2NcXoj2sloNsWr/XsERDK/oiPCfaNhl5ONfp+jQdAZRQQ0IJWNzH9zIZF7li91kh2w=="],
 
+    "webpack-cli/commander": ["commander@10.0.1", "", {}, "sha512-y4Mg2tXshplEbSGzx7amzPwKKOCGuoSRP/CjEdwwk0FOGlUbq6lKuoyDZTNZkmxHdJtp54hdfY/JUrdL7Xfdug=="],
+
     "winston/async": ["async@3.2.6", "", {}, "sha512-htCUDlxyyCLMgaM3xXg0C0LW2xqfuQ6p05pCEIsXuyQ+a1koYKTuBMzRNwmybfLgvJDMd0r1LTn4+E0Ti6C2AA=="],
 
     "worker-loader/loader-utils": ["loader-utils@2.0.4", "", { "dependencies": { "big.js": "^5.2.2", "emojis-list": "^3.0.0", "json5": "^2.1.2" } }, "sha512-xXqpXoINfFhgua9xiqD8fPFHgkoq1mmmpE92WlDbm9rNRd/EbRb+Gqf908T2DMfuHjjJlksiK2RbHVOdD/MqSw=="],
@@ -3084,6 +3094,8 @@
     "cacache/glob/path-scurry": ["path-scurry@1.11.1", "", { "dependencies": { "lru-cache": "^10.2.0", "minipass": "^5.0.0 || ^6.0.2 || ^7.0.0" } }, "sha512-Xa4Nw17FS9ApQFJ9umLiJS4orGjm7ZzwUrwamcGQuHSzDyth9boKDaycYdDcZDuqYATXw4HFXgaqWTctW/v1HA=="],
 
     "color/color-convert/color-name": ["color-name@2.1.0", "", {}, "sha512-1bPaDNFm0axzE4MEAzKPuqKWeRaT43U/hyxKPBdqTfmPF+d6n7FSoTFxLVULUJOmiLp01KjhIPPH+HrXZJN4Rg=="],
+
+    "config-point/@babel/runtime/regenerator-runtime": ["regenerator-runtime@0.13.11", "", {}, "sha512-kY1AZVr2Ra+t+piVaJ4gxaFaReZVH40AKNo7UCX6W+dEwBo/2oZJzqfuN1qLq1oL45o56cPaTXELwrTh8Fpggg=="],
 
     "conventional-changelog-core/normalize-package-data/hosted-git-info": ["hosted-git-info@4.1.0", "", { "dependencies": { "lru-cache": "^6.0.0" } }, "sha512-kyCuEOWjJqZuDbRHzL8V93NzQhwIB71oFWSyzVo+KPZI+pnQPPxucdkrOZvkLRnrf5URsQM+IJ09Dw29cRALIA=="],
 

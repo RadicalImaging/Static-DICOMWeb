@@ -26,7 +26,8 @@ export { program, configureProgram, configureCommands, createVerboseLog } from '
 export * from './dicomToXml';
 import createStudyDirectories from './createStudyDirectories';
 import TagLists from './TagLists.mjs';
-import uids from './uids.mjs';
+import uids from './uids';
+import { compareTo } from './compareTo';
 
 export {
   extractMultipart,
@@ -55,4 +56,5 @@ export {
   createStudyDirectories,
   TagLists,
   uids,
+  compareTo,
 };
