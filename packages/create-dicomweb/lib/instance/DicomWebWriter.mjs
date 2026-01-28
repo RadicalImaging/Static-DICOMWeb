@@ -216,10 +216,10 @@ export class DicomWebWriter {
       });
       
       data.gzipStream = gzipStream;
-      data.gzipped = true;
       targetStream = gzipStream;
     }
-    
+    data.gzipped = shouldGzip;
+
     if (options.multipart) {
       const multipartStream = new MultipartStreamWriter(targetStream, {
         boundary: options.boundary,
@@ -380,10 +380,11 @@ export class DicomWebWriter {
   }
 
   /**
-   * Closes a stream (concrete implementation)
-   * Subclasses should override _closeStream for specific implementation
+   * Closes a stream (concrete implementation).
+   * Handles all errors internally and always returns a promise that resolves
+   * (never rejects), even if the stream write or close fails.
    * @param {string} streamKey - The key identifying the stream
-   * @returns {Promise<string>} - The relative path to the written file
+   * @returns {Promise<string|undefined>} - Resolves with the relative path on success, or undefined on failure (error is recorded)
    */
   async closeStream(streamKey) {
     const streamInfo = this.openStreams.get(streamKey);
@@ -394,22 +395,28 @@ export class DicomWebWriter {
     try {
       await streamInfo.end();
       const relativePath = await this._closeStream(streamKey, streamInfo);
-      
+
       if (streamInfo._resolve) {
         streamInfo._resolve(relativePath);
       }
-      
+
       this.openStreams.delete(streamKey);
-      
+
       return relativePath;
     } catch (error) {
-      if (streamInfo._reject) {
-        streamInfo._reject(error);
+      try {
+        this.recordStreamError(streamKey, error, true);
+      } catch (recordErr) {
+        console.error(`Error recording stream failure for ${streamKey}:`, recordErr);
       }
-      
+
+      if (streamInfo._resolve) {
+        streamInfo._resolve(undefined);
+      }
+
       this.openStreams.delete(streamKey);
-      
-      throw error;
+
+      return undefined;
     }
   }
 

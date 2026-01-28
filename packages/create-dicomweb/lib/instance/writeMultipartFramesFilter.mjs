@@ -1,5 +1,4 @@
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
-import { createFrameWriter } from './streamWriters.mjs';
 
 /**
  * DICOM tag hex values for UIDs and Transfer Syntax
@@ -13,12 +12,33 @@ const TAGS = {
 };
 
 /**
+ * Writes one full frame to a new frame stream (Pattern A: frame supplied in its entirety in value).
+ * Opens the stream, writes the data (Buffer/ArrayBuffer/array of same), then closes the stream.
+ *
+ * @param {FileDicomWebWriter} frameWriter - The writer instance
+ * @param {number} frameNumber - 1-based frame index
+ * @param {ArrayBuffer|Buffer|Array<ArrayBuffer|Buffer>} v - Frame data (single buffer or array of fragments)
+ * @returns {string} - Relative path to the written frame file (e.g. 'frames/1.mht')
+ */
+function writeFullFrame(frameWriter, frameNumber, v) {
+  const streamKey = `frame:${frameNumber}`;
+  const streamInfo = frameWriter.openFrameStream(frameNumber, { streamKey });
+  streamInfo.write(v);
+  frameWriter.closeStream(streamKey);
+  return `frames/${frameNumber}.mht`;
+}
+
+/**
  * Filter for DicomMetadataListener that writes binary data to multipart/related .mht files
+ *
+ * Two writing patterns are supported:
+ * - Pattern A: Each frame is supplied in its entirety inside the value() method (one value call = one frame).
+ * - Pattern B: startObject([]) is called for each frame, value() is called for each fragment within that frame, and pop() is called between frames.
  *
  * @param {Object} options - Configuration options
  * @param {string} options.dicomdir - Base directory path where .mht files will be written
  * @param {FileDicomWebWriter} options.writer - Optional writer instance. If provided, this writer will be used instead of creating a new one
- * @returns {Object} Filter object with addTag and value methods
+ * @returns {Object} Filter object with addTag, startObject, value, and pop methods
  */
 export function writeMultipartFramesFilter(options = {}) {
   const { dicomdir, writer: providedWriter } = options;
@@ -30,101 +50,145 @@ export function writeMultipartFramesFilter(options = {}) {
 
   // Use the provided writer or create one lazily
   let writer = providedWriter || null;
-  
-  // Track frame number per pixel data tag (increments for each value() call)
-  let currentFrameNumber = 0;
+
+  // Track frame number per pixel data tag (increments for each frame)
+  let currentFrameNumber = null;
+
+  // Pattern B: we are inside a PixelData frame array (startObject([]) was called under PixelData)
+  /** @type {import('./StreamInfo.mjs').StreamInfo | null} */
+  let pixelDataStreamInfo = null;
 
   /**
    * Gets or creates the writer, using the listener's information
    * @param {Object} listener - The DicomMetadataListener instance (accessed via 'this')
-   * @returns {FileDicomWebWriter}
+   * @returns {FileDicomWebWriter | null}
    */
   function getWriter(listener) {
     if (!writer && listener.information) {
-      // Use the listener's information object directly (camelCase from createInformationFilter)
       writer = new FileDicomWebWriter(listener.information, { baseDir: dicomdir });
     }
     return writer;
   }
 
-
   /**
    * Filter method: Called when a tag is added
    */
   function addTag(next, tag, tagInfo) {
-    // Reset frame number when starting a new pixel data tag
-    if (tag === TAGS.PixelData) {
+    console.log('addTag', tag);
+    if (tag === TAGS.PixelData && this.current?.level < 3) {
       currentFrameNumber = 0;
+      pixelDataStreamInfo = null;
+    } else {
+      currentFrameNumber = null;
     }
     return next(tag, tagInfo);
   }
 
+  const UIDS_REQUIRED_MSG =
+    "StudyInstanceUID, SeriesInstanceUID, and SOPInstanceUID are required to write frame data; ensure the writer's information provider is populated before PixelData is processed.";
+
   /**
-   * Filter method: Called when a value is added
-   * Each call to value() represents one complete frame
+   * Throws if the writer does not have the UIDs required to open frame streams.
+   * @param {FileDicomWebWriter} w
+   * @throws {Error} when any required UID is missing
    */
-  function value(next, v) {
-    // Access tag, vr, and level from this.current (now stored in the current object)
-    const current = this.current;
-    const currentTag = current?.tag;
-    const currentVR = current?.vr;
-    const level = current?.level ?? 0;
-
-    // Only process pixel data at the top level (level <2) and only for pixel data tag
-    if (currentTag === TAGS.PixelData && level < 2) {
-      // Get the writer (creates it if needed using the listener's information)
-      const frameWriter = getWriter(this);
-      if (!frameWriter) {
-        console.warn('Writer not available, information not yet populated');
-        return next(v);
-      }
-      
-      // Increment frame number for this call (each value() call = one frame)
-      currentFrameNumber++;
-      const frameNumber = currentFrameNumber;
-
-      // Create a writer function bound with the frame data
-      const frameDataWriter = createFrameWriter(v);
-      
-      // Use writeToStream to handle writing, closing, and error handling
-      // This ensures proper cleanup in all cases (errors are handled and streams are cleaned up)
-      // Errors are recorded internally and the promise resolves (doesn't throw)
-      // writeToStream now handles all promise rejections internally to prevent process termination
-      streamInfo.write(v);
-      
-      // Return relative path string as URI format (synchronously)
-      const relativePath = `frames/${frameNumber}.mht`;
-      return next(relativePath);
+  function assertRequiredUIDs(w) {
+    if (!w?.getStudyUID?.() || !w?.getSeriesUID?.() || !w?.getSOPInstanceUID?.()) {
+      throw new Error(UIDS_REQUIRED_MSG);
     }
-
-    // For non-pixel-data or non-top-level, pass through the original value
-    return next(v);
   }
 
   /**
-   * Filter method: Called when a tag is being closed (popped from stack)
-   * Replaces the pixel data Value with a BulkDataURI reference
+   * Filter method: Called when starting a new object (e.g. array for a frame).
+   * Pattern B: When we see startObject([]) under PixelData, open a frame stream and track it.
+   */
+  function startObject(next, dest) {
+    if (currentFrameNumber === null) {
+      return next(dest);
+    }
+    const current = this.current;
+
+    const frameWriter = getWriter(this);
+    if (frameWriter) {
+      assertRequiredUIDs(frameWriter);
+      currentFrameNumber++;
+      const frameNumber = currentFrameNumber;
+      const streamKey = `frame:${frameNumber}`;
+      pixelDataStreamInfo = frameWriter.openFrameStream(frameNumber, { streamKey });
+    }
+
+    return next(dest);
+  }
+
+  /**
+   * Filter method: Called when a value is added.
+   * - Pattern A: PixelData at level < 2, not inside frame array — v is one full frame; write it and return path.
+   * - Pattern B: Inside frame array — v is a fragment; write to current frame stream and pass through.
+   */
+  function value(next, v) {
+    if (currentFrameNumber === null) {
+      return next(v);
+    }
+    const current = this.current;
+    const currentTag = current?.tag;
+    const level = current?.level ?? 0;
+
+    // Pattern B: streaming frames — we're inside startObject([]) for this frame, each value is a fragment
+    if (pixelDataStreamInfo) {
+      pixelDataStreamInfo.write(v);
+      return next(v);
+    }
+
+    // Pattern A: each value() is one complete frame at PixelData, level < 2
+    const frameWriter = getWriter(this);
+    if (!frameWriter) {
+      return next(v);
+    }
+    assertRequiredUIDs(frameWriter);
+    currentFrameNumber++;
+    const frameNumber = currentFrameNumber;
+    const relativePath = writeFullFrame(frameWriter, frameNumber, v);
+    return next(frameNumber);
+  }
+
+  /**
+   * Filter method: Called when a tag or object is being closed (popped from stack).
+   * - Pattern B: When popping the frame array, end and close the current frame stream.
+   * - When closing the PixelData tag, replace Value with BulkDataURI.
    */
   function pop(next, result) {
-    // Access the current tag context
+    if (currentFrameNumber === null) {
+      return next(result);
+    }
     const current = this.current;
     const currentTag = current?.tag;
     const level = current?.level ?? 0;
     const dest = current?.dest;
 
-    // If we're closing a PixelData tag at the top level, modify the dest object
-    if (currentTag === TAGS.PixelData && level === 0 && dest) {
-      // Delete the Value property and add BulkDataURI
+    // Pattern B: ending the frame array — close the frame stream we opened in startObject
+    if (pixelDataStreamInfo) {
+      const streamKey = pixelDataStreamInfo.streamKey;
+      const frameWriter = getWriter(this);
+      pixelDataStreamInfo = null;
+      if (frameWriter) {
+        frameWriter.closeStream(streamKey).catch(err => {
+          console.error(`Error closing frame stream ${streamKey}:`, err);
+          frameWriter.recordStreamError(streamKey, err, true);
+        });
+      }
+    } else {
+      // If we're closing the PixelData tag at the top level, replace Value with BulkDataURI
       delete dest.Value;
       dest.BulkDataURI = './frames';
+      currentFrameNumber = null;
     }
 
-    // Always call next with the result
     return next(result);
   }
-  
+
   return {
     addTag,
+    startObject,
     value,
     pop,
     getWriter: () => writer,

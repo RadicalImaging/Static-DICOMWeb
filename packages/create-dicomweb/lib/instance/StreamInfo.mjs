@@ -24,7 +24,7 @@ function toBuffers(value) {
 
 /**
  * StreamInfo encapsulates an open write stream and its failure/write behaviour.
- * Provides write(), writeBinaryValue() (with backpressure and queue), and end().
+ * Provides write() (sync, handles binary types/arrays, backpressure, queue), and end().
  * recordFailure marks the stream as failed; getFailureMessage() retrieves the failure.
  * end() waits until all data is flushed, records when ended and any failures, and never throws.
  */
@@ -42,6 +42,7 @@ export class StreamInfo {
     this.error = null;
     this._ended = false;
 
+    /** @type {Array<{ buffers?: Buffer[], run?: () => Promise<void>, resolve?: () => void, reject?: (err: Error) => void }>} */
     this._queue = [];
     this._processing = false;
 
@@ -77,60 +78,42 @@ export class StreamInfo {
   }
 
   /**
-   * Writes chunk to the stream. Returns the backpressure flag synchronously.
-   * true = buffer has space, ok to keep writing; false = wait for 'drain' before writing more.
-   * If the stream has recorded a failure, this is a no-op and returns true.
-   * If the write fails (e.g. error in callback), recordFailure is called.
-   * @param {string|Buffer|Uint8Array} chunk - Data to write
-   * @returns {boolean} - Backpressure flag from stream.write()
-   */
-  write(chunk) {
-    if (this.failed) {
-      return true;
-    }
-    return this.stream.write(chunk, (err) => {
-      if (err) {
-        this.recordFailure(err);
-      }
-    });
-  }
-
-  /**
-   * Writes a single binary value (ArrayBuffer, Buffer, TypedArray, or Array of same) to the stream.
-   * Handles backpressure and queues multiple calls; use extend by calling again when more data arrives.
+   * Writes binary data to the stream. Accepts ArrayBuffer, Buffer, TypedArray, or Array of same.
+   * Synchronous: returns backpressure as a boolean. When the queue is already being drained,
+   * new data is appended to the queue and this returns false (caller should slow down or wait for 'drain').
    * @param {ArrayBuffer|Buffer|TypedArray|Array<ArrayBuffer|Buffer|TypedArray>} value - Data to write
-   * @returns {Promise<number>} - Resolves with bytes written; rejects on write error
+   * @returns {boolean} - true = no backpressure (OK to continue); false = backpressure (queue busy, slow down)
    */
-  writeBinaryValue(value) {
-    return new Promise((resolve, reject) => {
-      const run = async () => {
-        const buffers = toBuffers(value);
-        let total = 0;
-        for (const buf of buffers) {
-          if (buf.length === 0) continue;
-          const ok = this.write(buf);
-          total += buf.length;
-          if (!ok) {
-            await new Promise((res) => this.stream.once('drain', res));
-          }
-        }
-        return total;
-      };
-      this._queue.push({ run, resolve, reject });
-      this._processQueue();
-    });
+  write(value) {
+    if (this.failed || this._ended) return true;
+    const buffers = toBuffers(value).filter((b) => b.length > 0);
+    if (buffers.length === 0) return true;
+
+    this._queue.push({ buffers });
+    if (this._processing) return false;
+    this._processing = true;
+    void this._processQueue();
+    return true;
   }
 
   async _processQueue() {
-    if (this._processing || this._queue.length === 0) return;
-    this._processing = true;
+    const stream = this.stream;
     while (this._queue.length > 0) {
-      const { run, resolve, reject } = this._queue.shift();
-      try {
-        const n = await run();
-        resolve(n);
-      } catch (e) {
-        reject(e);
+      const item = this._queue.shift();
+      if (item.buffers) {
+        for (const buf of item.buffers) {
+          const ok = stream.write(buf);
+          if (!ok) {
+            await new Promise((res) => stream.once('drain', res));
+          }
+        }
+      } else if (item.run !== undefined) {
+        try {
+          await item.run();
+          item.resolve?.();
+        } catch (e) {
+          item.reject?.(e);
+        }
       }
     }
     this._processing = false;
@@ -150,7 +133,10 @@ export class StreamInfo {
     const drainPromise = new Promise((resolve, reject) => {
       const run = async () => {};
       this._queue.push({ run, resolve, reject });
-      this._processQueue();
+      if (!this._processing) {
+        this._processing = true;
+        void this._processQueue();
+      }
     });
     await drainPromise;
 

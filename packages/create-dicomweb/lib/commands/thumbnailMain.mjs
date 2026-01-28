@@ -6,8 +6,8 @@ import { FileDicomWebWriter } from '../instance/FileDicomWebWriter.mjs';
 import { Tags } from '@radicalimaging/static-wado-util';
 import { readBulkData } from '@radicalimaging/static-wado-util';
 
-const require = createRequire(import.meta.url);
-const StaticWado = require('@radicalimaging/static-wado-creator/lib/StaticWado.js');
+const requireFromMeta = createRequire(import.meta.url);
+const StaticWado = requireFromMeta('@radicalimaging/static-wado-creator/lib/StaticWado.js');
 
 const { getValue } = Tags;
 

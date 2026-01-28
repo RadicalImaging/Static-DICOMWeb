@@ -1,8 +1,8 @@
 import { Writable } from 'stream';
 import { StreamInfo } from '../lib/instance/StreamInfo.mjs';
 
-describe('StreamInfo writeBinaryValue and end', () => {
-  test('writes Buffer, array of Buffer and TypedArray, extend via multiple writeBinaryValue', async () => {
+describe('StreamInfo write and end', () => {
+  test('writes Buffer, array of Buffer and TypedArray via write(); returns backpressure; queues when busy', async () => {
     const chunks = [];
     const ws = new Writable({
       write(chunk, enc, cb) {
@@ -14,8 +14,10 @@ describe('StreamInfo writeBinaryValue and end', () => {
     const mockWriter = { _recordStreamFailure() {} };
     const streamInfo = new StreamInfo(mockWriter, { stream: ws, fileStream: ws, streamKey: 'test', filename: 'x', relativePath: '.' });
 
-    await streamInfo.writeBinaryValue(Buffer.from('a'));
-    await streamInfo.writeBinaryValue([Buffer.from('b'), new Uint8Array([99])]);
+    const ok1 = streamInfo.write(Buffer.from('a'));
+    const ok2 = streamInfo.write([Buffer.from('b'), new Uint8Array([99])]);
+    expect(ok1).toBe(true);
+    expect(ok2).toBe(true);
     await streamInfo.end();
 
     const out = Buffer.concat(chunks).toString('utf8');
