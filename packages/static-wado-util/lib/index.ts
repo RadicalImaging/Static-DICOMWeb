@@ -28,6 +28,7 @@ import createStudyDirectories from './createStudyDirectories';
 import TagLists from './TagLists.mjs';
 import uids from './uids';
 import { compareTo } from './compareTo';
+import { sortStudies, compareStudies, compareStudyDate, compareStudyTime, compareStudyUID } from './sortStudies.mjs';
 
 export {
   extractMultipart,
@@ -57,4 +58,9 @@ export {
   TagLists,
   uids,
   compareTo,
+  sortStudies,
+  compareStudies,
+  compareStudyDate,
+  compareStudyTime,
+  compareStudyUID,
 };

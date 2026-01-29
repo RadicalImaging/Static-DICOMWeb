@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { FileDicomWebReader } from './FileDicomWebReader.mjs';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
-import { Tags, compareTo } from '@radicalimaging/static-wado-util';
+import { Tags, sortStudies } from '@radicalimaging/static-wado-util';
 
 const { getValue } = Tags;
 
@@ -142,29 +142,7 @@ export async function indexSummary(baseDir, studyUIDs = []) {
   }
 
   // Step 5: Sort studies by StudyDate and StudyTime (if available)
-  finalStudiesIndex.sort((a, b) => {
-    const studyDateA = getValue(a, Tags.StudyDate);
-    const studyDateB = getValue(b, Tags.StudyDate);
-    const studyTimeA = getValue(a, Tags.StudyTime);
-    const studyTimeB = getValue(b, Tags.StudyTime);
-    
-    // Compare dates first
-    const dateCompare = compareTo(studyDateA, studyDateB);
-    if (dateCompare !== 0) {
-      return dateCompare;
-    }
-    
-    // If dates are equal, compare times
-    const timeCompare = compareTo(studyTimeA, studyTimeB);
-    if (timeCompare !== 0) {
-      return timeCompare;
-    }
-    
-    // Fallback: compare by StudyInstanceUID
-    const uidA = getValue(a, Tags.StudyInstanceUID);
-    const uidB = getValue(b, Tags.StudyInstanceUID);
-    return compareTo(uidA, uidB);
-  });
+  sortStudies(finalStudiesIndex);
 
   // Step 6: Write the updated studies/index.json.gz file
   console.warn(`indexSummary: writing updated studies index with ${finalStudiesIndex.length} studies`);
