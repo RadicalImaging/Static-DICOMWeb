@@ -1,3 +1,8 @@
+/** Total number of streams currently open (all StreamInfo instances) */
+let streamOpenCount = 0;
+/** Total number of streams closed (all StreamInfo instances, cumulative) */
+let streamClosedCount = 0;
+
 /**
  * Normalizes a value to an array of Buffers. Supports ArrayBuffer, Buffer, TypedArray, or Array of same.
  * @param {ArrayBuffer|Buffer|TypedArray|Array<ArrayBuffer|Buffer|TypedArray>} value
@@ -41,16 +46,36 @@ export class StreamInfo {
     this.failed = false;
     this.error = null;
     this._ended = false;
+    this._closedLogged = false;
 
     /** @type {Array<{ buffers?: Buffer[], run?: () => Promise<void>, resolve?: () => void, reject?: (err: Error) => void }>} */
     this._queue = [];
     this._processing = false;
+
+    streamOpenCount += 1;
+    console.verbose(
+      `[StreamInfo] open stream streamKey=${this.streamKey ?? 'unknown'} totalOpen=${streamOpenCount} totalClosed=${streamClosedCount}`
+    );
 
     const completionPromise = new Promise((resolve, reject) => {
       this._resolve = resolve;
       this._reject = reject;
     });
     this.promise = completionPromise;
+  }
+
+  /**
+   * Logs stream close and updates open/closed counts. Called at most once per instance.
+   * @private
+   */
+  _markClosed() {
+    if (this._closedLogged) return;
+    this._closedLogged = true;
+    streamOpenCount -= 1;
+    streamClosedCount += 1;
+    console.verbose(
+      `[StreamInfo] close stream streamKey=${this.streamKey ?? 'unknown'} totalOpen=${streamOpenCount} totalClosed=${streamClosedCount}`
+    );
   }
 
   /**
@@ -75,6 +100,7 @@ export class StreamInfo {
    * @param {Error} error - The error to pass to destroy()
    */
   destroyStreams(error) {
+    this._markClosed();
     try {
       if (this.stream && typeof this.stream.destroy === 'function') {
         this.stream.destroy(error);
@@ -175,6 +201,7 @@ export class StreamInfo {
     await drainPromise;
 
     if (this.failed) {
+      this._markClosed();
       this._ended = true;
       return;
     }
@@ -183,12 +210,14 @@ export class StreamInfo {
     const fs = this.fileStream ?? s;
     const destroyed = s?.destroyed ?? false;
     if (destroyed) {
+      this._markClosed();
       this._ended = true;
       return;
     }
 
     return new Promise(resolve => {
       const done = () => {
+        this._markClosed();
         this._ended = true;
         resolve();
       };
