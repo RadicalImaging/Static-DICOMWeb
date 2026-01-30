@@ -58,6 +58,21 @@ const CompleteStudyWriter = options => {
 
     const studyQuery = await studyData.writeMetadata();
 
+    if (options.index === false) {
+      if (options.notifications) this.notificationService.notifyStudy(studyData.studyInstanceUid);
+      const message = {
+        action: 'metadata',
+        status: 0,
+        studyInstanceUid: studyData.studyInstanceUid,
+      };
+      this.success('completeStudyWriter', message);
+      delete this.studyData;
+      Stats.StudyStats.summarize(
+        `Wrote study metadata/query files for ${studyData.studyInstanceUid} (index skipped)`
+      );
+      return;
+    }
+
     const allStudies = await JSONReader(options.directoryName, 'studies/index.json.gz', []);
     const studyUID = Tags.getValue(studyQuery, Tags.StudyInstanceUID);
     if (!studyUID) {
