@@ -76,56 +76,6 @@ export class DicomWebWriter {
   }
 
   /**
-   * Private async method that performs the actual writing with error handling
-   * @param {Object} streamInfo - The stream info object from openStream
-   * @param {Function} writer - Async or sync function that writes to streamInfo.stream
-   * @returns {Promise<string|undefined>} - Resolves with the relative path when writing completes successfully, or undefined if an error occurred (error is recorded)
-   * @private
-   */
-  async _writeToStream(streamInfo, writer) {
-    const streamKey = streamInfo.streamKey;
-
-    // Wrap writer execution in try-catch to handle synchronous errors
-    // This ensures errors are caught before they become unhandled promise rejections
-    try {
-      // Execute the writer function (can be async or sync)
-      let writerResult;
-      try {
-        writerResult = writer(streamInfo.stream, streamInfo);
-      } catch (syncError) {
-        // Synchronous error from writer - handle it immediately
-        // Record the error and return undefined to prevent unhandled rejection
-        try {
-          this.recordStreamError(streamKey, syncError, true);
-        } catch (recordError) {
-          // If recordStreamError itself throws, log it but don't let it propagate
-          console.error(`Error in recordStreamError for ${streamKey}:`, recordError);
-        }
-        // Return undefined synchronously - this prevents the error from propagating
-        return undefined;
-      }
-
-      // No synchronous error - proceed with async handling
-      // If writerResult is a promise, await it; otherwise it's already resolved
-      await Promise.resolve(writerResult);
-      
-      // If we get here, writing succeeded - close the stream
-      return await this.closeStream(streamKey);
-    } catch (error) {
-      // Record the error and ensure cleanup (recordStreamError handles stream termination)
-      // Pass skipPromiseReject=true because the promise is handled by writeToStream's catch handler
-      try {
-        this.recordStreamError(streamKey, error, true);
-      } catch (recordError) {
-        // If recordStreamError itself throws, log it but don't let it propagate
-        console.error(`Error in recordStreamError for ${streamKey}:`, recordError);
-      }
-      // Return undefined to indicate failure (error is already recorded)
-      return undefined;
-    }
-  }
-
-  /**
    * Writes to a stream using a writer function, handling errors and cleanup automatically
    * This method ensures the stream is properly closed and errors are recorded
    * @param {Object} streamInfo - The stream info object from openStream
@@ -144,10 +94,10 @@ export class DicomWebWriter {
       // Create promise and attach catch handler IMMEDIATELY before any async work
       // This ensures the catch handler is always in place to prevent unhandled rejections
       const promise = this._writeToStream(streamInfo, writer);
-      
+
       // Wrap in Promise.resolve to ensure we have full control and catch handler is attached
       // This promise will NEVER reject unhandled - it always resolves (with result or undefined)
-      return Promise.resolve(promise).catch((error) => {
+      return Promise.resolve(promise).catch(error => {
         // Error should already be recorded internally by _writeToStream, but catch
         // any unexpected rejections to prevent process termination
         const streamKey = streamInfo?.streamKey || 'unknown';
@@ -196,25 +146,23 @@ export class DicomWebWriter {
     if (options.path) {
       path += (options.path.startsWith('/') ? '' : '/') + options.path;
     }
-    
+
     // Determine if gzip is needed and update filename if necessary
     const shouldGzip = options.gzip ?? false;
-    const actualFilename = shouldGzip && !filename.endsWith('.gz') 
-      ? `${filename}.gz` 
-      : filename;
-    
+    const actualFilename = shouldGzip && !filename.endsWith('.gz') ? `${filename}.gz` : filename;
+
     // Call the protected implementation to get the base stream (with updated filename)
     const data = this._openStream(path, actualFilename, options);
-    
+
     // Track the target stream for wrapping (starts as the file stream)
     let targetStream = data.stream;
     if (shouldGzip) {
       const gzipStream = createGzip();
       gzipStream.pipe(targetStream); // gzip pipes to file stream
-      gzipStream.on('error', (error) => {
+      gzipStream.on('error', error => {
         targetStream.destroy(error);
       });
-      
+
       data.gzipStream = gzipStream;
       targetStream = gzipStream;
     }
@@ -224,23 +172,23 @@ export class DicomWebWriter {
       const multipartStream = new MultipartStreamWriter(targetStream, {
         boundary: options.boundary,
         contentType: options.contentType || 'application/octet-stream',
-        contentLocation: data.filename
+        contentLocation: data.filename,
       });
-      
+
       data.wrappedStream = targetStream;
       targetStream = multipartStream;
       data.isMultipart = true;
     }
-    
+
     data.stream = targetStream;
     data.filename = actualFilename;
-    
+
     const streamKey = options.streamKey || `${path.replace(/\\/g, '/')}:${data.filename}`;
     data.streamKey = streamKey;
-    
+
     const streamInfo = new StreamInfo(this, data);
     this.openStreams.set(streamKey, streamInfo);
-    
+
     // If frameWriter is provided, automatically handle writing and cleanup
     if (options.frameWriter) {
       // Call writeToStream which will handle writing, closing, and error handling
@@ -250,7 +198,7 @@ export class DicomWebWriter {
       // Return streamInfo with the write promise
       return streamInfo;
     }
-    
+
     return streamInfo;
   }
 
@@ -311,7 +259,9 @@ export class DicomWebWriter {
     const seriesUID = this.getSeriesUID();
     const sopUID = this.getSOPInstanceUID();
     if (!studyUID || !seriesUID || !sopUID) {
-      throw new Error('StudyInstanceUID, SeriesInstanceUID, and SOPInstanceUID are required to open instance stream');
+      throw new Error(
+        'StudyInstanceUID, SeriesInstanceUID, and SOPInstanceUID are required to open instance stream'
+      );
     }
     const path = `studies/${studyUID}/series/${seriesUID}/instances/${sopUID}`;
     return this.openStream(path, filename, options);
@@ -328,12 +278,14 @@ export class DicomWebWriter {
     const seriesUID = this.getSeriesUID();
     const sopUID = this.getSOPInstanceUID();
     if (!studyUID || !seriesUID || !sopUID) {
-      throw new Error('StudyInstanceUID, SeriesInstanceUID, and SOPInstanceUID are required to open frame stream');
+      throw new Error(
+        'StudyInstanceUID, SeriesInstanceUID, and SOPInstanceUID are required to open frame stream'
+      );
     }
     const path = `studies/${studyUID}/series/${seriesUID}/instances/${sopUID}/frames`;
-    
+
     const tsUID = this.getTransferSyntaxUID();
-    
+
     // Determine content type based on transfer syntax UID
     const type = tsUID ? uids[tsUID] || uids.default || {} : {};
     const contentType = options.contentType || type.contentType || 'application/octet-stream';
@@ -346,21 +298,21 @@ export class DicomWebWriter {
     if (tsUID) {
       contentTypeHeader = `${contentType};transfer-syntax=${tsUID}`;
     }
-    console.verbose("TSUID:", tsUID)
-    
+    console.verbose('TSUID:', tsUID);
+
     // Generate filename based on frame number and compression
     const shouldGzip = options.gzip ?? this._shouldGzipFrame(tsUID);
     const filename = shouldGzip ? `${frameNumber}.mht.gz` : `${frameNumber}.mht`;
-    
+
     // Open the stream with multipart wrapping
-    const streamInfo = this.openStream(path, filename, { 
-      ...options, 
-      gzip: shouldGzip, 
+    const streamInfo = this.openStream(path, filename, {
+      ...options,
+      gzip: shouldGzip,
       multipart: true,
       frameNumber,
       contentType: contentTypeHeader,
       boundary,
-      streamKey: options.streamKey || `frame:${frameNumber}`
+      streamKey: options.streamKey || `frame:${frameNumber}`,
     });
 
     return streamInfo;
@@ -374,7 +326,7 @@ export class DicomWebWriter {
    */
   _shouldGzipFrame(tsUID) {
     if (!tsUID) return false;
-    
+
     const type = uids[tsUID] || uids.default || {};
     return type.uncompressed === true || type.gzip === true;
   }
@@ -383,6 +335,7 @@ export class DicomWebWriter {
    * Closes a stream (concrete implementation).
    * Handles all errors internally and always returns a promise that resolves
    * (never rejects), even if the stream write or close fails.
+   * Closing (drain, end, wait for finish) is handled by StreamInfo.end().
    * @param {string} streamKey - The key identifying the stream
    * @returns {Promise<string|undefined>} - Resolves with the relative path on success, or undefined on failure (error is recorded)
    */
@@ -394,7 +347,7 @@ export class DicomWebWriter {
 
     try {
       await streamInfo.end();
-      const relativePath = await this._closeStream(streamKey, streamInfo);
+      const relativePath = streamInfo.failed ? undefined : streamInfo.getCloseResult();
 
       if (streamInfo._resolve) {
         streamInfo._resolve(relativePath);
@@ -429,18 +382,6 @@ export class DicomWebWriter {
    */
   _recordStreamFailure(streamKey, streamInfo, error) {
     this.recordStreamError(streamKey, error, true);
-  }
-
-  /**
-   * Protected method to actually close the stream
-   * Subclasses must implement this method
-   * @param {string} streamKey - The key identifying the stream
-   * @param {Object} streamInfo - The stream info object
-   * @returns {Promise<string>} - The relative path to the written file
-   * @protected
-   */
-  async _closeStream(streamKey, streamInfo) {
-    throw new Error('_closeStream must be implemented by subclass');
   }
 
   /**
@@ -486,23 +427,7 @@ export class DicomWebWriter {
     streamInfo.error = error;
     streamInfo.failed = true;
 
-    // Terminate the stream by destroying it
-    try {
-      if (streamInfo.stream && typeof streamInfo.stream.destroy === 'function') {
-        streamInfo.stream.destroy(error);
-      }
-      // Also destroy gzip stream if present
-      if (streamInfo.gzipStream && typeof streamInfo.gzipStream.destroy === 'function') {
-        streamInfo.gzipStream.destroy(error);
-      }
-      // Also destroy file stream if present
-      if (streamInfo.fileStream && typeof streamInfo.fileStream.destroy === 'function') {
-        streamInfo.fileStream.destroy(error);
-      }
-    } catch (destroyError) {
-      // Ignore errors during stream destruction
-      console.warn(`Error destroying stream ${streamKey}:`, destroyError);
-    }
+    streamInfo.destroyStreams(error);
 
     // Only reject the promise if it hasn't been replaced and we're not skipping rejection
     // When called from _writeToStream, the promise is handled by writeToStream's catch handler,
@@ -546,7 +471,7 @@ export class DicomWebWriter {
   getStreamErrorSummary() {
     return Array.from(this.streamErrors.entries()).map(([streamKey, error]) => ({
       streamKey,
-      error
+      error,
     }));
   }
 }

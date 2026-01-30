@@ -70,11 +70,45 @@ export class StreamInfo {
   }
 
   /**
+   * Terminates the stream by destroying stream, gzipStream (if present), and fileStream (if present).
+   * Never throws; errors during destruction are caught and warned.
+   * @param {Error} error - The error to pass to destroy()
+   */
+  destroyStreams(error) {
+    try {
+      if (this.stream && typeof this.stream.destroy === 'function') {
+        this.stream.destroy(error);
+      }
+      if (this.gzipStream && typeof this.gzipStream.destroy === 'function') {
+        this.gzipStream.destroy(error);
+      }
+      if (this.fileStream && typeof this.fileStream.destroy === 'function') {
+        this.fileStream.destroy(error);
+      }
+    } catch (destroyError) {
+      console.warn(`Error destroying stream ${this.streamKey ?? 'unknown'}:`, destroyError);
+    }
+  }
+
+  /**
    * Gets the failure message for this stream, if any.
    * @returns {string|null} - The error message, or null if no failure
    */
   getFailureMessage() {
     return this.error?.message ?? null;
+  }
+
+  /**
+   * Returns the close result for this stream (e.g. relative path for file-based writers).
+   * Used after end() to get the result of closing. Returns undefined if this stream
+   * does not have path info (e.g. non-file writers).
+   * @returns {string|undefined} - The close result (e.g. relative path), or undefined
+   */
+  getCloseResult() {
+    if (this.relativePath != null && this.filename != null) {
+      return `${this.relativePath}/${this.filename}`.replace(/\\/g, '/');
+    }
+    return undefined;
   }
 
   /**
@@ -86,7 +120,7 @@ export class StreamInfo {
    */
   write(value) {
     if (this.failed || this._ended) return true;
-    const buffers = toBuffers(value).filter((b) => b.length > 0);
+    const buffers = toBuffers(value).filter(b => b.length > 0);
     if (buffers.length === 0) return true;
 
     this._queue.push({ buffers });
@@ -104,7 +138,7 @@ export class StreamInfo {
         for (const buf of item.buffers) {
           const ok = stream.write(buf);
           if (!ok) {
-            await new Promise((res) => stream.once('drain', res));
+            await new Promise(res => stream.once('drain', res));
           }
         }
       } else if (item.run !== undefined) {
@@ -153,13 +187,13 @@ export class StreamInfo {
       return;
     }
 
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       const done = () => {
         this._ended = true;
         resolve();
       };
 
-      const onError = (err) => {
+      const onError = err => {
         this.recordFailure(err);
         cleanup();
         done();

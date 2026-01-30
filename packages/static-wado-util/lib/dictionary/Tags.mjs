@@ -32,7 +32,7 @@ const findPrivate = (item, tagObject, create) => {
 
 const DeduppedCreator = 'dedupped';
 
-const Tags = {
+export const Tags = {
   // Raw tags have the x before them, not parsed yet
   RawMinTag: 'x00000000',
   RawFirstBodyTag: 'x00080000',
