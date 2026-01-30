@@ -1,5 +1,9 @@
 /* eslint-disable import/prefer-default-export */
-import { dicomToXml, handleHomeRelative } from '@radicalimaging/static-wado-util';
+import {
+  dicomToXml,
+  handleHomeRelative,
+  createPromiseTracker,
+} from '@radicalimaging/static-wado-util';
 import { instanceFromStream } from '@radicalimaging/create-dicomweb';
 import { seriesMain } from '@radicalimaging/create-dicomweb';
 import { studyMain } from '@radicalimaging/create-dicomweb';
@@ -126,14 +130,34 @@ export function streamPostController(params) {
     handlersInitialized = true;
   }
 
+  const maxUnsettledReceives = params.maxUnsettledReceives ?? 2;
+  const backPressureTimeoutMs = params.backPressureTimeoutMs ?? 10000;
+
   return multipartStream({
-    listener: async (fileInfo, stream) => {
+    beforeProcessPart: async req => {
+      req.uploadPromiseTracker = req.uploadPromiseTracker ?? createPromiseTracker();
+      const unsettled = await req.uploadPromiseTracker.limitUnsettled(
+        maxUnsettledReceives,
+        backPressureTimeoutMs
+      );
+      if (unsettled >= maxUnsettledReceives) {
+        console.warn(
+          `[streamPostController] Back pressure: continuing after timeout with ${unsettled} unsettled receives`
+        );
+      }
+    },
+    listener: async (fileInfo, stream, req) => {
       // Called immediately when a file part starts.
       // You can kick off downstream processing and return a promise.
       // This promise is *not awaited* by middleware.
       console.warn('Processing POST upload:', fileInfo);
+      const tracker = req?.uploadPromiseTracker ?? createPromiseTracker();
+      if (req) req.uploadPromiseTracker = tracker;
+
       try {
-        const result = await instanceFromStream(stream, { dicomdir });
+        const promise = instanceFromStream(stream, { dicomdir });
+        tracker.add(promise);
+        const result = await promise;
         const { information } = result;
         console.verbose('information:', information);
 

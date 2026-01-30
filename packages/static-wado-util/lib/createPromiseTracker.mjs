@@ -26,9 +26,14 @@ export function createPromiseTracker() {
   function add(promise) {
     const p = Promise.resolve(promise);
     promises.add(p);
+    // Attach .catch() to the promise from .finally() so that when the tracked
+    // promise rejects, we don't get an unhandled rejection (e.g. invalid DICOM).
     p.finally(() => {
       promises.delete(p);
       notifySettle();
+    }).catch(() => {
+      // Rejection is expected (e.g. invalid file); caller awaits the same promise
+      // and handles the error. We only track settlement for back pressure.
     });
     return p;
   }
