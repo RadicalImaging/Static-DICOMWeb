@@ -5,4 +5,4 @@
  */
 import { createVerboseLog } from '@radicalimaging/static-wado-util';
 
-createVerboseLog(true, { quiet: false });
+createVerboseLog(false, { quiet: false });
