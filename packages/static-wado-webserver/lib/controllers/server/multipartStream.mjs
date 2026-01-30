@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { data } from 'dcmjs';
 import { parse as parseContentType } from 'content-type';
 
-const { ReadBufferStream } = data;
+import { TrackableReadBufferStream } from "./TrackableReadBufferStream.mjs";
 
 /**
  * Dicer-based multipart parser middleware for DICOMweb STOW-RS.
@@ -15,9 +15,19 @@ const { ReadBufferStream } = data;
  * @param {number} [opts.limits.parts]     Max number of parts (optional)
  * @param {number} [opts.limits.totalSize] Max total bytes across all parts (optional)
  * @param {(err: any, fileInfo?: object) => void} [opts.onStreamError]
+ * @param {(req: object) => Promise<void>} [opts.beforeProcessPart] Await before processing each DICOM part (for back pressure)
+ * @param {number} [opts.backpressureMaxBytes] Max bytes beyond read offset before applying backpressure (default 512kb)
+ * @param {number} [opts.backpressureWaitMs] Max ms to wait before delivering next chunk when backpressure applies (default 1000)
  */
 export function multipartStream(opts) {
-  const { listener, limits, onStreamError } = opts;
+  const {
+    listener,
+    limits,
+    onStreamError,
+    beforeProcessPart,
+    backpressureMaxBytes = 512 * 1024,
+    backpressureWaitMs = 1000,
+  } = opts;
 
   if (typeof listener !== 'function') {
     throw new Error('multipartStream: opts.listener must be a function');
@@ -138,10 +148,7 @@ export function multipartStream(opts) {
           return;
         }
 
-        // Resume the part stream now that we have headers
-        part.resume();
-
-        // Continue with processing...
+        // Continue with processing (part stays paused until continuePartProcessing resumes it after back pressure)
         continuePartProcessing();
       };
 
@@ -179,7 +186,18 @@ export function multipartStream(opts) {
 
       // Function to continue processing the part once headers are available
       // This creates a fresh buffer stream for each part
-      const continuePartProcessing = () => {
+      const continuePartProcessing = async () => {
+        // Await back pressure hook before accepting data (part stays paused)
+        if (beforeProcessPart) {
+          await beforeProcessPart(req);
+        }
+        if (aborted) {
+          part.resume();
+          return;
+        }
+        // Resume the part stream now that we have capacity
+        part.resume();
+
         const getHeader = name => {
           const lowerName = name.toLowerCase();
 
@@ -274,12 +292,13 @@ export function multipartStream(opts) {
         };
 
         // Create a fresh buffer stream for this specific part/file
-        // Each file gets its own isolated buffer stream instance
-        const readBufferStream = new ReadBufferStream(null, true, { noCopy: true });
+        // Each file gets its own isolated buffer stream instance (TrackableReadBufferStream
+        // tracks currentStreamSize and pendingEnsureAvailableDesiredBytes for back-pressure)
+        const readBufferStream = new TrackableReadBufferStream(null, true, { noCopy: true });
 
         // Kick off your listener (do NOT await)
         try {
-          const p = Promise.resolve(listener(fileInfo, readBufferStream));
+          const p = Promise.resolve(listener(fileInfo, readBufferStream, req));
           // Add error handler to prevent unhandled promise rejections
           // The error will still be caught by Promise.allSettled in completePostController
           p.catch(err => {
@@ -336,6 +355,19 @@ export function multipartStream(opts) {
             // Each chunk is added to this part's dedicated buffer stream
             const chunkCopy = Buffer.from(chunk);
             readBufferStream.addBuffer(chunkCopy);
+
+            // Backpressure: if unread bytes exceed max(backpressureMaxBytes, pending ensureAvailable),
+            // pause the part and wait up to backpressureWaitMs before accepting the next chunk
+            const bytesBeyondOffset =
+              readBufferStream.currentStreamSize - readBufferStream.offset;
+            const pendingAwaitBytes = readBufferStream.maxPendingEnsureAvailableBytes;
+            const threshold = Math.max(backpressureMaxBytes, pendingAwaitBytes);
+            if (bytesBeyondOffset > threshold) {
+              part.pause();
+              setTimeout(() => {
+                if (!aborted) part.resume();
+              }, backpressureWaitMs);
+            }
           } catch (err) {
             if (onStreamError) onStreamError(err, fileInfo);
             part.pause();
