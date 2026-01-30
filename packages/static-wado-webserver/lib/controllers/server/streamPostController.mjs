@@ -19,7 +19,7 @@ let messagingInstance = null;
 function createInMemoryTransport() {
   const subscriptions = new Map(); // messageType -> Set of handlers
   let started = false;
-  
+
   return {
     start: async () => {
       started = true;
@@ -28,7 +28,7 @@ function createInMemoryTransport() {
       started = false;
       subscriptions.clear();
     },
-    publish: async (message) => {
+    publish: async message => {
       if (!started) {
         throw new Error('Transport not started');
       }
@@ -36,12 +36,12 @@ function createInMemoryTransport() {
       const handlers = subscriptions.get(message.type) || new Set();
       // Also check for wildcard handlers if needed
       const allHandlers = subscriptions.get('*') || new Set();
-      
+
       // Process handlers asynchronously
       const all = new Set([...handlers, ...allHandlers]);
       if (all.size > 0) {
         // Use Promise.allSettled to ensure handler exceptions don't crash the server
-        const promises = Array.from(all).map(async (handler) => {
+        const promises = Array.from(all).map(async handler => {
           try {
             // Handler might expect ctx.message or just the message directly
             const result = handler(message);
@@ -69,7 +69,10 @@ function createInMemoryTransport() {
         // Log any rejected promises for visibility (though we already logged in catch above)
         results.forEach((result, index) => {
           if (result.status === 'rejected') {
-            console.error(`[InMemoryTransport] Handler promise rejected (handler ${index}):`, result.reason);
+            console.error(
+              `[InMemoryTransport] Handler promise rejected (handler ${index}):`,
+              result.reason
+            );
           }
         });
       }
@@ -79,7 +82,7 @@ function createInMemoryTransport() {
         subscriptions.set(messageType, new Set());
       }
       subscriptions.get(messageType).add(handler);
-      
+
       // Return unsubscribe function
       return () => {
         const handlers = subscriptions.get(messageType);
@@ -105,8 +108,8 @@ function createInMemoryTransport() {
  */
 export function streamPostController(params) {
   const dicomdir = handleHomeRelative(params.rootDir);
-  console.noQuiet("Storing POST uploads to:", dicomdir);
-  
+  console.noQuiet('Storing POST uploads to:', dicomdir);
+
   // Initialize messaging service and register handlers (only once)
   if (!messagingInstance) {
     const transport = params.messaging?.transport || createInMemoryTransport();
@@ -117,23 +120,23 @@ export function streamPostController(params) {
     setupMessageHandlers(messagingInstance, dicomdir, params);
     if (messagingInstance.start) {
       messagingInstance.start().catch(err => {
-        console.error("Failed to start messaging service:", err);
+        console.error('Failed to start messaging service:', err);
       });
     }
     handlersInitialized = true;
   }
-  
+
   return multipartStream({
     listener: async (fileInfo, stream) => {
       // Called immediately when a file part starts.
       // You can kick off downstream processing and return a promise.
       // This promise is *not awaited* by middleware.
-      console.warn("Processing POST upload:", fileInfo);
+      console.warn('Processing POST upload:', fileInfo);
       try {
         const result = await instanceFromStream(stream, { dicomdir });
         const { information } = result;
-        console.verbose("information:", information);
-        
+        console.verbose('information:', information);
+
         return result;
       } catch (error) {
         // Handle errors gracefully - non-DICOM files or invalid DICOM files
@@ -141,15 +144,19 @@ export function streamPostController(params) {
         // and included in the response as a failed file entry
         const errorMessage = error.message || String(error);
         const contentType = fileInfo?.mimeType || fileInfo?.headers?.['content-type'] || 'unknown';
-        const fieldname = fileInfo?.fieldname || fileInfo?.headers?.['content-location'] || 'unknown';
-        console.warn(`[streamPostController] Error processing stream (Part: ${fieldname}, Content-Type: ${contentType}):`, errorMessage);
+        const fieldname =
+          fileInfo?.fieldname || fileInfo?.headers?.['content-location'] || 'unknown';
+        console.warn(
+          `[streamPostController] Error processing stream (Part: ${fieldname}, Content-Type: ${contentType}):`,
+          errorMessage
+        );
         // Re-throw so it's caught by Promise.allSettled and included in the response
         // This ensures the error is properly handled and doesn't cause unhandled rejections
         throw error;
       }
     },
     limits: { files: 1_000, fileSize: 250 * 1_000_000_000 }, // 250GB, 1000 files
-  })
+  });
 }
 
 /**
@@ -157,15 +164,15 @@ export function streamPostController(params) {
  */
 function setupMessageHandlers(messaging, dicomdir, params = {}) {
   // Register handler for updateSeries
-  messaging.registerHandler('updateSeries', async (msg) => {
+  messaging.registerHandler('updateSeries', async msg => {
     const { id, data } = msg;
     const [studyUid, seriesUID] = id.split('&');
-    
+
     if (!studyUid || !seriesUID) {
       console.error(`Invalid updateSeries message id format: ${id}`);
       return;
     }
-    
+
     try {
       console.log(`Processing updateSeries for study ${studyUid}, series ${seriesUID}`);
       // Call seriesMain to update the series
@@ -173,7 +180,7 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
         dicomdir,
         seriesUid: seriesUID,
       });
-      
+
       // After series update completes, send updateStudy message
       await messaging.sendMessage('updateStudy', studyUid, data);
       console.log(`Sent updateStudy message for study ${studyUid}`);
@@ -182,31 +189,31 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
       throw err; // Re-throw to allow retry/redelivery
     }
   });
-  
+
   // Register handler for updateStudy
-  messaging.registerHandler('updateStudy', async (msg) => {
+  messaging.registerHandler('updateStudy', async msg => {
     const { id, data } = msg;
     const studyUid = id;
-    
+
     if (!studyUid) {
       console.error(`Invalid updateStudy message id: ${id}`);
       return;
     }
-    
+
     try {
       console.log(`Processing updateStudy for study ${studyUid}`);
       // Call studyMain to update the study
       await studyMain(studyUid, {
         dicomdir,
       });
-      
+
       // Create/update studies/index.json.gz file unless disabled
       const studyIndex = params.studyIndex !== false; // Default to true unless explicitly disabled
       if (studyIndex) {
         console.log(`Creating/updating studies index for study ${studyUid}`);
         await indexSummary(dicomdir, [studyUid]);
       }
-      
+
       console.log(`Completed updateStudy for study ${studyUid}`);
     } catch (err) {
       console.error(`Error processing updateStudy for ${studyUid}:`, err);
@@ -235,29 +242,29 @@ function getSOPInstanceUID(information) {
  * Creates the STOW-RS response in the correct format
  * Returns an object with 00081199 (ReferencedSOPSequence) for successes
  * and 00081198 (FailedSOPSequence) for failures
- * 
+ *
  * If information object doesn't exist, the instance is treated as failed
  */
 function createDatasetResponse(files) {
   const response = {};
   const successItems = [];
   const failedItems = [];
-  
+
   for (const file of files) {
     // Check if information object exists - if not, treat as failed
     const information = file.result?.information;
     const hasInformation = !!information;
-    
+
     // Determine if this is a valid success (ok AND has information)
     const isValidSuccess = file.ok && hasInformation;
-    
+
     // Extract UIDs only from information object (if it exists)
     const sopClassUID = hasInformation ? getSOPClassUID(information) : null;
     const sopInstanceUID = hasInformation ? getSOPInstanceUID(information) : null;
-    
+
     // Create sequence item
     const item = {};
-    
+
     // Add ReferencedSOPClassUID (00081150) if available
     if (sopClassUID) {
       item['00081150'] = {
@@ -265,7 +272,7 @@ function createDatasetResponse(files) {
         Value: [sopClassUID],
       };
     }
-    
+
     // Add ReferencedSOPInstanceUID (00081155) if available
     if (sopInstanceUID) {
       item['00081155'] = {
@@ -273,7 +280,7 @@ function createDatasetResponse(files) {
         Value: [sopInstanceUID],
       };
     }
-    
+
     if (isValidSuccess) {
       // Success - add to ReferencedSOPSequence (00081199)
       successItems.push(item);
@@ -282,17 +289,17 @@ function createDatasetResponse(files) {
       // This includes cases where:
       // - file.ok is false (processing error)
       // - information object doesn't exist (invalid DICOM or parsing failure)
-      
+
       // Add Failure Reason (00081197)
       item['00081197'] = {
         vr: 'US',
-        Value: [0xC000], // Processing failure (generic error code)
+        Value: [0xc000], // Processing failure (generic error code)
       };
-      
+
       failedItems.push(item);
     }
   }
-  
+
   // Add ReferencedSOPSequence (00081199) if there are successful items
   if (successItems.length > 0) {
     response['00081199'] = {
@@ -300,7 +307,7 @@ function createDatasetResponse(files) {
       Value: successItems,
     };
   }
-  
+
   // Add FailedSOPSequence (00081198) if there are failed items
   if (failedItems.length > 0) {
     response['00081198'] = {
@@ -308,7 +315,7 @@ function createDatasetResponse(files) {
       Value: failedItems,
     };
   }
-  
+
   return response;
 }
 
@@ -321,7 +328,7 @@ export const completePostController = async (req, res, next) => {
     const files = (req.uploadStreams || []).map((entry, index) => {
       const r = results[index];
 
-      if (r.status === "fulfilled") {
+      if (r.status === 'fulfilled') {
         return {
           ...entry.fileInfo,
           ok: true,
@@ -339,7 +346,7 @@ export const completePostController = async (req, res, next) => {
     // Send updateSeries messages for unique seriesUIDs after all instances are processed
     if (messagingInstance) {
       const seriesMap = new Map(); // seriesId -> information object
-      
+
       // Collect unique series from successfully processed files
       for (const file of files) {
         if (file.ok && file.result?.information) {
@@ -348,7 +355,7 @@ export const completePostController = async (req, res, next) => {
             const studyUid = information.studyInstanceUid;
             const seriesUID = information.seriesInstanceUid;
             const seriesId = `${studyUid}&${seriesUID}`;
-            
+
             // Only keep the latest information for each series (or first, doesn't matter for dedupe)
             if (!seriesMap.has(seriesId)) {
               seriesMap.set(seriesId, information);
@@ -356,7 +363,7 @@ export const completePostController = async (req, res, next) => {
           }
         }
       }
-      
+
       // Send one message per unique seriesUID
       for (const [seriesId, information] of seriesMap.entries()) {
         try {
@@ -370,34 +377,34 @@ export const completePostController = async (req, res, next) => {
 
     // Create the dataset response (used for both JSON and XML)
     const datasetResponse = createDatasetResponse(files);
-    
+
     console.verbose('Dataset response:', JSON.stringify(datasetResponse, null, 2));
 
     // Check Accept header to determine response format
     const acceptHeader = req.headers.accept || '';
-    const prefersXml = acceptHeader.includes('application/dicom+xml') || 
-                       acceptHeader.includes('application/xml') ||
-                       acceptHeader.includes('text/xml');
-    const prefersJson = acceptHeader.includes('application/dicom+json') ||
-                       acceptHeader.includes('application/json');
+    const prefersXml =
+      acceptHeader.includes('application/dicom+xml') ||
+      acceptHeader.includes('application/xml') ||
+      acceptHeader.includes('text/xml');
+    const prefersJson =
+      acceptHeader.includes('application/dicom+json') || acceptHeader.includes('application/json');
 
     // Default to JSON if no preference specified
     const useXml = prefersXml && !prefersJson;
 
     if (useXml) {
       const xml = dicomToXml(datasetResponse);
-      
-      res.status(200)
-         .setHeader('Content-Type', 'application/dicom+xml; charset=utf-8')
-         .send(xml);
+
+      res.status(200).setHeader('Content-Type', 'application/dicom+xml; charset=utf-8').send(xml);
     } else {
       // Format as DICOM JSON (use dataset directly - it's already a single object)
-      res.status(200)
-         .setHeader('Content-Type', 'application/dicom+json; charset=utf-8')
-         .json(datasetResponse);
+      res
+        .status(200)
+        .setHeader('Content-Type', 'application/dicom+json; charset=utf-8')
+        .json(datasetResponse);
     }
   } catch (err) {
     // This should rarely happen now, but keep it safe
     next(err);
   }
-}
+};

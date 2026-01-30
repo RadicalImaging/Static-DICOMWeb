@@ -1,7 +1,7 @@
-import Dicer from "dicer";
-import { randomUUID } from "node:crypto";
-import { data } from "dcmjs";
-import { parse as parseContentType } from "content-type";
+import Dicer from 'dicer';
+import { randomUUID } from 'node:crypto';
+import { data } from 'dcmjs';
+import { parse as parseContentType } from 'content-type';
 
 const { ReadBufferStream } = data;
 
@@ -19,8 +19,8 @@ const { ReadBufferStream } = data;
 export function multipartStream(opts) {
   const { listener, limits, onStreamError } = opts;
 
-  if (typeof listener !== "function") {
-    throw new Error("multipartStream: opts.listener must be a function");
+  if (typeof listener !== 'function') {
+    throw new Error('multipartStream: opts.listener must be a function');
   }
 
   return function middleware(req, res, next) {
@@ -28,8 +28,8 @@ export function multipartStream(opts) {
     req.uploadListenerPromises = [];
     req.body = req.body ?? {};
 
-    const contentTypeHeader = req.headers["content-type"] || "";
-    if (!contentTypeHeader.toLowerCase().startsWith("multipart/")) {
+    const contentTypeHeader = req.headers['content-type'] || '';
+    if (!contentTypeHeader.toLowerCase().startsWith('multipart/')) {
       return next();
     }
 
@@ -43,16 +43,16 @@ export function multipartStream(opts) {
       topParams = parsed.parameters; // boundary, type, start, ...
       boundary = parsed.parameters?.boundary;
     } catch (err) {
-      return next(Object.assign(new Error("Invalid Content-Type header"), { cause: err }));
+      return next(Object.assign(new Error('Invalid Content-Type header'), { cause: err }));
     }
 
     if (!boundary) {
-      return next(new Error("Multipart request missing boundary parameter"));
+      return next(new Error('Multipart request missing boundary parameter'));
     }
 
     // Remove quotes from boundary if present (some clients quote the boundary value)
     let cleanBoundary = boundary.replace(/^["']|["']$/g, '');
-    
+
     // Dicer expects the boundary value that appears in the Content-Type header parameter.
     // Standard multipart: boundary="abc123", body has "--abc123\r\n", Dicer needs "abc123"
     // Dicer automatically adds "--" when looking for delimiters in the body.
@@ -66,7 +66,7 @@ export function multipartStream(opts) {
     // a normalized version in case we need to fall back.
     const boundaryCore = cleanBoundary.replace(/^-+/, '');
     const hasLeadingDashes = cleanBoundary !== boundaryCore;
-    
+
     // Keep the original boundary - Dicer should handle it correctly
     // If the body format matches (i.e., body uses "--${boundary}" where boundary may have dashes),
     // Dicer will find the parts. If not, we'll see empty headers and can investigate further.
@@ -83,19 +83,25 @@ export function multipartStream(opts) {
     let dicerFinished = false; // Track if Dicer has finished parsing
     let nextCalled = false; // Prevent multiple calls to next()
 
-    const abort = (err) => {
+    const abort = err => {
       if (aborted) return;
       aborted = true;
 
       // Stop reading more request data
-      try { req.unpipe(dicer); } catch {}
-      try { req.destroy?.(err); } catch {}
-      try { dicer.removeAllListeners(); } catch {}
+      try {
+        req.unpipe(dicer);
+      } catch {}
+      try {
+        req.destroy?.(err);
+      } catch {}
+      try {
+        dicer.removeAllListeners();
+      } catch {}
 
       next(err);
     };
 
-    dicer.on("part", (part) => {
+    dicer.on('part', part => {
       if (aborted) {
         part.resume();
         return;
@@ -106,7 +112,7 @@ export function multipartStream(opts) {
 
       if (limits?.parts && partCount > limits.parts) {
         part.resume();
-        return abort(Object.assign(new Error("Too many multipart parts"), { statusCode: 413 }));
+        return abort(Object.assign(new Error('Too many multipart parts'), { statusCode: 413 }));
       }
 
       // Dicer's PartStream doesn't expose headers as a property
@@ -115,10 +121,10 @@ export function multipartStream(opts) {
       let headers = {};
       let headersCollected = false;
       let partProcessed = false; // Ensure we only process each part once
-      
+
       // Pause the part stream until we have headers
       part.pause();
-      
+
       // Function to process the part once we have headers
       const processPart = () => {
         if (aborted || partProcessed) {
@@ -126,30 +132,33 @@ export function multipartStream(opts) {
           return;
         }
         partProcessed = true;
-        
+
         if (aborted) {
           part.resume();
           return;
         }
-        
+
         // Resume the part stream now that we have headers
         part.resume();
-        
+
         // Continue with processing...
         continuePartProcessing();
       };
-      
+
       // Listen for header events on the part stream
-      part.on('header', (header) => {
+      part.on('header', header => {
         // Dicer provides headers as an object with lowercase keys and array values
         if (header && typeof header === 'object' && !partProcessed) {
-          console.warn(`[multipartStream] Part ${partCount} headers received:`, Object.keys(header));
+          console.warn(
+            `[multipartStream] Part ${partCount} headers received:`,
+            Object.keys(header)
+          );
           headers = header;
           headersCollected = true;
           processPart();
         }
       });
-      
+
       // Also check if headers are available immediately (some versions might)
       if (part.headers && Object.keys(part.headers).length > 0) {
         headers = part.headers;
@@ -157,7 +166,7 @@ export function multipartStream(opts) {
         processPart();
         return; // Exit early since we have headers
       }
-      
+
       // If headers aren't available, try to resume after a short delay
       // This handles cases where headers might come via data events
       // Increased timeout to ensure headers are collected for all parts
@@ -167,44 +176,46 @@ export function multipartStream(opts) {
           processPart();
         }
       }, 100);
-      
+
       // Function to continue processing the part once headers are available
       // This creates a fresh buffer stream for each part
       const continuePartProcessing = () => {
-        const getHeader = (name) => {
-        const lowerName = name.toLowerCase();
-        
-        // First try direct lookup (Dicer lowercases header names)
-        let v = headers[lowerName];
-        
-        // If not found, try case-insensitive search through all keys
-        if (!v) {
-          for (const key of Object.keys(headers)) {
-            if (key.toLowerCase() === lowerName) {
-              v = headers[key];
-              break;
+        const getHeader = name => {
+          const lowerName = name.toLowerCase();
+
+          // First try direct lookup (Dicer lowercases header names)
+          let v = headers[lowerName];
+
+          // If not found, try case-insensitive search through all keys
+          if (!v) {
+            for (const key of Object.keys(headers)) {
+              if (key.toLowerCase() === lowerName) {
+                v = headers[key];
+                break;
+              }
             }
           }
-        }
-        
-        if (!v) {
-          return undefined;
-        }
-        
-        // Handle array values (Dicer provides arrays)
-        if (Array.isArray(v)) {
-          return v.join(", ").trim();
-        }
-        
+
+          if (!v) {
+            return undefined;
+          }
+
+          // Handle array values (Dicer provides arrays)
+          if (Array.isArray(v)) {
+            return v.join(', ').trim();
+          }
+
           return String(v).trim();
         };
 
-        const rawContentType = getHeader("content-type");
-        const contentId = getHeader("content-id");
-        const contentLocation = getHeader("content-location");
-        
-        console.warn(`[multipartStream] Part ${partCount} headers - content-type: ${rawContentType}, content-location: ${contentLocation}, headers keys: ${Object.keys(headers).join(', ')}`);
-        
+        const rawContentType = getHeader('content-type');
+        const contentId = getHeader('content-id');
+        const contentLocation = getHeader('content-location');
+
+        console.warn(
+          `[multipartStream] Part ${partCount} headers - content-type: ${rawContentType}, content-location: ${contentLocation}, headers keys: ${Object.keys(headers).join(', ')}`
+        );
+
         // If Content-Type is missing, try to infer from Content-Location
         let inferredContentType = rawContentType;
         if (!inferredContentType && contentLocation) {
@@ -213,27 +224,32 @@ export function multipartStream(opts) {
             inferredContentType = 'application/dicom';
           }
         }
-        
-        const partContentType = (inferredContentType || "application/octet-stream").toLowerCase().trim();
+
+        const partContentType = (inferredContentType || 'application/octet-stream')
+          .toLowerCase()
+          .trim();
 
         // If you're "part 10 only", you probably want to accept:
         // - application/dicom
         // - application/dicom; transfer-syntax=...
         // - application/dicom+octet-stream (sometimes seen)
-        const isDicomPart =
-          partContentType.startsWith("application/dicom");
+        const isDicomPart = partContentType.startsWith('application/dicom');
 
         // If you want to skip non-DICOM parts (e.g. metadata JSON), do it here:
         if (!isDicomPart) {
-          console.warn(`[multipartStream] Part ${partCount} skipped - not DICOM (content-type: ${partContentType})`);
+          console.warn(
+            `[multipartStream] Part ${partCount} skipped - not DICOM (content-type: ${partContentType})`
+          );
           // Set up handler to track when skipped part completes
           const skippedEndHandler = () => {
             completedParts += 1;
-            console.warn(`[multipartStream] Skipped part ${partCount} completed. Completed: ${completedParts}/${partCount}`);
-            part.removeListener("end", skippedEndHandler);
+            console.warn(
+              `[multipartStream] Skipped part ${partCount} completed. Completed: ${completedParts}/${partCount}`
+            );
+            part.removeListener('end', skippedEndHandler);
             checkAllPartsComplete();
           };
-          part.on("end", skippedEndHandler);
+          part.on('end', skippedEndHandler);
           // Drain the stream so the request can complete cleanly
           part.resume();
           return;
@@ -247,13 +263,13 @@ export function multipartStream(opts) {
         const fileInfo = {
           fileId,
           fieldname: contentId || contentLocation || `part-${partCount}`,
-          filename: undefined,            // STOW-RS doesn't usually provide this
-          encoding: undefined,            // not meaningful here
+          filename: undefined, // STOW-RS doesn't usually provide this
+          encoding: undefined, // not meaningful here
           mimeType: partContentType,
           headers: {
-            "content-type": getHeader("content-type"),
-            "content-id": contentId,
-            "content-location": contentLocation,
+            'content-type': getHeader('content-type'),
+            'content-id': contentId,
+            'content-location': contentLocation,
           },
         };
 
@@ -266,12 +282,17 @@ export function multipartStream(opts) {
           const p = Promise.resolve(listener(fileInfo, readBufferStream));
           // Add error handler to prevent unhandled promise rejections
           // The error will still be caught by Promise.allSettled in completePostController
-          p.catch((err) => {
-            console.error(`[multipartStream] Unhandled error in listener for Part ${partCount}:`, err.message || String(err));
+          p.catch(err => {
+            console.error(
+              `[multipartStream] Unhandled error in listener for Part ${partCount}:`,
+              err.message || String(err)
+            );
             if (onStreamError) onStreamError(err, fileInfo);
           });
           req.uploadListenerPromises.push(p);
-          console.warn(`[multipartStream] Part ${partCount} added to uploadListenerPromises (total: ${req.uploadListenerPromises.length})`);
+          console.warn(
+            `[multipartStream] Part ${partCount} added to uploadListenerPromises (total: ${req.uploadListenerPromises.length})`
+          );
         } catch (err) {
           if (onStreamError) onStreamError(err, fileInfo);
           part.resume();
@@ -279,32 +300,34 @@ export function multipartStream(opts) {
         }
 
         req.uploadStreams.push({ fileInfo, stream: readBufferStream });
-        console.warn(`[multipartStream] Part ${partCount} added to uploadStreams (total: ${req.uploadStreams.length})`);
+        console.warn(
+          `[multipartStream] Part ${partCount} added to uploadStreams (total: ${req.uploadStreams.length})`
+        );
 
         // Create a closure-scoped variable to track bytes for this specific part
         let partBytes = 0;
 
         // Set up event handlers for this specific part and buffer stream
         // These handlers are scoped to this part instance only
-        const dataHandler = (chunk) => {
+        const dataHandler = chunk => {
           if (aborted) return;
 
           partBytes += chunk.length;
           totalBytes += chunk.length;
 
           if (limits?.fileSize && partBytes > limits.fileSize) {
-            const err = Object.assign(new Error("File too large"), { statusCode: 413 });
+            const err = Object.assign(new Error('File too large'), { statusCode: 413 });
             if (onStreamError) onStreamError(err, fileInfo);
             part.pause();
-            part.removeListener("data", dataHandler);
+            part.removeListener('data', dataHandler);
             return abort(err);
           }
 
           if (limits?.totalSize && totalBytes > limits.totalSize) {
-            const err = Object.assign(new Error("Request too large"), { statusCode: 413 });
+            const err = Object.assign(new Error('Request too large'), { statusCode: 413 });
             if (onStreamError) onStreamError(err, fileInfo);
             part.pause();
-            part.removeListener("data", dataHandler);
+            part.removeListener('data', dataHandler);
             return abort(err);
           }
 
@@ -316,28 +339,30 @@ export function multipartStream(opts) {
           } catch (err) {
             if (onStreamError) onStreamError(err, fileInfo);
             part.pause();
-            part.removeListener("data", dataHandler);
+            part.removeListener('data', dataHandler);
             return abort(err);
           }
         };
 
         const endHandler = () => {
           if (aborted) {
-            console.noQuiet("Setting file complete (aborted)");
+            console.noQuiet('Setting file complete (aborted)');
             readBufferStream.setComplete();
             completedParts += 1;
             checkAllPartsComplete();
             return;
           }
           // Clean up event listeners for this part
-          part.removeListener("data", dataHandler);
-          part.removeListener("end", endHandler);
+          part.removeListener('data', dataHandler);
+          part.removeListener('end', endHandler);
           try {
             // Mark this part's buffer stream as complete
-            console.warn("********* Setting file complete");
+            console.warn('********* Setting file complete');
             readBufferStream.setComplete();
             completedParts += 1;
-            console.warn(`[multipartStream] Part ${partCount} completed. Completed: ${completedParts}/${partCount}`);
+            console.warn(
+              `[multipartStream] Part ${partCount} completed. Completed: ${completedParts}/${partCount}`
+            );
             checkAllPartsComplete();
           } catch (err) {
             if (onStreamError) onStreamError(err, fileInfo);
@@ -346,28 +371,28 @@ export function multipartStream(opts) {
           }
         };
 
-        const errorHandler = (err) => {
+        const errorHandler = err => {
           // Clean up event listeners for this part
-          part.removeListener("data", dataHandler);
-          part.removeListener("end", endHandler);
-          part.removeListener("error", errorHandler);
+          part.removeListener('data', dataHandler);
+          part.removeListener('end', endHandler);
+          part.removeListener('error', errorHandler);
           if (onStreamError) onStreamError(err, fileInfo);
           abort(err);
         };
 
-        part.on("data", dataHandler);
-        part.on("end", endHandler);
-        part.on("error", errorHandler);
+        part.on('data', dataHandler);
+        part.on('end', endHandler);
+        part.on('error', errorHandler);
       }; // end of continuePartProcessing
     });
 
-    dicer.on("error", (err) => abort(err));
+    dicer.on('error', err => abort(err));
 
     // Function to check if all parts have completed and call next() if ready
     // This now waits for listener promises to ensure streams are fully processed
     const checkAllPartsComplete = async () => {
       if (aborted || nextCalled) return;
-      
+
       // If no parts were detected, proceed immediately when Dicer finishes
       if (dicerFinished && partCount === 0) {
         console.warn(`[multipartStream] Dicer finished with no parts detected`);
@@ -375,25 +400,31 @@ export function multipartStream(opts) {
         next();
         return;
       }
-      
+
       // Only proceed if Dicer has finished parsing AND all parts have completed
       if (dicerFinished && completedParts >= partCount && partCount > 0) {
-        console.warn(`[multipartStream] All parts completed. Total parts: ${partCount}, Completed: ${completedParts}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`);
-        
+        console.warn(
+          `[multipartStream] All parts completed. Total parts: ${partCount}, Completed: ${completedParts}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`
+        );
+
         // Wait for all listener promises to complete before calling next()
         // This ensures streams are fully processed and not deallocated prematurely
         if (req.uploadListenerPromises && req.uploadListenerPromises.length > 0) {
           try {
-            console.warn(`[multipartStream] Waiting for ${req.uploadListenerPromises.length} listener promise(s) to complete...`);
+            console.warn(
+              `[multipartStream] Waiting for ${req.uploadListenerPromises.length} listener promise(s) to complete...`
+            );
             await Promise.allSettled(req.uploadListenerPromises);
             console.warn(`[multipartStream] All listener promises completed`);
           } catch (err) {
             // Errors in individual promises are handled by completePostController
             // We just need to wait for them to finish
-            console.warn(`[multipartStream] Some listener promises had errors (will be handled by completePostController)`);
+            console.warn(
+              `[multipartStream] Some listener promises had errors (will be handled by completePostController)`
+            );
           }
         }
-        
+
         if (!nextCalled) {
           nextCalled = true;
           next();
@@ -403,10 +434,12 @@ export function multipartStream(opts) {
 
     // Dicer signals "no more parts" with finish.
     // This means all parts have been detected, but individual part streams may still be active.
-    dicer.on("finish", () => {
+    dicer.on('finish', () => {
       if (aborted) return;
       dicerFinished = true;
-      console.warn(`[multipartStream] Dicer finished parsing. Total parts: ${partCount}, Completed: ${completedParts}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`);
+      console.warn(
+        `[multipartStream] Dicer finished parsing. Total parts: ${partCount}, Completed: ${completedParts}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`
+      );
       // Check if all parts have already completed (might happen if parts finish before Dicer finishes)
       checkAllPartsComplete();
     });
