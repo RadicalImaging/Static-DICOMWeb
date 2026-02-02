@@ -21,26 +21,64 @@ function createFileMetaInformationVersion() {
   return arrayBuffer;
 }
 
+// Tag for AvailableTransferSyntaxUID (used as fallback for transfer syntax)
+const AvailableTransferSyntaxUIDTag = '00083002';
+
 /**
  * Creates File Meta Information for Part 10 file
  * @param {Object} instanceMetadata - Instance metadata object
+ * @param {string} transferSyntaxUID - Transfer syntax UID (from frame header or fallback)
  * @returns {Object} - Denaturalized FMI object
  */
-function createFmi(instanceMetadata) {
-  const TransferSyntaxUID = getValue(instanceMetadata, Tags.TransferSyntaxUID) || UncompressedLEIExplicit;
+function createFmi(instanceMetadata, transferSyntaxUID) {
   const SOPClassUID = getValue(instanceMetadata, Tags.SOPClassUID);
   const SOPInstanceUID = getValue(instanceMetadata, Tags.SOPInstanceUID);
 
   const naturalFmi = {
     MediaStorageSOPClassUID: SOPClassUID,
     MediaStorageSOPInstanceUID: SOPInstanceUID,
-    TransferSyntaxUID,
+    TransferSyntaxUID: transferSyntaxUID,
     ImplementationClassUID: '2.25.984723498557234098.001',
     ImplementationVersionName: 'static-dicomweb',
     FileMetaInformationVersion: createFileMetaInformationVersion(),
   };
 
   return DicomMetaDictionary.denaturalizeDataset(naturalFmi);
+}
+
+/**
+ * Gets the transfer syntax UID from the first frame's bulk data header.
+ * Falls back to AvailableTransferSyntaxUIDs, then to default uncompressed.
+ * @param {string} seriesDir - Series directory path
+ * @param {Object} instanceMetadata - Instance metadata object
+ * @returns {Promise<string>} - Transfer syntax UID
+ */
+async function getTransferSyntaxUID(seriesDir, instanceMetadata) {
+  // Best option: Read from first frame's bulk data header
+  const pixelDataTag = Tags.PixelData;
+  const pixelData = instanceMetadata[pixelDataTag];
+
+  if (pixelData?.BulkDataURI) {
+    try {
+      const bulkDataURI = pixelData.BulkDataURI;
+      const bulk = await readBulkData(seriesDir, bulkDataURI, 1);
+      if (bulk?.transferSyntaxUid) {
+        return bulk.transferSyntaxUid;
+      }
+    } catch (e) {
+      // Fall through to other options
+    }
+  }
+
+  // Second choice: AvailableTransferSyntaxUIDs
+  const availableTS = instanceMetadata[AvailableTransferSyntaxUIDTag];
+  if (availableTS?.Value?.[0]) {
+    return availableTS.Value[0];
+  }
+
+  // Last resort: default to uncompressed
+  console.warn('Could not determine transfer syntax from frame header or AvailableTransferSyntaxUIDs, using default uncompressed');
+  return UncompressedLEIExplicit;
 }
 
 /**
@@ -175,10 +213,15 @@ function numericArrayToArrayBuffer(arr) {
 /**
  * Ensures a value is a proper ArrayBuffer for binary VRs
  * @param {*} value - The value to convert
- * @returns {ArrayBuffer|null|'skip'} - Proper ArrayBuffer, null if can't convert, or 'skip' to remove the tag
+ * @param {string} tag - The DICOM tag (for error messages)
+ * @param {string} vr - The VR (for error messages)
+ * @returns {ArrayBuffer|'skip'} - Proper ArrayBuffer, or 'skip' to remove the tag
+ * @throws {Error} - If value cannot be converted to ArrayBuffer
  */
-function ensureArrayBuffer(value) {
-  if (!value) return null;
+function ensureArrayBuffer(value, tag, vr) {
+  if (!value) {
+    throw new Error(`Cannot convert null/undefined value to ArrayBuffer for tag ${tag} with VR ${vr}`);
+  }
 
   // Already ArrayBuffer
   if (value instanceof ArrayBuffer) {
@@ -224,7 +267,7 @@ function ensureArrayBuffer(value) {
     }
   }
 
-  return null;
+  throw new Error(`Cannot convert value to ArrayBuffer for tag ${tag} with VR ${vr}: ${typeof value}`);
 }
 
 /**
@@ -341,18 +384,13 @@ async function readBinaryData(seriesDir, instanceMetadata) {
           convertedValues.push(val);
           continue;
         }
-        const converted = ensureArrayBuffer(val);
+        const converted = ensureArrayBuffer(val, tag, v.vr);
         if (converted === 'skip') {
           // Empty object - we should skip this entire tag
           shouldDelete = true;
           break;
         }
-        if (converted === null) {
-          console.warn(`Could not convert value for tag ${tag} with VR ${v.vr}, type: ${typeof val}`);
-          convertedValues.push(val);
-        } else {
-          convertedValues.push(converted);
-        }
+        convertedValues.push(converted);
       }
 
       if (shouldDelete) {
@@ -467,13 +505,16 @@ export async function part10Main(studyUID, options = {}) {
         // Create a deep copy of instance metadata to avoid mutating the original
         const instanceCopy = JSON.parse(JSON.stringify(instanceMetadata));
 
-        // Step 5: Populate bulk data (pixel data, etc.)
+        // Step 5: Get transfer syntax from first frame header (before readBinaryData modifies things)
+        const transferSyntaxUID = await getTransferSyntaxUID(seriesDir, instanceCopy);
+
+        // Step 6: Populate bulk data (pixel data, etc.)
         await readBinaryData(seriesDir, instanceCopy);
 
-        // Step 6: Create FMI
-        const fmi = createFmi(instanceCopy);
+        // Step 7: Create FMI with the transfer syntax from frame header
+        const fmi = createFmi(instanceCopy, transferSyntaxUID);
 
-        // Step 7: Create DicomDict and write Part 10 file
+        // Step 8: Create DicomDict and write Part 10 file
         const dicomDict = new DicomDict(fmi);
         dicomDict.dict = instanceCopy;
 
