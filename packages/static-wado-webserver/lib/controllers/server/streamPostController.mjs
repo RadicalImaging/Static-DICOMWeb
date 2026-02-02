@@ -11,6 +11,7 @@ import { indexSummary } from '@radicalimaging/create-dicomweb';
 import { SagaBusMessaging } from './SagaBusMessaging.mjs';
 
 import { multipartStream } from './multipartStream.mjs';
+import { TrackableReadBufferStream } from './TrackableReadBufferStream.mjs';
 
 const maxFileSize = 4 * 1024 * 1024 * 1024;
 const maxTotalFileSize = 10 * maxFileSize;
@@ -131,11 +132,16 @@ export function streamPostController(params) {
   }
 
   const maxUnsettledReceives = params.maxUnsettledReceives ?? 2;
-  const backPressureTimeoutMs = params.backPressureTimeoutMs ?? 10000;
+  const maxUnsettledStreamWrites = params.maxUnsettledStreamWrites ?? 25;
+  const backPressureTimeoutMs = params.backPressureTimeoutMs ?? 5000;
+  const backpressureWaitMs = params.backpressureWaitMs ?? 1000;
+  const backpressureMaxBytes = params.backpressureMaxBytes ?? 512 * 1024;
 
   return multipartStream({
     beforeProcessPart: async req => {
       req.uploadPromiseTracker = req.uploadPromiseTracker ?? createPromiseTracker();
+      req.streamWritePromiseTracker = req.streamWritePromiseTracker ?? createPromiseTracker();
+
       const unsettled = await req.uploadPromiseTracker.limitUnsettled(
         maxUnsettledReceives,
         backPressureTimeoutMs
@@ -145,7 +151,26 @@ export function streamPostController(params) {
           `[streamPostController] Back pressure: continuing after timeout with ${unsettled} unsettled receives`
         );
       }
+
+      const unsettledStreamWrites = await req.streamWritePromiseTracker.limitUnsettled(
+        maxUnsettledStreamWrites,
+        backPressureTimeoutMs
+      );
+      if (unsettledStreamWrites >= maxUnsettledStreamWrites) {
+        console.warn(
+          `[streamPostController] Back pressure: continuing after timeout with ${unsettledStreamWrites} unsettled stream writes`
+        );
+      }
     },
+    createBufferStream: (req, fileInfo, headers) =>
+      new TrackableReadBufferStream(null, true, {
+        noCopy: true,
+        backpressureMaxBytes,
+        streamWritePromiseTracker: req.streamWritePromiseTracker ?? null,
+        streamWriteLimit: maxUnsettledStreamWrites,
+        backpressureWaitMs,
+        backPressureTimeoutMs,
+      }),
     listener: async (fileInfo, stream, req) => {
       // Called immediately when a file part starts.
       // You can kick off downstream processing and return a promise.
@@ -155,7 +180,13 @@ export function streamPostController(params) {
       if (req) req.uploadPromiseTracker = tracker;
 
       try {
-        const promise = instanceFromStream(stream, { dicomdir });
+        const promise = instanceFromStream(stream, {
+          dicomdir,
+          writerOptions: {
+            baseDir: dicomdir,
+            streamWritePromiseTracker: req.streamWritePromiseTracker,
+          },
+        });
         tracker.add(promise);
         const result = await promise;
         const { information } = result;

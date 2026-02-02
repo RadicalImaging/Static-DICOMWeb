@@ -2,6 +2,12 @@
 let streamOpenCount = 0;
 /** Total number of streams closed (all StreamInfo instances, cumulative) */
 let streamClosedCount = 0;
+/** High-water log threshold; log when open count exceeds this */
+const STREAM_OPEN_WARN_THRESHOLD = 500;
+/** Log again every this many beyond the threshold */
+const STREAM_OPEN_WARN_STEP = 100;
+/** Next count at which to log (500, 600, 700, …); reset when count drops below threshold */
+let _streamOpenNextLogAt = STREAM_OPEN_WARN_THRESHOLD;
 
 /**
  * Normalizes a value to an array of Buffers. Supports ArrayBuffer, Buffer, TypedArray, or Array of same.
@@ -53,6 +59,16 @@ export class StreamInfo {
     this._processing = false;
 
     streamOpenCount += 1;
+    if (streamOpenCount >= _streamOpenNextLogAt) {
+      const excess = streamOpenCount - STREAM_OPEN_WARN_THRESHOLD;
+      console.noQuiet(
+        `[StreamInfo] open file count exceeded ${STREAM_OPEN_WARN_THRESHOLD} by ${excess}: totalOpen=${streamOpenCount} totalClosed=${streamClosedCount}`
+      );
+      _streamOpenNextLogAt =
+        STREAM_OPEN_WARN_THRESHOLD +
+        STREAM_OPEN_WARN_STEP * Math.floor(excess / STREAM_OPEN_WARN_STEP) +
+        STREAM_OPEN_WARN_STEP;
+    }
     console.verbose(
       `[StreamInfo] open stream streamKey=${this.streamKey ?? 'unknown'} totalOpen=${streamOpenCount} totalClosed=${streamClosedCount}`
     );
@@ -72,6 +88,9 @@ export class StreamInfo {
     if (this._closedLogged) return;
     this._closedLogged = true;
     streamOpenCount -= 1;
+    if (streamOpenCount < STREAM_OPEN_WARN_THRESHOLD) {
+      _streamOpenNextLogAt = STREAM_OPEN_WARN_THRESHOLD;
+    }
     streamClosedCount += 1;
     console.verbose(
       `[StreamInfo] close stream streamKey=${this.streamKey ?? 'unknown'} totalOpen=${streamOpenCount} totalClosed=${streamClosedCount}`

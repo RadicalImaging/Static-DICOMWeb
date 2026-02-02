@@ -3,8 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { data } from 'dcmjs';
 import { parse as parseContentType } from 'content-type';
 
-import { TrackableReadBufferStream } from "./TrackableReadBufferStream.mjs";
-
 /**
  * Dicer-based multipart parser middleware for DICOMweb STOW-RS.
  *
@@ -16,21 +14,16 @@ import { TrackableReadBufferStream } from "./TrackableReadBufferStream.mjs";
  * @param {number} [opts.limits.totalSize] Max total bytes across all parts (optional)
  * @param {(err: any, fileInfo?: object) => void} [opts.onStreamError]
  * @param {(req: object) => Promise<void>} [opts.beforeProcessPart] Await before processing each DICOM part (for back pressure)
- * @param {number} [opts.backpressureMaxBytes] Max bytes beyond read offset before applying backpressure (default 512kb)
- * @param {number} [opts.backpressureWaitMs] Max ms to wait before delivering next chunk when backpressure applies (default 1000)
+ * @param {(req: object, fileInfo: object, headers: object) => import('./TrackableReadBufferStream.mjs').TrackableReadBufferStream} opts.createBufferStream Create buffer stream for each part (return value must have addBuffer, setComplete; optional shouldPause/waitForBackPressure for backpressure)
  */
 export function multipartStream(opts) {
-  const {
-    listener,
-    limits,
-    onStreamError,
-    beforeProcessPart,
-    backpressureMaxBytes = 512 * 1024,
-    backpressureWaitMs = 1000,
-  } = opts;
+  const { listener, limits, onStreamError, beforeProcessPart, createBufferStream } = opts;
 
   if (typeof listener !== 'function') {
     throw new Error('multipartStream: opts.listener must be a function');
+  }
+  if (typeof createBufferStream !== 'function') {
+    throw new Error('multipartStream: opts.createBufferStream must be a function');
   }
 
   return function middleware(req, res, next) {
@@ -291,10 +284,8 @@ export function multipartStream(opts) {
           },
         };
 
-        // Create a fresh buffer stream for this specific part/file
-        // Each file gets its own isolated buffer stream instance (TrackableReadBufferStream
-        // tracks currentStreamSize and pendingEnsureAvailableDesiredBytes for back-pressure)
-        const readBufferStream = new TrackableReadBufferStream(null, true, { noCopy: true });
+        // Create buffer stream for this part (required option; e.g. streamPostController passes tracker via req)
+        const readBufferStream = createBufferStream(req, fileInfo, headers);
 
         // Kick off your listener (do NOT await)
         try {
@@ -356,17 +347,16 @@ export function multipartStream(opts) {
             const chunkCopy = Buffer.from(chunk);
             readBufferStream.addBuffer(chunkCopy);
 
-            // Backpressure: if unread bytes exceed max(backpressureMaxBytes, pending ensureAvailable),
-            // pause the part and wait up to backpressureWaitMs before accepting the next chunk
-            const bytesBeyondOffset =
-              readBufferStream.currentStreamSize - readBufferStream.offset;
-            const pendingAwaitBytes = readBufferStream.maxPendingEnsureAvailableBytes;
-            const threshold = Math.max(backpressureMaxBytes, pendingAwaitBytes);
-            if (bytesBeyondOffset > threshold) {
+            // Backpressure: delegated to stream (shouldPause / waitForBackPressure)
+            const resumeWhenReady = () => {
+              if (!aborted) part.resume();
+            };
+            if (readBufferStream.shouldPause?.()) {
               part.pause();
-              setTimeout(() => {
-                if (!aborted) part.resume();
-              }, backpressureWaitMs);
+              readBufferStream
+                .waitForBackPressure()
+                .then(resumeWhenReady)
+                .catch(() => resumeWhenReady());
             }
           } catch (err) {
             if (onStreamError) onStreamError(err, fileInfo);

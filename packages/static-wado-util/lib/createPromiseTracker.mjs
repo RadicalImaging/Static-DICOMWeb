@@ -1,3 +1,8 @@
+/** Threshold above which we log a warning about pending promise count */
+const PENDING_PROMISE_WARN_THRESHOLD = 500;
+/** Log again every this many beyond the threshold */
+const PENDING_PROMISE_WARN_STEP = 100;
+
 /**
  * Tracks a list of promises and counts how many have settled.
  * Provides back pressure via limitUnsettled for flow control.
@@ -10,6 +15,10 @@
 export function createPromiseTracker() {
   const promises = new Set();
   const settleCallbacks = new Set();
+  /** Total number of promises that have settled (fulfilled or rejected) since creation */
+  let settledCount = 0;
+  /** Next count at which to log (500, 600, 700, …); reset when count drops below threshold */
+  let pendingNextLogAt = PENDING_PROMISE_WARN_THRESHOLD;
 
   function notifySettle() {
     for (const cb of settleCallbacks) {
@@ -26,10 +35,24 @@ export function createPromiseTracker() {
   function add(promise) {
     const p = Promise.resolve(promise);
     promises.add(p);
+    if (promises.size >= pendingNextLogAt) {
+      const excess = promises.size - PENDING_PROMISE_WARN_THRESHOLD;
+      console.warn(
+        `[createPromiseTracker] pending promise count exceeded ${PENDING_PROMISE_WARN_THRESHOLD} by ${excess}: pending=${promises.size}`
+      );
+      pendingNextLogAt =
+        PENDING_PROMISE_WARN_THRESHOLD +
+        PENDING_PROMISE_WARN_STEP * Math.floor(excess / PENDING_PROMISE_WARN_STEP) +
+        PENDING_PROMISE_WARN_STEP;
+    }
     // Attach .catch() to the promise from .finally() so that when the tracked
     // promise rejects, we don't get an unhandled rejection (e.g. invalid DICOM).
     p.finally(() => {
       promises.delete(p);
+      settledCount += 1;
+      if (promises.size < PENDING_PROMISE_WARN_THRESHOLD) {
+        pendingNextLogAt = PENDING_PROMISE_WARN_THRESHOLD;
+      }
       notifySettle();
     }).catch(() => {
       // Rejection is expected (e.g. invalid file); caller awaits the same promise
@@ -48,6 +71,15 @@ export function createPromiseTracker() {
   }
 
   /**
+   * Returns the total count of promises that have settled (fulfilled or rejected) since creation.
+   *
+   * @returns {number}
+   */
+  function getSettledCount() {
+    return settledCount;
+  }
+
+  /**
    * Returns a promise that resolves when either:
    * - The count of unsettled items drops below maxUnsettled, OR
    * - The given timeout in milliseconds is exceeded.
@@ -60,7 +92,7 @@ export function createPromiseTracker() {
    * @returns {Promise<number>} - Resolves to the unsettled count at resolution time
    */
   function limitUnsettled(maxUnsettled, timeoutMs = 10000) {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       let timeoutId;
       const cleanup = () => {
         settleCallbacks.delete(onSettle);
@@ -87,5 +119,5 @@ export function createPromiseTracker() {
     });
   }
 
-  return { add, limitUnsettled, getUnsettledCount };
+  return { add, limitUnsettled, getUnsettledCount, getSettledCount };
 }

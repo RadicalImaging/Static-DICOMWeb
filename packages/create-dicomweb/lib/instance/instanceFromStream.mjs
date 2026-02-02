@@ -18,6 +18,7 @@ const { ReadBufferStream } = data;
  * @param {string} options.dicomdir - Base directory for writing files (required if DicomWebWriter is not provided)
  * @param {Function} options.DicomWebWriter - Constructor for DicomWebWriter. Defaults to FileDicomWebWriter if dicomdir is provided
  * @param {Object} options.writerOptions - Additional options to pass to the DicomWebWriter constructor
+ * @param {{ add: (p: Promise) => Promise }|undefined} [options.streamWritePromiseTracker] - Optional tracker for stream write promises (e.g. for back pressure)
  * @param {boolean} options.bulkdata - Enable bulkdata filter (default: true if writer exists). Set to false to use frames filter instead
  * @param {number} options.sizeBulkdataTags - Size threshold in bytes for public tags (default: 128k + 2 bytes)
  * @param {number} options.sizePrivateBulkdataTags - Size threshold in bytes for private tags (default: 128 bytes)
@@ -98,7 +99,7 @@ export async function instanceFromStream(stream, options = {}) {
   // Create writer using the listener's information object
   let writer = null;
   if (DicomWebWriterClass) {
-    const writerOptions = options.writerOptions || { baseDir: options.dicomdir };
+    const writerOptions = { baseDir: options.dicomdir, ...options.writerOptions };
     writer = new DicomWebWriterClass(information, writerOptions);
   }
 

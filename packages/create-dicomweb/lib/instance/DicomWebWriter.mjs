@@ -13,6 +13,7 @@ export class DicomWebWriter {
    * @param {Object} informationProvider - The information provider instance with UIDs
    * @param {Object} options - Configuration options (required)
    * @param {string} options.baseDir - Base directory for output
+   * @param {{ add: (p: Promise) => Promise }|undefined} [options.streamWritePromiseTracker] - Optional tracker for stream write promises (e.g. for back pressure)
    */
   constructor(informationProvider, options) {
     if (!informationProvider || typeof informationProvider !== 'object') {
@@ -26,6 +27,7 @@ export class DicomWebWriter {
     }
     this.informationProvider = informationProvider;
     this.options = options;
+    this.streamWritePromiseTracker = options.streamWritePromiseTracker ?? null;
     this.openStreams = new Map(); // key -> stream info
     this.streamErrors = new Map(); // key -> error
   }
@@ -134,6 +136,10 @@ export class DicomWebWriter {
 
     const streamInfo = new StreamInfo(this, data);
     this.openStreams.set(streamKey, streamInfo);
+
+    if (this.streamWritePromiseTracker && streamInfo.promise) {
+      this.streamWritePromiseTracker.add(streamInfo.promise);
+    }
 
     return streamInfo;
   }

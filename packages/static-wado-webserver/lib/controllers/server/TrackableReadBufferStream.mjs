@@ -1,4 +1,4 @@
-import { data } from "dcmjs";
+import { data } from 'dcmjs';
 
 const { ReadBufferStream } = data;
 
@@ -22,6 +22,13 @@ const DEFAULT_LIVELOCK_DETECT_MS = 0;
  * ensureAvailable() promise is still pending after that many ms, a warning
  * is logged with the stack trace captured at the time of the call (to help
  * find where the reader is stuck).
+ *
+ * Backpressure options (for shouldPause / waitForBackPressure):
+ * - backpressureMaxBytes: max bytes beyond offset before pausing (default 512kb).
+ * - streamWritePromiseTracker: { getUnsettledCount(), limitUnsettled(max, timeoutMs) }.
+ * - streamWriteLimit: max unsettled stream writes before pausing.
+ * - backpressureWaitMs: time to wait when size is too big (ms).
+ * - backPressureTimeoutMs: timeout for limitUnsettled (ms).
  */
 export class TrackableReadBufferStream extends ReadBufferStream {
   constructor(buffer, littleEndian, options = {}) {
@@ -29,11 +36,75 @@ export class TrackableReadBufferStream extends ReadBufferStream {
     /** @type {{ bytes: number }[]} */
     this._pendingEnsureAvailableEntries = [];
     const envMs = parseInt(
-      typeof process !== "undefined" && process.env.TRACKABLE_STREAM_LIVELOCK_DETECT_MS,
+      typeof process !== 'undefined' && process.env.TRACKABLE_STREAM_LIVELOCK_DETECT_MS,
       10
     );
     this._livelockDetectMs =
       options.livelockDetectMs ?? (Number.isFinite(envMs) ? envMs : DEFAULT_LIVELOCK_DETECT_MS);
+
+    this._backpressureMaxBytes = options.backpressureMaxBytes ?? 512 * 1024;
+    this._streamWritePromiseTracker = options.streamWritePromiseTracker ?? null;
+    this._streamWriteLimit = options.streamWriteLimit ?? 25;
+    this._backpressureWaitMs = options.backpressureWaitMs ?? 1000;
+    this._backPressureTimeoutMs = options.backPressureTimeoutMs ?? 5000;
+  }
+
+  /**
+   * Returns true if the read-from-stream / write-to-buffer path should pause.
+   * True when bytes beyond offset exceeds the size threshold (max of backpressureMaxBytes
+   * and maxPendingEnsureAvailableBytes), or when stream write promise count exceeds streamWriteLimit.
+   * @returns {boolean}
+   */
+  shouldPause() {
+    const bytesBeyondOffset = this.currentStreamSize - this.offset;
+    const sizeThreshold = Math.max(this._backpressureMaxBytes, this.maxPendingEnsureAvailableBytes);
+    const tracker = this._streamWritePromiseTracker;
+    if (bytesBeyondOffset > sizeThreshold) {
+      console.noQuiet(
+        '[TrackableReadBufferStream] shouldPause',
+        bytesBeyondOffset - sizeThreshold,
+        Math.floor(this.offset / 1024),
+        'kb, writes:',
+        tracker?.getUnsettledCount(),
+        tracker?.getSettledCount?.()
+      );
+      return true;
+    }
+    if (tracker && this._streamWriteLimit) {
+      const unsettled = tracker.getUnsettledCount?.() ?? 0;
+      if (unsettled > this._streamWriteLimit) {
+        const settled = tracker.getSettledCount?.() ?? 0;
+        console.noQuiet(
+          `[TrackableReadBufferStream] shouldPause: true (streamWrite unsettled=${unsettled} > limit=${this._streamWriteLimit}, settled=${settled})`
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Waits for backpressure to ease: if size is too big, waits configured time
+   * or until stream write count drops (whichever first); if stream writes are
+   * too many, waits until limitUnsettled. If both conditions held, waits the
+   * configured time then waits for limitUnsettled.
+   * @returns {Promise<void>}
+   */
+  async waitForBackPressure() {
+    const bytesBeyondOffset = this.currentStreamSize - this.offset;
+    const sizeThreshold = Math.max(this._backpressureMaxBytes, this.maxPendingEnsureAvailableBytes);
+    const sizeTooBig = bytesBeyondOffset > sizeThreshold;
+    const tracker = this._streamWritePromiseTracker;
+    const limit = this._streamWriteLimit;
+
+    const waitMs = this._backpressureWaitMs;
+    const timeoutMs = this._backPressureTimeoutMs;
+    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+    if (sizeTooBig) {
+      await sleep(waitMs);
+    }
+    await tracker?.limitUnsettled(limit, waitMs);
   }
 
   /**
@@ -48,11 +119,11 @@ export class TrackableReadBufferStream extends ReadBufferStream {
     this._pendingEnsureAvailableEntries.push(entry);
     let stackCapture = null;
     if (this._livelockDetectMs > 0) {
-      const err = new Error("[TrackableReadBufferStream ensureAvailable]");
+      const err = new Error('[TrackableReadBufferStream ensureAvailable]');
       stackCapture = err.stack || String(err);
     }
     const result = super.ensureAvailable(bytes);
-    if (result && typeof result.then === "function") {
+    if (result && typeof result.then === 'function') {
       const livelockMs = this._livelockDetectMs;
       if (livelockMs > 0 && stackCapture) {
         const timer = setTimeout(() => {
@@ -79,7 +150,7 @@ export class TrackableReadBufferStream extends ReadBufferStream {
           }
         );
       }
-      return result.then((r) => {
+      return result.then(r => {
         const i = this._pendingEnsureAvailableEntries.indexOf(entry);
         if (i !== -1) this._pendingEnsureAvailableEntries.splice(i, 1);
         return r;
@@ -103,7 +174,7 @@ export class TrackableReadBufferStream extends ReadBufferStream {
    * @returns {number[]}
    */
   get pendingEnsureAvailableDesiredBytes() {
-    return this._pendingEnsureAvailableEntries.map((e) => e.bytes);
+    return this._pendingEnsureAvailableEntries.map(e => e.bytes);
   }
 
   /**
