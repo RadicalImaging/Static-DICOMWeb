@@ -61,6 +61,11 @@ async function configureProgram(defaults = dicomWebServerConfig) {
       description: 'Sets the client path to listen to',
       defaultValue: '/',
     },
+    {
+      key: '--index',
+      description: 'Run study indexing on startup before serving',
+      defaultValue: false,
+    },
   ];
 
   const configuration = {
