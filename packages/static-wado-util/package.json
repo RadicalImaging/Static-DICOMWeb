@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-util",
-  "version": "1.6.12",
+  "version": "1.7.0",
   "description": "Utils for other packages.",
   "publishConfig": {
     "access": "public"
@@ -43,10 +43,11 @@
     "@cornerstonejs/dicom-codec": ">=1.0.5",
     "commander": "^10.0.0",
     "config-point": ">=0.5.1",
-    "dcmjs": "0.49.0",
+    "dcmjs": "0.49.1",
     "imurmurhash": "^0.1.4",
     "jpeg-lossless-decoder-js": ">=2.0.4",
     "json5": "^2.2.1",
+    "loglevel": "1.9.2",
     "must": "^0.13.4",
     "node-object-hash": "^3.0.0"
   },

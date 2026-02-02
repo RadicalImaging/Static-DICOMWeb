@@ -23,7 +23,7 @@ function isPrivateTag(tag) {
  */
 function generateHashPath(data) {
   const hash = crypto.createHash('sha256');
-  
+
   if (Array.isArray(data)) {
     // Hash each array element
     for (const element of data) {
@@ -38,7 +38,7 @@ function generateHashPath(data) {
   } else if (Buffer.isBuffer(data)) {
     hash.update(data);
   }
-  
+
   const digest = hash.digest('hex');
   // Create a hierarchical path structure: first 2 chars / next 2 chars / rest
   return `${digest.substring(0, 2)}/${digest.substring(2, 4)}/${digest.substring(4)}.mht`;
@@ -54,7 +54,7 @@ function calculateDataSize(value) {
   // Null or undefined
   if (value === null) return 2;
   if (value === undefined) return 0;
-  
+
   // Arrays - recurse through elements
   if (Array.isArray(value)) {
     let totalSize = 0;
@@ -63,37 +63,37 @@ function calculateDataSize(value) {
     }
     return totalSize;
   }
-  
+
   // ArrayBuffer
   if (value instanceof ArrayBuffer) {
     return value.byteLength;
   }
-  
+
   // Buffer (Node.js)
   if (Buffer.isBuffer(value)) {
     return value.length;
   }
-  
+
   // Uint8Array and other TypedArrays
   if (ArrayBuffer.isView(value)) {
     return value.byteLength;
   }
-  
+
   // String - use string length as approximation
   if (typeof value === 'string') {
     return value.length;
   }
-  
+
   // Number - approximate as 4 bytes
   if (typeof value === 'number') {
     return 4;
   }
-  
+
   // Boolean - 2 bytes
   if (typeof value === 'boolean') {
     return 2;
   }
-  
+
   // Default for other types
   return 4;
 }
@@ -109,11 +109,11 @@ function calculateDataSize(value) {
  * @returns {Object} Filter object with value and pop methods
  */
 export function writeBulkdataFilter(options = {}) {
-  const { 
-    dicomdir, 
+  const {
+    dicomdir,
     writer: providedWriter,
     sizeBulkdataTags = 131074, // 128k + 2 bytes default
-    sizePrivateBulkdataTags = 128 // 128 bytes default
+    sizePrivateBulkdataTags = 128, // 128 bytes default
   } = options;
 
   // If no writer is provided, dicomdir is required for creating one
@@ -225,8 +225,8 @@ export function writeBulkdataFilter(options = {}) {
     const valueArray = dest.Value;
 
     // Check if the Value array contains only ArrayBuffers or Buffers
-    const isWritableData = valueArray.every(value => 
-      value instanceof ArrayBuffer || Buffer.isBuffer(value)
+    const isWritableData = valueArray.every(
+      value => value instanceof ArrayBuffer || Buffer.isBuffer(value)
     );
 
     // Replace Value array with BulkDataURI immediately (synchronously)
@@ -235,57 +235,41 @@ export function writeBulkdataFilter(options = {}) {
 
     // Only write bulkdata file if the value is an array of ArrayBuffers or Buffers
     if (!isWritableData) {
-      console.warn(`Skipping bulkdata write for tag ${currentTag}: not an array of ArrayBuffers/Buffers`);
+      console.warn(
+        `Skipping bulkdata write for tag ${currentTag}: not an array of ArrayBuffers/Buffers`
+      );
       return next(result);
     }
 
-    // Write the bulkdata file asynchronously (don't await here)
-    (async () => {
-      try {
-        const relativePath = `studies/${studyUID}/bulkdata/${hashPath.substring(0, hashPath.lastIndexOf('/'))}`;
-        const filename = hashPath.substring(hashPath.lastIndexOf('/') + 1);
+    const streamKey = `bulkdata:${currentTag}@${level}:${hashPath}`;
 
-        // Determine content type based on VR
-        let contentType = 'application/octet-stream';
-        if (currentVR === 'OB') contentType = 'application/octet-stream';
-        else if (currentVR === 'OW') contentType = 'application/octet-stream';
+    try {
+      const relativePath = `studies/${studyUID}/bulkdata/${hashPath.substring(0, hashPath.lastIndexOf('/'))}`;
+      const filename = hashPath.substring(hashPath.lastIndexOf('/') + 1);
 
-        // Generate a unique boundary for multipart
-        const boundary = `BOUNDARY_${crypto.randomUUID()}`;
-        
-        // Build Content-Type header
-        const contentTypeHeader = `${contentType}`;
+      const contentType = 'application/octet-stream';
+      const boundary = `BOUNDARY_${crypto.randomUUID()}`;
 
-        // Open the stream with multipart wrapping
-        const streamInfo = await bulkdataWriter.openStream(relativePath, filename, {
-          multipart: true,
-          contentType: contentTypeHeader,
-          boundary,
-          gzip: true,
-          streamKey: `bulkdata:${currentTag}@${level}:${hashPath}`
-        });
+      const streamInfo = bulkdataWriter.openStream(relativePath, filename, {
+        multipart: true,
+        contentType,
+        boundary,
+        gzip: true,
+        streamKey,
+      });
 
-        // Write each ArrayBuffer or Buffer to the stream
-        for (const value of valueArray) {
-          if (value instanceof ArrayBuffer) {
-            const buffer = Buffer.from(value);
-            streamInfo.stream.write(buffer);
-          } else if (Buffer.isBuffer(value)) {
-            streamInfo.stream.write(value);
-          } else {
-            throw new Error(`Unsupported value type: ${typeof value}`);
-          }
-        }
-
-        // Close the stream
-        await bulkdataWriter.closeStream(streamInfo.streamKey);
-
-      } catch (error) {
-        console.error(`Error writing bulkdata for tag ${currentTag}:`, error);
+      for (const v of valueArray) {
+        const buf = v instanceof ArrayBuffer ? Buffer.from(v) : v;
+        if (buf.length === 0) continue;
+        streamInfo.write(buf);
       }
-    })();
 
-    // Always call next with the result (synchronously)
+      bulkdataWriter.closeStream(streamKey);
+    } catch (error) {
+      console.error(`Error writing bulkdata for tag ${currentTag}:`, error);
+      bulkdataWriter.recordStreamError(streamKey, error, true);
+    }
+
     return next(result);
   }
 

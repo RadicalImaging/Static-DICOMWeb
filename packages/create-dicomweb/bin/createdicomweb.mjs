@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { Command } from 'commander';
-import { instanceMain, seriesMain, studyMain, createMain, stowMain, thumbnailMain } from '../lib/index.mjs';
+import { instanceMain, seriesMain, studyMain, createMain, stowMain, thumbnailMain, indexMain } from '../lib/index.mjs';
 import { handleHomeRelative, createVerboseLog } from '@radicalimaging/static-wado-util';
 
 const program = new Command();
@@ -72,12 +72,15 @@ program
   .description('Process instances and generate series and study metadata for all discovered studies')
   .argument('<part10...>', 'part 10 file(s) or directory(ies)')
   .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
+  .option('--no-study-index', 'Skip creating/updating studies/index.json.gz file')
   .action(async (fileNames, options) => {
     updateVerboseLog();
     const createOptions = {};
     if (options.dicomdir) {
       createOptions.dicomdir = handleHomeRelative(options.dicomdir);
     }
+    // studyIndex defaults to true unless --no-study-index is specified
+    createOptions.studyIndex = options.studyIndex !== false;
     await createMain(fileNames, createOptions);
   });
 
@@ -89,6 +92,7 @@ program
   .option('--header <header>', 'Additional HTTP header in format "Key: Value" (can be specified multiple times)')
   .option('--max-group-size <size>', 'Maximum size in bytes for grouping files (default: 10MB)', '10485760')
   .option('--send-as-single-files', 'Send each file individually instead of grouping')
+  .option('--xml-response', 'Request XML response format instead of JSON')
   .action(async (fileNames, options) => {
     updateVerboseLog();
     const stowOptions = {
@@ -124,6 +128,11 @@ program
     // Add sendAsSingleFiles flag if specified
     if (options.sendAsSingleFiles) {
       stowOptions.sendAsSingleFiles = true;
+    }
+    
+    // Add xmlResponse flag if specified
+    if (options.xmlResponse) {
+      stowOptions.xmlResponse = true;
     }
     
     await stowMain(fileNames, stowOptions);
@@ -204,6 +213,20 @@ program
     }
     
     await thumbnailMain(studyUID, thumbnailOptions);
+  });
+
+program
+  .command('index')
+  .description('Create or update studies/index.json.gz file by adding/updating study information')
+  .argument('[studyUIDs...]', 'Optional Study Instance UID(s) to process (if not provided, scans all studies)')
+  .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
+  .action(async (studyUIDs, options) => {
+    updateVerboseLog();
+    const indexOptions = {};
+    if (options.dicomdir) {
+      indexOptions.dicomdir = handleHomeRelative(options.dicomdir);
+    }
+    await indexMain(studyUIDs, indexOptions);
   });
 
 program.parse();

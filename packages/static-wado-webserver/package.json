@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-webserver",
-  "version": "1.6.12",
+  "version": "1.7.0",
   "description": "Webserver to serve a static-wado repo",
   "publishConfig": {
     "access": "public"
@@ -56,13 +56,16 @@
     "publishJS": "yarn publish"
   },
   "dependencies": {
-    "@radicalimaging/static-wado-plugins": ">=1.5.0",
-    "@radicalimaging/static-wado-util": ">=1.6.8",
-    "@radicalimaging/create-dicomweb": ">=1.6.8",
+    "@cornerstonejs/dicom-codec": "1.0.9",
+    "@radicalimaging/create-dicomweb": ">=1.7.0",
+    "@radicalimaging/static-wado-plugins": ">=1.7.0",
+    "@radicalimaging/static-wado-util": ">=1.7.0",
+    "@radicalimaging/static-wado-webserver": ">=1.7.0",
     "@saga-bus/core": "0.2.2",
     "config-point": ">=0.5.1",
+    "content-type": "1.0.5",
     "cors": "^2.8.5",
-    "dcmjs": "0.49.0",
+    "dcmjs": "0.49.1",
     "dcmjs-dimse": "^0.1.30",
     "dicer": "0.3.1",
     "express": "^4.18.2",

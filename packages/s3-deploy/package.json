@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/s3-deploy",
-  "version": "1.6.12",
+  "version": "1.7.0",
   "type": "module",
   "description": "S3 deploy plugin",
   "publishConfig": {
@@ -62,8 +62,8 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.374.0",
     "@aws-sdk/lib-storage": "^3.862.0",
-    "@radicalimaging/static-wado-plugins": "^1.5.0",
-    "@radicalimaging/static-wado-util": "^1.5.0",
+    "@radicalimaging/static-wado-plugins": ">=1.7.0",
+    "@radicalimaging/static-wado-util": ">=1.7.0",
     "aws-cdk-lib": "^2.144.0",
     "config-point": ">=0.5.1",
     "constructs": "^10.0.94",

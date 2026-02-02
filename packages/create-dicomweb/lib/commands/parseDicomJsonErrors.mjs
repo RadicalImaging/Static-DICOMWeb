@@ -1,0 +1,124 @@
+import fs from "fs";
+import { async, utilities } from 'dcmjs';
+
+const { AsyncDicomReader } = async;
+const { DicomMetadataListener } = utilities;
+
+/**
+ * Parses a JSON DICOM response and logs warnings for any items that are not COMPLETED, matched to uploaded file names
+ * @param {Response} response - The fetch response object
+ * @param {string} responseText - The response text content
+ * @param {Array<{filePath: string, fileSize: number}>} files - Array of uploaded files
+ */
+export async function parseAndLogDicomJsonErrors(response, responseText, files) {
+    // Only process if we have response text
+    if (!responseText) {
+        return;
+    }
+
+    // Check content type to determine if it's parseable JSON DICOM response
+    const contentType = response.headers.get('content-type') || '';
+    const isJsonDicom = contentType.includes('application/dicom+json') || contentType.includes('application/json');
+    const isXmlDicom = contentType.includes('application/dicom+xml') || contentType.includes('application/xml') || contentType.includes('text/xml');
+    
+    // Skip XML responses
+    if (isXmlDicom) {
+        return;
+    }
+    
+    // Only process JSON DICOM responses
+    if (!isJsonDicom) {
+        return;
+    }
+
+    try {
+        // Parse JSON response
+        const jsonResponse = JSON.parse(responseText);
+        
+        // Check if it's a valid DICOM JSON response (should be an object with sequences)
+        if (typeof jsonResponse !== 'object' || Array.isArray(jsonResponse)) {
+            return;
+        }
+
+        // Extract FailedSOPSequence (00081198) if present
+        const failedSequence = jsonResponse['00081198'];
+        const failedItems = failedSequence?.Value || [];
+        
+        // If no failed items, nothing to log
+        if (failedItems.length === 0) {
+            return;
+        }
+
+        // Extract SOP Instance UIDs from uploaded files using AsyncDicomReader
+        // Only do this if we have failed items to process
+        const fileSopInstanceUids = await Promise.all(
+            files.map(async ({ filePath }) => {
+                try {
+                    const reader = new AsyncDicomReader();
+                    const fileStream = fs.createReadStream(filePath);
+                    await reader.stream.fromAsyncStream(fileStream);
+                    
+                    // Use DicomMetadataListener to extract SOP Instance UID
+                    const information = {};
+                    const listener = new DicomMetadataListener({ information });
+                    
+                    await reader.readFile({ listener });
+                    
+                    return { filePath, sopInstanceUid: information.sopInstanceUid || null };
+                } catch (error) {
+                    // If we can't read the file, return null for SOP Instance UID
+                    // We'll fall back to position-based matching
+                    return { filePath, sopInstanceUid: null };
+                }
+            })
+        );
+
+        // Match response items to files and log warnings
+        for (let i = 0; i < failedItems.length; i++) {
+            const failedItem = failedItems[i];
+            
+            // Extract Failure Reason (00081197) if available
+            const failureReasonTag = failedItem['00081197'];
+            const failureReason = failureReasonTag?.Value?.[0];
+            
+            // Build the warning message
+            let warningMessage = 'Failed';
+            if (failureReason !== undefined) {
+                // Failure reason is typically a US (unsigned short) error code
+                // Convert to hex for readability if it's a number
+                if (typeof failureReason === 'number') {
+                    warningMessage = `Failure Reason: 0x${failureReason.toString(16).toUpperCase()}`;
+                } else {
+                    warningMessage = `Failure Reason: ${failureReason}`;
+                }
+            }
+            
+            // Try to match by SOP Instance UID first
+            // In STOW-RS format, this is ReferencedSOPInstanceUID (00081155)
+            const responseSopInstanceUid = failedItem['00081155']?.Value?.[0];
+            let matchedFile = null;
+            
+            if (responseSopInstanceUid) {
+                matchedFile = fileSopInstanceUids.find(
+                    ({ sopInstanceUid }) => sopInstanceUid === responseSopInstanceUid
+                );
+            }
+            
+            // Fall back to position-based matching if SOP Instance UID match failed
+            // Note: This is less reliable since we don't know the exact order
+            if (!matchedFile && i < files.length) {
+                matchedFile = { filePath: files[i].filePath };
+            }
+            
+            // Log warning at noQuiet level
+            if (matchedFile) {
+                console.noQuiet(`Warning for file ${matchedFile.filePath}: ${warningMessage}`);
+            } else {
+                console.noQuiet(`Warning for uploaded file (index ${i}): ${warningMessage}`);
+            }
+        }
+    } catch (error) {
+        // If parsing fails, silently ignore (response might not be JSON DICOM format)
+        // The response body is already logged above
+    }
+}

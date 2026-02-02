@@ -1,6 +1,7 @@
 import { instanceMain } from './instanceMain.mjs';
 import { seriesMain } from './seriesMain.mjs';
 import { studyMain } from './studyMain.mjs';
+import { indexSummary } from '../instance/IndexSummary.mjs';
 
 /**
  * Main function for creating complete DICOMweb structure
@@ -8,9 +9,10 @@ import { studyMain } from './studyMain.mjs';
  * @param {string|string[]} fileNames - File(s) or directory(ies) to process
  * @param {Object} options - Options object
  * @param {string} [options.dicomdir] - Base directory path where DICOMweb structure is located
+ * @param {boolean} [options.studyIndex=true] - Whether to create/update studies/index.json.gz file
  */
 export async function createMain(fileNames, options = {}) {
-  const { dicomdir } = options;
+  const { dicomdir, studyIndex = true } = options;
   
   if (!dicomdir) {
     throw new Error('dicomdir option is required');
@@ -43,6 +45,13 @@ export async function createMain(fileNames, options = {}) {
       console.error(`Error processing study ${studyUID}: ${error.message}`);
       throw error;
     }
+  }
+  
+  // Step 3: Create/update studies/index.json.gz file unless disabled
+  if (studyIndex) {
+    console.log('Creating/updating studies index...');
+    const studyUIDsArray = Array.from(studyUIDs);
+    await indexSummary(dicomdir, studyUIDsArray);
   }
   
   console.log('Completed all processing');

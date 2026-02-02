@@ -47,6 +47,20 @@ export default [
       "node/no-unsupported-features/es-syntax": 0,
     },
   },
+  // .mjs files are ES modules
+  {
+    files: ["**/*.mjs"],
+    languageOptions: {
+      globals: {
+        ...globals.jest,
+        ...globals.node,
+        ...globals.commonjs,
+        ...jest.environments.globals.globals,
+      },
+      ecmaVersion: 2024,
+      sourceType: "module",
+    },
+  },
   // Any other config imports go at the top
   eslintPluginPrettierRecommended,
 ]

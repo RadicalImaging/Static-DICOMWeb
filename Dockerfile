@@ -12,7 +12,6 @@ COPY --parents bun.lock *.tgz package.json packages/*/package.json ./
 
 # Install dependencies
 ENV PATH=/app/node_modules/.bin:$PATH
-RUN bun install ./dcmjs-0.49.0.tgz
 RUN bun install 
 # Copy remaining source code
 COPY --link --exclude=node_modules --exclude=**/dist . .
@@ -24,7 +23,7 @@ RUN bun run build && bun run pack:js
 FROM node:24 as installer
 
 # Install minimal global tools
-RUN npm install -g bun@1.3.5 commander@10.0.1
+RUN npm install -g bun@1.3.6 commander@10.0.1
 
 # Setup workdir and PATH
 WORKDIR /app
@@ -42,7 +41,6 @@ COPY --from=builder /app/packages/create-dicomweb/*.tgz create-dicomweb.tgz
 COPY --from=builder /app/packages/static-wado-webserver/*.tgz static-wado-webserver.tgz
 
 # Install all modules at once
-RUN bun install ./dcmjs-0.49.0.tgz
 RUN npm install \
   ./cs3d.tgz \
   ./static-wado-util.tgz \

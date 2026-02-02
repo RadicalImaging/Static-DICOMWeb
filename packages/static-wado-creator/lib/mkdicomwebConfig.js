@@ -259,6 +259,12 @@ const { mkdicomwebConfig } = ConfigPoint.register({
         description: 'Enable hashing of studyUID folder structure',
         defaultValue: false,
       },
+      {
+        key: '--no-index',
+        description:
+          'Skip updating the shared studies index file in dicomweb/studies/index.json.gz',
+        defaultValue: true,
+      },
     ],
     programs: [
       {
