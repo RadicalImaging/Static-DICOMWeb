@@ -90,7 +90,7 @@ function wrapLogger(baseLogger, options = {}) {
    */
   wrapper._inheritLevel = level => {
     if (!wrapper._hasExplicitLevel) {
-      this.propagateLevel(level, false);
+      wrapper.propagateLevel(level, false);
     }
   };
 
@@ -103,7 +103,7 @@ function wrapLogger(baseLogger, options = {}) {
    */
   wrapper.setLevel = (level, persist) => {
     wrapper._hasExplicitLevel = true;
-    this.propagateLevel(level, persist);
+    wrapper.propagateLevel(level, persist);
   };
 
   wrapper.setDefaultLevel = level => baseLogger.setDefaultLevel(level);
@@ -198,5 +198,117 @@ module.exports.dicomConsistencyLog = dicomConsistencyLog;
 
 /** An image consistency/issue log for reporting image decompression issues */
 module.exports.imageConsistencyLog = getLogger('consistency', 'image');
+
+/**
+ * Valid log level names that can be used in environment variables.
+ */
+const validLevels = ['trace', 'debug', 'info', 'warn', 'error', 'silent'];
+
+/**
+ * Registry of all created loggers by name, for environment variable configuration.
+ * Uses the logger name as key (e.g., 'staticdicomweb.webserver').
+ */
+const loggerRegistry = new Map();
+
+// Register the pre-created loggers
+loggerRegistry.set('staticdicomweb', module.exports.staticDicomWebLog);
+loggerRegistry.set('staticdicomweb.creator', module.exports.creatorLog);
+loggerRegistry.set('staticdicomweb.util', module.exports.utilLog);
+loggerRegistry.set('staticdicomweb.createdicomweb', module.exports.createDicomwebLog);
+loggerRegistry.set('staticdicomweb.webserver', module.exports.webserverLog);
+loggerRegistry.set('consistency.dicom', module.exports.dicomConsistencyLog);
+loggerRegistry.set('consistency.image', module.exports.imageConsistencyLog);
+
+/**
+ * Converts a logger name to its environment variable name.
+ * Example: 'staticdicomweb.webserver' -> 'LOG_LEVEL_STATICDICOMWEB_WEBSERVER'
+ *
+ * @param {string} loggerName - The logger name with dot separators
+ * @returns {string} The environment variable name
+ */
+function loggerNameToEnvVar(loggerName) {
+  return 'LOG_LEVEL_' + loggerName.toUpperCase().replace(/\./g, '_');
+}
+
+/**
+ * Converts an environment variable name to a logger name.
+ * Example: 'LOG_LEVEL_STATICDICOMWEB_WEBSERVER' -> 'staticdicomweb.webserver'
+ *
+ * @param {string} envVar - The environment variable name
+ * @returns {string|null} The logger name, or null if not a valid LOG_LEVEL_* variable
+ */
+function envVarToLoggerName(envVar) {
+  if (!envVar.startsWith('LOG_LEVEL_')) {
+    return null;
+  }
+  return envVar.slice('LOG_LEVEL_'.length).toLowerCase().replace(/_/g, '.');
+}
+
+/**
+ * Configures log levels from environment variables.
+ *
+ * Supports two types of environment variables:
+ * - LOG_LEVEL: Sets the default level for all loggers (e.g., LOG_LEVEL=debug)
+ * - LOG_LEVEL_<NAME>: Sets level for a specific logger (e.g., LOG_LEVEL_STATICDICOMWEB_WEBSERVER=debug)
+ *
+ * Logger names use dots as separators, which become underscores in env var names:
+ * - 'staticdicomweb' -> LOG_LEVEL_STATICDICOMWEB
+ * - 'staticdicomweb.webserver' -> LOG_LEVEL_STATICDICOMWEB_WEBSERVER
+ *
+ * Valid levels: trace, debug, info, warn, error, silent
+ *
+ * @param {object} env - Environment object (defaults to process.env)
+ * @returns {object} Object with applied configurations: { default: level, loggers: { name: level } }
+ */
+function configureFromEnv(env = process.env) {
+  const applied = { default: null, loggers: {} };
+
+  // First, apply the default LOG_LEVEL if set
+  if (env.LOG_LEVEL) {
+    const level = env.LOG_LEVEL.toLowerCase();
+    if (validLevels.includes(level)) {
+      // Set level on all root loggers (those without parents)
+      for (const [name, logger] of loggerRegistry) {
+        if (!logger._parent) {
+          logger.setLevel(level);
+        }
+      }
+      applied.default = level;
+    } else {
+      console.warn(`Invalid LOG_LEVEL value: "${env.LOG_LEVEL}". Valid levels: ${validLevels.join(', ')}`);
+    }
+  }
+
+  // Then, apply specific logger levels from LOG_LEVEL_* variables
+  for (const [envVar, value] of Object.entries(env)) {
+    if (envVar === 'LOG_LEVEL' || !envVar.startsWith('LOG_LEVEL_')) {
+      continue;
+    }
+
+    const level = value.toLowerCase();
+    if (!validLevels.includes(level)) {
+      console.warn(`Invalid ${envVar} value: "${value}". Valid levels: ${validLevels.join(', ')}`);
+      continue;
+    }
+
+    const loggerName = envVarToLoggerName(envVar);
+    const logger = loggerRegistry.get(loggerName);
+
+    if (logger) {
+      logger.setLevel(level);
+      applied.loggers[loggerName] = level;
+    } else {
+      // Logger not found - might be created later, store for lazy application
+      // For now, just warn
+      console.warn(`Logger "${loggerName}" not found for ${envVar}. Available loggers: ${[...loggerRegistry.keys()].join(', ')}`);
+    }
+  }
+
+  return applied;
+}
+
+module.exports.configureFromEnv = configureFromEnv;
+module.exports.loggerNameToEnvVar = loggerNameToEnvVar;
+module.exports.loggerRegistry = loggerRegistry;
 
 globalThis.log ||= { ...loglevel, getLogger };

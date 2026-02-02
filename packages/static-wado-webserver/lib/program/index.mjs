@@ -2,6 +2,8 @@ import * as staticWadoUtil from '@radicalimaging/static-wado-util';
 import dicomWebServerConfig from '../dicomWebServerConfig.mjs';
 import DicomWebServer from '../index.mjs';
 
+const { logger } = staticWadoUtil;
+
 function main() {
   return DicomWebServer(this.dicomWebServerConfig).then(value => value.listen());
 }
@@ -14,6 +16,7 @@ function main() {
  */
 async function configureProgram(defaults = dicomWebServerConfig) {
   await staticWadoUtil.loadConfiguration(defaults, process.argv);
+  logger.configureFromEnv();
 
   const { argumentsRequired = [], optionsRequired = [], helpShort, helpDescription } = defaults;
 
