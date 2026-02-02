@@ -1,6 +1,7 @@
 import * as staticWadoUtil from '@radicalimaging/static-wado-util';
 import dicomWebServerConfig from '../dicomWebServerConfig.mjs';
 import DicomWebServer from '../index.mjs';
+import { installFromEnv } from '../util/asyncStackDump.mjs';
 
 function main() {
   return DicomWebServer(this.dicomWebServerConfig).then(value => value.listen());
@@ -14,6 +15,9 @@ function main() {
  */
 async function configureProgram(defaults = dicomWebServerConfig) {
   await staticWadoUtil.loadConfiguration(defaults, process.argv);
+
+  // Optional: stack dump on SIGUSR2 for livelock diagnosis (STACK_DUMP_ENABLED=1 or STACK_DUMP_SAMPLE_MS=200)
+  installFromEnv();
 
   const { argumentsRequired = [], optionsRequired = [], helpShort, helpDescription } = defaults;
 

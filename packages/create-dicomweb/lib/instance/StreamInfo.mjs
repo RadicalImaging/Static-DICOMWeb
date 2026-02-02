@@ -164,7 +164,13 @@ export class StreamInfo {
         for (const buf of item.buffers) {
           const ok = stream.write(buf);
           if (!ok) {
-            await new Promise(res => stream.once('drain', res));
+            await new Promise(resolve => {
+              const timeout = setTimeout(() => resolve(), 250);
+              stream.once('drain', () => {
+                clearTimeout(timeout);
+                resolve();
+              });
+            });
           }
         }
       } else if (item.run !== undefined) {
