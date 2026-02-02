@@ -1,9 +1,11 @@
-import { handleHomeRelative } from '@radicalimaging/static-wado-util';
+import { handleHomeRelative, logger } from '@radicalimaging/static-wado-util';
 import express from 'express';
 import setServerRoutes from './server/index.mjs';
 import setClientRoutes from './client/index.mjs';
 import setProxy from './proxy/index.mjs';
 import setPluginRoutes from './plugins/index.mjs';
+
+const { webserverLog } = logger;
 
 /**
  * Set all app routes.
@@ -21,7 +23,7 @@ export default async function setRoutes(appExpress, params) {
   } = params;
 
   if (!serverRootDir || !clientRootDir) {
-    console.log('Missing static files source directory');
+    webserverLog.warn('Missing static files source directory');
     return;
   }
 

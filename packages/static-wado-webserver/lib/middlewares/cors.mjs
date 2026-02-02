@@ -1,5 +1,8 @@
 import cors from 'cors';
+import { logger } from '@radicalimaging/static-wado-util';
 import isCorsEnabled from '../util/isCorsEnabled.mjs';
+
+const { webserverLog } = logger;
 
 function getCorsOptions(config = {}) {
   const { corsOptions } = config;
@@ -23,6 +26,6 @@ export default function setMiddlewares(appExpress, config) {
   if (isCorsEnabled(config)) {
     appExpress.use('/', cors(corsOptions));
   } else {
-    console.log('cors is not enabled');
+    webserverLog.info('cors is not enabled');
   }
 }

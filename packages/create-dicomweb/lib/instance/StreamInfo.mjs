@@ -1,3 +1,7 @@
+import { logger } from '@radicalimaging/static-wado-util';
+
+const { createDicomwebLog } = logger;
+
 /** Total number of streams currently open (all StreamInfo instances) */
 let streamOpenCount = 0;
 /** Total number of streams closed (all StreamInfo instances, cumulative) */
@@ -53,7 +57,7 @@ export class StreamInfo {
     this._processing = false;
 
     streamOpenCount += 1;
-    console.verbose(
+    createDicomwebLog.debug(
       `[StreamInfo] open stream streamKey=${this.streamKey ?? 'unknown'} totalOpen=${streamOpenCount} totalClosed=${streamClosedCount}`
     );
 
@@ -73,7 +77,7 @@ export class StreamInfo {
     this._closedLogged = true;
     streamOpenCount -= 1;
     streamClosedCount += 1;
-    console.verbose(
+    createDicomwebLog.debug(
       `[StreamInfo] close stream streamKey=${this.streamKey ?? 'unknown'} totalOpen=${streamOpenCount} totalClosed=${streamClosedCount}`
     );
   }
@@ -112,7 +116,7 @@ export class StreamInfo {
         this.fileStream.destroy(error);
       }
     } catch (destroyError) {
-      console.warn(`Error destroying stream ${this.streamKey ?? 'unknown'}:`, destroyError);
+      createDicomwebLog.warn(`Error destroying stream ${this.streamKey ?? 'unknown'}:`, destroyError);
     }
   }
 

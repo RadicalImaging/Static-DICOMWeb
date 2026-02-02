@@ -1,11 +1,13 @@
 import dcmjsDimse from 'dcmjs-dimse';
 import { concatMap, takeWhile, Observable } from 'rxjs';
+import { logger } from '@radicalimaging/static-wado-util';
 import {
   createRequestFactory as createCFindRequestFactory,
   callbacks as cFindCallbacks,
 } from './cfindServices.mjs';
 import { createRequestResponseObservable } from './util/requestObservables.mjs';
 
+const { webserverLog } = logger;
 const { CMoveRequest } = dcmjsDimse.requests;
 
 /**
@@ -59,7 +61,7 @@ export function createRequestFactory(requestOptions) {
       operation = _operation;
       _paramsRef.forEach(ref => {
         const uid = refUIDMap[ref];
-        console.log('Retrieve', ref, uid);
+        webserverLog.debug('Retrieve', ref, uid);
         // elements index ref to receive requestOptions[uid]
         elements[ref] = requestOptions[uid];
       });
@@ -67,7 +69,7 @@ export function createRequestFactory(requestOptions) {
     }
   }
 
-  console.log('elements', elements, CMoveRequest);
+  webserverLog.debug('elements', elements, CMoveRequest);
   return operation.call(CMoveRequest, destAeTittle, ...elements, priority);
 }
 
@@ -119,7 +121,7 @@ async function runFindMoveRequest(serverOptions, requestOptions, findRequestProp
           const result = moveRequestProp.callbacks.adaptResolve(data.response);
           moveResults.push(result);
         } catch (e) {
-          console.log('Error while trying to append moved entity');
+          webserverLog.error('Error while trying to append moved entity');
         }
       },
       error: err => reject(err),
@@ -151,7 +153,7 @@ export const findMove = async (serverOptions, requestOptions) => {
 
     return runFindMoveRequest(serverOptions, requestOptions, findReq, moveReq);
   } catch (e) {
-    console.log('Bulk operation has failed', e);
+    webserverLog.error('Bulk operation has failed', e);
     return undefined;
   }
 };

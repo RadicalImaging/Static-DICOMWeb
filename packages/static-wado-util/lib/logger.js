@@ -33,6 +33,8 @@ const staticDicomWebLog = getLogger('staticdicomweb');
 module.exports.staticDicomWebLog = staticDicomWebLog;
 module.exports.creatorLog = staticDicomWebLog.getLogger('creator');
 module.exports.utilLog = staticDicomWebLog.getLogger('util');
+module.exports.createDicomwebLog = staticDicomWebLog.getLogger('createdicomweb');
+module.exports.webserverLog = staticDicomWebLog.getLogger('webserver');
 
 /**
  * Dicom issue log is for reporting inconsistencies and issues with DICOM logging

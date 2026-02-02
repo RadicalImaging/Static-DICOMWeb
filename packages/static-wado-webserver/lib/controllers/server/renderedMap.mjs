@@ -1,5 +1,7 @@
-import { handleHomeRelative } from '@radicalimaging/static-wado-util';
+import { handleHomeRelative, logger } from '@radicalimaging/static-wado-util';
 import fs from 'fs';
+
+const { webserverLog } = logger;
 
 const renderedTypes = {
   'image/jpeg': '/1.jpg',
@@ -60,7 +62,7 @@ export default function byteRangeRequest(options) {
     const range = req.header('Range');
     const filePart = renderedTypes[contentType];
     if (!filePart) {
-      console.log("Didn't find type", filePart, accept);
+      webserverLog.warn("Didn't find type", filePart, accept);
       next();
       return;
     }
@@ -71,12 +73,12 @@ export default function byteRangeRequest(options) {
     res.setHeader('Cache-Control', 'public, max-age=65147');
 
     if (range) {
-      console.log('Returning rendered byte range request', range, req.path);
+      webserverLog.debug('Returning rendered byte range request', range, req.path);
       rangeResponse(req, res, range, contentType, filePart);
       return;
     }
     req.url = `${req.path}${filePart}`;
-    console.log('Retrieving', filePart, renderedTypes[filePart], req.url);
+    webserverLog.debug('Retrieving', filePart, renderedTypes[filePart], req.url);
     next();
   };
 }

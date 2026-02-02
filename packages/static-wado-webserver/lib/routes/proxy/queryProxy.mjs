@@ -1,4 +1,7 @@
 import { plugins } from '@radicalimaging/static-wado-plugins';
+import { logger } from '@radicalimaging/static-wado-util';
+
+const { webserverLog } = logger;
 
 export const getDicomKey = (codeKey, lowerKey, query) => {
   for (const [key, value] of Object.entries(query)) {
@@ -33,7 +36,7 @@ export default async function setQueryProxy(routerExpress, level, params, key) {
       next();
     });
   } catch (e) {
-    console.error('Unable to load study query plugin', name, 'because', e);
+    webserverLog.error('Unable to load study query plugin', name, 'because', e);
     // eslint-disable-next-line no-process-exit
     process.exit(-1);
   }

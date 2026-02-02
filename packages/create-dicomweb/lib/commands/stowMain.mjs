@@ -2,8 +2,10 @@ import fs from "fs";
 import path from "path";
 import { randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
-import { dirScanner } from '@radicalimaging/static-wado-util';
+import { dirScanner, logger } from '@radicalimaging/static-wado-util';
 import { parseAndLogDicomJsonErrors } from './parseDicomJsonErrors.mjs';
+
+const { createDicomwebLog } = logger;
 
 /**
  * Stores DICOM files to a STOW-RS endpoint
@@ -43,7 +45,7 @@ export async function stowMain(fileNames, options = {}) {
             await stowFiles(fileGroup, url, headers, xmlResponse);
             results.success += fileGroup.length;
             const fileCount = fileGroup.length;
-            console.log(`Stored group of ${fileCount} file(s)`);
+            createDicomwebLog.info(`Stored group of ${fileCount} file(s)`);
             isFirstAttempt = false;
         } catch (error) {
             // Check if this is a connection failure (not an HTTP error)
@@ -59,8 +61,8 @@ export async function stowMain(fileNames, options = {}) {
 
             // If it's a connection error on the first attempt, exit immediately
             if (isFirstAttempt && isConnectionError) {
-                console.error(`Failed to connect to endpoint ${url}: ${error.message}`);
-                console.error('Exiting due to connection failure');
+                createDicomwebLog.error(`Failed to connect to endpoint ${url}: ${error.message}`);
+                createDicomwebLog.error('Exiting due to connection failure');
                 process.exit(1);
             }
 
@@ -68,7 +70,7 @@ export async function stowMain(fileNames, options = {}) {
             results.failed += fileGroup.length;
             fileGroup.forEach(({ filePath }) => {
                 results.errors.push({ file: filePath, error: error.message });
-                console.error(`Failed to store ${filePath}: ${error.message}`);
+                createDicomwebLog.error(`Failed to store ${filePath}: ${error.message}`);
             });
             isFirstAttempt = false;
         }
@@ -102,7 +104,7 @@ export async function stowMain(fileNames, options = {}) {
             } catch (error) {
                 results.failed++;
                 results.errors.push({ file: filename, error: error.message });
-                console.error(`Failed to process ${filename}: ${error.message}`);
+                createDicomwebLog.error(`Failed to process ${filename}: ${error.message}`);
             }
         }
     });
@@ -110,11 +112,11 @@ export async function stowMain(fileNames, options = {}) {
     // Flush any remaining files in the group
     await flushGroup();
 
-    console.log(`\nStorage complete: ${results.success} succeeded, ${results.failed} failed`);
+    createDicomwebLog.info(`\nStorage complete: ${results.success} succeeded, ${results.failed} failed`);
     if (results.errors.length > 0) {
-        console.log('\nErrors:');
+        createDicomwebLog.info('\nErrors:');
         results.errors.forEach(({ file, error }) => {
-            console.log(`  ${file}: ${error}`);
+            createDicomwebLog.info(`  ${file}: ${error}`);
         });
     }
 
@@ -155,11 +157,11 @@ export async function stowFiles(files, endpointUrl, additionalHeaders = {}, xmlR
         body: bodyStream
     });
 
-    console.verbose('Server response status:', response.status, response.statusText);
-    console.verbose('Server response headers:', Object.fromEntries(response.headers.entries()));
+    createDicomwebLog.debug('Server response status:', response.status, response.statusText);
+    createDicomwebLog.debug('Server response headers:', Object.fromEntries(response.headers.entries()));
     const responseText = await response.text().catch(() => '');
     if (responseText) {
-        console.verbose('Server response body:', responseText);
+        createDicomwebLog.debug('Server response body:', responseText);
     }
 
     if (!response.ok) {
@@ -197,7 +199,7 @@ function createMultipartBodyStreamMultiple(files, boundary) {
             const { filePath } = files[i];
             const fileName = path.basename(filePath);
 
-            console.verbose(`Reading file: ${filePath}`);
+            createDicomwebLog.debug(`Reading file: ${filePath}`);
 
             yield Buffer.from(multipartPartHeader(boundary, fileName, i === 0), 'utf-8');
 

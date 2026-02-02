@@ -1,4 +1,7 @@
+import { logger } from '@radicalimaging/static-wado-util';
 import { indexSummary } from '../instance/IndexSummary.mjs';
+
+const { createDicomwebLog } = logger;
 
 /**
  * Main function for processing studies index
@@ -18,14 +21,14 @@ export async function indexMain(studyUIDs = [], options = {}) {
   
   try {
     if (studyUIDsArray.length === 0) {
-      console.log('Processing all studies in index...');
+      createDicomwebLog.info('Processing all studies in index...');
     } else {
-      console.log(`Processing ${studyUIDsArray.length} study(ies) in index...`);
+      createDicomwebLog.info(`Processing ${studyUIDsArray.length} study(ies) in index...`);
     }
     await indexSummary(dicomdir, studyUIDsArray);
-    console.log('Completed studies index update');
+    createDicomwebLog.info('Completed studies index update');
   } catch (error) {
-    console.error(`Error processing studies index: ${error.message}`);
+    createDicomwebLog.error(`Error processing studies index: ${error.message}`);
     throw error;
   }
 }

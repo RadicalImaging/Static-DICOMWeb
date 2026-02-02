@@ -1,6 +1,8 @@
 /* eslint-disable import/prefer-default-export */
-import { aeConfig } from '@radicalimaging/static-wado-util';
+import { aeConfig, logger } from '@radicalimaging/static-wado-util';
 import * as cmoveServices from '../../services/cmoveServices.mjs';
+
+const { webserverLog } = logger;
 
 /**
  * Default/common controller for get method to
@@ -51,7 +53,7 @@ export function defaultGetProxyController(
         return;
       }
     } catch (e) {
-      console.log(`Get data from server failed${e}`);
+      webserverLog.error(`Get data from server failed${e}`);
     }
 
     next();

@@ -1,4 +1,7 @@
+import { logger } from '@radicalimaging/static-wado-util';
 import { studySummary } from '../instance/StudySummary.mjs';
+
+const { createDicomwebLog } = logger;
 
 /**
  * Main function for processing study metadata
@@ -18,11 +21,11 @@ export async function studyMain(studyUID, options = {}) {
   }
   
   try {
-    console.log(`Processing study ${studyUID}...`);
+    createDicomwebLog.info(`Processing study ${studyUID}...`);
     await studySummary(dicomdir, studyUID);
-    console.log(`Completed study ${studyUID}`);
+    createDicomwebLog.info(`Completed study ${studyUID}`);
   } catch (error) {
-    console.error(`Error processing study ${studyUID}: ${error.message}`);
+    createDicomwebLog.error(`Error processing study ${studyUID}: ${error.message}`);
     throw error;
   }
 }

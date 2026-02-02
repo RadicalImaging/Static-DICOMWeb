@@ -2,7 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import { FileDicomWebReader } from './FileDicomWebReader.mjs';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
-import { Tags, TagLists } from '@radicalimaging/static-wado-util';
+import { Tags, TagLists, logger } from '@radicalimaging/static-wado-util';
+
+const { createDicomwebLog } = logger;
 
 const { getValue, setValue } = Tags;
 
@@ -32,7 +34,7 @@ async function getFirstInstanceMetadata(reader, studyUID, seriesUIDs) {
 
 /**
  * Creates or updates study metadata/index.json.gz file
- * 
+ *
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @param {string} studyUID - Study Instance UID
  * @returns {Promise<void>}
@@ -48,7 +50,7 @@ export async function studySummary(baseDir, studyUID) {
 
   // Step 1: Check if series/index.json.gz exists
   const seriesIndexPath = `${seriesPath}`;
-  console.warn('studySummary: seriesIndexFileInfo:', seriesIndexPath);
+  createDicomwebLog.debug('studySummary: seriesIndexFileInfo:', seriesIndexPath);
 
   let existingSeriesUIDs = new Set();
 
@@ -64,17 +66,17 @@ export async function studySummary(baseDir, studyUID) {
         }
       }
 
-      console.warn('studySummary: existingSeriesUIDs:', existingSeriesUIDs.size);
+      createDicomwebLog.debug('studySummary: existingSeriesUIDs:', existingSeriesUIDs.size);
     }
   } catch (error) {
-    console.warn('Failed to read existing series index:', error.message);
+    createDicomwebLog.warn('Failed to read existing series index:', error.message);
     existingSeriesUIDs = new Set();
   }
 
   // Step 2: Scan the series directory to get actual series UIDs
   const seriesDirectories = await reader.scanDirectory(seriesPath, { withFileTypes: true });
   const actualSeriesUIDs = new Set();
-  console.warn('studySummary: seriesDirectories:', seriesPath, seriesDirectories.length);
+  createDicomwebLog.debug('studySummary: seriesDirectories:', seriesPath, seriesDirectories.length);
   for (const entry of seriesDirectories) {
     // If withFileTypes is used, entry is a Dirent object
     if (entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory()) {
@@ -91,7 +93,7 @@ export async function studySummary(baseDir, studyUID) {
         }
       } catch (error) {
         // Skip if we can't stat the path
-        console.warn(`Could not stat ${seriesDirPath}: ${error.message}`);
+        createDicomwebLog.warn(`Could not stat ${seriesDirPath}: ${error.message}`);
       }
     }
   }
@@ -101,7 +103,7 @@ export async function studySummary(baseDir, studyUID) {
     existingSeriesUIDs.size === actualSeriesUIDs.size &&
     [...existingSeriesUIDs].every(uid => actualSeriesUIDs.has(uid))
   ) {
-    console.warn('studySummary: series index is up to date');
+    createDicomwebLog.debug('studySummary: series index is up to date');
     return; // Series index is up to date
   }
 
@@ -136,10 +138,10 @@ export async function studySummary(baseDir, studyUID) {
           totalInstances += Number(numberOfInstances) || 0;
         }
       } else {
-        console.warn('studySummary: series singleton file not found:', seriesSingletonPath);
+        createDicomwebLog.warn('studySummary: series singleton file not found:', seriesSingletonPath);
       }
     } catch (error) {
-      console.warn(`Failed to read series singleton for series ${seriesUID}: ${error.message}`);
+      createDicomwebLog.warn(`Failed to read series singleton for series ${seriesUID}: ${error.message}`);
     }
   }
 
@@ -195,19 +197,19 @@ export async function studySummary(baseDir, studyUID) {
   const writer = new FileDicomWebWriter({ studyInstanceUid: studyUID }, { baseDir });
 
   if (seriesQueryArray.length > 0) {
-    console.warn('studySummary: writing new series index file');
+    createDicomwebLog.debug('studySummary: writing new series index file');
     const seriesIndexStreamInfo = await writer.openStudyStream('series/index.json', { gzip: true });
     seriesIndexStreamInfo.stream.write(Buffer.from(JSON.stringify(seriesQueryArray)));
     await writer.closeStream(seriesIndexStreamInfo.streamKey);
-    console.warn('studySummary: series/index.json file written:', seriesIndexStreamInfo.filepath);
+    createDicomwebLog.debug('studySummary: series/index.json file written:', seriesIndexStreamInfo.filepath);
   }
 
   // Step 8: Write study singleton (studies/${studyUID}/index.json.gz)
   if (studyQuery) {
-    console.warn('studySummary: writing new study singleton file');
+    createDicomwebLog.debug('studySummary: writing new study singleton file');
     const studySingletonStreamInfo = await writer.openStudyStream('index.json', { gzip: true });
     studySingletonStreamInfo.stream.write(Buffer.from(JSON.stringify([studyQuery])));
     await writer.closeStream(studySingletonStreamInfo.streamKey);
-    console.warn('studySummary: study singleton file written:', studySingletonStreamInfo.filepath);
+    createDicomwebLog.debug('studySummary: study singleton file written:', studySingletonStreamInfo.filepath);
   }
 }

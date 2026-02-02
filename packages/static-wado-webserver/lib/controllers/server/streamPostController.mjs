@@ -3,7 +3,10 @@ import {
   dicomToXml,
   handleHomeRelative,
   createPromiseTracker,
+  logger,
 } from '@radicalimaging/static-wado-util';
+
+const { webserverLog } = logger;
 import { instanceFromStream } from '@radicalimaging/create-dicomweb';
 import { seriesMain } from '@radicalimaging/create-dicomweb';
 import { studyMain } from '@radicalimaging/create-dicomweb';
@@ -56,7 +59,7 @@ function createInMemoryTransport() {
             // Log detailed error information including the message
             const errorMessage = err?.message || String(err);
             const errorStack = err?.stack || 'No stack trace available';
-            console.error('[InMemoryTransport] Handler error:', {
+            webserverLog.error('[InMemoryTransport] Handler error:', {
               error: errorMessage,
               stack: errorStack,
               messageType: message?.type,
@@ -73,7 +76,7 @@ function createInMemoryTransport() {
         // Log any rejected promises for visibility (though we already logged in catch above)
         results.forEach((result, index) => {
           if (result.status === 'rejected') {
-            console.error(
+            webserverLog.error(
               `[InMemoryTransport] Handler promise rejected (handler ${index}):`,
               result.reason
             );
@@ -112,7 +115,7 @@ function createInMemoryTransport() {
  */
 export function streamPostController(params) {
   const dicomdir = handleHomeRelative(params.rootDir);
-  console.noQuiet('Storing POST uploads to:', dicomdir);
+  webserverLog.debug('Storing POST uploads to:', dicomdir);
 
   // Initialize messaging service and register handlers (only once)
   if (!messagingInstance) {
@@ -124,7 +127,7 @@ export function streamPostController(params) {
     setupMessageHandlers(messagingInstance, dicomdir, params);
     if (messagingInstance.start) {
       messagingInstance.start().catch(err => {
-        console.error('Failed to start messaging service:', err);
+        webserverLog.error('Failed to start messaging service:', err);
       });
     }
     handlersInitialized = true;
@@ -141,7 +144,7 @@ export function streamPostController(params) {
         backPressureTimeoutMs
       );
       if (unsettled >= maxUnsettledReceives) {
-        console.warn(
+        webserverLog.debug(
           `[streamPostController] Back pressure: continuing after timeout with ${unsettled} unsettled receives`
         );
       }
@@ -150,7 +153,7 @@ export function streamPostController(params) {
       // Called immediately when a file part starts.
       // You can kick off downstream processing and return a promise.
       // This promise is *not awaited* by middleware.
-      console.warn('Processing POST upload:', fileInfo);
+      webserverLog.debug('Processing POST upload:', fileInfo);
       const tracker = req?.uploadPromiseTracker ?? createPromiseTracker();
       if (req) req.uploadPromiseTracker = tracker;
 
@@ -159,7 +162,7 @@ export function streamPostController(params) {
         tracker.add(promise);
         const result = await promise;
         const { information } = result;
-        console.verbose('information:', information);
+        webserverLog.debug('information:', information);
 
         return result;
       } catch (error) {
@@ -170,7 +173,7 @@ export function streamPostController(params) {
         const contentType = fileInfo?.mimeType || fileInfo?.headers?.['content-type'] || 'unknown';
         const fieldname =
           fileInfo?.fieldname || fileInfo?.headers?.['content-location'] || 'unknown';
-        console.warn(
+        webserverLog.warn(
           `[streamPostController] Error processing stream (Part: ${fieldname}, Content-Type: ${contentType}):`,
           errorMessage
         );
@@ -193,12 +196,12 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
     const [studyUid, seriesUID] = id.split('&');
 
     if (!studyUid || !seriesUID) {
-      console.error(`Invalid updateSeries message id format: ${id}`);
+      webserverLog.error(`Invalid updateSeries message id format: ${id}`);
       return;
     }
 
     try {
-      console.log(`Processing updateSeries for study ${studyUid}, series ${seriesUID}`);
+      webserverLog.debug(`Processing updateSeries for study ${studyUid}, series ${seriesUID}`);
       // Call seriesMain to update the series
       await seriesMain(studyUid, {
         dicomdir,
@@ -207,9 +210,9 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
 
       // After series update completes, send updateStudy message
       await messaging.sendMessage('updateStudy', studyUid, data);
-      console.log(`Sent updateStudy message for study ${studyUid}`);
+      webserverLog.debug(`Sent updateStudy message for study ${studyUid}`);
     } catch (err) {
-      console.error(`Error processing updateSeries for ${id}:`, err);
+      webserverLog.error(`Error processing updateSeries for ${id}:`, err);
       throw err; // Re-throw to allow retry/redelivery
     }
   });
@@ -220,12 +223,12 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
     const studyUid = id;
 
     if (!studyUid) {
-      console.error(`Invalid updateStudy message id: ${id}`);
+      webserverLog.error(`Invalid updateStudy message id: ${id}`);
       return;
     }
 
     try {
-      console.log(`Processing updateStudy for study ${studyUid}`);
+      webserverLog.debug(`Processing updateStudy for study ${studyUid}`);
       // Call studyMain to update the study
       await studyMain(studyUid, {
         dicomdir,
@@ -234,13 +237,13 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
       // Create/update studies/index.json.gz file unless disabled
       const studyIndex = params.studyIndex !== false; // Default to true unless explicitly disabled
       if (studyIndex) {
-        console.log(`Creating/updating studies index for study ${studyUid}`);
+        webserverLog.debug(`Creating/updating studies index for study ${studyUid}`);
         await indexSummary(dicomdir, [studyUid]);
       }
 
-      console.log(`Completed updateStudy for study ${studyUid}`);
+      webserverLog.debug(`Completed updateStudy for study ${studyUid}`);
     } catch (err) {
-      console.error(`Error processing updateStudy for ${studyUid}:`, err);
+      webserverLog.error(`Error processing updateStudy for ${studyUid}:`, err);
       throw err; // Re-throw to allow retry/redelivery
     }
   });
@@ -345,9 +348,9 @@ function createDatasetResponse(files) {
 
 export const completePostController = async (req, res, next) => {
   try {
-    console.noQuiet('uploadListenerPromises length:', req.uploadListenerPromises?.length);
+    webserverLog.info('uploadListenerPromises length:', req.uploadListenerPromises?.length);
     const results = await Promise.allSettled(req.uploadListenerPromises || []);
-    console.noQuiet('results length:', results.length);
+    webserverLog.info('results length:', results.length);
 
     const files = (req.uploadStreams || []).map((entry, index) => {
       const r = results[index];
@@ -392,9 +395,9 @@ export const completePostController = async (req, res, next) => {
       for (const [seriesId, information] of seriesMap.entries()) {
         try {
           await messagingInstance.sendMessage('updateSeries', seriesId, information);
-          console.log(`Sent updateSeries message for ${seriesId}`);
+          webserverLog.debug(`Sent updateSeries message for ${seriesId}`);
         } catch (err) {
-          console.error(`Failed to send updateSeries message for ${seriesId}:`, err);
+          webserverLog.error(`Failed to send updateSeries message for ${seriesId}:`, err);
         }
       }
     }
@@ -402,7 +405,7 @@ export const completePostController = async (req, res, next) => {
     // Create the dataset response (used for both JSON and XML)
     const datasetResponse = createDatasetResponse(files);
 
-    console.verbose('Dataset response:', JSON.stringify(datasetResponse, null, 2));
+    webserverLog.debug('Dataset response:', JSON.stringify(datasetResponse, null, 2));
 
     // Check Accept header to determine response format
     const acceptHeader = req.headers.accept || '';

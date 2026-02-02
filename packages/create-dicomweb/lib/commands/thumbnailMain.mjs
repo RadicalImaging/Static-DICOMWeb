@@ -2,10 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import { FileDicomWebReader } from '../instance/FileDicomWebReader.mjs';
 import { FileDicomWebWriter } from '../instance/FileDicomWebWriter.mjs';
-import { Tags } from '@radicalimaging/static-wado-util';
-import { readBulkData } from '@radicalimaging/static-wado-util';
+import { Tags, readBulkData, logger } from '@radicalimaging/static-wado-util';
 import StaticWado from '@radicalimaging/static-wado-creator';
 
+const { createDicomwebLog } = logger;
 const { getValue } = Tags;
 
 /**
@@ -40,17 +40,17 @@ async function generateSeriesThumbnails(studyUID, options = {}) {
     }
   }
 
-  console.log(`Generating series thumbnails for ${seriesToProcess.length} series...`);
+  createDicomwebLog.info(`Generating series thumbnails for ${seriesToProcess.length} series...`);
 
   // Step 2: Process each series
   const seriesPromises = seriesToProcess.map(async series => {
     const targetSeriesUID = getValue(series, Tags.SeriesInstanceUID);
     if (!targetSeriesUID) {
-      console.warn('Could not extract SeriesInstanceUID from series query, skipping');
+      createDicomwebLog.warn('Could not extract SeriesInstanceUID from series query, skipping');
       return;
     }
 
-    console.log(`Processing series ${targetSeriesUID}...`);
+    createDicomwebLog.debug(`Processing series ${targetSeriesUID}...`);
 
     // Step 3: Read series metadata to get all instances
     const seriesMetadata = await reader.readJsonFile(
@@ -59,7 +59,7 @@ async function generateSeriesThumbnails(studyUID, options = {}) {
     );
 
     if (!seriesMetadata || !Array.isArray(seriesMetadata) || seriesMetadata.length === 0) {
-      console.warn(`No series metadata found for series ${targetSeriesUID}, skipping`);
+      createDicomwebLog.warn(`No series metadata found for series ${targetSeriesUID}, skipping`);
       return;
     }
 
@@ -69,13 +69,13 @@ async function generateSeriesThumbnails(studyUID, options = {}) {
     const targetInstanceUID = getValue(targetInstanceMetadata, Tags.SOPInstanceUID);
 
     if (!targetInstanceUID) {
-      console.warn(
+      createDicomwebLog.warn(
         `Could not extract SOPInstanceUID from instance metadata for series ${targetSeriesUID}, skipping`
       );
       return;
     }
 
-    console.log(
+    createDicomwebLog.debug(
       `Using middle instance ${targetInstanceUID} (${middleInstanceIndex + 1} of ${seriesMetadata.length}) for series ${targetSeriesUID}`
     );
 
@@ -83,7 +83,7 @@ async function generateSeriesThumbnails(studyUID, options = {}) {
     const numberOfFrames = getValue(targetInstanceMetadata, Tags.NumberOfFrames) || 1;
     const middleFrame = Math.ceil(numberOfFrames / 2);
 
-    console.log(
+    createDicomwebLog.debug(
       `Using middle frame ${middleFrame} of ${numberOfFrames} for instance ${targetInstanceUID}`
     );
 
@@ -99,7 +99,7 @@ async function generateSeriesThumbnails(studyUID, options = {}) {
 
       const frameTransferSyntaxUid = pixelData.transferSyntaxUid;
       if (!frameTransferSyntaxUid) {
-        console.warn(
+        createDicomwebLog.warn(
           `Could not determine transfer syntax UID for instance ${targetInstanceUID} from pixel data, skipping`
         );
         return;
@@ -125,20 +125,20 @@ async function generateSeriesThumbnails(studyUID, options = {}) {
       // Step 9: Generate thumbnail and write at instance level
       const writeThumbnailCallback = async (buffer, canvasDest) => {
         if (!buffer) {
-          console.warn(
+          createDicomwebLog.warn(
             `No thumbnail buffer generated for series ${targetSeriesUID}, instance ${targetInstanceUID}`
           );
           return;
         }
 
-        console.log(`Writing series thumbnail for instance ${targetInstanceUID}...`);
+        createDicomwebLog.debug(`Writing series thumbnail for instance ${targetInstanceUID}...`);
 
         // Write thumbnail at instance level: ...<seriesUID>/instances/<sopUID>/thumbnail
         const thumbnailStreamInfo = await writer.openSeriesStream('thumbnail', { gzip: false });
         thumbnailStreamInfo.stream.write(Buffer.from(buffer));
         await writer.closeStream(thumbnailStreamInfo.streamKey);
 
-        console.log(`Series thumbnail written successfully for instance ${targetInstanceUID}`);
+        createDicomwebLog.debug(`Series thumbnail written successfully for instance ${targetInstanceUID}`);
       };
 
       // Generate thumbnail using StaticWado's internal method
@@ -150,9 +150,9 @@ async function generateSeriesThumbnails(studyUID, options = {}) {
         writeThumbnailCallback
       );
 
-      console.log(`Series thumbnail generation completed for series ${targetSeriesUID}`);
+      createDicomwebLog.debug(`Series thumbnail generation completed for series ${targetSeriesUID}`);
     } catch (error) {
-      console.error(
+      createDicomwebLog.error(
         `Error generating series thumbnail for series ${targetSeriesUID}: ${error.message}`
       );
       throw error;
@@ -162,9 +162,9 @@ async function generateSeriesThumbnails(studyUID, options = {}) {
   // Wait for all series thumbnails to be generated
   try {
     await Promise.all(seriesPromises);
-    console.log(`Series thumbnail generation completed for study ${studyUID}`);
+    createDicomwebLog.debug(`Series thumbnail generation completed for study ${studyUID}`);
   } catch (error) {
-    console.error(`Error generating series thumbnails: ${error.message}`);
+    createDicomwebLog.error(`Error generating series thumbnails: ${error.message}`);
     throw error;
   }
 }
@@ -265,7 +265,7 @@ export async function thumbnailMain(studyUID, options = {}) {
 
   // Step 1: If series UID not provided, read study query to find series
   if (!targetSeriesUID) {
-    console.log(`Reading study query to find series for study ${studyUID}...`);
+    createDicomwebLog.debug(`Reading study query to find series for study ${studyUID}...`);
     const studyQuery = await reader.readJsonFile(reader.getStudyPath(studyUID), 'index.json');
 
     if (!studyQuery || !Array.isArray(studyQuery) || studyQuery.length === 0) {
@@ -290,11 +290,11 @@ export async function thumbnailMain(studyUID, options = {}) {
       throw new Error('Could not extract SeriesInstanceUID from series query');
     }
 
-    console.log(`Using first series: ${targetSeriesUID}`);
+    createDicomwebLog.debug(`Using first series: ${targetSeriesUID}`);
   }
 
   // Step 2: Read series metadata
-  console.log(`Reading series metadata for series ${targetSeriesUID}...`);
+  createDicomwebLog.debug(`Reading series metadata for series ${targetSeriesUID}...`);
   const seriesMetadata = await reader.readJsonFile(
     reader.getSeriesPath(studyUID, targetSeriesUID),
     'metadata'
@@ -326,11 +326,11 @@ export async function thumbnailMain(studyUID, options = {}) {
       throw new Error('Could not extract SOPInstanceUID from instance metadata');
     }
 
-    console.log(`Using first instance: ${targetInstanceUID}`);
+    createDicomwebLog.debug(`Using first instance: ${targetInstanceUID}`);
   }
 
   // Step 4: Generate thumbnails for each frame; create writer only after first definitive transfer syntax, then new writer when it changes
-  console.log(
+  createDicomwebLog.debug(
     `Generating thumbnails for ${framesToProcess.length} frame(s): ${framesToProcess.join(', ')}...`
   );
 
@@ -339,7 +339,7 @@ export async function thumbnailMain(studyUID, options = {}) {
 
   for (const frameNum of framesToProcess) {
     try {
-      console.log(`Processing frame ${frameNum}...`);
+      createDicomwebLog.debug(`Processing frame ${frameNum}...`);
 
       // Read pixel data first to get definitive transfer syntax
       const pixelData = await readPixelData(
@@ -380,11 +380,11 @@ export async function thumbnailMain(studyUID, options = {}) {
       // Callback to write thumbnail (receives buffer and canvasDest)
       const writeThumbnailCallback = async (buffer, canvasDest) => {
         if (!buffer) {
-          console.warn(`No thumbnail buffer generated for frame ${frameNum}`);
+          createDicomwebLog.warn(`No thumbnail buffer generated for frame ${frameNum}`);
           return;
         }
 
-        console.log(`Writing thumbnail for instance ${targetInstanceUID}, frame ${frameNum}...`);
+        createDicomwebLog.debug(`Writing thumbnail for instance ${targetInstanceUID}, frame ${frameNum}...`);
 
         const thumbnailStreamInfo = await writer.openInstanceStream(thumbnailFilename, {
           gzip: false,
@@ -392,7 +392,7 @@ export async function thumbnailMain(studyUID, options = {}) {
         thumbnailStreamInfo.stream.write(Buffer.from(buffer));
         await writer.closeStream(thumbnailStreamInfo.streamKey);
 
-        console.log(`Thumbnail written successfully for frame ${frameNum} as ${thumbnailFilename}`);
+        createDicomwebLog.debug(`Thumbnail written successfully for frame ${frameNum} as ${thumbnailFilename}`);
       };
 
       await StaticWado.internalGenerateImage(
@@ -403,14 +403,14 @@ export async function thumbnailMain(studyUID, options = {}) {
         writeThumbnailCallback
       );
 
-      console.log(`Thumbnail generation completed for frame ${frameNum}`);
+      createDicomwebLog.debug(`Thumbnail generation completed for frame ${frameNum}`);
     } catch (error) {
-      console.error(`Error generating thumbnail for frame ${frameNum}: ${error.message}`);
+      createDicomwebLog.error(`Error generating thumbnail for frame ${frameNum}: ${error.message}`);
       throw error;
     }
   }
 
-  console.log(
+  createDicomwebLog.info(
     `Thumbnail generation completed for study ${studyUID}, series ${targetSeriesUID}, instance ${targetInstanceUID}`
   );
 }

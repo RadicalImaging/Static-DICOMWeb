@@ -5,7 +5,10 @@ import {
   uint8ArrayToString,
   execSpawn,
   handleHomeRelative,
+  logger,
 } from '@radicalimaging/static-wado-util';
+
+const { webserverLog } = logger;
 
 const queue = [];
 const runners = [];
@@ -13,19 +16,19 @@ const runners = [];
 export function ensureRunners(count = Math.max(3, runners.length)) {
   for (let i = 0; i < count; i++) {
     if (!queue.length) {
-      console.verbose('Nothing in queue');
+      webserverLog.debug('Nothing in queue');
       return;
     }
     if (!runners[i] || runners[i].terminated) {
       if (runners[i]) {
-        console.noQuiet('Recreating runner', i);
+        webserverLog.info('Recreating runner', i);
       }
       runners[i] = createRunner();
     }
     if (runners[i].available) {
       runners[i].run();
     } else {
-      console.verbose('Runner', i, 'not available');
+      webserverLog.debug('Runner', i, 'not available');
     }
   }
 }
@@ -59,7 +62,7 @@ export function createRunner() {
     processing: false,
     run: function () {
       if (!queue.length) {
-        console.verbose('Queue empty, returning');
+        webserverLog.debug('Queue empty, returning');
         return;
       }
       this.available = false;
@@ -67,7 +70,7 @@ export function createRunner() {
       this.processing.startTime = performance.now();
       const { cmdLine } = runner.processing;
       const cmd = Array.isArray(cmdLine) ? cmdLine.join(' ') : cmdLine;
-      console.verbose('Starting to process', cmd);
+      webserverLog.debug('Starting to process', cmd);
       this.processing.cmd = cmd;
       this.child.stdin.write(`${cmd}\n`);
     },
@@ -78,7 +81,7 @@ export function createRunner() {
       return;
     }
     runner.inputData.push(data);
-    console.verbose(`${runner.count}.${runner.inputData.length}>`, String(data));
+    webserverLog.debug(`${runner.count}.${runner.inputData.length}>`, String(data));
     const resultStr = runner.inputData.join('');
     if (resultStr.indexOf('mkdicomweb server -->') !== -1) {
       runner.processing.endTime = performance.now();
@@ -95,7 +98,7 @@ export function createRunner() {
         runner.processing.reject(new Error(`Unable to find JSON results in ${resultStr}`));
       }
       const { queueTime, startTime, endTime, cmd } = runner.processing;
-      console.noQuiet(
+      webserverLog.info(
         'Task done queue time',
         startTime - queueTime,
         'exec time',
@@ -113,9 +116,9 @@ export function createRunner() {
   });
   child.on('close', code => {
     runner.terminated = true;
-    console.noQuiet('Runner terminated');
+    webserverLog.info('Runner terminated');
     if (runner.processing) {
-      console.warn(
+      webserverLog.warn(
         'Runner terminated processing',
         runner.processing.cmdLine,
         runner.inputData.join('\n')
