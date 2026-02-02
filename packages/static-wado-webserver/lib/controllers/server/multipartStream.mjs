@@ -8,6 +8,8 @@ import { TrackableReadBufferStream } from "./TrackableReadBufferStream.mjs";
 
 const { webserverLog } = logger;
 
+const multipartStreamLog = webserverLog.getLogger('multipartStream');
+
 /**
  * Dicer-based multipart parser middleware for DICOMweb STOW-RS.
  *
@@ -121,7 +123,7 @@ export function multipartStream(opts) {
       }
 
       partCount += 1;
-      webserverLog.debug(`[multipartStream] Part ${partCount} detected`);
+      multipartStreamLog.debug(`Part ${partCount} detected`);
 
       if (limits?.parts && partCount > limits.parts) {
         part.resume();
@@ -159,8 +161,8 @@ export function multipartStream(opts) {
       part.on('header', header => {
         // Dicer provides headers as an object with lowercase keys and array values
         if (header && typeof header === 'object' && !partProcessed) {
-          webserverLog.debug(
-            `[multipartStream] Part ${partCount} headers received:`,
+          multipartStreamLog.debug(
+            `Part ${partCount} headers received:`,
             Object.keys(header)
           );
           headers = header;
@@ -182,7 +184,7 @@ export function multipartStream(opts) {
       // Increased timeout to ensure headers are collected for all parts
       setTimeout(() => {
         if (!headersCollected && !partProcessed) {
-          webserverLog.warn(`[multipartStream] Part ${partCount} processing without headers (timeout)`);
+          multipartStreamLog.warn(`Part ${partCount} processing without headers (timeout)`);
           processPart();
         }
       }, 100);
@@ -233,8 +235,8 @@ export function multipartStream(opts) {
         const contentId = getHeader('content-id');
         const contentLocation = getHeader('content-location');
 
-        webserverLog.debug(
-          `[multipartStream] Part ${partCount} headers - content-type: ${rawContentType}, content-location: ${contentLocation}, headers keys: ${Object.keys(headers).join(', ')}`
+        multipartStreamLog.debug(
+          `Part ${partCount} headers - content-type: ${rawContentType}, content-location: ${contentLocation}, headers keys: ${Object.keys(headers).join(', ')}`
         );
 
         // If Content-Type is missing, try to infer from Content-Location
@@ -258,14 +260,14 @@ export function multipartStream(opts) {
 
         // If you want to skip non-DICOM parts (e.g. metadata JSON), do it here:
         if (!isDicomPart) {
-          webserverLog.warn(
-            `[multipartStream] Part ${partCount} skipped - not DICOM (content-type: ${partContentType})`
+          multipartStreamLog.warn(
+            `Part ${partCount} skipped - not DICOM (content-type: ${partContentType})`
           );
           // Set up handler to track when skipped part completes
           const skippedEndHandler = () => {
             completedParts += 1;
-            webserverLog.debug(
-              `[multipartStream] Skipped part ${partCount} completed. Completed: ${completedParts}/${partCount}`
+            multipartStreamLog.debug(
+              `Skipped part ${partCount} completed. Completed: ${completedParts}/${partCount}`
             );
             part.removeListener('end', skippedEndHandler);
             checkAllPartsComplete();
@@ -276,7 +278,7 @@ export function multipartStream(opts) {
           return;
         }
 
-        webserverLog.debug(`[multipartStream] Part ${partCount} processing as DICOM file`);
+        multipartStreamLog.debug(`Part ${partCount} processing as DICOM file`);
         const fileId = randomUUID();
 
         // You won't have Busboy's fieldname/filename concept in STOW-RS,
@@ -305,15 +307,15 @@ export function multipartStream(opts) {
           // Add error handler to prevent unhandled promise rejections
           // The error will still be caught by Promise.allSettled in completePostController
           p.catch(err => {
-            webserverLog.error(
-              `[multipartStream] Unhandled error in listener for Part ${partCount}:`,
+            multipartStreamLog.error(
+              `Unhandled error in listener for Part ${partCount}:`,
               err.message || String(err)
             );
             if (onStreamError) onStreamError(err, fileInfo);
           });
           req.uploadListenerPromises.push(p);
-          webserverLog.debug(
-            `[multipartStream] Part ${partCount} added to uploadListenerPromises (total: ${req.uploadListenerPromises.length})`
+          multipartStreamLog.debug(
+            `Part ${partCount} added to uploadListenerPromises (total: ${req.uploadListenerPromises.length})`
           );
         } catch (err) {
           if (onStreamError) onStreamError(err, fileInfo);
@@ -322,8 +324,8 @@ export function multipartStream(opts) {
         }
 
         req.uploadStreams.push({ fileInfo, stream: readBufferStream });
-        webserverLog.debug(
-          `[multipartStream] Part ${partCount} added to uploadStreams (total: ${req.uploadStreams.length})`
+        multipartStreamLog.debug(
+          `Part ${partCount} added to uploadStreams (total: ${req.uploadStreams.length})`
         );
 
         // Create a closure-scoped variable to track bytes for this specific part
@@ -381,7 +383,7 @@ export function multipartStream(opts) {
 
         const endHandler = () => {
           if (aborted) {
-            webserverLog.debug('Setting file complete (aborted)');
+            multipartStreamLog.debug('Setting file complete (aborted)');
             readBufferStream.setComplete();
             completedParts += 1;
             checkAllPartsComplete();
@@ -392,11 +394,11 @@ export function multipartStream(opts) {
           part.removeListener('end', endHandler);
           try {
             // Mark this part's buffer stream as complete
-            webserverLog.debug('Setting file complete');
+            multipartStreamLog.debug('Setting file complete');
             readBufferStream.setComplete();
             completedParts += 1;
-            webserverLog.debug(
-              `[multipartStream] Part ${partCount} completed. Completed: ${completedParts}/${partCount}`
+            multipartStreamLog.debug(
+              `Part ${partCount} completed. Completed: ${completedParts}/${partCount}`
             );
             checkAllPartsComplete();
           } catch (err) {
@@ -430,7 +432,7 @@ export function multipartStream(opts) {
 
       // If no parts were detected, proceed immediately when Dicer finishes
       if (dicerFinished && partCount === 0) {
-        webserverLog.debug(`[multipartStream] Dicer finished with no parts detected`);
+        multipartStreamLog.debug(`Dicer finished with no parts detected`);
         nextCalled = true;
         next();
         return;
@@ -438,24 +440,24 @@ export function multipartStream(opts) {
 
       // Only proceed if Dicer has finished parsing AND all parts have completed
       if (dicerFinished && completedParts >= partCount && partCount > 0) {
-        webserverLog.debug(
-          `[multipartStream] All parts completed. Total parts: ${partCount}, Completed: ${completedParts}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`
+        multipartStreamLog.debug(
+          `All parts completed. Total parts: ${partCount}, Completed: ${completedParts}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`
         );
 
         // Wait for all listener promises to complete before calling next()
         // This ensures streams are fully processed and not deallocated prematurely
         if (req.uploadListenerPromises && req.uploadListenerPromises.length > 0) {
           try {
-            webserverLog.debug(
-              `[multipartStream] Waiting for ${req.uploadListenerPromises.length} listener promise(s) to complete...`
+            multipartStreamLog.debug(
+              `Waiting for ${req.uploadListenerPromises.length} listener promise(s) to complete...`
             );
             await Promise.allSettled(req.uploadListenerPromises);
-            webserverLog.debug(`[multipartStream] All listener promises completed`);
+            multipartStreamLog.debug(`All listener promises completed`);
           } catch (err) {
             // Errors in individual promises are handled by completePostController
             // We just need to wait for them to finish
-            webserverLog.warn(
-              `[multipartStream] Some listener promises had errors (will be handled by completePostController)`
+            multipartStreamLog.warn(
+              `Some listener promises had errors (will be handled by completePostController)`
             );
           }
         }
@@ -472,8 +474,8 @@ export function multipartStream(opts) {
     dicer.on('finish', () => {
       if (aborted) return;
       dicerFinished = true;
-      webserverLog.debug(
-        `[multipartStream] Dicer finished parsing. Total parts: ${partCount}, Completed: ${completedParts}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`
+      multipartStreamLog.debug(
+        `Dicer finished parsing. Total parts: ${partCount}, Completed: ${completedParts}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`
       );
       // Check if all parts have already completed (might happen if parts finish before Dicer finishes)
       checkAllPartsComplete();

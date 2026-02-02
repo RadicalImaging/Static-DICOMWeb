@@ -19,7 +19,7 @@ const { createDicomwebLog } = logger;
  */
 export async function stowMain(fileNames, options = {}) {
     const { url, headers = {}, maxGroupSize = 10 * 1024 * 1024, sendAsSingleFiles = false, xmlResponse = false } = options; // Default 10MB
-    
+
     if (!url) {
         throw new Error('url option is required');
     }
@@ -79,9 +79,9 @@ export async function stowMain(fileNames, options = {}) {
         currentGroupSize = 0;
     };
 
-    await dirScanner(fileNames, { 
-        ...options, 
-        recursive: true, 
+    await dirScanner(fileNames, {
+        ...options,
+        recursive: true,
         callback: async (filename) => {
             try {
                 const stats = fs.statSync(filename);
@@ -96,7 +96,7 @@ export async function stowMain(fileNames, options = {}) {
                 // Add file to current group
                 fileGroup.push({ filePath: filename, fileSize });
                 currentGroupSize += fileSize;
-                
+
                 // If sendAsSingleFiles is true, flush after each file (group of size 1)
                 if (sendAsSingleFiles) {
                     await flushGroup();
@@ -112,9 +112,9 @@ export async function stowMain(fileNames, options = {}) {
     // Flush any remaining files in the group
     await flushGroup();
 
-    createDicomwebLog.info(`\nStorage complete: ${results.success} succeeded, ${results.failed} failed`);
+    createDicomwebLog.info(`Storage complete: ${results.success} succeeded, ${results.failed} failed`);
     if (results.errors.length > 0) {
-        createDicomwebLog.info('\nErrors:');
+        createDicomwebLog.info('Errors:');
         results.errors.forEach(({ file, error }) => {
             createDicomwebLog.info(`  ${file}: ${error}`);
         });
@@ -137,10 +137,10 @@ export async function stowFiles(files, endpointUrl, additionalHeaders = {}, xmlR
 
     const boundary = `StaticWadoBoundary${randomUUID()}`;
     const contentType = `multipart/related; type="application/dicom"; boundary=${boundary}`;
-    
+
     // Create streaming multipart body with multiple files
     const { bodyStream, contentLength } = createMultipartBodyStreamMultiple(files, boundary);
-    
+
     // Prepare headers
     const requestHeaders = {
         'Content-Type': contentType,
