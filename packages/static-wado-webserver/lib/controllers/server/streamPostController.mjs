@@ -135,7 +135,7 @@ export function streamPostController(params) {
   const maxUnsettledStreamWrites = params.maxUnsettledStreamWrites ?? 25;
   const backPressureTimeoutMs = params.backPressureTimeoutMs ?? 5000;
   const backpressureWaitMs = params.backpressureWaitMs ?? 1000;
-  const backpressureMaxBytes = params.backpressureMaxBytes ?? 512 * 1024;
+  const backpressureMaxBytes = params.backpressureMaxBytes ?? 1028 * 1024;
 
   return multipartStream({
     beforeProcessPart: async req => {

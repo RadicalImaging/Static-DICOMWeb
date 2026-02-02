@@ -42,7 +42,7 @@ export class TrackableReadBufferStream extends ReadBufferStream {
     this._livelockDetectMs =
       options.livelockDetectMs ?? (Number.isFinite(envMs) ? envMs : DEFAULT_LIVELOCK_DETECT_MS);
 
-    this._backpressureMaxBytes = options.backpressureMaxBytes ?? 512 * 1024;
+    this._backpressureMaxBytes = options.backpressureMaxBytes ?? 1024 * 1024;
     this._streamWritePromiseTracker = options.streamWritePromiseTracker ?? null;
     this._streamWriteLimit = options.streamWriteLimit ?? 25;
     this._backpressureWaitMs = options.backpressureWaitMs ?? 1000;
@@ -104,7 +104,7 @@ export class TrackableReadBufferStream extends ReadBufferStream {
     if (sizeTooBig) {
       await sleep(waitMs);
     }
-    await tracker?.limitUnsettled(limit, waitMs);
+    await tracker?.limitUnsettled(limit, waitMs * 10);
   }
 
   /**
