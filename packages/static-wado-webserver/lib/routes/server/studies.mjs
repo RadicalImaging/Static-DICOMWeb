@@ -9,13 +9,14 @@ import {
   otherJsonMap,
   thumbnailMap,
   multipartIndexMap,
-  seriesSingleMap,
 } from '../../adapters/requestAdapters.mjs';
 import {
   streamPostController as postController,
   completePostController,
 } from '../../controllers/server/streamPostController.mjs';
 import { studyQueryController } from '../../controllers/server/indexOnDemandController.mjs';
+import { seriesQueryController } from '../../controllers/server/seriesQueryController.mjs';
+import { seriesMetadataQueryController } from '../../controllers/server/seriesMetadataQueryController.mjs';
 import { defaultNotFoundController as notFoundController } from '../../controllers/server/notFoundControllers.mjs';
 import { defaultGetProxyController } from '../../controllers/server/proxyControllers.mjs';
 import {
@@ -58,8 +59,8 @@ export default function setRoutes(routerExpress, params, dir, hashStudyUidPath) 
   });
 
   // Study and Series query have custom endpoints to retrieve single-UID response
-  routerExpress.get('/studies', studyQueryController(dir, params));
-  routerExpress.get('/studies/:studyUID/series', seriesSingleMap);
+  routerExpress.get('/studies', studyQueryController(dir, { ...params, hashStudyUidPath }));
+  routerExpress.get('/studies/:studyUID/series', seriesQueryController(dir, params));
 
   routerExpress.get(
     [
@@ -107,9 +108,12 @@ export default function setRoutes(routerExpress, params, dir, hashStudyUidPath) 
 
   routerExpress.get('/studies/:studyUID/series/:seriesUID/instances/:sopUID', dicomMap);
   routerExpress.get(
+    '/studies/:studyUID/series/:seriesUID/metadata',
+    seriesMetadataQueryController(dir, params)
+  );
+  routerExpress.get(
     [
       '/studies/:studyUID/series/metadata',
-      '/studies/:studyUID/series/:seriesUID/metadata',
       '/studies/:studyUID/metadataTree.json',
       '/:ae/studies/:studyUID/metadataTree.json',
     ],

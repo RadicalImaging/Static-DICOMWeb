@@ -1,7 +1,12 @@
 import path from 'path';
 import fs from 'fs';
-import { handleHomeRelative } from '@radicalimaging/static-wado-util';
-import { indexMain } from '@radicalimaging/create-dicomweb';
+import { handleHomeRelative, getStudyUIDPathAndSubPath } from '@radicalimaging/static-wado-util';
+import {
+  indexMain,
+  studyMain,
+  seriesMain,
+  FileDicomWebReader,
+} from '@radicalimaging/create-dicomweb';
 import { studySingleMap, getDicomKey } from '../../adapters/requestAdapters.mjs';
 
 const STUDIES_INDEX_FILE = path.join('studies', 'index.json.gz');
@@ -47,24 +52,84 @@ export async function ensureStudiesIndex(dir, params = {}) {
 }
 
 /**
+ * Ensures the study index exists for a single study. Uses the reader for directory
+ * and existence checks so it can work with non-file storage when a different reader
+ * is provided. Before summarizing the study, ensures every series directory has a
+ * series index (series-singleton.json); calls seriesMain for any series that does
+ * not. Then calls studyMain.
+ *
+ * @param {string} root - Resolved DICOMweb root directory (baseDir for the reader)
+ * @param {string} studyUID - Study Instance UID
+ * @param {Object} [options] - Options
+ * @param {import('@radicalimaging/create-dicomweb').FileDicomWebReader} [options.reader] - Reader instance (defaults to new FileDicomWebReader(root))
+ * @returns {Promise<void>}
+ */
+async function ensureSingleStudyIndex(root, studyUID, options = {}) {
+  const reader = options.reader ?? new FileDicomWebReader(root);
+
+  if (reader.studyFileExists(studyUID, 'index.json')) {
+    return;
+  }
+
+  const seriesPath = reader.getStudyPath(studyUID, { path: 'series' });
+  const seriesEntries = await reader.scanDirectory(seriesPath, {
+    withFileTypes: true,
+  });
+
+  for (const entry of seriesEntries) {
+    const isDir =
+      entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory();
+    if (!isDir) continue;
+    const seriesUID = entry.name;
+    if (!reader.seriesFileExists(studyUID, seriesUID, 'series-singleton.json')) {
+      await seriesMain(studyUID, { dicomdir: root, seriesUid: seriesUID });
+    }
+  }
+
+  await studyMain(studyUID, { dicomdir: root });
+}
+
+/**
  * studyQueryController: when the request is for the studies index
  * (no StudyInstanceUID in query) and the index file does not exist, calls indexMain
- * to create it, then invokes studySingleMap.
+ * to create it; when StudyInstanceUID is in the query and that study's index does
+ * not exist, calls studyMain to create it. Then invokes studySingleMap.
  *
  * @param {string} dir - Static files directory path (DICOMweb root)
- * @param {object} params - Server params (rootDir, createIndexOnDemand)
+ * @param {object} params - Server params (rootDir, createIndexOnDemand, hashStudyUidPath)
  * @returns {function} Express middleware (req, res, next)
  */
 export function studyQueryController(dir, params = {}) {
   return async function studyQueryControllerHandler(req, res, next) {
+    const root = handleHomeRelative(dir ?? params.rootDir);
     const studyUID = getDicomKey('0020000d', 'studyinstanceuid', req.query);
-    if (!studyUID) {
-      try {
+    const createOnDemand = params.createIndexOnDemand !== false;
+    const hashStudyUidPath = params.hashStudyUidPath === true;
+
+    try {
+      if (studyUID) {
+        // Single-study case: ensure this study's index exists (series indices first, then study)
+        if (createOnDemand && root) {
+          await ensureSingleStudyIndex(root, studyUID);
+        }
+        // Point staticWadoPath at the study so studySingleMap serves study/index.json.gz
+        if (hashStudyUidPath) {
+          const { path: hashPath = '', subpath: hashSubpath = '' } =
+            getStudyUIDPathAndSubPath(studyUID);
+          const hashPrefix = [hashPath, hashSubpath].filter(Boolean).join('/');
+          req.staticWadoPath = hashPrefix
+            ? `/studies/${hashPrefix}/${studyUID}`
+            : `/studies/${studyUID}`;
+        } else {
+          req.staticWadoPath = `/studies/${studyUID}`;
+        }
+      } else {
+        // Studies list: ensure studies index exists
         await ensureStudiesIndex(dir, params);
-      } catch (err) {
-        console.error('indexOnDemand: failed to create studies index:', err?.message || err);
-        return next(err);
       }
+    } catch (err) {
+      console.error('indexOnDemand: failed to create studies index:', err?.message || err);
+      return next(err);
     }
     studySingleMap(req, res, next);
   };

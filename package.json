@@ -51,6 +51,7 @@
     "test": "lerna run test --parallel --stream",
     "test:ci": "yarn run test",
     "build": "lerna run build --stream",
+    "build:serial": "lerna run build --stream --concurrency 1",
     "build:esm": "lerna run build:esm --stream",
     "build:ci": "yarn run build",
     "clean": "lerna run clean --stream",
