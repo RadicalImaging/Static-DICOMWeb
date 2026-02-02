@@ -12,6 +12,15 @@ const levelNames = {
   error: 'ERROR',
 };
 
+/** Global logger options */
+const globalOptions = {
+  /* If true, output the log message level in all log messages */
+  showLevel: false,
+
+  /* If true, output the logger name in all log messages */
+  showName: false,
+};
+
 /**
  * Wraps a loglevel logger to optionally prepend level and/or name prefixes to messages.
  * When showLevel is true, messages will be prefixed with [LEVEL], e.g., "[DEBUG] message"
@@ -23,22 +32,18 @@ const levelNames = {
  *
  * @param {object} baseLogger - The loglevel logger to wrap
  * @param {object} options - Configuration options
- * @param {boolean} options.showLevel - Whether to show level prefixes (default: false)
- * @param {boolean} options.showName - Whether to show logger name (default: false)
  * @param {string} options.name - Logger name to display (defaults to baseLogger.name)
  * @param {object} options.parent - Parent wrapper for level inheritance (default: null)
  * @returns {object} Wrapped logger with showLevel, showName, and level inheritance
  */
 function wrapLogger(baseLogger, options = {}) {
-  const { showLevel = false, showName = false, name = baseLogger.name, parent = null } = options;
+  const { name = baseLogger.name, parent = null } = options;
 
   const wrapper = {
     _baseLogger: baseLogger,
     _parent: parent,
     _children: [], // WeakRefs to child wrappers
     _hasExplicitLevel: false,
-    showLevel,
-    showName,
     name,
   };
 
@@ -47,12 +52,12 @@ function wrapLogger(baseLogger, options = {}) {
 
   for (const method of logMethods) {
     wrapper[method] = function (...args) {
-      if ((this.showLevel || this.showName) && args.length > 0) {
+      if ((globalOptions.showLevel || globalOptions.showName) && args.length > 0) {
         let prefix = '';
-        if (this.showLevel) {
+        if (globalOptions.showLevel) {
           prefix += `[${levelNames[method]}]`;
         }
-        if (this.showName && this.name) {
+        if (globalOptions.showName && this.name) {
           prefix += `${prefix ? ' ' : ''}[${this.name}]`;
         }
         if (prefix) {
@@ -121,13 +126,11 @@ function wrapLogger(baseLogger, options = {}) {
     }
   };
 
-  // Support getLogger for child loggers - inherit showLevel and showName settings
+  // Support getLogger for child loggers
   wrapper.getLogger = (...names) => {
     const childName = `${wrapper.name}.${names.join('.')}`;
     const childBaseLogger = loglevel.getLogger(childName);
     const childWrapper = wrapLogger(childBaseLogger, {
-      showLevel: wrapper.showLevel,
-      showName: wrapper.showName,
       name: childName,
       parent: wrapper,
     });
@@ -163,21 +166,15 @@ function getLogger(...name) {
 }
 
 module.exports.getLogger = getLogger;
+module.exports.globalOptions = globalOptions;
 
 const staticDicomWebLog = getLogger('staticdicomweb');
 
 module.exports.staticDicomWebLog = staticDicomWebLog;
 module.exports.creatorLog = staticDicomWebLog.getLogger('creator');
 module.exports.utilLog = staticDicomWebLog.getLogger('util');
-// createDicomwebLog and webserverLog have showLevel and showName enabled by default
 module.exports.createDicomwebLog = staticDicomWebLog.getLogger('createdicomweb');
 module.exports.webserverLog = staticDicomWebLog.getLogger('webserver');
-
-module.exports.createDicomwebLog.showLevel = true;
-module.exports.webserverLog.showLevel = true;
-
-module.exports.createDicomwebLog.showName = true;
-module.exports.webserverLog.showName = true;
 
 /**
  * Dicom issue log is for reporting inconsistencies and issues with DICOM logging
