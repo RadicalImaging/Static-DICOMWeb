@@ -30,6 +30,8 @@ import uids from './uids';
 import { compareTo } from './compareTo';
 import { sortStudies, compareStudies, compareStudyDate, compareStudyTime, compareStudyUID } from './sortStudies.mjs';
 import { createPromiseTracker } from './createPromiseTracker.mjs';
+import { parseTimeoutToMs } from './parseTimeoutToMs';
+import { parseSizeToBytes } from './parseSizeToBytes';
 
 export {
   extractMultipart,
@@ -65,4 +67,6 @@ export {
   compareStudyTime,
   compareStudyUID,
   createPromiseTracker,
+  parseTimeoutToMs,
+  parseSizeToBytes,
 };

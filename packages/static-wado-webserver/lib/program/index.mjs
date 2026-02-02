@@ -1,4 +1,5 @@
 import * as staticWadoUtil from '@radicalimaging/static-wado-util';
+const { parseTimeoutToMs } = staticWadoUtil;
 import dicomWebServerConfig from '../dicomWebServerConfig.mjs';
 import DicomWebServer from '../index.mjs';
 import { installFromEnv } from '../util/asyncStackDump.mjs';
@@ -65,6 +66,12 @@ async function configureProgram(defaults = dicomWebServerConfig) {
       description: 'Sets the client path to listen to',
       defaultValue: '/',
     },
+    {
+      key: '--timeout <value>',
+      description:
+        'HTTP server request timeout (e.g. 30m, 1h, 3600s). Use 0 to disable. Default: 30m',
+      defaultValue: '30m',
+    },
   ];
 
   const configuration = {
@@ -82,6 +89,9 @@ async function configureProgram(defaults = dicomWebServerConfig) {
   program.dicomWebServerConfig = Object.assign(Object.create(defaults), opts);
   program.dicomWebServerConfig.rootDir = opts.dir;
   program.dicomWebServerConfig.port = opts.port || 5000;
+  const timeoutStr = opts.timeout ?? '30m';
+  program.dicomWebServerConfig.serverTimeoutMs =
+    timeoutStr === '0' ? 0 : parseTimeoutToMs(timeoutStr);
 
   program.main = main;
 

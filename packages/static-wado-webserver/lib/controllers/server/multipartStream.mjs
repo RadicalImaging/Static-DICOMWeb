@@ -90,6 +90,9 @@ export function multipartStream(opts) {
       if (aborted) return;
       aborted = true;
 
+      const reason = err?.message || String(err);
+      console.warn(`[multipartStream] Stow request aborted:`, reason);
+
       // Stop reading more request data
       try {
         req.unpipe(dicer);
@@ -297,6 +300,7 @@ export function multipartStream(opts) {
               `[multipartStream] Unhandled error in listener for Part ${partCount}:`,
               err.message || String(err)
             );
+            readBufferStream.setComplete();
             if (onStreamError) onStreamError(err, fileInfo);
           });
           req.uploadListenerPromises.push(p);
@@ -304,6 +308,7 @@ export function multipartStream(opts) {
             `[multipartStream] Part ${partCount} added to uploadListenerPromises (total: ${req.uploadListenerPromises.length})`
           );
         } catch (err) {
+          readBufferStream.setComplete();
           if (onStreamError) onStreamError(err, fileInfo);
           part.resume();
           return abort(err);
@@ -321,6 +326,8 @@ export function multipartStream(opts) {
         // These handlers are scoped to this part instance only
         const dataHandler = chunk => {
           if (aborted) return;
+          // If stream was marked complete (e.g. listener threw), discard further data and skip backpressure
+          if (readBufferStream.isComplete) return;
 
           partBytes += chunk.length;
           totalBytes += chunk.length;
@@ -364,11 +371,13 @@ export function multipartStream(opts) {
             part.removeListener('data', dataHandler);
             return abort(err);
           }
-        };
+        };;
 
         const endHandler = () => {
           if (aborted) {
-            console.noQuiet('Setting file complete (aborted)');
+            console.warn(
+              `[multipartStream] Stow item aborted: Part ${partCount} (${fileInfo?.fieldname ?? fileId}) - setting stream complete`
+            );
             readBufferStream.setComplete();
             completedParts += 1;
             checkAllPartsComplete();
