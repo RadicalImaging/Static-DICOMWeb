@@ -112,7 +112,7 @@ export class StreamInfo {
         this.fileStream.destroy(error);
       }
     } catch (destroyError) {
-      console.warn(`Error destroying stream ${this.streamKey ?? 'unknown'}:`, destroyError);
+      console.warn(`Error destroying stream ${this.streamKey}:`, destroyError);
     }
   }
 

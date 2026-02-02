@@ -67,7 +67,7 @@ export function createPromiseTracker() {
         clearTimeout(timeoutId);
       };
 
-      const check = () => {
+      const onSettle = () => {
         const count = promises.size;
         if (count < maxUnsettled) {
           cleanup();
@@ -77,11 +77,7 @@ export function createPromiseTracker() {
         return false;
       };
 
-      const onSettle = () => {
-        check();
-      };
-
-      if (check()) return;
+      if (onSettle()) return;
 
       settleCallbacks.add(onSettle);
       timeoutId = setTimeout(() => {

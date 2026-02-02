@@ -76,59 +76,6 @@ export class DicomWebWriter {
   }
 
   /**
-   * Writes to a stream using a writer function, handling errors and cleanup automatically
-   * This method ensures the stream is properly closed and errors are recorded
-   * @param {Object} streamInfo - The stream info object from openStream
-   * @param {Function} writer - Async or sync function that writes to streamInfo.stream
-   * @returns {Promise<string|undefined>} - Resolves with the relative path when writing completes successfully, or undefined if an error occurred (error is recorded)
-   */
-  writeToStream(streamInfo, writer) {
-    if (!streamInfo || !streamInfo.streamKey) {
-      throw new Error('Invalid streamInfo: must have streamKey property');
-    }
-    if (typeof writer !== 'function') {
-      throw new Error('writer must be a function');
-    }
-
-    try {
-      // Create promise and attach catch handler IMMEDIATELY before any async work
-      // This ensures the catch handler is always in place to prevent unhandled rejections
-      const promise = this._writeToStream(streamInfo, writer);
-
-      // Wrap in Promise.resolve to ensure we have full control and catch handler is attached
-      // This promise will NEVER reject unhandled - it always resolves (with result or undefined)
-      return Promise.resolve(promise).catch(error => {
-        // Error should already be recorded internally by _writeToStream, but catch
-        // any unexpected rejections to prevent process termination
-        const streamKey = streamInfo?.streamKey || 'unknown';
-        if (!this.streamErrors.has(streamKey)) {
-          // Only log if error wasn't already recorded (shouldn't happen, but safety net)
-          console.warn(`Unexpected error in writeToStream for ${streamKey}:`, error.message);
-          try {
-            this.recordStreamError(streamKey, error, true);
-          } catch (recordError) {
-            console.error(`Error in recordStreamError:`, recordError);
-          }
-        }
-        // Always return undefined to indicate failure (error is already recorded)
-        // This ensures the promise resolves (never rejects), preventing unhandled rejections
-        return undefined;
-      });
-    } catch (syncError) {
-      // Handle any synchronous errors (shouldn't happen since _writeToStream is async, but safety net)
-      const streamKey = streamInfo?.streamKey || 'unknown';
-      console.warn(`Synchronous error in writeToStream for ${streamKey}:`, syncError.message);
-      try {
-        this.recordStreamError(streamKey, syncError, true);
-      } catch (recordError) {
-        console.error(`Error in recordStreamError:`, recordError);
-      }
-      // Return a resolved promise with undefined to indicate failure
-      return Promise.resolve(undefined);
-    }
-  }
-
-  /**
    * Opens a stream at a given path (concrete implementation)
    * @param {string} path - The relative path within baseDir (e.g., 'studies/{studyUID}')
    * @param {string} filename - The filename to write
@@ -138,8 +85,7 @@ export class DicomWebWriter {
    * @param {boolean} options.multipart - Whether to wrap as multipart/related
    * @param {string} options.boundary - Multipart boundary (required if multipart=true)
    * @param {string} options.contentType - Content type for multipart part
-   * @param {Function} options.frameWriter - Optional writer function that will be called with the stream and streamInfo. If provided, writeToStream will be called automatically.
-   * @returns {Object} - Stream info object with promise property (or promise from writeToStream if frameWriter is provided)
+   * @returns {Object} - Stream info object with promise property
    */
   openStream(path, filename, options = {}) {
     // Handle path options - append additional path if provided
@@ -188,16 +134,6 @@ export class DicomWebWriter {
 
     const streamInfo = new StreamInfo(this, data);
     this.openStreams.set(streamKey, streamInfo);
-
-    // If frameWriter is provided, automatically handle writing and cleanup
-    if (options.frameWriter) {
-      // Call writeToStream which will handle writing, closing, and error handling
-      const writePromise = this.writeToStream(streamInfo, options.frameWriter);
-      // Replace the promise in streamInfo with the writeToStream promise
-      streamInfo.promise = writePromise;
-      // Return streamInfo with the write promise
-      return streamInfo;
-    }
 
     return streamInfo;
   }
@@ -412,7 +348,7 @@ export class DicomWebWriter {
    * This terminates the stream handling and marks it as failed
    * @param {string} streamKey - The key identifying the stream
    * @param {Error} error - The error that occurred
-   * @param {boolean} skipPromiseReject - If true, don't reject the promise (used when error is already handled by writeToStream)
+   * @param {boolean} skipPromiseReject - If true, don't reject the promise (used when error is already handled elsewhere)
    */
   recordStreamError(streamKey, error, skipPromiseReject = false) {
     const streamInfo = this.openStreams.get(streamKey);
@@ -430,12 +366,7 @@ export class DicomWebWriter {
     streamInfo.destroyStreams(error);
 
     // Only reject the promise if it hasn't been replaced and we're not skipping rejection
-    // When called from _writeToStream, the promise is handled by writeToStream's catch handler,
-    // so we don't need to reject the original promise (which could cause unhandled rejection)
     if (!skipPromiseReject && streamInfo._reject) {
-      // Check if the promise has been replaced (if promise !== the original completion promise)
-      // If it has been replaced, the new promise is already handled by writeToStream
-      const originalPromise = streamInfo.promise;
       try {
         streamInfo._reject(error);
       } catch (rejectError) {
