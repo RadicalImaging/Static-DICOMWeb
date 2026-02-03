@@ -42,11 +42,18 @@ export class TrackableReadBufferStream extends ReadBufferStream {
     this._livelockDetectMs =
       options.livelockDetectMs ?? (Number.isFinite(envMs) ? envMs : DEFAULT_LIVELOCK_DETECT_MS);
 
-    this._backpressureMaxBytes = options.backpressureMaxBytes ?? 1024 * 1024;
+    this._backpressureMaxBytes = options.backpressureMaxBytes ?? 128 * 1024;
     this._streamWritePromiseTracker = options.streamWritePromiseTracker ?? null;
     this._streamWriteLimit = options.streamWriteLimit ?? 25;
     this._backpressureWaitMs = options.backpressureWaitMs ?? 1000;
     this._backPressureTimeoutMs = options.backPressureTimeoutMs ?? 5000;
+
+    // Log tracker ID for debugging
+    if (this._streamWritePromiseTracker) {
+      console.verbose(
+        `[TrackableReadBufferStream] created with tracker ${this._streamWritePromiseTracker.getTrackerId()}`
+      );
+    }
   }
 
   /**
@@ -60,21 +67,23 @@ export class TrackableReadBufferStream extends ReadBufferStream {
     const sizeThreshold = Math.max(this._backpressureMaxBytes, this.maxPendingEnsureAvailableBytes);
     const tracker = this._streamWritePromiseTracker;
     if (bytesBeyondOffset > sizeThreshold) {
-      console.noQuiet(
+      console.verbose(
         '[TrackableReadBufferStream] shouldPause',
         bytesBeyondOffset - sizeThreshold,
         Math.floor(this.offset / 1024),
-        'kb, writes:',
+        'kb, tracker:',
+        tracker?.getTrackerId(),
+        'writes:',
         tracker?.getUnsettledCount(),
-        tracker?.getSettledCount?.()
+        tracker?.getSettledCount()
       );
       return true;
     }
     if (tracker && this._streamWriteLimit) {
-      const unsettled = tracker.getUnsettledCount?.() ?? 0;
+      const unsettled = tracker.getUnsettledCount();
       if (unsettled > this._streamWriteLimit) {
-        const settled = tracker.getSettledCount?.() ?? 0;
-        console.noQuiet(
+        const settled = tracker.getSettledCount();
+        console.verbose(
           `[TrackableReadBufferStream] shouldPause: true (streamWrite unsettled=${unsettled} > limit=${this._streamWriteLimit}, settled=${settled})`
         );
         return true;
@@ -101,10 +110,26 @@ export class TrackableReadBufferStream extends ReadBufferStream {
     const timeoutMs = this._backPressureTimeoutMs;
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+    if (tracker?.getUnsettledCount() > limit) {
+      console.noQuiet(
+        '[TrackableReadBufferStream] waitForBackPressure: tracker',
+        tracker.getTrackerId(),
+        'unsettled',
+        tracker.getUnsettledCount(),
+        'settled',
+        tracker.getSettledCount(),
+        'limit',
+        limit,
+        'timeoutMs',
+        waitMs * 10
+      );
+      await tracker.limitUnsettled(limit, waitMs * 10);
+      return;
+    }
     if (sizeTooBig) {
+      console.verbose('[TrackableReadBufferStream] waitForBackPressure: sizeTooBig');
       await sleep(waitMs);
     }
-    await tracker?.limitUnsettled(limit, waitMs * 10);
   }
 
   /**

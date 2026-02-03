@@ -90,9 +90,6 @@ export function multipartStream(opts) {
       if (aborted) return;
       aborted = true;
 
-      const reason = err?.message || String(err);
-      console.warn(`[multipartStream] Stow request aborted:`, reason);
-
       // Stop reading more request data
       try {
         req.unpipe(dicer);
@@ -118,7 +115,7 @@ export function multipartStream(opts) {
 
       if (limits?.parts && partCount > limits.parts) {
         part.resume();
-        return abort(Object.assign(new Error('Too many multipart parts'), { statusCode: 413 }));
+        return;
       }
 
       // Dicer's PartStream doesn't expose headers as a property
@@ -302,6 +299,9 @@ export function multipartStream(opts) {
             );
             readBufferStream.setComplete();
             if (onStreamError) onStreamError(err, fileInfo);
+            // Resume part so it drains and emits 'end' – otherwise a paused part never completes
+            // and blocks subsequent parts from being processed (e.g. good file after bad one).
+            part.resume();
           });
           req.uploadListenerPromises.push(p);
           console.warn(
@@ -311,7 +311,6 @@ export function multipartStream(opts) {
           readBufferStream.setComplete();
           if (onStreamError) onStreamError(err, fileInfo);
           part.resume();
-          return abort(err);
         }
 
         req.uploadStreams.push({ fileInfo, stream: readBufferStream });
@@ -326,8 +325,12 @@ export function multipartStream(opts) {
         // These handlers are scoped to this part instance only
         const dataHandler = chunk => {
           if (aborted) return;
-          // If stream was marked complete (e.g. listener threw), discard further data and skip backpressure
-          if (readBufferStream.isComplete) return;
+          // If stream was marked complete (e.g. listener threw), discard further data and skip backpressure.
+          // Explicitly resume so the part drains (Dicer needs this to parse the next boundary and emit Part 2+).
+          if (readBufferStream.isComplete) {
+            part.resume();
+            return;
+          }
 
           partBytes += chunk.length;
           totalBytes += chunk.length;
@@ -335,17 +338,19 @@ export function multipartStream(opts) {
           if (limits?.fileSize && partBytes > limits.fileSize) {
             const err = Object.assign(new Error('File too large'), { statusCode: 413 });
             if (onStreamError) onStreamError(err, fileInfo);
-            part.pause();
+            readBufferStream.setComplete();
             part.removeListener('data', dataHandler);
-            return abort(err);
+            part.resume();
+            return;
           }
 
           if (limits?.totalSize && totalBytes > limits.totalSize) {
             const err = Object.assign(new Error('Request too large'), { statusCode: 413 });
             if (onStreamError) onStreamError(err, fileInfo);
-            part.pause();
+            readBufferStream.setComplete();
             part.removeListener('data', dataHandler);
-            return abort(err);
+            part.resume();
+            return;
           }
 
           try {
@@ -367,22 +372,14 @@ export function multipartStream(opts) {
             }
           } catch (err) {
             if (onStreamError) onStreamError(err, fileInfo);
-            part.pause();
+            readBufferStream.setComplete();
             part.removeListener('data', dataHandler);
-            return abort(err);
+            part.resume();
+            return;
           }
         };;
 
         const endHandler = () => {
-          if (aborted) {
-            console.warn(
-              `[multipartStream] Stow item aborted: Part ${partCount} (${fileInfo?.fieldname ?? fileId}) - setting stream complete`
-            );
-            readBufferStream.setComplete();
-            completedParts += 1;
-            checkAllPartsComplete();
-            return;
-          }
           // Clean up event listeners for this part
           part.removeListener('data', dataHandler);
           part.removeListener('end', endHandler);
@@ -403,6 +400,7 @@ export function multipartStream(opts) {
         };
 
         const errorHandler = err => {
+          console.warn('errorHandler:', err);
           // Clean up event listeners for this part
           part.removeListener('data', dataHandler);
           part.removeListener('end', endHandler);

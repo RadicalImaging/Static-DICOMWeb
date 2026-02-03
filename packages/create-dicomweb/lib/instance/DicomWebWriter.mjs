@@ -30,6 +30,13 @@ export class DicomWebWriter {
     this.streamWritePromiseTracker = options.streamWritePromiseTracker ?? null;
     this.openStreams = new Map(); // key -> stream info
     this.streamErrors = new Map(); // key -> error
+
+    // Log tracker ID for debugging
+    if (this.streamWritePromiseTracker) {
+      console.verbose(
+        `[DicomWebWriter] created with tracker ${this.streamWritePromiseTracker.getTrackerId()}`
+      );
+    }
   }
 
   /**
@@ -139,6 +146,9 @@ export class DicomWebWriter {
 
     if (this.streamWritePromiseTracker && streamInfo.promise) {
       this.streamWritePromiseTracker.add(streamInfo.promise);
+      console.verbose(
+        `[DicomWebWriter] added stream promise to tracker ${this.streamWritePromiseTracker.getTrackerId()}: unsettled=${this.streamWritePromiseTracker.getUnsettledCount()} settled=${this.streamWritePromiseTracker.getSettledCount()}`
+      );
     }
 
     return streamInfo;

@@ -134,13 +134,14 @@ export function streamPostController(params) {
   const maxUnsettledReceives = params.maxUnsettledReceives ?? 2;
   const maxUnsettledStreamWrites = params.maxUnsettledStreamWrites ?? 25;
   const backPressureTimeoutMs = params.backPressureTimeoutMs ?? 5000;
-  const backpressureWaitMs = params.backpressureWaitMs ?? 1000;
-  const backpressureMaxBytes = params.backpressureMaxBytes ?? 1028 * 1024;
+  const backpressureWaitMs = params.backpressureWaitMs ?? 100;
+  const backpressureMaxBytes = params.backpressureMaxBytes ?? 128 * 1024;
 
   return multipartStream({
     beforeProcessPart: async req => {
-      req.uploadPromiseTracker = req.uploadPromiseTracker ?? createPromiseTracker();
-      req.streamWritePromiseTracker = req.streamWritePromiseTracker ?? createPromiseTracker();
+      req.uploadPromiseTracker = req.uploadPromiseTracker ?? createPromiseTracker('partTracker');
+      req.streamWritePromiseTracker =
+        req.streamWritePromiseTracker ?? createPromiseTracker('fileTracker');
 
       const unsettled = await req.uploadPromiseTracker.limitUnsettled(
         maxUnsettledReceives,
@@ -176,7 +177,7 @@ export function streamPostController(params) {
       // You can kick off downstream processing and return a promise.
       // This promise is *not awaited* by middleware.
       console.warn('Processing POST upload:', fileInfo);
-      const tracker = req?.uploadPromiseTracker ?? createPromiseTracker();
+      const tracker = req?.uploadPromiseTracker ?? createPromiseTracker('partTracker');
       if (req) req.uploadPromiseTracker = tracker;
 
       try {
@@ -319,6 +320,16 @@ function createDatasetResponse(files) {
 
     // Create sequence item
     const item = {};
+
+    // Add Content-Location (filename from request) so clients can match response items to uploaded files.
+    // Uses private tag (0009,1001); clients should match by this when ReferencedSOPInstanceUID is absent (e.g. invalid DICOM).
+    const contentLocation = file.fieldname || file.headers?.['content-location'];
+    if (contentLocation) {
+      item['00091001'] = {
+        vr: 'LO',
+        Value: [contentLocation],
+      };
+    }
 
     // Add ReferencedSOPClassUID (00081150) if available
     if (sopClassUID) {

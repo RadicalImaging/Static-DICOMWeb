@@ -190,7 +190,7 @@ export async function stowFiles(
     });
 
     console.verbose('Server response status:', response.status, response.statusText);
-    console.verbose('Server response headers:', Object.fromEntries(response.headers.entries()));
+    console.noQuiet('Server response headers:', Object.fromEntries(response.headers.entries()));
     const responseText = await response.text().catch(() => '');
     if (responseText) {
       console.verbose('Server response body:', responseText);

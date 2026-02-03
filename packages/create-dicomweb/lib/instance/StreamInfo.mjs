@@ -120,6 +120,11 @@ export class StreamInfo {
    */
   destroyStreams(error) {
     this._markClosed();
+    // Reject the completion promise (tracked by streamWritePromiseTracker)
+    if (this._reject && !this._ended) {
+      this._reject(error);
+      this._ended = true;
+    }
     try {
       if (this.stream && typeof this.stream.destroy === 'function') {
         this.stream.destroy(error);
@@ -228,6 +233,10 @@ export class StreamInfo {
     if (this.failed) {
       this._markClosed();
       this._ended = true;
+      // Reject the completion promise (tracked by streamWritePromiseTracker)
+      if (this._reject) {
+        this._reject(this.error);
+      }
       return;
     }
 
@@ -237,6 +246,11 @@ export class StreamInfo {
     if (destroyed) {
       this._markClosed();
       this._ended = true;
+      // Resolve the completion promise (tracked by streamWritePromiseTracker)
+      // Stream was destroyed, but we treat it as complete
+      if (this._resolve) {
+        this._resolve();
+      }
       return;
     }
 
@@ -244,6 +258,16 @@ export class StreamInfo {
       const done = () => {
         this._markClosed();
         this._ended = true;
+        // Resolve the completion promise (tracked by streamWritePromiseTracker)
+        if (this.failed && this._reject) {
+          console.verbose(
+            `[StreamInfo] rejecting promise for ${this.streamKey ?? 'unknown'}: ${this.error?.message}`
+          );
+          this._reject(this.error);
+        } else if (this._resolve) {
+          console.verbose(`[StreamInfo] resolving promise for ${this.streamKey ?? 'unknown'}`);
+          this._resolve();
+        }
         resolve();
       };
 
