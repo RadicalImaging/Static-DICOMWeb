@@ -22,9 +22,7 @@ const globalOptions = {
 };
 
 /**
- * Wraps a loglevel logger to optionally prepend level and/or name prefixes to messages.
- * When showLevel is true, messages will be prefixed with [LEVEL], e.g., "[DEBUG] message"
- * When showName is true, messages will include logger name, e.g., "[DEBUG] [mylogger] message"
+ * Wraps a loglevel logger to prepend optional perfixes to messages.
  *
  * Supports level inheritance: child loggers automatically inherit their parent's level
  * unless an explicit level has been set on the child via setLevel(). When a parent's
@@ -52,22 +50,12 @@ function wrapLogger(baseLogger, options = {}) {
 
   for (const method of logMethods) {
     wrapper[method] = function (...args) {
-      if ((globalOptions.showLevel || globalOptions.showName) && args.length > 0) {
-        let prefix = '';
-        if (globalOptions.showLevel) {
-          prefix += `[${levelNames[method]}]`;
-        }
+      if (args.length > 0) {
         if (globalOptions.showName && this.name) {
-          prefix += `${prefix ? ' ' : ''}[${this.name}]`;
+          args.unshift(`[${this.name}]`);
         }
-        if (prefix) {
-          // If first arg is a string, prepend the prefix
-          if (typeof args[0] === 'string') {
-            args[0] = `${prefix} ${args[0]}`;
-          } else {
-            // Otherwise, add prefix as first argument
-            args.unshift(prefix);
-          }
+        if (globalOptions.showLevel) {
+          args.unshift(`[${levelNames[method]}]`);
         }
       }
       return baseLogger[method](...args);
@@ -75,14 +63,18 @@ function wrapLogger(baseLogger, options = {}) {
   }
 
   /**
-   * Recursively propagates the given level to this logger and all children.
-   * @param level
-   * @param persist
+   * Remove any children that have been garbage collected.
    */
-  wrapper.propagateLevel = (level, persist) => {
-    baseLogger.setLevel(level, persist);
-    // Propagate to children that don't have explicit levels
+  wrapper.removeStaleChildren = () => {
     wrapper._children = wrapper._children.filter(ref => ref.deref());
+  };
+
+  /**
+   * Recursively propagates the given level to this logger and all children.
+   * @param level {string} the log level to propagate
+   */
+  wrapper.propagateLevel = (level) => {
+    wrapper.removeStaleChildren();
     for (const ref of wrapper._children) {
       ref.deref()?._inheritLevel(level);
     }
@@ -90,12 +82,13 @@ function wrapLogger(baseLogger, options = {}) {
 
   /**
    * Private method called by parent when its level changes.
-   * Only updates level if this logger doesn't have an explicit level set.
+   * Only updates the level if this logger doesn't have an explicit level set.
    * Recursively propagates to children.
    */
   wrapper._inheritLevel = level => {
     if (!wrapper._hasExplicitLevel) {
-      wrapper.propagateLevel(level, false);
+      baseLogger.setLevel(level);
+      wrapper.propagateLevel(level);
     }
   };
 
@@ -105,10 +98,12 @@ function wrapLogger(baseLogger, options = {}) {
   /**
    * Sets the log level for this logger and propagates to children.
    * Marks this logger as having an explicit level (won't inherit from parent).
+   * @param level {string} the log level to set
    */
-  wrapper.setLevel = (level, persist) => {
+  wrapper.setLevel = level => {
     wrapper._hasExplicitLevel = true;
-    wrapper.propagateLevel(level, persist);
+    baseLogger.setLevel(level);
+    wrapper.propagateLevel(level);
   };
 
   wrapper.setDefaultLevel = level => baseLogger.setDefaultLevel(level);
@@ -168,9 +163,7 @@ function getLogger(...name) {
 module.exports.getLogger = getLogger;
 module.exports.globalOptions = globalOptions;
 
-const staticDicomWebLog = getLogger('staticdicomweb');
-
-module.exports.staticDicomWebLog = staticDicomWebLog;
+module.exports.staticDicomWebLog = getLogger('staticdicomweb');
 module.exports.creatorLog = staticDicomWebLog.getLogger('creator');
 module.exports.utilLog = staticDicomWebLog.getLogger('util');
 module.exports.createDicomwebLog = staticDicomWebLog.getLogger('createdicomweb');
