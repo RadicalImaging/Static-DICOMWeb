@@ -1,8 +1,10 @@
 import { v4 as uuid } from 'uuid';
 import { createGzip } from 'zlib';
-import { uids } from '@radicalimaging/static-wado-util';
+import { uids, logger } from '@radicalimaging/static-wado-util';
 import { MultipartStreamWriter } from './MultipartStreamWriter.mjs';
 import { StreamInfo } from './StreamInfo.mjs';
+
+const { createDicomwebLog } = logger;
 
 /**
  * Base class for writing DICOMweb outputs
@@ -103,11 +105,11 @@ export class DicomWebWriter {
         const streamKey = streamInfo?.streamKey || 'unknown';
         if (!this.streamErrors.has(streamKey)) {
           // Only log if error wasn't already recorded (shouldn't happen, but safety net)
-          console.warn(`Unexpected error in writeToStream for ${streamKey}:`, error.message);
+          createDicomwebLog.warn(`Unexpected error in writeToStream for ${streamKey}:`, error.message);
           try {
             this.recordStreamError(streamKey, error, true);
           } catch (recordError) {
-            console.error(`Error in recordStreamError:`, recordError);
+            createDicomwebLog.error(`Error in recordStreamError:`, recordError);
           }
         }
         // Always return undefined to indicate failure (error is already recorded)
@@ -117,11 +119,11 @@ export class DicomWebWriter {
     } catch (syncError) {
       // Handle any synchronous errors (shouldn't happen since _writeToStream is async, but safety net)
       const streamKey = streamInfo?.streamKey || 'unknown';
-      console.warn(`Synchronous error in writeToStream for ${streamKey}:`, syncError.message);
+      createDicomwebLog.warn(`Synchronous error in writeToStream for ${streamKey}:`, syncError.message);
       try {
         this.recordStreamError(streamKey, syncError, true);
       } catch (recordError) {
-        console.error(`Error in recordStreamError:`, recordError);
+        createDicomwebLog.error(`Error in recordStreamError:`, recordError);
       }
       // Return a resolved promise with undefined to indicate failure
       return Promise.resolve(undefined);
@@ -298,7 +300,7 @@ export class DicomWebWriter {
     if (tsUID) {
       contentTypeHeader = `${contentType};transfer-syntax=${tsUID}`;
     }
-    console.verbose('TSUID:', tsUID);
+    createDicomwebLog.debug('TSUID:', tsUID);
 
     // Generate filename based on frame number and compression
     const shouldGzip = options.gzip ?? this._shouldGzipFrame(tsUID);
@@ -360,7 +362,7 @@ export class DicomWebWriter {
       try {
         this.recordStreamError(streamKey, error, true);
       } catch (recordErr) {
-        console.error(`Error recording stream failure for ${streamKey}:`, recordErr);
+        createDicomwebLog.error(`Error recording stream failure for ${streamKey}:`, recordErr);
       }
 
       if (streamInfo._resolve) {

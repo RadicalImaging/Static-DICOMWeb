@@ -1,4 +1,7 @@
+import { logger } from '@radicalimaging/static-wado-util';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
+
+const { createDicomwebLog } = logger;
 
 /**
  * DICOM tag hex values for UIDs and Transfer Syntax
@@ -171,7 +174,7 @@ export function writeMultipartFramesFilter(options = {}) {
       pixelDataStreamInfo = null;
       if (frameWriter) {
         frameWriter.closeStream(streamKey).catch(err => {
-          console.error(`Error closing frame stream ${streamKey}:`, err);
+          createDicomwebLog.error(`Error closing frame stream ${streamKey}:`, err);
           frameWriter.recordStreamError(streamKey, err, true);
         });
       }

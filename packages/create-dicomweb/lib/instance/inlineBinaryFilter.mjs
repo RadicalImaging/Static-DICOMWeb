@@ -1,7 +1,9 @@
 import crypto from 'crypto';
 import { constants } from 'dcmjs';
+import { logger } from '@radicalimaging/static-wado-util';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
 
+const { createDicomwebLog } = logger;
 const { TagHex, BULKDATA_VRS } = constants;
 
 
@@ -9,7 +11,7 @@ const { TagHex, BULKDATA_VRS } = constants;
  * Filter that converts to inline binary.
  */
 export function inlineBinaryFilter(options = {}) {
- 
+
   /**
    * Filter method: Called when a tag is being closed (popped from stack)
    * Determines if the tag should be written as bulkdata and performs the write
@@ -24,7 +26,7 @@ export function inlineBinaryFilter(options = {}) {
 
     // Check if this tag has a Value array and is eligible for bulkdata
     if( dest?.InlineBinary ) {
-      console.log('********* InlineBinary already set', dest, this.current);
+      createDicomwebLog.debug('InlineBinary already set', dest, this.current);
     }
     if (!Array.isArray(dest?.Value) || !dest.Value.length || !dest.Value.every(value => value instanceof ArrayBuffer || Buffer.isBuffer(value))) {
       return next(result);
@@ -33,7 +35,7 @@ export function inlineBinaryFilter(options = {}) {
     const buffer = Array.isArray(dest.Value) ? Buffer.concat(dest.Value.map(value => Buffer.from(value))) : dest.Value;
     const base64 = Buffer.from(buffer).toString('base64');
     delete dest.Value;
-    console.log('********* Setting InlineBinary', dest, this.current);
+    createDicomwebLog.debug('Setting InlineBinary', dest, this.current);
     dest.InlineBinary = base64;
 
     // Always call next with the result (synchronously)

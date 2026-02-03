@@ -3,7 +3,9 @@ import formidable from 'formidable';
 import * as storeServices from '../../services/storeServices.mjs';
 import dcmjs from 'dcmjs';
 import fs from 'fs';
-import { dicomToXml, handleHomeRelative } from '@radicalimaging/static-wado-util';
+import { dicomToXml, handleHomeRelative, logger } from '@radicalimaging/static-wado-util';
+
+const { webserverLog } = logger;
 
 const { denaturalizeDataset } = dcmjs.data.DicomMetaDictionary;
 
@@ -37,14 +39,14 @@ export function defaultPostController(params) {
     form.on('file', (_formname, file) => {
       try {
         const { filepath, mimetype } = file;
-        console.verbose('Received upload file', filepath, mimetype);
+        webserverLog.debug('Received upload file', filepath, mimetype);
         storedInstances.push({
           filepath,
           mimetype,
           result: storeServices.storeFileInstance(filepath, mimetype, params),
         });
       } catch (e) {
-        console.warn('Unable to store instance', e);
+        webserverLog.warn('Unable to store instance', e);
       }
     });
 
@@ -52,36 +54,36 @@ export function defaultPostController(params) {
       const [fields, files] = await form.parse(req);
 
       if (!storedInstances.length) {
-        console.warn('No files uploaded');
+        webserverLog.warn('No files uploaded');
         res.status(500).send('No files uploaded');
         return;
       }
       const listFiles = Object.values(files).reduce((prev, curr) => prev.concat(curr), []);
 
       // const sopInfo = await storeServices.storeFilesByStow(files, params)
-      console.noQuiet('Starting to await', storedInstances.length, 'files');
+      webserverLog.info('Starting to await', storedInstances.length, 'files');
       let result;
       let count = 1;
       for (const item of storedInstances) {
         let itemResult;
         try {
-          console.verbose('About to await #', `${count++}/${storedInstances.length}`);
+          webserverLog.debug('About to await #', `${count++}/${storedInstances.length}`);
           itemResult = await item.result;
           if (Array.isArray(itemResult)) {
-            console.verbose('Finding single result in', itemResult);
+            webserverLog.debug('Finding single result in', itemResult);
             itemResult = itemResult.find(
               it => item.ReferencedSOPSequence || item.FailedSOPSequence
             );
           }
-          console.verbose('Found itemResult', itemResult);
+          webserverLog.debug('Found itemResult', itemResult);
           if (itemResult?.ReferencedSOPSequence?.[0].StudyInstanceUID) {
             studyUIDs.add(itemResult.ReferencedSOPSequence[0].StudyInstanceUID);
           } else {
-            console.noQuiet('No study uid found', itemResult);
+            webserverLog.info('No study uid found', itemResult);
           }
         } catch (e) {
-          console.noQuiet('Error', e);
-          console.noQuiet("Couldn't upload item", item);
+          webserverLog.warn('Error', e);
+          webserverLog.warn("Couldn't upload item", item);
           itemResult = {
             FailedSOPSequence: [
               {
@@ -108,10 +110,10 @@ export function defaultPostController(params) {
           result.FailedSOPSequence.push(...itemResult.FailedSOPSequence);
         }
       }
-      console.noQuiet('Done awaiting all instances');
+      webserverLog.info('Done awaiting all instances');
 
       if (!result) {
-        console.warn('No results found');
+        webserverLog.warn('No results found');
         res.status(500).send('No result found');
         return;
       }
@@ -120,14 +122,14 @@ export function defaultPostController(params) {
       }
       const dicomResult = denaturalizeDataset(result);
 
-      console.verbose('STOW result: ', JSON.stringify(result, null, 2));
+      webserverLog.debug('STOW result: ', JSON.stringify(result, null, 2));
       await storeServices.storeFilesByStow({ listFiles, files, studyUIDs, result }, params);
 
       const xml = dicomToXml(dicomResult);
 
       res.status(200).setHeader('content-type', 'application/dicom+xml').send(xml);
     } catch (e) {
-      console.log("Couldn't upload all files because:", e);
+      webserverLog.error("Couldn't upload all files because:", e);
       res.status(500).json(`Unable to handle ${e}`);
     } finally {
       deleteStoreInstances(storedInstances);
@@ -136,14 +138,14 @@ export function defaultPostController(params) {
 }
 
 async function deleteStoreInstances(instances) {
-  console.noQuiet('Deleting stored instances', instances.length);
+  webserverLog.info('Deleting stored instances', instances.length);
   for (const instance of instances) {
     try {
       if (fs.existsSync(instance.filepath)) {
         await fs.promises.unlink(instance.filepath);
       }
     } catch (e) {
-      console.warn('Unable to unlink', instance?.filepath);
+      webserverLog.warn('Unable to unlink', instance?.filepath);
     }
   }
 }

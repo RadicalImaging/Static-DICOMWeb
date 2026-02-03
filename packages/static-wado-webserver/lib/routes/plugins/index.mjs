@@ -1,4 +1,7 @@
 import path from 'path';
+import { logger } from '@radicalimaging/static-wado-util';
+
+const { webserverLog } = logger;
 
 /**
  * Set plugin routes.
@@ -13,7 +16,7 @@ export default async function setPlugins(routerExpress, params, pluginsKey = 'pl
   if (loadPlugins) {
     for (let i = 0; i < loadPlugins.length; i++) {
       const pluginItem = loadPlugins[i];
-      console.log(
+      webserverLog.info(
         `Configuring ${pluginItem.pluginName}(${pluginItem.pluginModule}) on ${pluginItem.pluginRoute}`
       );
       const { pluginModule } = pluginItem;

@@ -2,7 +2,10 @@ import {
   assertions,
   getStudyUIDPathAndSubPath,
   createStudyDirectories,
+  logger,
 } from '@radicalimaging/static-wado-util';
+
+const { webserverLog } = logger;
 import {
   qidoMap,
   dicomMap,
@@ -127,7 +130,7 @@ export default function setRoutes(routerExpress, params, dir, hashStudyUidPath) 
 
   // fallback route to external SCP
   if (assertions.assertAeDefinition(params, 'proxyAe') && !!params.staticWadoAe) {
-    console.log('Proxying studies from', params.proxyAe, 'to', params.staticWadoAe);
+    webserverLog.info('Proxying studies from', params.proxyAe, 'to', params.staticWadoAe);
     routerExpress.get(
       '/studies/:studyUID/series/*.*',
       defaultGetProxyController(params, { studyInstanceUIDPattern: 'studyUID' }, true)

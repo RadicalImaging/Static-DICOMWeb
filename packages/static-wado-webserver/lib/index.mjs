@@ -1,5 +1,6 @@
 import express from 'express';
 import http from 'http';
+import { logger } from '@radicalimaging/static-wado-util';
 import dicomWebServerConfig from './dicomWebServerConfig.mjs';
 import '@radicalimaging/static-wado-plugins';
 import 'regenerator-runtime';
@@ -7,6 +8,8 @@ import configureProgram from './program/index.mjs';
 
 import setRoutes from './routes/index.mjs';
 import setMiddlewares from './middlewares/index.mjs';
+
+const { webserverLog } = logger;
 
 /**
  * Serve up the web files
@@ -39,7 +42,7 @@ const DicomWebServer = async params => {
       ipv6Only: false, // Allow IPv4 mapped addresses
     },
     () => {
-      console.log(`Listening on port ${port} for both IPv4 and IPv6`);
+      webserverLog.info(`Listening on port ${port} for both IPv4 and IPv6`);
     }
   );
 

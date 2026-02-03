@@ -7,8 +7,11 @@ import {
   uint8ArrayToString,
   execSpawn,
   handleHomeRelative,
+  logger,
 } from '@radicalimaging/static-wado-util';
 import { mkdicomwebSpawn } from './util/serverSpawn.mjs';
+
+const { webserverLog } = logger;
 
 const createCommandLine = (args, commandName, params) => {
   let commandline = Array.isArray(commandName) ? commandName.join(' ') : commandName;
@@ -25,7 +28,7 @@ const createCommandLine = (args, commandName, params) => {
     if (studyUIDs?.size) {
       commandline = commandline.replace(/<studyUIDs>/, Array.from(studyUIDs).join(' '));
     } else {
-      console.warn('No study uid found, not running command', commandName, studyUIDs);
+      webserverLog.warn('No study uid found, not running command', commandName, studyUIDs);
       return null;
     }
   }
@@ -49,17 +52,17 @@ export const storeFilesByStow = async (stored, params = {}, hashStudyUidPath) =>
     }
     if (command.startsWith('mkdicomweb ')) {
       const cmd = [command.substring(11)];
-      console.noQuiet('Running mkdicomweb command inline:', cmd);
+      webserverLog.info('Running mkdicomweb command inline:', cmd);
       const result = await mkdicomwebSpawn(cmd);
     } else {
-      console.noQuiet('Store command', command);
+      webserverLog.info('Store command', command);
       await execSpawn(command);
     }
   }
 };
 
 export const storeFileInstance = async (item, params = {}, { hashStudyUidPath }) => {
-  console.verbose('storeFileInstance', item, hashStudyUidPath ? 'hash directory' : '');
+  webserverLog.debug('storeFileInstance', item, hashStudyUidPath ? 'hash directory' : '');
   const {
     instanceCommands = [
       [
@@ -76,18 +79,18 @@ export const storeFileInstance = async (item, params = {}, { hashStudyUidPath })
     ],
   } = params;
   if (instanceCommands.length > 1) {
-    console.warn('Executing more than 1 command not implemented yet:', instanceCommands);
+    webserverLog.warn('Executing more than 1 command not implemented yet:', instanceCommands);
   }
   const cmd = createCommandLine(
     { listFiles: [{ filepath: item }] },
     instanceCommands[0].slice(1),
     params
   );
-  console.verbose('Instance cmd', cmd);
+  webserverLog.debug('Instance cmd', cmd);
   try {
     return await mkdicomwebSpawn(cmd);
   } catch (e) {
-    console.warn('Unable to store file instance', e);
+    webserverLog.warn('Unable to store file instance', e);
     return null;
   }
 };

@@ -2,7 +2,9 @@
 import formidable from 'formidable';
 import fs from 'fs';
 import { PassThrough } from 'stream';
-import { handleHomeRelative } from '@radicalimaging/static-wado-util';
+import { handleHomeRelative, logger } from '@radicalimaging/static-wado-util';
+
+const { webserverLog } = logger;
 
 const maxFileSize = 4 * 1024 * 1024 * 1024;
 const maxTotalFileSize = 10 * maxFileSize;
@@ -76,7 +78,7 @@ export function multipartStreamController(params) {
     form.on('file', (_formname, file) => {
       try {
         const { mimetype } = file;
-        console.verbose('Received upload file', file.filepath, mimetype);
+        webserverLog.debug('Received upload file', file.filepath, mimetype);
 
         // Create a readable stream from the formidable file object
         const stream = createFileStream(file);
@@ -94,7 +96,7 @@ export function multipartStreamController(params) {
           formidableFile: file,
         });
       } catch (e) {
-        console.warn('Unable to create stream from file', e);
+        webserverLog.warn('Unable to create stream from file', e);
       }
     });
 
@@ -103,7 +105,7 @@ export function multipartStreamController(params) {
       const [fields, files] = await form.parse(req);
 
       if (!fileStreams.length) {
-        console.warn('No files uploaded');
+        webserverLog.warn('No files uploaded');
         res.status(500).send('No files uploaded');
         return;
       }
@@ -121,7 +123,7 @@ export function multipartStreamController(params) {
       // Continue to next middleware/handler
       next();
     } catch (e) {
-      console.log("Couldn't parse multipart upload:", e);
+      webserverLog.error("Couldn't parse multipart upload:", e);
       res.status(500).json(`Unable to parse multipart upload: ${e}`);
     }
   };
@@ -133,14 +135,14 @@ export function multipartStreamController(params) {
  * @param {Array} files - Array of formidable file objects with filepath property
  */
 export async function cleanupFormidableFiles(files) {
-  console.noQuiet('Cleaning up formidable files', files?.length || 0);
+  webserverLog.debug('Cleaning up formidable files', files?.length || 0);
   for (const file of files || []) {
     try {
       if (file?.filepath && fs.existsSync(file.filepath)) {
         await fs.promises.unlink(file.filepath);
       }
     } catch (e) {
-      console.warn('Unable to unlink formidable file', file?.filepath);
+      webserverLog.warn('Unable to unlink formidable file', file?.filepath);
     }
   }
 }

@@ -1,7 +1,9 @@
 import crypto from 'crypto';
 import { constants } from 'dcmjs';
+import { logger } from '@radicalimaging/static-wado-util';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
 
+const { createDicomwebLog } = logger;
 const { TagHex, BULKDATA_VRS } = constants;
 
 /**
@@ -207,7 +209,7 @@ export function writeBulkdataFilter(options = {}) {
     // Get the writer
     const bulkdataWriter = getWriter(this);
     if (!bulkdataWriter) {
-      console.warn('Writer not available, information not yet populated');
+      createDicomwebLog.warn('Writer not available, information not yet populated');
       return next(result);
     }
 
@@ -235,7 +237,7 @@ export function writeBulkdataFilter(options = {}) {
 
     // Only write bulkdata file if the value is an array of ArrayBuffers or Buffers
     if (!isWritableData) {
-      console.warn(
+      createDicomwebLog.warn(
         `Skipping bulkdata write for tag ${currentTag}: not an array of ArrayBuffers/Buffers`
       );
       return next(result);
@@ -266,7 +268,7 @@ export function writeBulkdataFilter(options = {}) {
 
       bulkdataWriter.closeStream(streamKey);
     } catch (error) {
-      console.error(`Error writing bulkdata for tag ${currentTag}:`, error);
+      createDicomwebLog.error(`Error writing bulkdata for tag ${currentTag}:`, error);
       bulkdataWriter.recordStreamError(streamKey, error, true);
     }
 

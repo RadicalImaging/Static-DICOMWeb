@@ -1,9 +1,11 @@
 import { async, utilities, data } from 'dcmjs';
-import { Tags } from '@radicalimaging/static-wado-util';
+import { Tags, logger } from '@radicalimaging/static-wado-util';
 import { writeMultipartFramesFilter } from './writeMultipartFramesFilter.mjs';
 import { writeBulkdataFilter } from './writeBulkdataFilter.mjs';
 import { inlineBinaryFilter } from './inlineBinaryFilter.mjs';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
+
+const { createDicomwebLog } = logger;
 
 const { AsyncDicomReader } = async;
 const { setValue } = Tags;
@@ -170,10 +172,10 @@ export async function instanceFromStream(stream, options = {}) {
     }
   }
 
-  console.noQuiet('Finished parsing file', information.sopInstanceUid);
+  createDicomwebLog.debug('Finished parsing file', information.sopInstanceUid);
 
   if (writer) {
-    console.log('Writing metadata to file', information.sopInstanceUid);
+    createDicomwebLog.debug('Writing metadata to file', information.sopInstanceUid);
     const metadataStream = await writer.openInstanceStream('metadata', { gzip: true });
     metadataStream.stream.write(Buffer.from(JSON.stringify([dict])));
     await writer.closeStream(metadataStream.streamKey);
@@ -181,7 +183,7 @@ export async function instanceFromStream(stream, options = {}) {
 
   // Wait for all frame writes to complete before returning
   await writer?.awaitAllStreams();
-  console.log('Finished writing metadata to file', information.sopInstanceUid);
+  createDicomwebLog.debug('Finished writing metadata to file', information.sopInstanceUid);
 
   return { fmi, dict, writer, information: listener.information };
 }

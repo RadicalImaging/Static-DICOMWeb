@@ -1,6 +1,8 @@
-import { handleHomeRelative } from '@radicalimaging/static-wado-util';
+import { handleHomeRelative, logger } from '@radicalimaging/static-wado-util';
 import { thumbnailMain } from '@radicalimaging/create-dicomweb';
 import fs from 'fs';
+
+const { webserverLog } = logger;
 
 export default function createMissingThumbnail(options) {
   const { dir } = options;
@@ -9,14 +11,14 @@ export default function createMissingThumbnail(options) {
   return async (req, res, next) => {
     const fullPath = `${baseDir}${req.staticWadoPath}`;
     if (fs.existsSync(fullPath)) {
-      console.verbose('Path', fullPath, ' already exists, no need to create');
+      webserverLog.debug('Path', fullPath, ' already exists, no need to create');
       next();
       return;
     }
 
     const { studyUID, seriesUID, instanceUID } = req.params;
 
-    console.noQuiet(
+    webserverLog.info(
       'Need to create thumbnail on path',
       fullPath,
       'for',
@@ -43,14 +45,14 @@ export default function createMissingThumbnail(options) {
       } else {
         // Only studyUID provided - use default behavior (first series, first instance)
         // Note: study-level thumbnails are not currently supported
-        console.verbose('Only studyUID provided, using default behavior');
+        webserverLog.debug('Only studyUID provided, using default behavior');
       }
 
       await thumbnailMain(studyUID, thumbnailOptions);
-      console.verbose('Created missing thumbnail');
+      webserverLog.debug('Created missing thumbnail');
     } catch (e) {
       // Ignore e
-      console.warn('Caught', e);
+      webserverLog.warn('Caught', e);
     }
     next();
   };

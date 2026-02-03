@@ -1,7 +1,9 @@
 #!/usr/bin/env bun
 import { Command } from 'commander';
 import { instanceMain, seriesMain, studyMain, createMain, stowMain, thumbnailMain, indexMain } from '../lib/index.mjs';
-import { handleHomeRelative, createVerboseLog } from '@radicalimaging/static-wado-util';
+import { handleHomeRelative, createVerboseLog, logger } from '@radicalimaging/static-wado-util';
+
+const { createDicomwebLog } = logger;
 
 const program = new Command();
 
@@ -208,7 +210,7 @@ program
       const frameNumbers = parseFrameNumbers(options.frameNumbers);
       thumbnailOptions.frameNumbers = frameNumbers;
     } catch (error) {
-      console.error(`Error parsing frame numbers: ${error.message}`);
+      createDicomwebLog.error(`Error parsing frame numbers: ${error.message}`);
       process.exit(1);
     }
     
