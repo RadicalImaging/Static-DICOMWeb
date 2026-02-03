@@ -178,7 +178,7 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
     // Extract series query from the first instance
     const firstInstance = instanceMetadataArray[0];
     seriesQuery = TagLists.extract(firstInstance, 'series', TagLists.SeriesQuery);
-    // createDicomwebLog.warn('seriesSummary: seriesQuery:', seriesQuery);
+    createDicomwebLog.debug('seriesSummary: seriesQuery:', seriesQuery);
 
     // Add NumberOfSeriesRelatedInstances to series query
     setValue(seriesQuery, Tags.NumberOfSeriesRelatedInstances, instanceMetadataArray.length);

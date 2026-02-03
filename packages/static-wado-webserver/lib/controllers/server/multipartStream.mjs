@@ -260,7 +260,7 @@ export function multipartStream(opts) {
 
         // If you want to skip non-DICOM parts (e.g. metadata JSON), do it here:
         if (!isDicomPart) {
-          multipartStreamLog.warn(
+          multipartStreamLog.debug(
             `Part ${partCount} skipped - not DICOM (content-type: ${partContentType})`
           );
           // Set up handler to track when skipped part completes
@@ -456,7 +456,7 @@ export function multipartStream(opts) {
           } catch (err) {
             // Errors in individual promises are handled by completePostController
             // We just need to wait for them to finish
-            multipartStreamLog.warn(
+            multipartStreamLog.debug(
               `Some listener promises had errors (will be handled by completePostController)`
             );
           }

@@ -115,7 +115,7 @@ function createInMemoryTransport() {
  */
 export function streamPostController(params) {
   const dicomdir = handleHomeRelative(params.rootDir);
-  webserverLog.debug('Storing POST uploads to:', dicomdir);
+  webserverLog.info('Storing POST uploads to:', dicomdir);
 
   // Initialize messaging service and register handlers (only once)
   if (!messagingInstance) {
