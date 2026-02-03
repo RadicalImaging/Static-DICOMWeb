@@ -1,5 +1,3 @@
-import path from 'path';
-import fs from 'fs';
 import { handleHomeRelative, getStudyUIDPathAndSubPath } from '@radicalimaging/static-wado-util';
 import {
   indexMain,
@@ -8,8 +6,6 @@ import {
   FileDicomWebReader,
 } from '@radicalimaging/create-dicomweb';
 import { studySingleMap, getDicomKey } from '../../adapters/requestAdapters.mjs';
-
-const STUDIES_INDEX_FILE = path.join('studies', 'index.json.gz');
 
 /**
  * Returns true if the request path is a query for the studies index (directory
@@ -27,8 +23,38 @@ export function isStudiesIndexRequest(requestPath) {
 }
 
 /**
+ * Scans dicomweb/studies/* for study directories and ensures each study that
+ * lacks a study singleton (index.json) has full series summary and study summary
+ * built by calling ensureSingleStudyIndex. Used before building the studies root index.
+ *
+ * @param {string} root - Resolved DICOMweb root directory
+ * @param {import('@radicalimaging/create-dicomweb').FileDicomWebReader} [reader] - Optional reader instance
+ * @returns {Promise<void>}
+ */
+async function ensureStudySingletonsForStudiesRoot(root, reader) {
+  const r = reader ?? new FileDicomWebReader(root);
+  const entries = await r.scanDirectory('studies', { withFileTypes: true });
+  if (entries.length === 0) {
+    return;
+  }
+  for (const entry of entries) {
+    const isDir =
+      entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory();
+    if (!isDir) continue;
+    const studyUID = entry.name;
+    const exists = r.studyFileExists(studyUID, 'index.json');
+    if (!exists) {
+      await ensureSingleStudyIndex(root, studyUID, { reader: r });
+    }
+  }
+}
+
+/**
  * Ensures the studies index file exists at the given root directory, creating
- * it via indexMain if missing. Honors params.studyIndex and params.createIndexOnDemand.
+ * it via indexMain if missing. Before building the index, scans dicomweb/studies/*
+ * for study directories that lack a study singleton and runs full series/study
+ * summary for each so the root index can include them. Honors params.studyIndex
+ * and params.createIndexOnDemand.
  *
  * @param {string} dir - Static files root directory (DICOMweb root)
  * @param {object} params - Server params (rootDir, studyIndex, createIndexOnDemand)
@@ -43,10 +69,11 @@ export async function ensureStudiesIndex(dir, params = {}) {
   if (!createOnDemand) {
     return false;
   }
-  const indexPath = path.join(root, STUDIES_INDEX_FILE);
-  if (fs.existsSync(indexPath)) {
+  const reader = new FileDicomWebReader(root);
+  if (reader.fileExists('studies', 'index.json')) {
     return true;
   }
+  await ensureStudySingletonsForStudiesRoot(root, reader);
   await indexMain([], { dicomdir: root });
   return true;
 }

@@ -85,6 +85,18 @@ export class DicomWebWriter {
   }
 
   /**
+   * Deletes a file and its .gz counterpart if present (e.g. index.json and index.json.gz).
+   * Must be implemented by subclasses that support deletion.
+   * @param {string} relativePath - Relative path within baseDir
+   * @param {string} filename - Filename to delete (without .gz)
+   * @returns {void}
+   * @throws {Error} - If not implemented by subclass
+   */
+  delete(relativePath, filename) {
+    throw new Error('delete must be implemented by subclass');
+  }
+
+  /**
    * Opens a stream at a given path (concrete implementation)
    * @param {string} path - The relative path within baseDir (e.g., 'studies/{studyUID}')
    * @param {string} filename - The filename to write

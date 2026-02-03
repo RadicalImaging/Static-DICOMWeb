@@ -72,6 +72,11 @@ async function configureProgram(defaults = dicomWebServerConfig) {
         'HTTP server request timeout (e.g. 30m, 1h, 3600s). Use 0 to disable. Default: 30m',
       defaultValue: '30m',
     },
+    {
+      key: '--disable-summary',
+      description: 'Do not update series and study summaries after STOW-RS uploads',
+      defaultValue: false,
+    },
   ];
 
   const configuration = {

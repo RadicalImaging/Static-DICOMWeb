@@ -12,6 +12,7 @@ import { SagaBusMessaging } from './SagaBusMessaging.mjs';
 
 import { multipartStream } from './multipartStream.mjs';
 import { TrackableReadBufferStream } from './TrackableReadBufferStream.mjs';
+import { deleteStaleSummaries } from './deleteStaleSummaries.mjs';
 
 const maxFileSize = 4 * 1024 * 1024 * 1024;
 const maxTotalFileSize = 10 * maxFileSize;
@@ -19,6 +20,10 @@ const maxTotalFileSize = 10 * maxFileSize;
 // Track if handlers have been initialized
 let handlersInitialized = false;
 let messagingInstance = null;
+/** When true, do not send updateSeries/updateStudy messages (set from params.disableSummary) */
+let disableSummaryUpdates = false;
+/** DICOMweb root used by STOW (set from streamPostController params for use in completePostController) */
+let stowRootDir = null;
 
 // Create a simple in-memory transport compatible with @saga-bus/core
 function createInMemoryTransport() {
@@ -112,7 +117,9 @@ function createInMemoryTransport() {
  * @returns function controller
  */
 export function streamPostController(params) {
+  disableSummaryUpdates = params.disableSummary === true;
   const dicomdir = handleHomeRelative(params.rootDir);
+  stowRootDir = dicomdir;
   console.noQuiet('Storing POST uploads to:', dicomdir);
 
   // Initialize messaging service and register handlers (only once)
@@ -409,28 +416,29 @@ export const completePostController = async (req, res, next) => {
       };
     });
 
-    // Send updateSeries messages for unique seriesUIDs after all instances are processed
-    if (messagingInstance) {
-      const seriesMap = new Map(); // seriesId -> information object
-
-      // Collect unique series from successfully processed files
-      for (const file of files) {
-        if (file.ok && file.result?.information) {
-          const { information } = file.result;
-          if (information?.studyInstanceUid && information?.seriesInstanceUid) {
-            const studyUid = information.studyInstanceUid;
-            const seriesUID = information.seriesInstanceUid;
-            const seriesId = `${studyUid}&${seriesUID}`;
-
-            // Only keep the latest information for each series (or first, doesn't matter for dedupe)
-            if (!seriesMap.has(seriesId)) {
-              seriesMap.set(seriesId, information);
-            }
+    // Build unique series set from successfully processed files (for deletes and for messaging)
+    const seriesMap = new Map(); // seriesId -> information object
+    for (const file of files) {
+      if (file.ok && file.result?.information) {
+        const { information } = file.result;
+        if (information?.studyInstanceUid && information?.seriesInstanceUid) {
+          const studyUid = information.studyInstanceUid;
+          const seriesUID = information.seriesInstanceUid;
+          const seriesId = `${studyUid}&${seriesUID}`;
+          if (!seriesMap.has(seriesId)) {
+            seriesMap.set(seriesId, information);
           }
         }
       }
+    }
 
-      // Send one message per unique seriesUID
+    // Delete series and study summary/index files so they can be regenerated (always, even if messaging disabled)
+    if (stowRootDir && seriesMap.size > 0) {
+      deleteStaleSummaries(stowRootDir, seriesMap);
+    }
+
+    // Send updateSeries messages for unique seriesUIDs after all instances are processed (unless disabled)
+    if (messagingInstance && !disableSummaryUpdates) {
       for (const [seriesId, information] of seriesMap.entries()) {
         try {
           await messagingInstance.sendMessage('updateSeries', seriesId, information);

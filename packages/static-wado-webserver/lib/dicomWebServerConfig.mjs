@@ -16,6 +16,8 @@ const { dicomWebServerConfig } = ConfigPoint.register({
     port: 5000,
     /** HTTP server request timeout in ms. Default 30 minutes. Set to 0 to disable. */
     serverTimeoutMs: 30 * 60 * 1000,
+    /** When true, do not update series/study summaries after STOW-RS uploads (--disable-summary). */
+    disableSummary: false,
     corsOptions: {
       enabled: true,
       origin: true,
