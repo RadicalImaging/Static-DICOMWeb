@@ -163,7 +163,8 @@ function getLogger(...name) {
 module.exports.getLogger = getLogger;
 module.exports.globalOptions = globalOptions;
 
-module.exports.staticDicomWebLog = getLogger('staticdicomweb');
+const staticDicomWebLog = getLogger('staticdicomweb');
+module.exports.staticDicomWebLog = staticDicomWebLog;
 module.exports.creatorLog = staticDicomWebLog.getLogger('creator');
 module.exports.utilLog = staticDicomWebLog.getLogger('util');
 module.exports.createDicomwebLog = staticDicomWebLog.getLogger('createdicomweb');
