@@ -248,18 +248,6 @@ describe('logger', () => {
   });
 
   describe('configureFromEnv', () => {
-    it('applies LOG_LEVEL to root loggers', () => {
-      const testLogger = getRootLogger('test.env.default');
-      loggerRegistry.set('test.env.default', testLogger);
-
-      const result = configureFromEnv({ LOG_LEVEL: 'debug' });
-
-      expect(result.default).toBe('debug');
-
-      // Clean up
-      loggerRegistry.delete('test.env.default');
-    });
-
     it('applies specific logger level from LOG_LEVEL_* variable', () => {
       const testLogger = getRootLogger('test.env.specific');
       loggerRegistry.set('test.env.specific', testLogger);
@@ -278,11 +266,11 @@ describe('logger', () => {
     it('ignores invalid log levels with warning', () => {
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
 
-      const result = configureFromEnv({ LOG_LEVEL: 'invalid' });
+      const result = configureFromEnv({ LOG_LEVEL_STATICDICOMWEB: 'invalid' });
 
       expect(result.default).toBeNull();
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Invalid LOG_LEVEL value')
+        expect.stringContaining('Invalid LOG_LEVEL_STATICDICOMWEB value')
       );
 
       consoleSpy.mockRestore();

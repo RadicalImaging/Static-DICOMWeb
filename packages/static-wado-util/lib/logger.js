@@ -238,8 +238,7 @@ function envVarToLoggerName(envVar) {
 /**
  * Configures log levels from environment variables.
  *
- * Supports two types of environment variables:
- * - LOG_LEVEL: Sets the default level for all loggers (e.g., LOG_LEVEL=debug)
+ * Supports an environment variable per logger:
  * - LOG_LEVEL_<NAME>: Sets level for a specific logger (e.g., LOG_LEVEL_STATICDICOMWEB_WEBSERVER=debug)
  *
  * Logger names use dots as separators, which become underscores in env var names:
@@ -253,26 +252,8 @@ function envVarToLoggerName(envVar) {
  */
 function configureFromEnv(env = process.env) {
   const applied = { default: null, loggers: {} };
-
-  // First, apply the default LOG_LEVEL if set
-  if (env.LOG_LEVEL) {
-    const level = env.LOG_LEVEL.toLowerCase();
-    if (validLevels.includes(level)) {
-      // Set level on all root loggers (those without parents)
-      for (const [name, logger] of loggerRegistry) {
-        if (!logger._parent) {
-          logger.setLevel(level);
-        }
-      }
-      applied.default = level;
-    } else {
-      console.warn(`Invalid LOG_LEVEL value: "${env.LOG_LEVEL}". Valid levels: ${validLevels.join(', ')}`);
-    }
-  }
-
-  // Then, apply specific logger levels from LOG_LEVEL_* variables
   for (const [envVar, value] of Object.entries(env)) {
-    if (envVar === 'LOG_LEVEL' || !envVar.startsWith('LOG_LEVEL_')) {
+    if (!envVar.startsWith('LOG_LEVEL_')) {
       continue;
     }
 
@@ -289,8 +270,6 @@ function configureFromEnv(env = process.env) {
       logger.setLevel(level);
       applied.loggers[loggerName] = level;
     } else {
-      // Logger not found - might be created later, store for lazy application
-      // For now, just warn
       console.warn(`Logger "${loggerName}" not found for ${envVar}. Available loggers: ${[...loggerRegistry.keys()].join(', ')}`);
     }
   }
