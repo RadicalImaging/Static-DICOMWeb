@@ -1,5 +1,5 @@
 import { async, utilities, data } from 'dcmjs';
-import { Tags } from '@radicalimaging/static-wado-util';
+import { Tags, StatusMonitor } from '@radicalimaging/static-wado-util';
 import { writeMultipartFramesFilter } from './writeMultipartFramesFilter.mjs';
 import { writeBulkdataFilter } from './writeBulkdataFilter.mjs';
 import { inlineBinaryFilter } from './inlineBinaryFilter.mjs';
@@ -10,6 +10,54 @@ const { AsyncDicomReader } = async;
 const { setValue } = Tags;
 const { DicomMetadataListener, createInformationFilter } = utilities;
 const { ReadBufferStream } = data;
+
+/**
+ * Creates a filter that counts addTag/value calls and reports progress to StatusMonitor.
+ * @param {{ typeId: string, jobId: string } | null} statusMonitorJob - Job to update; null to skip reporting
+ * @param {number} throttleMs - Min ms between updates
+ * @returns {Object} Filter with addTag and value methods
+ */
+function createProgressFilter(statusMonitorJob, throttleMs) {
+  let tagsAdded = 0;
+  let valuesAdded = 0;
+  let startMs = null;
+  let lastReportMs = 0;
+
+  function report(force = false) {
+    if (!statusMonitorJob) return;
+    const now = Date.now();
+    if (!force && now - lastReportMs < throttleMs) return;
+    lastReportMs = now;
+    const parseProgressMs = startMs != null ? now - startMs : 0;
+    StatusMonitor.updateJob(statusMonitorJob.typeId, statusMonitorJob.jobId, {
+      parseTagsAdded: tagsAdded,
+      parseValuesAdded: valuesAdded,
+      parseProgressMs,
+      lastBytesReceivedAt: now,
+    });
+  }
+
+  return {
+    addTag(next, tag, tagInfo) {
+      if (startMs == null) startMs = Date.now();
+      tagsAdded += 1;
+      const result = next(tag, tagInfo);
+      report();
+      return result;
+    },
+    value(next, v) {
+      valuesAdded += 1;
+      const result = next(v);
+      // Report on every binary value so image and large bulkdata streaming update progress
+      const isBinary = v instanceof ArrayBuffer || Buffer.isBuffer(v) || ArrayBuffer.isView(v);
+      if (isBinary) report();
+      return result;
+    },
+    reportProgress() {
+      report(true);
+    },
+  };
+}
 
 /**
  * Processes a DICOM stream and optionally writes multipart frames
@@ -25,6 +73,8 @@ const { ReadBufferStream } = data;
  * @param {boolean} options.bulkdata - Enable bulkdata filter (default: true if writer exists). Set to false to use frames filter instead
  * @param {number} options.sizeBulkdataTags - Size threshold in bytes for public tags (default: 128k + 2 bytes)
  * @param {number} options.sizePrivateBulkdataTags - Size threshold in bytes for private tags (default: 128 bytes)
+ * @param {{ typeId: string, jobId: string }} [options.statusMonitorJob] - If set, progress (parseTagsAdded, parseProgressMs) is reported to StatusMonitor.updateJob for this job.
+ * @param {number} [options.progressThrottleMs=200] - Min ms between progress updates when statusMonitorJob is set.
  * @returns {Promise<{meta, dict, writer, informationFilter}>} - Parsed metadata and optional writer/filter instances
  */
 export async function instanceFromStream(stream, options = {}) {
@@ -133,14 +183,21 @@ export async function instanceFromStream(stream, options = {}) {
 
   filters.push(inlineBinaryFilter());
 
+  // Progress reporting filter: counts addTag/value and reports to StatusMonitor when statusMonitorJob is set
+  const statusMonitorJob = options.statusMonitorJob ?? null;
+  const progressThrottleMs = options.progressThrottleMs ?? 200;
+  const progressFilter = createProgressFilter(statusMonitorJob, progressThrottleMs);
+  filters.unshift(progressFilter);
+
   // Create listener with filters
   // The listener will automatically create its own information filter and call init()
   const listener = new DicomMetadataListener({ information }, ...filters);
 
   // Wire drain (backpressure) to the stream write promise tracker so we don't emit
   // frame fragments faster than streams can be consumed (prevents too many open streams).
-  const streamWritePromiseTracker = options.streamWritePromiseTracker || createPromiseTracker('instanceFromStream');
-  if (writer ) {
+  const streamWritePromiseTracker =
+    options.streamWritePromiseTracker || createPromiseTracker('instanceFromStream');
+  if (writer) {
     const drainMaxUnsettled = options.drainMaxUnsettled ?? 25;
     const drainTimeoutMs = options.drainTimeoutMs ?? 5000;
     listener.setDrain(() =>
@@ -176,6 +233,8 @@ export async function instanceFromStream(stream, options = {}) {
   }
 
   const { fmi, dict } = await reader.readFile({ listener });
+
+  progressFilter.reportProgress?.();
 
   if (dict && reader.meta) {
     const meta = reader.meta;

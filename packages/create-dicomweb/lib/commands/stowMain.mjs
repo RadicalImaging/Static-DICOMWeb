@@ -39,6 +39,9 @@ const SKIP_EXTENSIONS = new Set([
   'tar',
   'rar',
   '7z',
+  'DS_Store',
+  'db',
+  'csv',
 ]);
 
 /**
@@ -137,6 +140,7 @@ export async function stowMain(fileNames, options = {}) {
         if (filenameCheck) {
           const ext = path.extname(filename).slice(1).toLowerCase();
           if (SKIP_EXTENSIONS.has(ext)) return;
+          if (filename.endsWith('DICOMDIR')) return;
         }
 
         const stats = fs.statSync(filename);

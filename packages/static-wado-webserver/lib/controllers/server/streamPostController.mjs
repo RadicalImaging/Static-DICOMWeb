@@ -3,6 +3,7 @@ import {
   dicomToXml,
   handleHomeRelative,
   createPromiseTracker,
+  StatusMonitor,
 } from '@radicalimaging/static-wado-util';
 import { instanceFromStream } from '@radicalimaging/create-dicomweb';
 import { seriesMain } from '@radicalimaging/create-dicomweb';
@@ -13,6 +14,7 @@ import { SagaBusMessaging } from './SagaBusMessaging.mjs';
 import { multipartStream } from './multipartStream.mjs';
 import { TrackableReadBufferStream } from './TrackableReadBufferStream.mjs';
 import { deleteStaleSummaries } from './deleteStaleSummaries.mjs';
+import { getLivelockDetectMs } from '../../util/livelockRegistry.mjs';
 
 const maxFileSize = 4 * 1024 * 1024 * 1024;
 const maxTotalFileSize = 10 * maxFileSize;
@@ -145,10 +147,57 @@ export function streamPostController(params) {
   const backpressureMaxBytes = params.backpressureMaxBytes ?? 128 * 1024;
 
   return multipartStream({
+    onRequestStart: req => {
+      req.statusMonitorPostJobId = StatusMonitor.startJob('stowPost', {
+        parts: 0,
+        totalBytes: 0,
+        lastBytesReceivedAt: null,
+      });
+      req.statusMonitorInstancesJobId = StatusMonitor.startJob('stowInstances', {
+        instancesCompleted: 0,
+        ongoing: 0,
+        openPromises: 0,
+        completedPromises: 0,
+      });
+    },
+    onPart: (req, partNumber) => {
+      if (req.statusMonitorPostJobId) {
+        StatusMonitor.updateJob('stowPost', req.statusMonitorPostJobId, { parts: partNumber });
+      }
+    },
+    onBytes: (req, _deltaBytes, totalBytes) => {
+      if (req.statusMonitorPostJobId) {
+        StatusMonitor.updateJob('stowPost', req.statusMonitorPostJobId, {
+          totalBytes,
+          lastBytesReceivedAt: Date.now(),
+        });
+      }
+    },
+    onRequestEnd: (req, { partCount, totalBytes, totalTimeMs }) => {
+      if (req.statusMonitorPostJobId) {
+        StatusMonitor.endJob('stowPost', req.statusMonitorPostJobId, {
+          parts: partCount,
+          totalBytes,
+          totalTimeMs,
+        });
+        req.statusMonitorPostJobId = null;
+      }
+    },
     beforeProcessPart: async req => {
       req.uploadPromiseTracker = req.uploadPromiseTracker ?? createPromiseTracker('partTracker');
       req.streamWritePromiseTracker =
         req.streamWritePromiseTracker ?? createPromiseTracker('fileTracker');
+
+      if (req.statusMonitorInstancesJobId) {
+        const upload = req.uploadPromiseTracker;
+        const streamWrite = req.streamWritePromiseTracker ?? { getUnsettledCount: () => 0, getSettledCount: () => 0 };
+        StatusMonitor.updateJob('stowInstances', req.statusMonitorInstancesJobId, {
+          instancesCompleted: upload.getSettledCount(),
+          ongoing: upload.getUnsettledCount(),
+          openPromises: streamWrite.getUnsettledCount(),
+          completedPromises: streamWrite.getSettledCount(),
+        });
+      }
 
       const unsettled = await req.uploadPromiseTracker.limitUnsettled(
         maxUnsettledReceives,
@@ -178,6 +227,7 @@ export function streamPostController(params) {
         streamWriteLimit: maxUnsettledStreamWrites,
         backpressureWaitMs,
         backPressureTimeoutMs,
+        livelockDetectMs: getLivelockDetectMs(),
       }),
     listener: async (fileInfo, stream, req) => {
       // Called immediately when a file part starts.
@@ -195,6 +245,10 @@ export function streamPostController(params) {
             baseDir: dicomdir,
             streamWritePromiseTracker: req.streamWritePromiseTracker,
           },
+          statusMonitorJob:
+            req?.statusMonitorInstancesJobId != null
+              ? { typeId: 'stowInstances', jobId: req.statusMonitorInstancesJobId }
+              : undefined,
         });
         tracker.add(promise);
         const result = await promise;
@@ -395,6 +449,19 @@ function createDatasetResponse(files) {
 
 export const completePostController = async (req, res, next) => {
   try {
+    if (req.statusMonitorInstancesJobId) {
+      const upload = req.uploadPromiseTracker ?? { getUnsettledCount: () => 0, getSettledCount: () => 0 };
+      const streamWrite = req.streamWritePromiseTracker ?? { getUnsettledCount: () => 0, getSettledCount: () => 0 };
+      StatusMonitor.updateJob('stowInstances', req.statusMonitorInstancesJobId, {
+        instancesCompleted: upload.getSettledCount(),
+        ongoing: upload.getUnsettledCount(),
+        openPromises: streamWrite.getUnsettledCount(),
+        completedPromises: streamWrite.getSettledCount(),
+      });
+      StatusMonitor.endJob('stowInstances', req.statusMonitorInstancesJobId, {});
+      req.statusMonitorInstancesJobId = null;
+    }
+
     console.noQuiet('uploadListenerPromises length:', req.uploadListenerPromises?.length);
     const results = await Promise.allSettled(req.uploadListenerPromises || []);
     console.noQuiet('results length:', results.length);

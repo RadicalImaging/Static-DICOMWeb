@@ -15,9 +15,23 @@ import { parse as parseContentType } from 'content-type';
  * @param {(err: any, fileInfo?: object) => void} [opts.onStreamError]
  * @param {(req: object) => Promise<void>} [opts.beforeProcessPart] Await before processing each DICOM part (for back pressure)
  * @param {(req: object, fileInfo: object, headers: object) => import('./TrackableReadBufferStream.mjs').TrackableReadBufferStream} opts.createBufferStream Create buffer stream for each part (return value must have addBuffer, setComplete; optional shouldPause/waitForBackPressure for backpressure)
+ * @param {(req: object) => void} [opts.onRequestStart] Called when multipart request is accepted (before parsing)
+ * @param {(req: object, partNumber: number) => void} [opts.onPart] Called when a part is detected
+ * @param {(req: object, deltaBytes: number, totalBytes: number) => void} [opts.onBytes] Called when bytes are received
+ * @param {(req: object, info: { partCount: number, totalBytes: number, totalTimeMs: number }) => void} [opts.onRequestEnd] Called when all parts are done and request is complete
  */
 export function multipartStream(opts) {
-  const { listener, limits, onStreamError, beforeProcessPart, createBufferStream } = opts;
+  const {
+    listener,
+    limits,
+    onStreamError,
+    beforeProcessPart,
+    createBufferStream,
+    onRequestStart,
+    onPart,
+    onBytes,
+    onRequestEnd,
+  } = opts;
 
   if (typeof listener !== 'function') {
     throw new Error('multipartStream: opts.listener must be a function');
@@ -77,6 +91,9 @@ export function multipartStream(opts) {
     // If you only want to accept STOW-RS:
     // if (topType.toLowerCase() !== "multipart/related") return next();
 
+    req._statusMonitorStartTime = Date.now();
+    if (onRequestStart) onRequestStart(req);
+
     const dicer = new Dicer({ boundary: cleanBoundary });
 
     let partCount = 0;
@@ -111,6 +128,7 @@ export function multipartStream(opts) {
       }
 
       partCount += 1;
+      if (onPart) onPart(req, partCount);
       console.warn(`[multipartStream] Part ${partCount} detected`);
 
       if (limits?.parts && partCount > limits.parts) {
@@ -334,6 +352,7 @@ export function multipartStream(opts) {
 
           partBytes += chunk.length;
           totalBytes += chunk.length;
+          if (onBytes) onBytes(req, chunk.length, totalBytes);
 
           if (limits?.fileSize && partBytes > limits.fileSize) {
             const err = Object.assign(new Error('File too large'), { statusCode: 413 });
@@ -456,6 +475,8 @@ export function multipartStream(opts) {
 
         if (!nextCalled) {
           nextCalled = true;
+          const totalTimeMs = Date.now() - (req._statusMonitorStartTime ?? 0);
+          if (onRequestEnd) onRequestEnd(req, { partCount, totalBytes, totalTimeMs });
           next();
         }
       }

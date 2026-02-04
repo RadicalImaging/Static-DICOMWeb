@@ -1,4 +1,5 @@
 import { data } from 'dcmjs';
+import { recordLivelock } from '../../util/livelockRegistry.mjs';
 
 const { ReadBufferStream } = data;
 
@@ -158,6 +159,14 @@ export class TrackableReadBufferStream extends ReadBufferStream {
               `[TrackableReadBufferStream] Possible livelock: ensureAvailable(${bytes}) still pending after ${livelockMs}ms. Stream: offset=${this.offset} endOffset=${this.endOffset} isComplete=${this.isComplete}. Call stack at ensureAvailable:`
             );
             process.stderr.write(stackCapture + '\n');
+            recordLivelock({
+              bytes,
+              offset: this.offset,
+              endOffset: this.endOffset,
+              isComplete: this.isComplete,
+              livelockDetectMs: livelockMs,
+              stack: stackCapture,
+            });
           }
         }, livelockMs);
         return result.then(

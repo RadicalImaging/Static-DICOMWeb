@@ -33,6 +33,7 @@ module.exports.Stats = Stats;
 module.exports.getStudyUIDPathAndSubPath = require('./getStudyUIDPathAndSubPath');
 module.exports.createStudyDirectories = require('./createStudyDirectories');
 module.exports.uids = require('./uids.js');
+module.exports.StatusMonitor = require('./StatusMonitor.mjs').StatusMonitor;
 
 module.exports.default = {
   ...module.exports,

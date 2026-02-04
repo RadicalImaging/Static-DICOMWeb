@@ -1,4 +1,5 @@
 import setStudiesRoutes from './studies.mjs';
+import { statusController } from '../../controllers/server/statusController.mjs';
 
 /**
  * Set all app server routes.
@@ -9,5 +10,6 @@ import setStudiesRoutes from './studies.mjs';
  * @param {*} hashStudyUidPath change studies folder structure to path and subpath before studyUID
  */
 export default function setRoutes(routerExpress, params, dir, hashStudyUidPath) {
+  routerExpress.get('/status', statusController);
   setStudiesRoutes(routerExpress, params, dir, hashStudyUidPath);
 }

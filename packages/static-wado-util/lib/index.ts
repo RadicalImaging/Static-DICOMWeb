@@ -32,7 +32,9 @@ import { sortStudies, compareStudies, compareStudyDate, compareStudyTime, compar
 import { createPromiseTracker } from './createPromiseTracker.mjs';
 import { parseTimeoutToMs } from './parseTimeoutToMs';
 import { parseSizeToBytes } from './parseSizeToBytes';
+import { StatusMonitor } from './StatusMonitor.mjs';
 
+export { StatusMonitor };
 export {
   extractMultipart,
   uint8ArrayToString,
