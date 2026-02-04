@@ -374,6 +374,22 @@ export class DicomWebWriter {
   }
 
   /**
+   * Writes data to a file by opening a stream, writing all data, and closing.
+   * @param {string} relativePath - Relative path within baseDir (e.g. '' or 'part10')
+   * @param {string} filename - Filename to write (e.g. 'instance.dcm')
+   * @param {Buffer|Uint8Array|ArrayBuffer} data - Data to write
+   * @returns {Promise<string|undefined>} - Resolves with the written file path (or relative path), or undefined on failure
+   */
+  async writeFile(relativePath, filename, data) {
+    const streamInfo = this.openStream(relativePath, filename, {});
+    streamInfo.write(data);
+    await streamInfo.end();
+    const result = streamInfo.filepath ?? streamInfo.getCloseResult();
+    await this.closeStream(streamInfo.streamKey);
+    return result;
+  }
+
+  /**
    * Called by StreamInfo.recordFailure. Records the error and terminates the stream.
    * @param {string} streamKey - The key identifying the stream
    * @param {StreamInfo} streamInfo - The stream info (unused, kept for signature)

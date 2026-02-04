@@ -5,9 +5,7 @@
  * @private
  */
 function joinPath(...segments) {
-  return segments
-    .filter(segment => segment && segment.length > 0)
-    .join('/');
+  return segments.filter(segment => segment && segment.length > 0).join('/');
 }
 
 /**
@@ -170,47 +168,45 @@ export class DicomWebReader {
     return this.openInputStream(relativePath, filename);
   }
 
-    /**
+  /**
    * Reads a JSON file from a stream and parses it
    * @param {Readable} stream - Readable stream containing JSON data
    * @returns {Promise<Object>} - Parsed JSON object
    */
-    async readJsonFromStream(stream) {
-      return new Promise((resolve, reject) => {
-        const chunks = [];
-        
-        stream.on('data', (chunk) => {
-          chunks.push(chunk);
-        });
-        
-        stream.on('end', () => {
-          try {
-            const buffer = Buffer.concat(chunks);
-            const jsonString = buffer.toString('utf-8');
-            const json = JSON.parse(jsonString);
-            resolve(json);
-          } catch (error) {
-            reject(new Error(`Failed to parse JSON: ${error.message}`));
-          }
-        });
-        
-        stream.on('error', reject);
+  async readJsonFromStream(stream) {
+    return new Promise((resolve, reject) => {
+      const chunks = [];
+
+      stream.on('data', chunk => {
+        chunks.push(chunk);
       });
+
+      stream.on('end', () => {
+        try {
+          const buffer = Buffer.concat(chunks);
+          const jsonString = buffer.toString('utf-8');
+          const json = JSON.parse(jsonString);
+          resolve(json);
+        } catch (error) {
+          reject(new Error(`Failed to parse JSON: ${error.message}`));
+        }
+      });
+
+      stream.on('error', reject);
+    });
+  }
+
+  /**
+   * Reads a JSON file from a relative path
+   * @param {string} relativePath - Relative path within baseDir
+   * @param {string} filename - Filename to read
+   * @returns {Promise<Object|undefined>} - Parsed JSON object or undefined if file doesn't exist
+   */
+  async readJsonFile(relativePath, filename) {
+    const stream = await this.openInputStream(relativePath, filename);
+    if (!stream) {
+      return undefined;
     }
-  
-    /**
-     * Reads a JSON file from a relative path
-     * @param {string} relativePath - Relative path within baseDir
-     * @param {string} filename - Filename to read
-     * @returns {Promise<Object|undefined>} - Parsed JSON object or undefined if file doesn't exist
-     */
-    async readJsonFile(relativePath, filename) {
-      const stream = await this.openInputStream(relativePath, filename);
-      if (!stream) {
-        return undefined;
-      }
-      return this.readJsonFromStream(stream);
-    }
-  
-  
+    return this.readJsonFromStream(stream);
+  }
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { Command } from 'commander';
-import { instanceMain, seriesMain, studyMain, createMain, stowMain, thumbnailMain, indexMain } from '../lib/index.mjs';
+import { instanceMain, seriesMain, studyMain, createMain, stowMain, thumbnailMain, indexMain, part10Main } from '../lib/index.mjs';
 import { handleHomeRelative, createVerboseLog } from '@radicalimaging/static-wado-util';
 
 const program = new Command();
@@ -227,6 +227,29 @@ program
       indexOptions.dicomdir = handleHomeRelative(options.dicomdir);
     }
     await indexMain(studyUIDs, indexOptions);
+  });
+
+program
+  .command('part10')
+  .description('Export DICOMweb metadata to Part 10 DICOM files')
+  .argument('<studyUID>', 'Study Instance UID')
+  .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
+  .option('--series-uid <seriesUID>', 'Specific Series Instance UID to export (if not provided, exports all series)')
+  .option('-o, --output <dir>', 'Output directory for Part 10 files', '.')
+  .option('--continue-on-error', 'Continue processing even if an instance fails')
+  .action(async (studyUID, options) => {
+    updateVerboseLog();
+    const part10Options = {
+      dicomdir: handleHomeRelative(options.dicomdir),
+      outputDir: options.output,
+    };
+    if (options.seriesUid) {
+      part10Options.seriesUid = options.seriesUid;
+    }
+    if (options.continueOnError) {
+      part10Options.continueOnError = true;
+    }
+    await part10Main(studyUID, part10Options);
   });
 
 program.parse();

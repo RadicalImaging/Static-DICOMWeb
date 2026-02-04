@@ -5,3 +5,4 @@ export * from './createMain.mjs';
 export * from './stowMain.mjs';
 export * from './thumbnailMain.mjs';
 export * from './indexMain.mjs';
+export * from './part10Main.mjs';
