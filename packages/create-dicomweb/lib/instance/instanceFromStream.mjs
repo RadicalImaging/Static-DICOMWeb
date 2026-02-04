@@ -4,6 +4,7 @@ import { writeMultipartFramesFilter } from './writeMultipartFramesFilter.mjs';
 import { writeBulkdataFilter } from './writeBulkdataFilter.mjs';
 import { inlineBinaryFilter } from './inlineBinaryFilter.mjs';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
+import { createPromiseTracker } from 'static-wado-util/lib/createPromiseTracker.mjs';
 
 const { AsyncDicomReader } = async;
 const { setValue } = Tags;
@@ -18,7 +19,9 @@ const { ReadBufferStream } = data;
  * @param {string} options.dicomdir - Base directory for writing files (required if DicomWebWriter is not provided)
  * @param {Function} options.DicomWebWriter - Constructor for DicomWebWriter. Defaults to FileDicomWebWriter if dicomdir is provided
  * @param {Object} options.writerOptions - Additional options to pass to the DicomWebWriter constructor
- * @param {{ add: (p: Promise) => Promise }|undefined} [options.streamWritePromiseTracker] - Optional tracker for stream write promises (e.g. for back pressure)
+ * @param {{ add: (p: Promise) => Promise, limitUnsettled: (max, timeoutMs) => Promise }|undefined} [options.streamWritePromiseTracker] - Optional tracker for stream write promises (e.g. for back pressure). When provided (or via options.writerOptions.streamWritePromiseTracker), the listener drain is set so the reader awaits limitUnsettled before emitting more frame data, preventing too many open streams.
+ * @param {number} [options.drainMaxUnsettled=25] - Max unsettled stream writes allowed before reader waits (used when streamWritePromiseTracker is set).
+ * @param {number} [options.drainTimeoutMs=5000] - Timeout in ms for drain wait (used when streamWritePromiseTracker is set).
  * @param {boolean} options.bulkdata - Enable bulkdata filter (default: true if writer exists). Set to false to use frames filter instead
  * @param {number} options.sizeBulkdataTags - Size threshold in bytes for public tags (default: 128k + 2 bytes)
  * @param {number} options.sizePrivateBulkdataTags - Size threshold in bytes for private tags (default: 128 bytes)
@@ -133,6 +136,17 @@ export async function instanceFromStream(stream, options = {}) {
   // Create listener with filters
   // The listener will automatically create its own information filter and call init()
   const listener = new DicomMetadataListener({ information }, ...filters);
+
+  // Wire drain (backpressure) to the stream write promise tracker so we don't emit
+  // frame fragments faster than streams can be consumed (prevents too many open streams).
+  const streamWritePromiseTracker = options.streamWritePromiseTracker || createPromiseTracker('instanceFromStream');
+  if (writer ) {
+    const drainMaxUnsettled = options.drainMaxUnsettled ?? 25;
+    const drainTimeoutMs = options.drainTimeoutMs ?? 5000;
+    listener.setDrain(() =>
+      streamWritePromiseTracker.limitUnsettled(drainMaxUnsettled, drainTimeoutMs)
+    );
+  }
 
   // Final validation of stream state before reading (especially for ReadBufferStream)
   if (reader.stream instanceof ReadBufferStream) {

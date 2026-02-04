@@ -113,6 +113,11 @@ program
     '--timeout <duration>',
     'Request timeout: hours (10h), minutes (10m), or seconds (3600 or 3600s)'
   )
+  .option('--parallel <N>', 'Number of parallel STOW-RS requests', '1')
+  .option(
+    '--no-filename-check',
+    'Upload all files regardless of extension (default: skip .gz, .json, .md, .txt, .xml, .pdf, .jpg, .png, .html, .zip, etc.)'
+  )
   .action(async (fileNames, options) => {
     updateVerboseLog();
     const stowOptions = {
@@ -149,6 +154,15 @@ program
     // Parse timeout (e.g. 10h, 10m, 3600, 3600s) to milliseconds
     if (options.timeout) {
       stowOptions.timeoutMs = parseTimeoutToMs(options.timeout);
+    }
+
+    const parallel = parseInt(options.parallel, 10);
+    if (!Number.isNaN(parallel) && parallel >= 1) {
+      stowOptions.parallel = parallel;
+    }
+
+    if (options.filenameCheck === false) {
+      stowOptions.filenameCheck = false;
     }
 
     await stowMain(fileNames, stowOptions);

@@ -2,7 +2,7 @@ import { v4 as uuid } from 'uuid';
 import { createGzip } from 'zlib';
 import { uids } from '@radicalimaging/static-wado-util';
 import { MultipartStreamWriter } from './MultipartStreamWriter.mjs';
-import { StreamInfo } from './StreamInfo.mjs';
+import { StreamInfo, getStreamCounts } from './StreamInfo.mjs';
 
 /**
  * Base class for writing DICOMweb outputs
@@ -158,9 +158,18 @@ export class DicomWebWriter {
 
     if (this.streamWritePromiseTracker && streamInfo.promise) {
       this.streamWritePromiseTracker.add(streamInfo.promise);
-      console.verbose(
-        `[DicomWebWriter] added stream promise to tracker ${this.streamWritePromiseTracker.getTrackerId()}: unsettled=${this.streamWritePromiseTracker.getUnsettledCount()} settled=${this.streamWritePromiseTracker.getSettledCount()}`
-      );
+      if (
+        (this.streamWritePromiseTracker.getSettledCount() > 0 &&
+          this.streamWritePromiseTracker.getSettledCount() % 500 === 0) ||
+        this.streamWritePromiseTracker.getUnsettledCount() > 50
+      ) {
+        console.noQuiet(
+          '[DicomWebWriter] stream progress:',
+          this.streamWritePromiseTracker.getUnsettledCount(),
+          'unsetteled out of',
+          this.streamWritePromiseTracker.getSettledCount()
+        );
+      }
     }
 
     return streamInfo;

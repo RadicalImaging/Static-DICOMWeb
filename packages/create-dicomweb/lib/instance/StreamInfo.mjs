@@ -2,6 +2,14 @@
 let streamOpenCount = 0;
 /** Total number of streams closed (all StreamInfo instances, cumulative) */
 let streamClosedCount = 0;
+
+/**
+ * Returns current global stream open and closed counts (for logging from DicomWebWriter).
+ * @returns {{ streamOpenCount: number, streamClosedCount: number }}
+ */
+export function getStreamCounts() {
+  return { streamOpenCount, streamClosedCount };
+}
 /** High-water log threshold; log when open count exceeds this */
 const STREAM_OPEN_WARN_THRESHOLD = 500;
 /** Log again every this many beyond the threshold */

@@ -2,8 +2,44 @@ import fs from "fs";
 import path from "path";
 import { randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
-import { dirScanner } from '@radicalimaging/static-wado-util';
+import { dirScanner, createPromiseTracker } from '@radicalimaging/static-wado-util';
 import { parseAndLogDicomJsonErrors } from './parseDicomJsonErrors.mjs';
+
+/** Timeout for createPromiseTracker limitUnsettled when waiting for the next storage slot (at least 30 minutes) */
+const LIMIT_UNSETTLED_TIMEOUT_MS = 30 * 60 * 1000;
+/** Timeout for "wait for all" when using parallel (24 hours) */
+const WAIT_ALL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+/** File extensions skipped when filenameCheck is on (lowercase, no dot) */
+const SKIP_EXTENSIONS = new Set([
+  'gz',
+  'json',
+  'md',
+  'txt',
+  'xml',
+  'pdf',
+  'py',
+  'jpg',
+  'jpeg',
+  'png',
+  'gif',
+  'bmp',
+  'webp',
+  'svg',
+  'ico',
+  'tiff',
+  'tif',
+  'html',
+  'htm',
+  'css',
+  'js',
+  'mjs',
+  'cjs',
+  'zip',
+  'zipx',
+  'tar',
+  'rar',
+  '7z',
+]);
 
 /**
  * Stores DICOM files to a STOW-RS endpoint
@@ -15,6 +51,8 @@ import { parseAndLogDicomJsonErrors } from './parseDicomJsonErrors.mjs';
  * @param {boolean} [options.sendAsSingleFiles] - If true, send each file individually instead of grouping (default: false)
  * @param {boolean} [options.xmlResponse] - If true, request XML response format instead of JSON (default: false)
  * @param {number} [options.timeoutMs] - Request timeout in milliseconds; no timeout if omitted
+ * @param {number} [options.parallel=1] - Number of parallel STOW-RS requests (1 = sequential). When > 1, limitUnsettled uses at least 30 minutes.
+ * @param {boolean} [options.filenameCheck=true] - If true, skip common non-DICOM extensions (e.g. gz, json, md, txt, xml, pdf, jpg, png, html, zip). Use false to upload all files.
  */
 export async function stowMain(fileNames, options = {}) {
   const {
@@ -24,6 +62,8 @@ export async function stowMain(fileNames, options = {}) {
     sendAsSingleFiles = false,
     xmlResponse = false,
     timeoutMs,
+    parallel = 1,
+    filenameCheck = true,
   } = options; // Default 10MB
 
   if (!url) {
@@ -44,17 +84,14 @@ export async function stowMain(fileNames, options = {}) {
   let currentGroupSize = 0;
   let isFirstAttempt = true;
 
-  const flushGroup = async () => {
-    if (fileGroup.length === 0) return;
+  const tracker = createPromiseTracker('stow');
 
+  const runOneStow = async (group, requestTimeoutMs) => {
     try {
-      await stowFiles(fileGroup, url, headers, xmlResponse, timeoutMs);
-      results.success += fileGroup.length;
-      const fileCount = fileGroup.length;
-      console.log(`Stored group of ${fileCount} file(s)`);
-      isFirstAttempt = false;
+      await stowFiles(group, url, headers, xmlResponse, requestTimeoutMs);
+      results.success += group.length;
+      console.log(`Stored group of ${group.length} file(s)`);
     } catch (error) {
-      // Check if this is a connection failure (not an HTTP error)
       const isConnectionError =
         error.message.includes('fetch failed') ||
         error.message.includes('ECONNREFUSED') ||
@@ -66,24 +103,30 @@ export async function stowMain(fileNames, options = {}) {
         error.cause?.code === 'ETIMEDOUT' ||
         error.cause?.code === 'ECONNRESET';
 
-      // If it's a connection error on the first attempt, exit immediately
       if (isFirstAttempt && isConnectionError) {
         console.error(`Failed to connect to endpoint ${url}: ${error.message}`);
         console.error('Exiting due to connection failure');
         process.exit(1);
       }
 
-      // Otherwise, treat it as a regular error and continue
-      results.failed += fileGroup.length;
-      fileGroup.forEach(({ filePath }) => {
+      results.failed += group.length;
+      group.forEach(({ filePath }) => {
         results.errors.push({ file: filePath, error: error.message });
         console.error(`Failed to store ${filePath}: ${error.message}`);
       });
-      isFirstAttempt = false;
     }
+    isFirstAttempt = false;
+  };
 
+  const flushGroup = async () => {
+    if (fileGroup.length === 0) return;
+
+    const snapshot = fileGroup.slice();
     fileGroup.length = 0;
     currentGroupSize = 0;
+
+    await tracker.limitUnsettled(parallel, LIMIT_UNSETTLED_TIMEOUT_MS);
+    tracker.add(runOneStow(snapshot, timeoutMs));
   };
 
   await dirScanner(fileNames, {
@@ -91,6 +134,11 @@ export async function stowMain(fileNames, options = {}) {
     recursive: true,
     callback: async filename => {
       try {
+        if (filenameCheck) {
+          const ext = path.extname(filename).slice(1).toLowerCase();
+          if (SKIP_EXTENSIONS.has(ext)) return;
+        }
+
         const stats = fs.statSync(filename);
         const fileSize = stats.size;
 
@@ -122,6 +170,8 @@ export async function stowMain(fileNames, options = {}) {
 
   // Flush any remaining files in the group
   await flushGroup();
+
+  await tracker.limitUnsettled(0, WAIT_ALL_TIMEOUT_MS);
 
   console.log(`\nStorage complete: ${results.success} succeeded, ${results.failed} failed`);
   if (results.errors.length > 0) {

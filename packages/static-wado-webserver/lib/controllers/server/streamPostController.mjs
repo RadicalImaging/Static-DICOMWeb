@@ -190,6 +190,7 @@ export function streamPostController(params) {
       try {
         const promise = instanceFromStream(stream, {
           dicomdir,
+          streamWritePromiseTracker: req.streamWritePromiseTracker,
           writerOptions: {
             baseDir: dicomdir,
             streamWritePromiseTracker: req.streamWritePromiseTracker,
