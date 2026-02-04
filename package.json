@@ -31,13 +31,13 @@
   "dependencies": {
     "@cornerstonejs/dicom-codec": "1.0.9",
     "canvas": "3.1.0",
-    "dcmjs": "0.49.1",
+    "dcmjs": "0.49.4",
     "typescript": "^5.8.2"
   },
   "resolutions": {
     "@cornerstonejs/dicom-codec": "1.0.9",
     "@cornerstonejs/codec-openjph": ">=2.4.5",
-    "dcmjs": "link:dcmjs",
+    "dcmjs": "0.49.4",
     "canvas": "3.1.0"
   },
   "workspaces": [
