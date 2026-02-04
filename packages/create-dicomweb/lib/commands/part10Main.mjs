@@ -1,7 +1,6 @@
 import path from 'path';
 import { data } from 'dcmjs';
-import { FileDicomWebReader } from '../instance/FileDicomWebReader.mjs';
-import { FileDicomWebWriter } from '../instance/FileDicomWebWriter.mjs';
+import { DicomWebStream } from '../instance/DicomWebStream.mjs';
 import { Tags, readBulkData } from '@radicalimaging/static-wado-util';
 
 const { DicomDict, DicomMetaDictionary } = data;
@@ -428,11 +427,12 @@ async function writeBuffer(outputWriter, fileName, buffer) {
  * @param {Object} options - Options object
  * @param {string} options.dicomdir - Base directory path where DICOMweb structure is located
  * @param {string} [options.seriesUid] - Specific Series Instance UID to export (if not provided, exports all series)
- * @param {string} [options.outputDir] - Output directory for Part 10 files (default: '.')
+ * @param {string} [options.outputDir] - Output directory for Part 10 files (default: '.' when not streaming to response)
+ * @param {import('express').Response} [options.response] - If set, stream Part 10 as multipart/related; type="application/dicom" to this Express response
  * @param {boolean} [options.continueOnError] - Continue processing even if an instance fails (default: false)
  */
 export async function part10Main(studyUID, options = {}) {
-  const { dicomdir, seriesUid, outputDir = '.', continueOnError = false } = options;
+  const { dicomdir, seriesUid, outputDir = '.', response, continueOnError = false } = options;
 
   if (!dicomdir) {
     throw new Error('dicomdir option is required');
@@ -442,8 +442,19 @@ export async function part10Main(studyUID, options = {}) {
     throw new Error('studyUID is required');
   }
 
-  const reader = new FileDicomWebReader(dicomdir);
-  const outputWriter = new FileDicomWebWriter({}, { baseDir: outputDir });
+  const reader = DicomWebStream.createReader(dicomdir);
+  if (!reader) {
+    throw new Error(`dicomdir is not a valid file location: ${dicomdir}`);
+  }
+
+  const outputWriter = DicomWebStream.createWriter({}, options);
+  if (!outputWriter) {
+    throw new Error(
+      response
+        ? 'multipart writer requires options.response'
+        : `outputDir is not a valid file location: ${outputDir}`
+    );
+  }
 
   // Step 1: Get list of series to process
   const seriesIndex = await reader.readJsonFile(
