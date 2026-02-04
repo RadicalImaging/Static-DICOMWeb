@@ -1,7 +1,7 @@
-import fs from 'fs';
 import path from 'path';
 import { data } from 'dcmjs';
 import { FileDicomWebReader } from '../instance/FileDicomWebReader.mjs';
+import { FileDicomWebWriter } from '../instance/FileDicomWebWriter.mjs';
 import { Tags, readBulkData } from '@radicalimaging/static-wado-util';
 
 const { DicomDict, DicomMetaDictionary } = data;
@@ -77,7 +77,9 @@ async function getTransferSyntaxUID(seriesDir, instanceMetadata) {
   }
 
   // Last resort: default to uncompressed
-  console.warn('Could not determine transfer syntax from frame header or AvailableTransferSyntaxUIDs, using default uncompressed');
+  console.warn(
+    'Could not determine transfer syntax from frame header or AvailableTransferSyntaxUIDs, using default uncompressed'
+  );
   return UncompressedLEIExplicit;
 }
 
@@ -103,8 +105,7 @@ function toArrayBuffer(inputData) {
   // Uint8Array or other TypedArray
   else if (inputData instanceof Uint8Array) {
     sourceView = inputData;
-  }
-  else if (ArrayBuffer.isView(inputData)) {
+  } else if (ArrayBuffer.isView(inputData)) {
     sourceView = new Uint8Array(inputData.buffer, inputData.byteOffset, inputData.byteLength);
   }
   // Unknown type - try to handle it
@@ -115,8 +116,7 @@ function toArrayBuffer(inputData) {
       console.warn('Could not convert to ArrayBuffer:', typeof inputData, inputData);
       return inputData;
     }
-  }
-  else {
+  } else {
     console.warn('Unknown data type for toArrayBuffer:', typeof inputData, inputData);
     return inputData;
   }
@@ -167,7 +167,9 @@ async function readBulkDataValue(seriesDir, instanceMetadata, value) {
         const frameData = bulk.binaryData || bulk;
         value.Value.push(toArrayBuffer(frameData));
       } catch (e) {
-        console.warn(`Could not read bulk data for frame ${frame} from ${BulkDataURI}: ${e.message}`);
+        console.warn(
+          `Could not read bulk data for frame ${frame} from ${BulkDataURI}: ${e.message}`
+        );
         break;
       }
     }
@@ -220,7 +222,9 @@ function numericArrayToArrayBuffer(arr) {
  */
 function ensureArrayBuffer(value, tag, vr) {
   if (!value) {
-    throw new Error(`Cannot convert null/undefined value to ArrayBuffer for tag ${tag} with VR ${vr}`);
+    throw new Error(
+      `Cannot convert null/undefined value to ArrayBuffer for tag ${tag} with VR ${vr}`
+    );
   }
 
   // Already ArrayBuffer
@@ -267,7 +271,9 @@ function ensureArrayBuffer(value, tag, vr) {
     }
   }
 
-  throw new Error(`Cannot convert value to ArrayBuffer for tag ${tag} with VR ${vr}: ${typeof value}`);
+  throw new Error(
+    `Cannot convert value to ArrayBuffer for tag ${tag} with VR ${vr}: ${typeof value}`
+  );
 }
 
 /**
@@ -330,7 +336,7 @@ async function readBinaryData(seriesDir, instanceMetadata) {
     }
 
     // Handle Value arrays with only null/undefined values - remove the tag
-    if (v.Value && Array.isArray(v.Value) && v.Value.every(val => val === null || val === undefined)) {
+    if (Array.isArray(v.Value) && v.Value.every(val => val === null || val === undefined)) {
       delete instanceMetadata[tag];
       continue;
     }
@@ -404,20 +410,16 @@ async function readBinaryData(seriesDir, instanceMetadata) {
 }
 
 /**
- * Writes a buffer to a file
- * @param {string} outputDir - Output directory path
+ * Writes a Part 10 buffer to a file using the output writer
+ * @param {import('../instance/DicomWebWriter.mjs').DicomWebWriter} outputWriter - Writer with baseDir set to output directory (uses writeFile)
  * @param {string} fileName - File name (without extension)
  * @param {Buffer} buffer - Buffer to write
+ * @returns {Promise<string>} - Resolves with the written file path
  */
-function writeBuffer(outputDir, fileName, buffer) {
-  // Ensure output directory exists
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
-
-  const filePath = path.join(outputDir, `${fileName}.dcm`);
-  fs.writeFileSync(filePath, buffer);
+async function writeBuffer(outputWriter, fileName, buffer) {
+  const filePath = await outputWriter.writeFile('', `${fileName}.dcm`, buffer);
   console.log(`Written: ${filePath}`);
+  return filePath;
 }
 
 /**
@@ -441,6 +443,7 @@ export async function part10Main(studyUID, options = {}) {
   }
 
   const reader = new FileDicomWebReader(dicomdir);
+  const outputWriter = new FileDicomWebWriter({}, { baseDir: outputDir });
 
   // Step 1: Get list of series to process
   const seriesIndex = await reader.readJsonFile(
@@ -519,7 +522,7 @@ export async function part10Main(studyUID, options = {}) {
         dicomDict.dict = instanceCopy;
 
         const buffer = Buffer.from(dicomDict.write());
-        writeBuffer(outputDir, sopInstanceUID, buffer);
+        await writeBuffer(outputWriter, sopInstanceUID, buffer);
 
         totalInstances++;
       } catch (error) {
@@ -527,7 +530,9 @@ export async function part10Main(studyUID, options = {}) {
         if (!continueOnError) {
           throw error;
         }
-        console.warn(`Skipping instance ${sopInstanceUID} due to error (--continue-on-error enabled)`);
+        console.warn(
+          `Skipping instance ${sopInstanceUID} due to error (--continue-on-error enabled)`
+        );
       }
     }
   }
