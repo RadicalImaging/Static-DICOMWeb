@@ -31,7 +31,10 @@
   "homepage": "https://github.com/radicalimaging/static-dicomweb#readme",
   "license": "ISC",
   "main": "lib/index.mjs",
-  "module": "dist/index.js",
+  "module": "lib/index.mjs",
+  "exports": {
+    ".": "./lib/index.mjs"
+  },
   "directories": {
     "lib": "lib",
     "dist": "dist",
@@ -42,13 +45,10 @@
     "lib"
   ],
   "bin": {
-    "dicomwebserver": "bin/dicomwebserver.mjs",
-    "dicomwebserverBun": "bin/dicomwebserverBun.mjs"
+    "dicomwebserver": "bin/dicomwebserver.mjs"
   },
   "scripts": {
     "test": "jest --config ./jest.config.js",
-    "build": "bun run build:esm",
-    "build:esm": "bun build lib/index.mjs --target node --outdir dist",
     "link:exec": "bun link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",

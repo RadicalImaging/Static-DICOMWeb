@@ -7,6 +7,7 @@ import configureProgram from './program/index.mjs';
 
 import setRoutes from './routes/index.mjs';
 import setMiddlewares from './middlewares/index.mjs';
+import { getStatusPayload } from './controllers/server/statusController.mjs';
 
 /**
  * Serve up the web files
@@ -45,8 +46,30 @@ const DicomWebServer = async params => {
     },
     () => {
       console.log(`Listening on port ${port} for both IPv4 and IPv6`);
+      if (params.showStatus) {
+        const intervalSec = params.statusTime ?? 60;
+        setInterval(() => {
+          const payload = getStatusPayload({
+            detailed: params.statusDiagnostic,
+            includeLivelock: params.statusDiagnostic,
+          });
+          console.log('\n--- status ---');
+          console.log(JSON.stringify(payload, null, 2));
+        }, intervalSec * 1000);
+      }
     }
   );
+  server.on('error', console.error);
+  server.on('close', () => console.log('Server closed'));
+
+  process.on('uncaughtException', console.error);
+  process.on('unhandledRejection', console.error);
+  process.on('exit', code => console.log('Exit code:', code));
+  setInterval(() => {
+    if (!server.listening) {
+      console.error('⚠️ Server is NOT listening anymore');
+    }
+  }, 5000);
 
   return app;
 };

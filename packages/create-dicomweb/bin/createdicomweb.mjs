@@ -165,6 +165,10 @@ program
       stowOptions.filenameCheck = false;
     }
 
+    const opts = program.opts();
+    stowOptions.quiet = opts.quiet;
+    stowOptions.verbose = opts.verbose;
+
     await stowMain(fileNames, stowOptions);
   });
 

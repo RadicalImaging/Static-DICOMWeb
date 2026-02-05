@@ -1,34 +1,14 @@
 import { StatusMonitor } from '@radicalimaging/static-wado-util';
-import {
-  setLivelockEnabled,
-  getLivelockConfig,
-  getLivelockReports,
-} from '../../util/livelockRegistry.mjs';
+import { getLivelockConfig, getLivelockReports } from '../../util/livelockRegistry.mjs';
 
 /**
- * GET /status (under server path, e.g. /dicomweb/status).
- * Returns JSON summary of job counts by type.
- * Query: ?detailed - include all ongoing jobs with per-job data (pretty-printed).
- * Query: ?livelock=true - enable livelock detection and include config + reports in response.
- * Query: ?livelock=false - disable livelock detection; response includes current livelock state.
- *
- * @param {object} req
- * @param {object} res
+ * Build status payload (used by GET /status and by --show-status console dump).
+ * @param {{ detailed?: boolean, includeLivelock?: boolean }} options
+ * @returns {object}
  */
-export function statusController(req, res) {
+export function getStatusPayload(options = {}) {
+  const { detailed = false, includeLivelock = false } = options;
   const summary = StatusMonitor.getSummary();
-  const detailed = req.query?.detailed !== undefined && req.query?.detailed !== '';
-  const livelockParam = req.query?.livelock;
-
-  if (livelockParam === 'true' || livelockParam === '1') {
-    setLivelockEnabled(true);
-  } else if (livelockParam === 'false' || livelockParam === '0') {
-    setLivelockEnabled(false);
-  }
-
-  const includeLivelock =
-    livelockParam !== undefined && livelockParam !== '';
-
   const ongoingJobs = StatusMonitor.getOngoingJobs();
   const ongoingMax =
     ongoingJobs.length > 0
@@ -42,7 +22,7 @@ export function statusController(req, res) {
         }
       : null;
 
-  const payload = {
+  return {
     ...summary,
     ...(ongoingMax ? ongoingMax : {}),
     ...(detailed ? { ongoingJobs } : {}),
@@ -55,6 +35,21 @@ export function statusController(req, res) {
         }
       : {}),
   };
+}
+
+/**
+ * GET /status (under server path, e.g. /dicomweb/status).
+ * Returns JSON summary of job counts by type.
+ * Query: ?detailed - include all ongoing jobs with per-job data (pretty-printed).
+ * Query: ?livelock=true - include livelock config and reports in response (does not enable/disable detection).
+ *
+ * @param {object} req
+ * @param {object} res
+ */
+export function statusController(req, res) {
+  const detailed = req.query?.detailed !== undefined && req.query?.detailed !== '';
+  const includeLivelock = req.query?.livelock === 'true' || req.query?.livelock === '1';
+  const payload = getStatusPayload({ detailed, includeLivelock });
 
   res.setHeader('Content-Type', 'application/json');
   res.send(JSON.stringify(payload, null, 2));

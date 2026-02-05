@@ -3,6 +3,7 @@ import {
   dicomToXml,
   handleHomeRelative,
   createPromiseTracker,
+  createProgressReporter,
   StatusMonitor,
 } from '@radicalimaging/static-wado-util';
 import { instanceFromStream } from '@radicalimaging/create-dicomweb';
@@ -145,9 +146,20 @@ export function streamPostController(params) {
   const backPressureTimeoutMs = params.backPressureTimeoutMs ?? 5000;
   const backpressureWaitMs = params.backpressureWaitMs ?? 100;
   const backpressureMaxBytes = params.backpressureMaxBytes ?? 128 * 1024;
+  const showProgress = !params.quiet && !params.verbose;
 
   return multipartStream({
     onRequestStart: req => {
+      req.stowProgressReporter = createProgressReporter({
+        total: 0,
+        enabled: showProgress,
+        label: 'instances',
+        getExtraInfo: () => {
+          const sw = req.streamWritePromiseTracker;
+          const settled = sw?.getSettledCount?.() ?? 0;
+          return settled > 0 ? ` (${settled} stream writes)` : '';
+        },
+      });
       req.statusMonitorPostJobId = StatusMonitor.startJob('stowPost', {
         parts: 0,
         totalBytes: 0,
@@ -174,6 +186,9 @@ export function streamPostController(params) {
       }
     },
     onRequestEnd: (req, { partCount, totalBytes, totalTimeMs }) => {
+      if (req.stowProgressReporter && partCount > 0) {
+        req.stowProgressReporter.setTotal(partCount);
+      }
       if (req.statusMonitorPostJobId) {
         StatusMonitor.endJob('stowPost', req.statusMonitorPostJobId, {
           parts: partCount,
@@ -184,6 +199,10 @@ export function streamPostController(params) {
       }
     },
     onRequestAbort: (req, err) => {
+      if (req.stowProgressReporter) {
+        req.stowProgressReporter.finish();
+        req.stowProgressReporter = null;
+      }
       if (req.statusMonitorPostJobId) {
         StatusMonitor.endJob('stowPost', req.statusMonitorPostJobId, {
           aborted: true,
@@ -218,6 +237,8 @@ export function streamPostController(params) {
           completedPromises: streamWrite.getSettledCount(),
         });
       }
+
+      req.stowProgressReporter?.refresh();
 
       const unsettled = await req.uploadPromiseTracker.limitUnsettled(
         maxUnsettledReceives,
@@ -275,8 +296,10 @@ export function streamPostController(params) {
         const { information } = result;
         console.verbose('information:', information);
 
+        req.stowProgressReporter?.addProcessed(1);
         return result;
       } catch (error) {
+        req.stowProgressReporter?.addProcessed(1);
         // Mark the job as failed so status monitor reflects instance failures
         if (req?.statusMonitorInstancesJobId) {
           req.stowInstanceFailures = (req.stowInstanceFailures ?? 0) + 1;
@@ -476,6 +499,10 @@ function createDatasetResponse(files) {
 
 export const completePostController = async (req, res, next) => {
   try {
+    if (req.stowProgressReporter) {
+      req.stowProgressReporter.finish();
+      req.stowProgressReporter = null;
+    }
     if (req.statusMonitorInstancesJobId) {
       const upload = req.uploadPromiseTracker ?? {
         getUnsettledCount: () => 0,

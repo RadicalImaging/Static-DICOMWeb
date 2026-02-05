@@ -117,7 +117,7 @@ export function multipartStream(opts) {
     const abort = err => {
       if (aborted) return;
       aborted = true;
-
+      console.trace('abort', err);
       if (onRequestAbort) onRequestAbort(req, err);
 
       // Mark all part streams (including any still being processed in checkAllPartsComplete) as aborted
@@ -503,6 +503,16 @@ export function multipartStream(opts) {
             console.warn(
               `[multipartStream] Waiting for ${req.uploadListenerPromises.length} listener promise(s) to complete...`
             );
+            // While progress is being made, wait for it to complete
+            let initialCount = req.streamWritePromiseTracker?.getSettledCount?.() ?? 0;
+            while (req.streamWritePromiseTracker?.getUnsettledCount?.() > 0) {
+              await req.streamWritePromiseTracker.limitUnsettled(1, WAIT_TIMEOUT_MS);
+              const currentSettled = req.streamWritePromiseTracker.getSettledCount();
+              if (currentSettled === initialCount) {
+                break;
+              }
+              initialCount = currentSettled;
+            }
             waitTimeoutId = setTimeout(() => {
               if (!aborted && !nextCalled) {
                 abort(new Error('STOW listener wait timeout (5 minutes)'));
@@ -546,13 +556,15 @@ export function multipartStream(opts) {
     // When the client kills the request (e.g. Ctrl+C, disconnect), treat as abort so streams
     // are marked complete/aborted and instanceFromStream's ensureAvailable rejects.
     req.on('aborted', () => {
-      if (!aborted) abort(new Error('Request aborted'));
+      console.noQuiet('Request aborted');
+      if (!aborted) abort(new Error('Request aborted by req.aborted'));
     });
     req.on('close', () => {
-      if (!aborted) abort(new Error('Client closed connection'));
+      console.noQuiet('************* client closed connection');
     });
     req.on('error', err => {
-      if (!aborted) abort(err);
+      console.noQuiet('Request error:', err);
+      // if (!aborted) abort(err);
     });
 
     // Pipe request directly to Dicer

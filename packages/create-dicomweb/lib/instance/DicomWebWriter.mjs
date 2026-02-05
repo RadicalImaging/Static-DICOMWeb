@@ -163,7 +163,7 @@ export class DicomWebWriter {
           this.streamWritePromiseTracker.getSettledCount() % 500 === 0) ||
         this.streamWritePromiseTracker.getUnsettledCount() > 50
       ) {
-        console.noQuiet(
+        console.verbose(
           '[DicomWebWriter] stream progress:',
           this.streamWritePromiseTracker.getUnsettledCount(),
           'unsetteled out of',

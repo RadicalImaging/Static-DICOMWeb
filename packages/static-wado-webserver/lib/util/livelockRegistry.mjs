@@ -1,14 +1,14 @@
 /**
  * Registry of livelock detections from TrackableReadBufferStream.
- * When ?livelock=true on GET /status, the response includes these reports.
- * The livelock query param also controls detection: livelock=true enables it, livelock=false disables it.
+ * When ?livelock=true on GET /status, the response includes config and reports (read-only).
+ * Detection is enabled at server startup via --livelock-detect.
  */
 
 const MAX_REPORTS = 50;
 const DEFAULT_LIVELOCK_DETECT_MS = 15000;
 
 const reports = [];
-/** When true, TrackableReadBufferStream uses livelock detection (env or default ms). Set via GET /status?livelock=true|false. */
+/** When true, TrackableReadBufferStream uses livelock detection (env or default ms). Set via --livelock-detect at startup. */
 let detectionEnabled = false;
 
 /**
@@ -24,7 +24,7 @@ function getEnvLivelockDetectMs() {
 }
 
 /**
- * Enable or disable livelock detection. Called from GET /status?livelock=true|false.
+ * Enable or disable livelock detection. Called at startup when --livelock-detect is passed.
  * When enabling, threshold is TRACKABLE_STREAM_LIVELOCK_DETECT_MS env or 15000 ms.
  * @param {boolean} enabled
  */

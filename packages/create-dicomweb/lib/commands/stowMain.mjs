@@ -2,7 +2,11 @@ import fs from "fs";
 import path from "path";
 import { randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
-import { dirScanner, createPromiseTracker } from '@radicalimaging/static-wado-util';
+import {
+  dirScanner,
+  createPromiseTracker,
+  createProgressReporter,
+} from '@radicalimaging/static-wado-util';
 import { parseAndLogDicomJsonErrors } from './parseDicomJsonErrors.mjs';
 
 /** Timeout for createPromiseTracker limitUnsettled when waiting for the next storage slot (at least 30 minutes) */
@@ -56,6 +60,8 @@ const SKIP_EXTENSIONS = new Set([
  * @param {number} [options.timeoutMs] - Request timeout in milliseconds; no timeout if omitted
  * @param {number} [options.parallel=1] - Number of parallel STOW-RS requests (1 = sequential). When > 1, limitUnsettled uses at least 30 minutes.
  * @param {boolean} [options.filenameCheck=true] - If true, skip common non-DICOM extensions (e.g. gz, json, md, txt, xml, pdf, jpg, png, html, zip). Use false to upload all files.
+ * @param {boolean} [options.quiet] - If true, suppress progress and non-error output
+ * @param {boolean} [options.verbose] - If true, show per-group storage messages
  */
 export async function stowMain(fileNames, options = {}) {
   const {
@@ -67,10 +73,38 @@ export async function stowMain(fileNames, options = {}) {
     timeoutMs,
     parallel = 1,
     filenameCheck = true,
+    quiet = false,
+    verbose = false,
   } = options; // Default 10MB
+
+  const showProgress = !quiet && !verbose;
 
   if (!url) {
     throw new Error('url option is required');
+  }
+
+  /** Count files that will be processed (respects filenameCheck) */
+  const countFiles = async () => {
+    let count = 0;
+    await dirScanner(fileNames, {
+      recursive: true,
+      callback: async filename => {
+        if (filenameCheck) {
+          const ext = path.extname(filename).slice(1).toLowerCase();
+          if (SKIP_EXTENSIONS.has(ext)) return;
+          if (filename.endsWith('DICOMDIR')) return;
+        }
+        count++;
+      },
+    });
+    return count;
+  };
+
+  const totalFiles = showProgress ? await countFiles() : 0;
+  const progressReporter = createProgressReporter({ total: totalFiles, enabled: showProgress });
+
+  if (showProgress && totalFiles > 0) {
+    console.log(`\nStoring ${totalFiles} file(s)...\n`);
   }
 
   const results = {
@@ -92,9 +126,11 @@ export async function stowMain(fileNames, options = {}) {
     try {
       await stowFiles(group, url, headers, xmlResponse, requestTimeoutMs);
       results.success += group.length;
-      console.log(`Stored group of ${group.length} file(s)`);
+      console.verbose(`Stored group of ${group.length} file(s)`);
+      progressReporter.addProcessed(group.length);
     } catch (error) {
       const isConnectionError =
+        error.message.includes('Unable to connect') ||
         error.message.includes('fetch failed') ||
         error.message.includes('ECONNREFUSED') ||
         error.message.includes('ENOTFOUND') ||
@@ -112,6 +148,7 @@ export async function stowMain(fileNames, options = {}) {
       }
 
       results.failed += group.length;
+      progressReporter.addProcessed(group.length);
       group.forEach(({ filePath }) => {
         results.errors.push({ file: filePath, error: error.message });
         console.error(`Failed to store ${filePath}: ${error.message}`);
@@ -173,8 +210,15 @@ export async function stowMain(fileNames, options = {}) {
   // Flush any remaining files in the group
   await flushGroup();
 
-  await tracker.limitUnsettled(0, WAIT_ALL_TIMEOUT_MS);
+  if (!showProgress) {
+    console.log('Finished starting all stow operations; awaiting remaining store promises...');
+  }
+  // limitUnsettled(1): resolve when unsettled count drops below 1 (i.e. 0 remaining)
+  await tracker.limitUnsettled(1, WAIT_ALL_TIMEOUT_MS);
 
+  if (showProgress) {
+    progressReporter.finish();
+  }
   console.log(`\nStorage complete: ${results.success} succeeded, ${results.failed} failed`);
   if (results.errors.length > 0) {
     console.log('\nErrors:');
@@ -225,6 +269,7 @@ export async function stowFiles(
   if (timeoutMs != null && timeoutMs > 0) {
     const controller = new AbortController();
     signal = controller.signal;
+    console.noQuiet('Setting timeout for', timeoutMs, 'ms');
     timeoutId = setTimeout(
       () => controller.abort(new Error(`The operation timed out after ${timeoutMs}ms`)),
       timeoutMs
@@ -238,7 +283,7 @@ export async function stowFiles(
       headers: requestHeaders,
       duplex: 'half',
       body: bodyStream,
-      ...(signal && { signal }),
+      signal,
     });
 
     console.verbose('Server response status:', response.status, response.statusText);

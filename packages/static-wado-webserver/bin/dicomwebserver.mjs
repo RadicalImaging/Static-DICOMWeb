@@ -1,9 +1,6 @@
 #!/usr/bin/env bun
 
-import {
-  dicomWebServerConfig,
-  configureProgram,
-} from "@radicalimaging/static-wado-webserver";
+import { dicomWebServerConfig, configureProgram } from '../lib/index.mjs';
 // import "@radicalimaging/static-wado-plugins";
 
 // Configure program commander
