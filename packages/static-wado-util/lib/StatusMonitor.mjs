@@ -9,6 +9,7 @@
 let jobIdCounter = 0;
 const runningJobs = new Map(); // jobId -> { type, startedAt, data }
 const completedCountByType = new Map(); // typeId -> number
+const failedCountByType = new Map(); // typeId -> number (subset of completed: aborted or failed)
 
 /**
  * Generate a unique job id.
@@ -53,9 +54,10 @@ export class StatusMonitor {
 
   /**
    * End a job and move it to completed count.
+   * If finalData.failed or finalData.aborted is truthy, or finalData.failedCount > 0, the job is counted as failed.
    * @param {string} typeId - Job type
    * @param {string} jobId - Job id
-   * @param {object} [finalData={}] - Final data to merge (e.g. totalTimeMs, completed: true)
+   * @param {object} [finalData={}] - Final data to merge (e.g. totalTimeMs, failed: true, aborted: true, failedCount: number)
    */
   static endJob(typeId, jobId, finalData = {}) {
     const job = runningJobs.get(jobId);
@@ -63,23 +65,32 @@ export class StatusMonitor {
     runningJobs.delete(jobId);
     const count = completedCountByType.get(typeId) ?? 0;
     completedCountByType.set(typeId, count + 1);
+    const isFailed =
+      finalData.failed === true ||
+      finalData.aborted === true ||
+      (typeof finalData.failedCount === 'number' && finalData.failedCount > 0);
+    if (isFailed) {
+      const failedCount = failedCountByType.get(typeId) ?? 0;
+      failedCountByType.set(typeId, failedCount + 1);
+    }
   }
 
   /**
-   * Get summary of job counts by type: running and completed.
-   * @returns {{ jobTypes: Record<string, { running: number, completed: number }> }}
+   * Get summary of job counts by type: running, completed, and failed (failed is a subset of completed).
+   * @returns {{ jobTypes: Record<string, { running: number, completed: number, failed: number }> }}
    */
   static getSummary() {
     const byType = new Map();
     for (const job of runningJobs.values()) {
       const t = job.type;
-      const entry = byType.get(t) ?? { running: 0, completed: 0 };
+      const entry = byType.get(t) ?? { running: 0, completed: 0, failed: 0 };
       entry.running += 1;
       byType.set(t, entry);
     }
     for (const [typeId, count] of completedCountByType) {
-      const entry = byType.get(typeId) ?? { running: 0, completed: 0 };
+      const entry = byType.get(typeId) ?? { running: 0, completed: 0, failed: 0 };
       entry.completed = count;
+      entry.failed = failedCountByType.get(typeId) ?? 0;
       byType.set(typeId, entry);
     }
     const jobTypes = Object.fromEntries(byType);
@@ -120,5 +131,6 @@ export class StatusMonitor {
   static reset() {
     runningJobs.clear();
     completedCountByType.clear();
+    failedCountByType.clear();
   }
 }

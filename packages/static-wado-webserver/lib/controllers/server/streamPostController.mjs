@@ -183,6 +183,23 @@ export function streamPostController(params) {
         req.statusMonitorPostJobId = null;
       }
     },
+    onRequestAbort: (req, err) => {
+      if (req.statusMonitorPostJobId) {
+        StatusMonitor.endJob('stowPost', req.statusMonitorPostJobId, {
+          aborted: true,
+          error: err?.message ?? String(err),
+        });
+        req.statusMonitorPostJobId = null;
+      }
+      if (req.statusMonitorInstancesJobId) {
+        StatusMonitor.endJob('stowInstances', req.statusMonitorInstancesJobId, {
+          aborted: true,
+          failedCount: req.stowInstanceFailures ?? 0,
+          error: err?.message ?? String(err),
+        });
+        req.statusMonitorInstancesJobId = null;
+      }
+    },
     beforeProcessPart: async req => {
       req.uploadPromiseTracker = req.uploadPromiseTracker ?? createPromiseTracker('partTracker');
       req.streamWritePromiseTracker =
@@ -190,7 +207,10 @@ export function streamPostController(params) {
 
       if (req.statusMonitorInstancesJobId) {
         const upload = req.uploadPromiseTracker;
-        const streamWrite = req.streamWritePromiseTracker ?? { getUnsettledCount: () => 0, getSettledCount: () => 0 };
+        const streamWrite = req.streamWritePromiseTracker ?? {
+          getUnsettledCount: () => 0,
+          getSettledCount: () => 0,
+        };
         StatusMonitor.updateJob('stowInstances', req.statusMonitorInstancesJobId, {
           instancesCompleted: upload.getSettledCount(),
           ongoing: upload.getUnsettledCount(),
@@ -204,7 +224,7 @@ export function streamPostController(params) {
         backPressureTimeoutMs
       );
       if (unsettled >= maxUnsettledReceives) {
-        console.warn(
+        console.verbose(
           `[streamPostController] Back pressure: continuing after timeout with ${unsettled} unsettled receives`
         );
       }
@@ -214,7 +234,7 @@ export function streamPostController(params) {
         backPressureTimeoutMs
       );
       if (unsettledStreamWrites >= maxUnsettledStreamWrites) {
-        console.warn(
+        console.verbose(
           `[streamPostController] Back pressure: continuing after timeout with ${unsettledStreamWrites} unsettled stream writes`
         );
       }
@@ -233,7 +253,7 @@ export function streamPostController(params) {
       // Called immediately when a file part starts.
       // You can kick off downstream processing and return a promise.
       // This promise is *not awaited* by middleware.
-      console.warn('Processing POST upload:', fileInfo);
+      console.verbose('Processing POST upload:', fileInfo);
       const tracker = req?.uploadPromiseTracker ?? createPromiseTracker('partTracker');
       if (req) req.uploadPromiseTracker = tracker;
 
@@ -257,6 +277,13 @@ export function streamPostController(params) {
 
         return result;
       } catch (error) {
+        // Mark the job as failed so status monitor reflects instance failures
+        if (req?.statusMonitorInstancesJobId) {
+          req.stowInstanceFailures = (req.stowInstanceFailures ?? 0) + 1;
+          StatusMonitor.updateJob('stowInstances', req.statusMonitorInstancesJobId, {
+            failedCount: req.stowInstanceFailures,
+          });
+        }
         // Handle errors gracefully - non-DICOM files or invalid DICOM files
         // The error will be caught by Promise.allSettled in completePostController
         // and included in the response as a failed file entry
@@ -264,7 +291,7 @@ export function streamPostController(params) {
         const contentType = fileInfo?.mimeType || fileInfo?.headers?.['content-type'] || 'unknown';
         const fieldname =
           fileInfo?.fieldname || fileInfo?.headers?.['content-location'] || 'unknown';
-        console.warn(
+        console.noQuiet(
           `[streamPostController] Error processing stream (Part: ${fieldname}, Content-Type: ${contentType}):`,
           errorMessage
         );
@@ -292,7 +319,7 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
     }
 
     try {
-      console.log(`Processing updateSeries for study ${studyUid}, series ${seriesUID}`);
+      console.noQuiet(`Processing updateSeries for study ${studyUid}, series ${seriesUID}`);
       // Call seriesMain to update the series
       await seriesMain(studyUid, {
         dicomdir,
@@ -301,9 +328,9 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
 
       // After series update completes, send updateStudy message
       await messaging.sendMessage('updateStudy', studyUid, data);
-      console.log(`Sent updateStudy message for study ${studyUid}`);
+      console.noQuiet(`Sent updateStudy message for study ${studyUid}`);
     } catch (err) {
-      console.error(`Error processing updateSeries for ${id}:`, err);
+      console.warn(`Error processing updateSeries for ${id}:`, err);
       throw err; // Re-throw to allow retry/redelivery
     }
   });
@@ -319,7 +346,7 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
     }
 
     try {
-      console.log(`Processing updateStudy for study ${studyUid}`);
+      console.noQuiet(`Processing updateStudy for study ${studyUid}`);
       // Call studyMain to update the study
       await studyMain(studyUid, {
         dicomdir,
@@ -328,11 +355,11 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
       // Create/update studies/index.json.gz file unless disabled
       const studyIndex = params.studyIndex !== false; // Default to true unless explicitly disabled
       if (studyIndex) {
-        console.log(`Creating/updating studies index for study ${studyUid}`);
+        console.noQuiet(`Creating/updating studies index for study ${studyUid}`);
         await indexSummary(dicomdir, [studyUid]);
       }
 
-      console.log(`Completed updateStudy for study ${studyUid}`);
+      console.noQuiet(`Completed updateStudy for study ${studyUid}`);
     } catch (err) {
       console.error(`Error processing updateStudy for ${studyUid}:`, err);
       throw err; // Re-throw to allow retry/redelivery
@@ -450,15 +477,23 @@ function createDatasetResponse(files) {
 export const completePostController = async (req, res, next) => {
   try {
     if (req.statusMonitorInstancesJobId) {
-      const upload = req.uploadPromiseTracker ?? { getUnsettledCount: () => 0, getSettledCount: () => 0 };
-      const streamWrite = req.streamWritePromiseTracker ?? { getUnsettledCount: () => 0, getSettledCount: () => 0 };
+      const upload = req.uploadPromiseTracker ?? {
+        getUnsettledCount: () => 0,
+        getSettledCount: () => 0,
+      };
+      const streamWrite = req.streamWritePromiseTracker ?? {
+        getUnsettledCount: () => 0,
+        getSettledCount: () => 0,
+      };
       StatusMonitor.updateJob('stowInstances', req.statusMonitorInstancesJobId, {
         instancesCompleted: upload.getSettledCount(),
         ongoing: upload.getUnsettledCount(),
         openPromises: streamWrite.getUnsettledCount(),
         completedPromises: streamWrite.getSettledCount(),
       });
-      StatusMonitor.endJob('stowInstances', req.statusMonitorInstancesJobId, {});
+      StatusMonitor.endJob('stowInstances', req.statusMonitorInstancesJobId, {
+        failedCount: req.stowInstanceFailures ?? 0,
+      });
       req.statusMonitorInstancesJobId = null;
     }
 

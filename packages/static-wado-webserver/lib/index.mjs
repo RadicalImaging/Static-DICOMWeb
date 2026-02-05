@@ -33,6 +33,9 @@ const DicomWebServer = async params => {
   const server = http.createServer(app);
   const serverTimeoutMs = params.serverTimeoutMs ?? 30 * 60 * 1000; // default 30 minutes
   server.timeout = serverTimeoutMs;
+  // requestTimeout: max time to receive entire request (Node 14.11+). Default 5 min would abort
+  // long STOW-RS uploads. Must match or exceed serverTimeoutMs for large file uploads.
+  server.requestTimeout = serverTimeoutMs;
 
   server.listen(
     {

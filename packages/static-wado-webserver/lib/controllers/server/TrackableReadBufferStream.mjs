@@ -48,6 +48,12 @@ export class TrackableReadBufferStream extends ReadBufferStream {
     this._streamWriteLimit = options.streamWriteLimit ?? 25;
     this._backpressureWaitMs = options.backpressureWaitMs ?? 1000;
     this._backPressureTimeoutMs = options.backPressureTimeoutMs ?? 5000;
+    /** Set when the request is aborted (e.g. timeout, client disconnect). instanceFromStream uses this to throw/return as aborted. */
+    this._abortedReason = null;
+    /** Promise rejected when setAborted() is called; used so ensureAvailable() rejects instead of resolving when request is killed. */
+    this._abortPromise = new Promise((_, rej) => {
+      this._abortReject = rej;
+    });
 
     // Log tracker ID for debugging
     if (this._streamWritePromiseTracker) {
@@ -55,6 +61,28 @@ export class TrackableReadBufferStream extends ReadBufferStream {
         `[TrackableReadBufferStream] created with tracker ${this._streamWritePromiseTracker.getTrackerId()}`
       );
     }
+  }
+
+  /**
+   * Mark the stream as aborted (e.g. STOW request timeout or client disconnect).
+   * Sets abortedReason and marks the stream complete so readers can finish and treat the result as aborted.
+   * @param {Error} [err] - Reason for abort
+   */
+  setAborted(err) {
+    this._abortedReason = err ?? new Error('Request aborted');
+    if (this._abortReject) {
+      this._abortReject(this._abortedReason);
+      this._abortReject = null;
+    }
+    this.setComplete();
+  }
+
+  /**
+   * If set, the request was aborted; instanceFromStream should throw/return with aborted semantics.
+   * @returns {Error|null}
+   */
+  get abortedReason() {
+    return this._abortedReason ?? null;
   }
 
   /**
@@ -140,6 +168,9 @@ export class TrackableReadBufferStream extends ReadBufferStream {
    * @returns {boolean | Promise<boolean>}
    */
   ensureAvailable(bytes = 1024) {
+    if (this._abortedReason) {
+      return Promise.reject(this._abortedReason);
+    }
     if (this.isAvailable(bytes)) return true;
     const entry = { bytes };
     this._pendingEnsureAvailableEntries.push(entry);
@@ -150,6 +181,11 @@ export class TrackableReadBufferStream extends ReadBufferStream {
     }
     const result = super.ensureAvailable(bytes);
     if (result && typeof result.then === 'function') {
+      const raced = Promise.race([result, this._abortPromise]);
+      const removeEntry = () => {
+        const i = this._pendingEnsureAvailableEntries.indexOf(entry);
+        if (i !== -1) this._pendingEnsureAvailableEntries.splice(i, 1);
+      };
       const livelockMs = this._livelockDetectMs;
       if (livelockMs > 0 && stackCapture) {
         const timer = setTimeout(() => {
@@ -169,26 +205,29 @@ export class TrackableReadBufferStream extends ReadBufferStream {
             });
           }
         }, livelockMs);
-        return result.then(
+        return raced.then(
           r => {
             clearTimeout(timer);
-            const i = this._pendingEnsureAvailableEntries.indexOf(entry);
-            if (i !== -1) this._pendingEnsureAvailableEntries.splice(i, 1);
+            removeEntry();
             return r;
           },
           e => {
             clearTimeout(timer);
-            const i = this._pendingEnsureAvailableEntries.indexOf(entry);
-            if (i !== -1) this._pendingEnsureAvailableEntries.splice(i, 1);
+            removeEntry();
             throw e;
           }
         );
       }
-      return result.then(r => {
-        const i = this._pendingEnsureAvailableEntries.indexOf(entry);
-        if (i !== -1) this._pendingEnsureAvailableEntries.splice(i, 1);
-        return r;
-      });
+      return raced.then(
+        r => {
+          removeEntry();
+          return r;
+        },
+        e => {
+          removeEntry();
+          throw e;
+        }
+      );
     }
     const i = this._pendingEnsureAvailableEntries.indexOf(entry);
     if (i !== -1) this._pendingEnsureAvailableEntries.splice(i, 1);

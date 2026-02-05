@@ -197,10 +197,8 @@ export async function instanceFromStream(stream, options = {}) {
 
   // Per-instance parse job so tag/value counts are not overwritten when multiple instances parse concurrently
   const parentJob = options.statusMonitorJob ?? null;
-  const parseJobId =
-    parentJob != null ? StatusMonitor.startJob(PARSE_JOB_TYPE, {}) : null;
-  const parseJob =
-    parseJobId != null ? { typeId: PARSE_JOB_TYPE, jobId: parseJobId } : null;
+  const parseJobId = parentJob != null ? StatusMonitor.startJob(PARSE_JOB_TYPE, {}) : null;
+  const parseJob = parseJobId != null ? { typeId: PARSE_JOB_TYPE, jobId: parseJobId } : null;
   const progressThrottleMs = options.progressThrottleMs ?? 50;
   const progressFilter = createProgressFilter(parentJob, parseJob, progressThrottleMs);
   filters.unshift(progressFilter);
@@ -248,17 +246,48 @@ export async function instanceFromStream(stream, options = {}) {
     }
   }
 
+  // If stream was already aborted (e.g. STOW timeout), exit immediately with aborted error
+  const streamForAbort = reader.stream;
+  if (streamForAbort?.abortedReason) {
+    if (parseJobId != null) {
+      StatusMonitor.endJob(PARSE_JOB_TYPE, parseJobId, {
+        failed: true,
+        error: streamForAbort.abortedReason?.message ?? 'Request aborted',
+      });
+    }
+    const e = new Error(streamForAbort.abortedReason?.message ?? 'Request aborted');
+    e.code = 'ABORTED';
+    e.aborted = true;
+    throw e;
+  }
+
   let fmi;
   let dict;
+  let parseError = null;
   try {
     const result = await reader.readFile({ listener });
     fmi = result.fmi;
     dict = result.dict;
+  } catch (err) {
+    parseError = err;
+    throw err;
   } finally {
     progressFilter.reportProgress?.();
     if (parseJobId != null) {
-      StatusMonitor.endJob(PARSE_JOB_TYPE, parseJobId, {});
+      StatusMonitor.endJob(
+        PARSE_JOB_TYPE,
+        parseJobId,
+        parseError ? { failed: true, error: parseError?.message ?? String(parseError) } : {}
+      );
     }
+  }
+
+  // If stream was aborted during parse (e.g. STOW timeout), treat response as aborted
+  if (streamForAbort?.abortedReason) {
+    const e = new Error(streamForAbort.abortedReason?.message ?? 'Request aborted');
+    e.code = 'ABORTED';
+    e.aborted = true;
+    throw e;
   }
 
   if (dict && reader.meta) {
@@ -269,10 +298,10 @@ export async function instanceFromStream(stream, options = {}) {
     }
   }
 
-  console.noQuiet('Finished parsing file', information.sopInstanceUid);
+  console.verbose('Finished parsing file', information.sopInstanceUid);
 
   if (writer) {
-    console.log('Writing metadata to file', information.sopInstanceUid);
+    console.verbose('Writing metadata to file', information.sopInstanceUid);
     const metadataStream = await writer.openInstanceStream('metadata', { gzip: true });
     metadataStream.stream.write(Buffer.from(JSON.stringify([dict])));
     await writer.closeStream(metadataStream.streamKey);
@@ -280,7 +309,7 @@ export async function instanceFromStream(stream, options = {}) {
 
   // Wait for all frame writes to complete before returning
   await writer?.awaitAllStreams();
-  console.log('Finished writing metadata to file', information.sopInstanceUid);
+  console.verbose('Finished writing metadata to file', information.sopInstanceUid);
 
   return { fmi, dict, writer, information: listener.information };
 }
