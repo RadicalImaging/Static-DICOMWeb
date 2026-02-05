@@ -445,7 +445,7 @@ export function multipartStream(opts) {
             console.verbose(' Setting file complete');
             readBufferStream.setComplete();
             completedParts += 1;
-            console.warn(
+            console.verbose(
               `[multipartStream] Part ${partCount} completed. Completed: ${completedParts}/${partCount}`
             );
             checkAllPartsComplete();
@@ -489,7 +489,7 @@ export function multipartStream(opts) {
 
       // Only proceed if Dicer has finished parsing AND all parts have completed
       if (dicerFinished && completedParts >= partCount && partCount > 0) {
-        console.warn(
+        console.noQuiet(
           `[multipartStream] All parts completed. Total parts: ${partCount}, Completed: ${completedParts}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`
         );
 

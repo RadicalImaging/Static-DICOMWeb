@@ -38,6 +38,12 @@ async function configureProgram(defaults = dicomWebServerConfig) {
       defaultValue: false,
     },
     {
+      key: '--progress',
+      description:
+        'Show progress feedback during STOW-RS uploads (enables quiet logging so progress is visible)',
+      defaultValue: false,
+    },
+    {
       key: '-o, --dir <value>',
       description: 'Set output directory (to read from for serving files)',
       defaultValue: defaults.rootDir,
@@ -114,6 +120,11 @@ async function configureProgram(defaults = dicomWebServerConfig) {
   const program = staticWadoUtil.configureProgram(configuration);
   const opts = program.opts();
   program.dicomWebServerConfig = Object.assign(Object.create(defaults), opts);
+  // --progress implies quiet so progress output is visible
+  if (opts.progress) {
+    program.dicomWebServerConfig.quiet = true;
+  }
+  program.dicomWebServerConfig.progress = !!opts.progress;
   program.dicomWebServerConfig.rootDir = opts.dir;
   program.dicomWebServerConfig.port = opts.port || 5000;
   const timeoutStr = opts.timeout ?? '30m';

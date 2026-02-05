@@ -1,6 +1,10 @@
 import { createPromiseTracker } from '../../lib/createPromiseTracker.mjs';
+import { StatusMonitor } from '../../lib/StatusMonitor.mjs';
 
 describe('createPromiseTracker', () => {
+  afterEach(() => {
+    StatusMonitor.reset();
+  });
   it('tracks unsettled count', async () => {
     const tracker = createPromiseTracker();
     expect(tracker.getUnsettledCount()).toBe(0);
@@ -47,5 +51,39 @@ describe('createPromiseTracker', () => {
     const tracker = createPromiseTracker();
     const result = await tracker.limitUnsettled(5, 10000);
     expect(result).toBe(0);
+  });
+
+  it('startStatusMonitor updates StatusMonitor and auto-stops when unsettled is 0', async () => {
+    StatusMonitor.reset();
+    const jobId = StatusMonitor.startJob('testType', {});
+    const tracker = createPromiseTracker();
+    tracker.startStatusMonitor('testType', jobId, {
+      intervalMs: 20,
+      buildData: (s, u) => ({ completed: s, open: u }),
+    });
+
+    let jobs = StatusMonitor.getOngoingJobs('testType');
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].data.completed).toBe(0);
+    expect(jobs[0].data.open).toBe(0);
+
+    const p = new Promise((resolve) => setTimeout(() => resolve(1), 5));
+    tracker.add(p);
+    await new Promise((r) => setTimeout(r, 30));
+    jobs = StatusMonitor.getOngoingJobs('testType');
+    expect(jobs[0].data.open).toBe(1);
+
+    await p;
+    await new Promise((r) => setTimeout(r, 30));
+    jobs = StatusMonitor.getOngoingJobs('testType');
+    expect(jobs[0].data.completed).toBe(1);
+    expect(jobs[0].data.open).toBe(0);
+
+    tracker.stopStatusMonitor();
+  });
+
+  it('stopStatusMonitor is no-op when not started', () => {
+    const tracker = createPromiseTracker();
+    expect(() => tracker.stopStatusMonitor()).not.toThrow();
   });
 });

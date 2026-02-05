@@ -24,6 +24,7 @@
     "has-flag": "4.0.0",
     "jest": "29.7.0",
     "jest-config": "29.7.0",
+    "jest-watcher": "29.7.0",
     "lerna": "^8.1.9",
     "p-locate": "^5.0.0",
     "prettier": "^3.3.3",

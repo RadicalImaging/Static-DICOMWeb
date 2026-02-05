@@ -134,7 +134,7 @@ export default function setRoutes(routerExpress, params, dir, hashStudyUidPath) 
   if (assertions.assertAeDefinition(params, 'proxyAe') && !!params.staticWadoAe) {
     console.log('Proxying studies from', params.proxyAe, 'to', params.staticWadoAe);
     routerExpress.get(
-      '/studies/:studyUID/series/*.*',
+      '/studies/:studyUID/series/*splat',
       defaultGetProxyController(params, { studyInstanceUIDPattern: 'studyUID' }, true)
     );
   }

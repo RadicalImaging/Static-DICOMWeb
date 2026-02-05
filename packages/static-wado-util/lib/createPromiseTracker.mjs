@@ -1,7 +1,12 @@
+import { StatusMonitor } from './StatusMonitor.mjs';
+
 /** Threshold above which we log a warning about pending promise count */
 const PENDING_PROMISE_WARN_THRESHOLD = 500;
 /** Log again every this many beyond the threshold */
 const PENDING_PROMISE_WARN_STEP = 100;
+
+/** Default interval (ms) for status monitor updates */
+const DEFAULT_STATUS_MONITOR_INTERVAL_MS = 500;
 
 /** Counter for assigning unique IDs to trackers */
 let trackerIdCounter = 0;
@@ -135,5 +140,65 @@ export function createPromiseTracker(name) {
     return trackerId;
   }
 
-  return { add, limitUnsettled, getUnsettledCount, getSettledCount, getTrackerId };
+  /** Interval id when status monitor is running; null otherwise */
+  let statusMonitorIntervalId = null;
+
+  /**
+   * Start periodically updating a StatusMonitor job with this tracker's settled/unsettled counts.
+   * Stops automatically when getUnsettledCount() becomes 0 (job is done from this tracker's perspective).
+   * Call stopStatusMonitor() to stop early (e.g. on abort).
+   *
+   * @param {string} typeId - Job type (e.g. 'stowInstances')
+   * @param {string} jobId - Job id from StatusMonitor.startJob
+   * @param {object} [options]
+   * @param {number} [options.intervalMs=500] - How often to update
+   * @param {(settled: number, unsettled: number) => object} [options.buildData] - Build job data from counts. If omitted, uses { [settledKey]: settled, [unsettledKey]: unsettled }.
+   * @param {string} [options.settledKey='settled'] - Key for settled count when buildData is omitted
+   * @param {string} [options.unsettledKey='unsettled'] - Key for unsettled count when buildData is omitted
+   */
+  function startStatusMonitor(typeId, jobId, options = {}) {
+    if (statusMonitorIntervalId != null) {
+      clearInterval(statusMonitorIntervalId);
+      statusMonitorIntervalId = null;
+    }
+    const intervalMs = options.intervalMs ?? DEFAULT_STATUS_MONITOR_INTERVAL_MS;
+    const buildData =
+      options.buildData ??
+      ((s, u) => ({
+        [options.settledKey ?? 'settled']: s,
+        [options.unsettledKey ?? 'unsettled']: u,
+      }));
+
+    function tick() {
+      const settled = getSettledCount();
+      const unsettled = getUnsettledCount();
+      StatusMonitor.updateJob(typeId, jobId, buildData(settled, unsettled));
+      if (unsettled === 0) {
+        stopStatusMonitor();
+      }
+    }
+
+    statusMonitorIntervalId = setInterval(tick, intervalMs);
+    tick();
+  }
+
+  /**
+   * Stop the status monitor interval (if running). No-op if not started or already stopped.
+   */
+  function stopStatusMonitor() {
+    if (statusMonitorIntervalId != null) {
+      clearInterval(statusMonitorIntervalId);
+      statusMonitorIntervalId = null;
+    }
+  }
+
+  return {
+    add,
+    limitUnsettled,
+    getUnsettledCount,
+    getSettledCount,
+    getTrackerId,
+    startStatusMonitor,
+    stopStatusMonitor,
+  };
 }

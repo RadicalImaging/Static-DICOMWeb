@@ -1,5 +1,7 @@
 import fs from "fs";
 import path from "path";
+import http from "node:http";
+import https from "node:https";
 import { randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
 import {
@@ -231,7 +233,8 @@ export async function stowMain(fileNames, options = {}) {
 }
 
 /**
- * Stores multiple DICOM files to a STOW-RS endpoint in a single multipart request
+ * Stores multiple DICOM files to a STOW-RS endpoint in a single multipart request.
+ * Uses node:http/node:https so timeout is under our control (Bun's fetch has a hardcoded 5-minute limit).
  * @param {Array<{filePath: string, fileSize: number}>} files - Array of file objects with path and size
  * @param {string} endpointUrl - URL endpoint for STOW-RS storage
  * @param {Object} additionalHeaders - Additional HTTP headers to include
@@ -263,47 +266,78 @@ export async function stowFiles(
     ...additionalHeaders,
   };
 
-  // Optional timeout via AbortController
-  let signal;
-  let timeoutId;
+  // Timeout: when timeoutMs is omitted, use 24h so long uploads don't fail. node:http allows this.
+  const effectiveTimeoutMs =
+    timeoutMs != null && timeoutMs > 0 ? timeoutMs : 24 * 60 * 60 * 1000;
   if (timeoutMs != null && timeoutMs > 0) {
-    const controller = new AbortController();
-    signal = controller.signal;
     console.noQuiet('Setting timeout for', timeoutMs, 'ms');
-    timeoutId = setTimeout(
-      () => controller.abort(new Error(`The operation timed out after ${timeoutMs}ms`)),
-      timeoutMs
+  }
+
+  const url = new URL(endpointUrl);
+  const isHttps = url.protocol === 'https:';
+  const requestOptions = {
+    method: 'POST',
+    hostname: url.hostname,
+    port: url.port || (isHttps ? 443 : 80),
+    path: url.pathname + url.search,
+    headers: requestHeaders,
+  };
+
+  const client = isHttps ? https : http;
+
+  const response = await new Promise((resolve, reject) => {
+    const req = client.request(requestOptions, (res) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => {
+        const responseText = Buffer.concat(chunks).toString('utf-8');
+        const responseHeaders = { ...res.headers };
+        const responseLike = {
+          ok: res.statusCode >= 200 && res.statusCode < 300,
+          status: res.statusCode,
+          statusText: res.statusMessage || '',
+          headers: {
+            get(name) {
+              const key = Object.keys(responseHeaders).find(
+                (k) => k.toLowerCase() === name.toLowerCase()
+              );
+              return key ? responseHeaders[key] : null;
+            },
+          },
+        };
+        resolve({ responseLike, responseText, res });
+      });
+      res.on('error', reject);
+    });
+
+    req.on('error', reject);
+
+    if (effectiveTimeoutMs > 0) {
+      req.setTimeout(effectiveTimeoutMs, () => {
+        req.destroy(new Error(`Request timed out after ${effectiveTimeoutMs} ms`));
+      });
+    }
+
+    bodyStream.pipe(req);
+  });
+
+  const { responseLike, responseText, res } = response;
+  console.verbose('Server response status:', res.statusCode, res.statusMessage);
+  console.verbose('Server response headers:', res.headers);
+  if (responseText) {
+    console.verbose('Server response body:', responseText);
+  }
+
+  if (!responseLike.ok) {
+    throw new Error(
+      `HTTP ${res.statusCode} ${res.statusMessage || ''}: ${responseText}`
     );
   }
 
-  try {
-    // Send POST request
-    const response = await fetch(endpointUrl, {
-      method: 'POST',
-      headers: requestHeaders,
-      duplex: 'half',
-      body: bodyStream,
-      signal,
-    });
+  // Parse JSON DICOM response if applicable and log errors
+  await parseAndLogDicomJsonErrors(responseLike, responseText, files);
 
-    console.verbose('Server response status:', response.status, response.statusText);
-    console.verbose('Server response headers:', Object.fromEntries(response.headers.entries()));
-    const responseText = await response.text().catch(() => '');
-    if (responseText) {
-      console.verbose('Server response body:', responseText);
-    }
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status} ${response.statusText}: ${responseText}`);
-    }
-
-    // Parse JSON DICOM response if applicable and log errors
-    await parseAndLogDicomJsonErrors(response, responseText, files);
-
-    return response;
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-  }
+  return responseLike;
 }
 
 /**

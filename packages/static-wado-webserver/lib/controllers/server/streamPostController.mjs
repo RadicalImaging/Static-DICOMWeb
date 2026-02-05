@@ -146,7 +146,7 @@ export function streamPostController(params) {
   const backPressureTimeoutMs = params.backPressureTimeoutMs ?? 5000;
   const backpressureWaitMs = params.backpressureWaitMs ?? 100;
   const backpressureMaxBytes = params.backpressureMaxBytes ?? 128 * 1024;
-  const showProgress = !params.quiet && !params.verbose;
+  const showProgress = params.progress === true;
 
   return multipartStream({
     onRequestStart: req => {
@@ -186,6 +186,8 @@ export function streamPostController(params) {
       }
     },
     onRequestEnd: (req, { partCount, totalBytes, totalTimeMs }) => {
+      req.uploadPromiseTracker?.stopStatusMonitor?.();
+      req.streamWritePromiseTracker?.stopStatusMonitor?.();
       if (req.stowProgressReporter && partCount > 0) {
         req.stowProgressReporter.setTotal(partCount);
       }
@@ -199,6 +201,8 @@ export function streamPostController(params) {
       }
     },
     onRequestAbort: (req, err) => {
+      req.uploadPromiseTracker?.stopStatusMonitor?.();
+      req.streamWritePromiseTracker?.stopStatusMonitor?.();
       if (req.stowProgressReporter) {
         req.stowProgressReporter.finish();
         req.stowProgressReporter = null;
@@ -224,18 +228,18 @@ export function streamPostController(params) {
       req.streamWritePromiseTracker =
         req.streamWritePromiseTracker ?? createPromiseTracker('fileTracker');
 
-      if (req.statusMonitorInstancesJobId) {
-        const upload = req.uploadPromiseTracker;
-        const streamWrite = req.streamWritePromiseTracker ?? {
-          getUnsettledCount: () => 0,
-          getSettledCount: () => 0,
-        };
-        StatusMonitor.updateJob('stowInstances', req.statusMonitorInstancesJobId, {
-          instancesCompleted: upload.getSettledCount(),
-          ongoing: upload.getUnsettledCount(),
-          openPromises: streamWrite.getUnsettledCount(),
-          completedPromises: streamWrite.getSettledCount(),
+      if (req.statusMonitorInstancesJobId && !req._stowInstancesMonitorStarted) {
+        req._stowInstancesMonitorStarted = true;
+        req.uploadPromiseTracker.startStatusMonitor('stowInstances', req.statusMonitorInstancesJobId, {
+          buildData: (s, u) => ({ instancesCompleted: s, ongoing: u }),
         });
+        req.streamWritePromiseTracker.startStatusMonitor(
+          'stowInstances',
+          req.statusMonitorInstancesJobId,
+          {
+            buildData: (s, u) => ({ completedPromises: s, openPromises: u }),
+          }
+        );
       }
 
       req.stowProgressReporter?.refresh();
@@ -499,6 +503,8 @@ function createDatasetResponse(files) {
 
 export const completePostController = async (req, res, next) => {
   try {
+    req.uploadPromiseTracker?.stopStatusMonitor?.();
+    req.streamWritePromiseTracker?.stopStatusMonitor?.();
     if (req.stowProgressReporter) {
       req.stowProgressReporter.finish();
       req.stowProgressReporter = null;
