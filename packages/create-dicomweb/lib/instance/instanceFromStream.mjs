@@ -11,30 +11,40 @@ const { setValue } = Tags;
 const { DicomMetadataListener, createInformationFilter } = utilities;
 const { ReadBufferStream } = data;
 
+const PARSE_JOB_TYPE = 'stowInstanceParse';
+
 /**
  * Creates a filter that counts addTag/value calls and reports progress to StatusMonitor.
- * @param {{ typeId: string, jobId: string } | null} statusMonitorJob - Job to update; null to skip reporting
+ * Uses a per-instance parse job so counts are not overwritten when multiple instances parse concurrently.
+ * @param {{ typeId: string, jobId: string } | null} parentJob - Parent job (e.g. stowInstances) to update lastBytesReceivedAt for livelock; null to skip
+ * @param {{ typeId: string, jobId: string } | null} parseJob - Per-instance job to update with parseTagsAdded/parseValuesAdded; created by caller so counts are per instance
  * @param {number} throttleMs - Min ms between updates
- * @returns {Object} Filter with addTag and value methods
+ * @returns {Object} Filter with addTag, value, and reportProgress methods
  */
-function createProgressFilter(statusMonitorJob, throttleMs) {
+function createProgressFilter(parentJob, parseJob, throttleMs) {
   let tagsAdded = 0;
   let valuesAdded = 0;
   let startMs = null;
   let lastReportMs = 0;
 
   function report(force = false) {
-    if (!statusMonitorJob) return;
     const now = Date.now();
-    if (!force && now - lastReportMs < throttleMs) return;
+    if (parseJob && !force && now - lastReportMs < throttleMs) return;
     lastReportMs = now;
     const parseProgressMs = startMs != null ? now - startMs : 0;
-    StatusMonitor.updateJob(statusMonitorJob.typeId, statusMonitorJob.jobId, {
-      parseTagsAdded: tagsAdded,
-      parseValuesAdded: valuesAdded,
-      parseProgressMs,
-      lastBytesReceivedAt: now,
-    });
+    if (parseJob) {
+      StatusMonitor.updateJob(parseJob.typeId, parseJob.jobId, {
+        parseTagsAdded: tagsAdded,
+        parseValuesAdded: valuesAdded,
+        parseProgressMs,
+        lastBytesReceivedAt: now,
+      });
+    }
+    if (parentJob) {
+      StatusMonitor.updateJob(parentJob.typeId, parentJob.jobId, {
+        lastBytesReceivedAt: now,
+      });
+    }
   }
 
   return {
@@ -48,8 +58,10 @@ function createProgressFilter(statusMonitorJob, throttleMs) {
     value(next, v) {
       valuesAdded += 1;
       const result = next(v);
-      // Report on every binary value so image and large bulkdata streaming update progress
-      const isBinary = v instanceof ArrayBuffer || Buffer.isBuffer(v) || ArrayBuffer.isView(v);
+      const isBinary =
+        v instanceof ArrayBuffer ||
+        Buffer.isBuffer(v) ||
+        (ArrayBuffer.isView(v) && !(v instanceof DataView));
       if (isBinary) report();
       return result;
     },
@@ -74,7 +86,7 @@ function createProgressFilter(statusMonitorJob, throttleMs) {
  * @param {number} options.sizeBulkdataTags - Size threshold in bytes for public tags (default: 128k + 2 bytes)
  * @param {number} options.sizePrivateBulkdataTags - Size threshold in bytes for private tags (default: 128 bytes)
  * @param {{ typeId: string, jobId: string }} [options.statusMonitorJob] - If set, progress (parseTagsAdded, parseProgressMs) is reported to StatusMonitor.updateJob for this job.
- * @param {number} [options.progressThrottleMs=200] - Min ms between progress updates when statusMonitorJob is set.
+ * @param {number} [options.progressThrottleMs=50] - Min ms between progress updates when statusMonitorJob is set.
  * @returns {Promise<{meta, dict, writer, informationFilter}>} - Parsed metadata and optional writer/filter instances
  */
 export async function instanceFromStream(stream, options = {}) {
@@ -183,10 +195,14 @@ export async function instanceFromStream(stream, options = {}) {
 
   filters.push(inlineBinaryFilter());
 
-  // Progress reporting filter: counts addTag/value and reports to StatusMonitor when statusMonitorJob is set
-  const statusMonitorJob = options.statusMonitorJob ?? null;
-  const progressThrottleMs = options.progressThrottleMs ?? 200;
-  const progressFilter = createProgressFilter(statusMonitorJob, progressThrottleMs);
+  // Per-instance parse job so tag/value counts are not overwritten when multiple instances parse concurrently
+  const parentJob = options.statusMonitorJob ?? null;
+  const parseJobId =
+    parentJob != null ? StatusMonitor.startJob(PARSE_JOB_TYPE, {}) : null;
+  const parseJob =
+    parseJobId != null ? { typeId: PARSE_JOB_TYPE, jobId: parseJobId } : null;
+  const progressThrottleMs = options.progressThrottleMs ?? 50;
+  const progressFilter = createProgressFilter(parentJob, parseJob, progressThrottleMs);
   filters.unshift(progressFilter);
 
   // Create listener with filters
@@ -232,9 +248,18 @@ export async function instanceFromStream(stream, options = {}) {
     }
   }
 
-  const { fmi, dict } = await reader.readFile({ listener });
-
-  progressFilter.reportProgress?.();
+  let fmi;
+  let dict;
+  try {
+    const result = await reader.readFile({ listener });
+    fmi = result.fmi;
+    dict = result.dict;
+  } finally {
+    progressFilter.reportProgress?.();
+    if (parseJobId != null) {
+      StatusMonitor.endJob(PARSE_JOB_TYPE, parseJobId, {});
+    }
+  }
 
   if (dict && reader.meta) {
     const meta = reader.meta;

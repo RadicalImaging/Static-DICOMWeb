@@ -85,7 +85,6 @@ export async function stowMain(fileNames, options = {}) {
   // Group files by size
   const fileGroup = [];
   let currentGroupSize = 0;
-  let isFirstAttempt = true;
 
   const tracker = createPromiseTracker('stow');
 
@@ -106,7 +105,7 @@ export async function stowMain(fileNames, options = {}) {
         error.cause?.code === 'ETIMEDOUT' ||
         error.cause?.code === 'ECONNRESET';
 
-      if (isFirstAttempt && isConnectionError) {
+      if (isConnectionError) {
         console.error(`Failed to connect to endpoint ${url}: ${error.message}`);
         console.error('Exiting due to connection failure');
         process.exit(1);
@@ -118,7 +117,6 @@ export async function stowMain(fileNames, options = {}) {
         console.error(`Failed to store ${filePath}: ${error.message}`);
       });
     }
-    isFirstAttempt = false;
   };
 
   const flushGroup = async () => {
