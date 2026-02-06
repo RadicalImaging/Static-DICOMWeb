@@ -2,8 +2,44 @@ import fs from "fs";
 import path from "path";
 import { randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
-import { dirScanner } from '@radicalimaging/static-wado-util';
+import { dirScanner, createPromiseTracker } from '@radicalimaging/static-wado-util';
 import { parseAndLogDicomJsonErrors } from './parseDicomJsonErrors.mjs';
+
+/** Timeout for createPromiseTracker limitUnsettled when waiting for the next storage slot (at least 30 minutes) */
+const LIMIT_UNSETTLED_TIMEOUT_MS = 30 * 60 * 1000;
+/** Timeout for "wait for all" when using parallel (24 hours) */
+const WAIT_ALL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+/** File extensions skipped when filenameCheck is on (lowercase, no dot) */
+const SKIP_EXTENSIONS = new Set([
+  'gz',
+  'json',
+  'md',
+  'txt',
+  'xml',
+  'pdf',
+  'py',
+  'jpg',
+  'jpeg',
+  'png',
+  'gif',
+  'bmp',
+  'webp',
+  'svg',
+  'ico',
+  'tiff',
+  'tif',
+  'html',
+  'htm',
+  'css',
+  'js',
+  'mjs',
+  'cjs',
+  'zip',
+  'zipx',
+  'tar',
+  'rar',
+  '7z',
+]);
 
 /**
  * Stores DICOM files to a STOW-RS endpoint
@@ -14,111 +50,138 @@ import { parseAndLogDicomJsonErrors } from './parseDicomJsonErrors.mjs';
  * @param {number} [options.maxGroupSize] - Maximum size in bytes for grouping files (default: 10MB)
  * @param {boolean} [options.sendAsSingleFiles] - If true, send each file individually instead of grouping (default: false)
  * @param {boolean} [options.xmlResponse] - If true, request XML response format instead of JSON (default: false)
+ * @param {number} [options.timeoutMs] - Request timeout in milliseconds; no timeout if omitted
+ * @param {number} [options.parallel=1] - Number of parallel STOW-RS requests (1 = sequential). When > 1, limitUnsettled uses at least 30 minutes.
+ * @param {boolean} [options.filenameCheck=true] - If true, skip common non-DICOM extensions (e.g. gz, json, md, txt, xml, pdf, jpg, png, html, zip). Use false to upload all files.
  */
 export async function stowMain(fileNames, options = {}) {
-    const { url, headers = {}, maxGroupSize = 10 * 1024 * 1024, sendAsSingleFiles = false, xmlResponse = false } = options; // Default 10MB
-    
-    if (!url) {
-        throw new Error('url option is required');
+  const {
+    url,
+    headers = {},
+    maxGroupSize = 10 * 1024 * 1024,
+    sendAsSingleFiles = false,
+    xmlResponse = false,
+    timeoutMs,
+    parallel = 1,
+    filenameCheck = true,
+  } = options; // Default 10MB
+
+  if (!url) {
+    throw new Error('url option is required');
+  }
+
+  const results = {
+    success: 0,
+    failed: 0,
+    errors: [],
+  };
+
+  // When sendAsSingleFiles is true, set maxGroupSize to 0 to force groups of size 1
+  const effectiveMaxGroupSize = sendAsSingleFiles ? 0 : maxGroupSize;
+
+  // Group files by size
+  const fileGroup = [];
+  let currentGroupSize = 0;
+  let isFirstAttempt = true;
+
+  const tracker = createPromiseTracker('stow');
+
+  const runOneStow = async (group, requestTimeoutMs) => {
+    try {
+      await stowFiles(group, url, headers, xmlResponse, requestTimeoutMs);
+      results.success += group.length;
+      console.log(`Stored group of ${group.length} file(s)`);
+    } catch (error) {
+      const isConnectionError =
+        error.message.includes('fetch failed') ||
+        error.message.includes('ECONNREFUSED') ||
+        error.message.includes('ENOTFOUND') ||
+        error.message.includes('ETIMEDOUT') ||
+        error.message.includes('ECONNRESET') ||
+        error.cause?.code === 'ECONNREFUSED' ||
+        error.cause?.code === 'ENOTFOUND' ||
+        error.cause?.code === 'ETIMEDOUT' ||
+        error.cause?.code === 'ECONNRESET';
+
+      if (isFirstAttempt && isConnectionError) {
+        console.error(`Failed to connect to endpoint ${url}: ${error.message}`);
+        console.error('Exiting due to connection failure');
+        process.exit(1);
+      }
+
+      results.failed += group.length;
+      group.forEach(({ filePath }) => {
+        results.errors.push({ file: filePath, error: error.message });
+        console.error(`Failed to store ${filePath}: ${error.message}`);
+      });
     }
+    isFirstAttempt = false;
+  };
 
-    const results = {
-        success: 0,
-        failed: 0,
-        errors: []
-    };
+  const flushGroup = async () => {
+    if (fileGroup.length === 0) return;
 
-    // When sendAsSingleFiles is true, set maxGroupSize to 0 to force groups of size 1
-    const effectiveMaxGroupSize = sendAsSingleFiles ? 0 : maxGroupSize;
+    const snapshot = fileGroup.slice();
+    fileGroup.length = 0;
+    currentGroupSize = 0;
 
-    // Group files by size
-    const fileGroup = [];
-    let currentGroupSize = 0;
-    let isFirstAttempt = true;
+    await tracker.limitUnsettled(parallel, LIMIT_UNSETTLED_TIMEOUT_MS);
+    tracker.add(runOneStow(snapshot, timeoutMs));
+  };
 
-    const flushGroup = async () => {
-        if (fileGroup.length === 0) return;
-
-        try {
-            await stowFiles(fileGroup, url, headers, xmlResponse);
-            results.success += fileGroup.length;
-            const fileCount = fileGroup.length;
-            console.log(`Stored group of ${fileCount} file(s)`);
-            isFirstAttempt = false;
-        } catch (error) {
-            // Check if this is a connection failure (not an HTTP error)
-            const isConnectionError = error.message.includes('fetch failed') ||
-                error.message.includes('ECONNREFUSED') ||
-                error.message.includes('ENOTFOUND') ||
-                error.message.includes('ETIMEDOUT') ||
-                error.message.includes('ECONNRESET') ||
-                error.cause?.code === 'ECONNREFUSED' ||
-                error.cause?.code === 'ENOTFOUND' ||
-                error.cause?.code === 'ETIMEDOUT' ||
-                error.cause?.code === 'ECONNRESET';
-
-            // If it's a connection error on the first attempt, exit immediately
-            if (isFirstAttempt && isConnectionError) {
-                console.error(`Failed to connect to endpoint ${url}: ${error.message}`);
-                console.error('Exiting due to connection failure');
-                process.exit(1);
-            }
-
-            // Otherwise, treat it as a regular error and continue
-            results.failed += fileGroup.length;
-            fileGroup.forEach(({ filePath }) => {
-                results.errors.push({ file: filePath, error: error.message });
-                console.error(`Failed to store ${filePath}: ${error.message}`);
-            });
-            isFirstAttempt = false;
+  await dirScanner(fileNames, {
+    ...options,
+    recursive: true,
+    callback: async filename => {
+      try {
+        if (filenameCheck) {
+          const ext = path.extname(filename).slice(1).toLowerCase();
+          if (SKIP_EXTENSIONS.has(ext)) return;
         }
 
-        fileGroup.length = 0;
-        currentGroupSize = 0;
-    };
+        const stats = fs.statSync(filename);
+        const fileSize = stats.size;
 
-    await dirScanner(fileNames, { 
-        ...options, 
-        recursive: true, 
-        callback: async (filename) => {
-            try {
-                const stats = fs.statSync(filename);
-                const fileSize = stats.size;
-
-                // If adding this file would exceed the group size, flush the current group
-                // (skip this check when sendAsSingleFiles is true, as we'll flush after each file anyway)
-                if (!sendAsSingleFiles && fileGroup.length > 0 && currentGroupSize + fileSize > effectiveMaxGroupSize) {
-                    await flushGroup();
-                }
-
-                // Add file to current group
-                fileGroup.push({ filePath: filename, fileSize });
-                currentGroupSize += fileSize;
-                
-                // If sendAsSingleFiles is true, flush after each file (group of size 1)
-                if (sendAsSingleFiles) {
-                    await flushGroup();
-                }
-            } catch (error) {
-                results.failed++;
-                results.errors.push({ file: filename, error: error.message });
-                console.error(`Failed to process ${filename}: ${error.message}`);
-            }
+        // If adding this file would exceed the group size, flush the current group
+        // (skip this check when sendAsSingleFiles is true, as we'll flush after each file anyway)
+        if (
+          !sendAsSingleFiles &&
+          fileGroup.length > 0 &&
+          currentGroupSize + fileSize > effectiveMaxGroupSize
+        ) {
+          await flushGroup();
         }
+
+        // Add file to current group
+        fileGroup.push({ filePath: filename, fileSize });
+        currentGroupSize += fileSize;
+
+        // If sendAsSingleFiles is true, flush after each file (group of size 1)
+        if (sendAsSingleFiles) {
+          await flushGroup();
+        }
+      } catch (error) {
+        results.failed++;
+        results.errors.push({ file: filename, error: error.message });
+        console.error(`Failed to process ${filename}: ${error.message}`);
+      }
+    },
+  });
+
+  // Flush any remaining files in the group
+  await flushGroup();
+
+  await tracker.limitUnsettled(0, WAIT_ALL_TIMEOUT_MS);
+
+  console.log(`\nStorage complete: ${results.success} succeeded, ${results.failed} failed`);
+  if (results.errors.length > 0) {
+    console.log('\nErrors:');
+    results.errors.forEach(({ file, error }) => {
+      console.log(`  ${file}: ${error}`);
     });
+  }
 
-    // Flush any remaining files in the group
-    await flushGroup();
-
-    console.log(`\nStorage complete: ${results.success} succeeded, ${results.failed} failed`);
-    if (results.errors.length > 0) {
-        console.log('\nErrors:');
-        results.errors.forEach(({ file, error }) => {
-            console.log(`  ${file}: ${error}`);
-        });
-    }
-
-    return results;
+  return results;
 }
 
 /**
@@ -127,49 +190,73 @@ export async function stowMain(fileNames, options = {}) {
  * @param {string} endpointUrl - URL endpoint for STOW-RS storage
  * @param {Object} additionalHeaders - Additional HTTP headers to include
  * @param {boolean} [xmlResponse=false] - If true, request XML response format instead of JSON
+ * @param {number} [timeoutMs] - Request timeout in milliseconds; no timeout if omitted
  */
-export async function stowFiles(files, endpointUrl, additionalHeaders = {}, xmlResponse = false) {
-    if (files.length === 0) {
-        return;
-    }
+export async function stowFiles(
+  files,
+  endpointUrl,
+  additionalHeaders = {},
+  xmlResponse = false,
+  timeoutMs
+) {
+  if (files.length === 0) {
+    return;
+  }
 
-    const boundary = `StaticWadoBoundary${randomUUID()}`;
-    const contentType = `multipart/related; type="application/dicom"; boundary=${boundary}`;
-    
-    // Create streaming multipart body with multiple files
-    const { bodyStream, contentLength } = createMultipartBodyStreamMultiple(files, boundary);
-    
-    // Prepare headers
-    const requestHeaders = {
-        'Content-Type': contentType,
-        'Content-Length': contentLength.toString(),
-        'Accept': xmlResponse ? 'application/dicom+xml' : 'application/dicom+json',
-        ...additionalHeaders
-    };
+  const boundary = `StaticWadoBoundary${randomUUID()}`;
+  const contentType = `multipart/related; type="application/dicom"; boundary=${boundary}`;
 
+  // Create streaming multipart body with multiple files
+  const { bodyStream, contentLength } = createMultipartBodyStreamMultiple(files, boundary);
+
+  // Prepare headers
+  const requestHeaders = {
+    'Content-Type': contentType,
+    'Content-Length': contentLength.toString(),
+    Accept: xmlResponse ? 'application/dicom+xml' : 'application/dicom+json',
+    ...additionalHeaders,
+  };
+
+  // Optional timeout via AbortController
+  let signal;
+  let timeoutId;
+  if (timeoutMs != null && timeoutMs > 0) {
+    const controller = new AbortController();
+    signal = controller.signal;
+    timeoutId = setTimeout(
+      () => controller.abort(new Error(`The operation timed out after ${timeoutMs}ms`)),
+      timeoutMs
+    );
+  }
+
+  try {
     // Send POST request
     const response = await fetch(endpointUrl, {
-        method: 'POST',
-        headers: requestHeaders,
-        duplex: 'half',
-        body: bodyStream
+      method: 'POST',
+      headers: requestHeaders,
+      duplex: 'half',
+      body: bodyStream,
+      ...(signal && { signal }),
     });
 
     console.verbose('Server response status:', response.status, response.statusText);
     console.verbose('Server response headers:', Object.fromEntries(response.headers.entries()));
     const responseText = await response.text().catch(() => '');
     if (responseText) {
-        console.verbose('Server response body:', responseText);
+      console.verbose('Server response body:', responseText);
     }
 
     if (!response.ok) {
-        throw new Error(`HTTP ${response.status} ${response.statusText}: ${responseText}`);
+      throw new Error(`HTTP ${response.status} ${response.statusText}: ${responseText}`);
     }
 
     // Parse JSON DICOM response if applicable and log errors
     await parseAndLogDicomJsonErrors(response, responseText, files);
 
     return response;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 }
 
 /**

@@ -33,6 +33,8 @@ describe('StreamInfo write and end', () => {
     });
     const mockWriter = { _recordStreamFailure() {} };
     const streamInfo = new StreamInfo(mockWriter, { stream: ws, fileStream: ws, streamKey: 'test', filename: 'x', relativePath: '.' });
+    // When failure was recorded, end() rejects the completion promise; prevent unhandled rejection in test
+    streamInfo.promise.catch(() => {});
 
     streamInfo.recordFailure(new Error('simulated failure'));
     expect(streamInfo.getFailureMessage()).toBe('simulated failure');

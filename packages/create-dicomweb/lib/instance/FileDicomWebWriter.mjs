@@ -7,6 +7,23 @@ import { DicomWebWriter } from './DicomWebWriter.mjs';
  * Writes DICOMweb files to the filesystem
  */
 export class FileDicomWebWriter extends DicomWebWriter {
+  /**
+   * Deletes a file and its .gz counterpart if present. Ignores ENOENT.
+   * @param {string} relativePath - Relative path within baseDir
+   * @param {string} filename - Filename to delete (without .gz)
+   */
+  delete(relativePath, filename) {
+    const fullPath = path.join(this.options.baseDir, relativePath, filename);
+    for (const p of [fullPath, `${fullPath}.gz`]) {
+      try {
+        fs.unlinkSync(p);
+      } catch (err) {
+        if (err?.code !== 'ENOENT') {
+          console.warn(`[FileDicomWebWriter] Could not delete ${p}:`, err?.message || err);
+        }
+      }
+    }
+  }
 
   /**
    * Protected method to create the actual stream implementation
