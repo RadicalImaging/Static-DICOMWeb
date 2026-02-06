@@ -14,6 +14,10 @@ const { dicomWebServerConfig } = ConfigPoint.register({
       'Serve up the static wado files and optionally a web client as a web server on the local machine.',
     clientDir: '~/ohif',
     port: 5000,
+    /** HTTP server request timeout in ms. Default 30 minutes. Set to 0 to disable. */
+    serverTimeoutMs: 30 * 60 * 1000,
+    /** When true, do not update series/study summaries after STOW-RS uploads (--disable-summary). */
+    disableSummary: false,
     corsOptions: {
       enabled: true,
       origin: true,

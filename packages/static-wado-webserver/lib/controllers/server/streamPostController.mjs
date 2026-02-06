@@ -3,6 +3,8 @@ import {
   dicomToXml,
   handleHomeRelative,
   createPromiseTracker,
+  createProgressReporter,
+  StatusMonitor,
 } from '@radicalimaging/static-wado-util';
 import { instanceFromStream } from '@radicalimaging/create-dicomweb';
 import { seriesMain } from '@radicalimaging/create-dicomweb';
@@ -11,6 +13,9 @@ import { indexSummary } from '@radicalimaging/create-dicomweb';
 import { SagaBusMessaging } from './SagaBusMessaging.mjs';
 
 import { multipartStream } from './multipartStream.mjs';
+import { TrackableReadBufferStream } from './TrackableReadBufferStream.mjs';
+import { deleteStaleSummaries } from './deleteStaleSummaries.mjs';
+import { getLivelockDetectMs } from '../../util/livelockRegistry.mjs';
 
 const maxFileSize = 4 * 1024 * 1024 * 1024;
 const maxTotalFileSize = 10 * maxFileSize;
@@ -18,6 +23,10 @@ const maxTotalFileSize = 10 * maxFileSize;
 // Track if handlers have been initialized
 let handlersInitialized = false;
 let messagingInstance = null;
+/** When true, do not send updateSeries/updateStudy messages (set from params.disableSummary) */
+let disableSummaryUpdates = false;
+/** DICOMweb root used by STOW (set from streamPostController params for use in completePostController) */
+let stowRootDir = null;
 
 // Create a simple in-memory transport compatible with @saga-bus/core
 function createInMemoryTransport() {
@@ -111,7 +120,9 @@ function createInMemoryTransport() {
  * @returns function controller
  */
 export function streamPostController(params) {
+  disableSummaryUpdates = params.disableSummary === true;
   const dicomdir = handleHomeRelative(params.rootDir);
+  stowRootDir = dicomdir;
   console.noQuiet('Storing POST uploads to:', dicomdir);
 
   // Initialize messaging service and register handlers (only once)
@@ -131,38 +142,175 @@ export function streamPostController(params) {
   }
 
   const maxUnsettledReceives = params.maxUnsettledReceives ?? 2;
-  const backPressureTimeoutMs = params.backPressureTimeoutMs ?? 10000;
+  const maxUnsettledStreamWrites = params.maxUnsettledStreamWrites ?? 25;
+  const backPressureTimeoutMs = params.backPressureTimeoutMs ?? 5000;
+  const backpressureWaitMs = params.backpressureWaitMs ?? 100;
+  const backpressureMaxBytes = params.backpressureMaxBytes ?? 128 * 1024;
+  const showProgress = params.progress === true;
 
   return multipartStream({
+    onRequestStart: req => {
+      req.stowProgressReporter = createProgressReporter({
+        total: 0,
+        enabled: showProgress,
+        label: 'instances',
+        getExtraInfo: () => {
+          const sw = req.streamWritePromiseTracker;
+          const settled = sw?.getSettledCount?.() ?? 0;
+          return settled > 0 ? ` (${settled} stream writes)` : '';
+        },
+      });
+      req.statusMonitorPostJobId = StatusMonitor.startJob('stowPost', {
+        parts: 0,
+        totalBytes: 0,
+        lastBytesReceivedAt: null,
+      });
+      req.statusMonitorInstancesJobId = StatusMonitor.startJob('stowInstances', {
+        instancesCompleted: 0,
+        ongoing: 0,
+        openPromises: 0,
+        completedPromises: 0,
+      });
+    },
+    onPart: (req, partNumber) => {
+      if (req.statusMonitorPostJobId) {
+        StatusMonitor.updateJob('stowPost', req.statusMonitorPostJobId, { parts: partNumber });
+      }
+    },
+    onBytes: (req, _deltaBytes, totalBytes) => {
+      if (req.statusMonitorPostJobId) {
+        StatusMonitor.updateJob('stowPost', req.statusMonitorPostJobId, {
+          totalBytes,
+          lastBytesReceivedAt: Date.now(),
+        });
+      }
+    },
+    onRequestEnd: (req, { partCount, totalBytes, totalTimeMs }) => {
+      req.uploadPromiseTracker?.stopStatusMonitor?.();
+      req.streamWritePromiseTracker?.stopStatusMonitor?.();
+      if (req.stowProgressReporter && partCount > 0) {
+        req.stowProgressReporter.setTotal(partCount);
+      }
+      if (req.statusMonitorPostJobId) {
+        StatusMonitor.endJob('stowPost', req.statusMonitorPostJobId, {
+          parts: partCount,
+          totalBytes,
+          totalTimeMs,
+        });
+        req.statusMonitorPostJobId = null;
+      }
+    },
+    onRequestAbort: (req, err) => {
+      req.uploadPromiseTracker?.stopStatusMonitor?.();
+      req.streamWritePromiseTracker?.stopStatusMonitor?.();
+      if (req.stowProgressReporter) {
+        req.stowProgressReporter.finish();
+        req.stowProgressReporter = null;
+      }
+      if (req.statusMonitorPostJobId) {
+        StatusMonitor.endJob('stowPost', req.statusMonitorPostJobId, {
+          aborted: true,
+          error: err?.message ?? String(err),
+        });
+        req.statusMonitorPostJobId = null;
+      }
+      if (req.statusMonitorInstancesJobId) {
+        StatusMonitor.endJob('stowInstances', req.statusMonitorInstancesJobId, {
+          aborted: true,
+          failedCount: req.stowInstanceFailures ?? 0,
+          error: err?.message ?? String(err),
+        });
+        req.statusMonitorInstancesJobId = null;
+      }
+    },
     beforeProcessPart: async req => {
-      req.uploadPromiseTracker = req.uploadPromiseTracker ?? createPromiseTracker();
+      req.uploadPromiseTracker = req.uploadPromiseTracker ?? createPromiseTracker('partTracker');
+      req.streamWritePromiseTracker =
+        req.streamWritePromiseTracker ?? createPromiseTracker('fileTracker');
+
+      if (req.statusMonitorInstancesJobId && !req._stowInstancesMonitorStarted) {
+        req._stowInstancesMonitorStarted = true;
+        req.uploadPromiseTracker.startStatusMonitor('stowInstances', req.statusMonitorInstancesJobId, {
+          buildData: (s, u) => ({ instancesCompleted: s, ongoing: u }),
+        });
+        req.streamWritePromiseTracker.startStatusMonitor(
+          'stowInstances',
+          req.statusMonitorInstancesJobId,
+          {
+            buildData: (s, u) => ({ completedPromises: s, openPromises: u }),
+          }
+        );
+      }
+
+      req.stowProgressReporter?.refresh();
+
       const unsettled = await req.uploadPromiseTracker.limitUnsettled(
         maxUnsettledReceives,
         backPressureTimeoutMs
       );
       if (unsettled >= maxUnsettledReceives) {
-        console.warn(
+        console.verbose(
           `[streamPostController] Back pressure: continuing after timeout with ${unsettled} unsettled receives`
         );
       }
+
+      const unsettledStreamWrites = await req.streamWritePromiseTracker.limitUnsettled(
+        maxUnsettledStreamWrites,
+        backPressureTimeoutMs
+      );
+      if (unsettledStreamWrites >= maxUnsettledStreamWrites) {
+        console.verbose(
+          `[streamPostController] Back pressure: continuing after timeout with ${unsettledStreamWrites} unsettled stream writes`
+        );
+      }
     },
+    createBufferStream: (req, fileInfo, headers) =>
+      new TrackableReadBufferStream(null, true, {
+        noCopy: true,
+        backpressureMaxBytes,
+        streamWritePromiseTracker: req.streamWritePromiseTracker ?? null,
+        streamWriteLimit: maxUnsettledStreamWrites,
+        backpressureWaitMs,
+        backPressureTimeoutMs,
+        livelockDetectMs: getLivelockDetectMs(),
+      }),
     listener: async (fileInfo, stream, req) => {
       // Called immediately when a file part starts.
       // You can kick off downstream processing and return a promise.
       // This promise is *not awaited* by middleware.
-      console.warn('Processing POST upload:', fileInfo);
-      const tracker = req?.uploadPromiseTracker ?? createPromiseTracker();
+      console.verbose('Processing POST upload:', fileInfo);
+      const tracker = req?.uploadPromiseTracker ?? createPromiseTracker('partTracker');
       if (req) req.uploadPromiseTracker = tracker;
 
       try {
-        const promise = instanceFromStream(stream, { dicomdir });
+        const promise = instanceFromStream(stream, {
+          dicomdir,
+          streamWritePromiseTracker: req.streamWritePromiseTracker,
+          writerOptions: {
+            baseDir: dicomdir,
+            streamWritePromiseTracker: req.streamWritePromiseTracker,
+          },
+          statusMonitorJob:
+            req?.statusMonitorInstancesJobId != null
+              ? { typeId: 'stowInstances', jobId: req.statusMonitorInstancesJobId }
+              : undefined,
+        });
         tracker.add(promise);
         const result = await promise;
         const { information } = result;
         console.verbose('information:', information);
 
+        req.stowProgressReporter?.addProcessed(1);
         return result;
       } catch (error) {
+        req.stowProgressReporter?.addProcessed(1);
+        // Mark the job as failed so status monitor reflects instance failures
+        if (req?.statusMonitorInstancesJobId) {
+          req.stowInstanceFailures = (req.stowInstanceFailures ?? 0) + 1;
+          StatusMonitor.updateJob('stowInstances', req.statusMonitorInstancesJobId, {
+            failedCount: req.stowInstanceFailures,
+          });
+        }
         // Handle errors gracefully - non-DICOM files or invalid DICOM files
         // The error will be caught by Promise.allSettled in completePostController
         // and included in the response as a failed file entry
@@ -170,7 +318,7 @@ export function streamPostController(params) {
         const contentType = fileInfo?.mimeType || fileInfo?.headers?.['content-type'] || 'unknown';
         const fieldname =
           fileInfo?.fieldname || fileInfo?.headers?.['content-location'] || 'unknown';
-        console.warn(
+        console.noQuiet(
           `[streamPostController] Error processing stream (Part: ${fieldname}, Content-Type: ${contentType}):`,
           errorMessage
         );
@@ -198,7 +346,7 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
     }
 
     try {
-      console.log(`Processing updateSeries for study ${studyUid}, series ${seriesUID}`);
+      console.noQuiet(`Processing updateSeries for study ${studyUid}, series ${seriesUID}`);
       // Call seriesMain to update the series
       await seriesMain(studyUid, {
         dicomdir,
@@ -207,9 +355,9 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
 
       // After series update completes, send updateStudy message
       await messaging.sendMessage('updateStudy', studyUid, data);
-      console.log(`Sent updateStudy message for study ${studyUid}`);
+      console.noQuiet(`Sent updateStudy message for study ${studyUid}`);
     } catch (err) {
-      console.error(`Error processing updateSeries for ${id}:`, err);
+      console.warn(`Error processing updateSeries for ${id}:`, err);
       throw err; // Re-throw to allow retry/redelivery
     }
   });
@@ -225,7 +373,7 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
     }
 
     try {
-      console.log(`Processing updateStudy for study ${studyUid}`);
+      console.noQuiet(`Processing updateStudy for study ${studyUid}`);
       // Call studyMain to update the study
       await studyMain(studyUid, {
         dicomdir,
@@ -234,11 +382,11 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
       // Create/update studies/index.json.gz file unless disabled
       const studyIndex = params.studyIndex !== false; // Default to true unless explicitly disabled
       if (studyIndex) {
-        console.log(`Creating/updating studies index for study ${studyUid}`);
+        console.noQuiet(`Creating/updating studies index for study ${studyUid}`);
         await indexSummary(dicomdir, [studyUid]);
       }
 
-      console.log(`Completed updateStudy for study ${studyUid}`);
+      console.noQuiet(`Completed updateStudy for study ${studyUid}`);
     } catch (err) {
       console.error(`Error processing updateStudy for ${studyUid}:`, err);
       throw err; // Re-throw to allow retry/redelivery
@@ -288,6 +436,16 @@ function createDatasetResponse(files) {
 
     // Create sequence item
     const item = {};
+
+    // Add Content-Location (filename from request) so clients can match response items to uploaded files.
+    // Uses private tag (0009,1001); clients should match by this when ReferencedSOPInstanceUID is absent (e.g. invalid DICOM).
+    const contentLocation = file.fieldname || file.headers?.['content-location'];
+    if (contentLocation) {
+      item['00091001'] = {
+        vr: 'LO',
+        Value: [contentLocation],
+      };
+    }
 
     // Add ReferencedSOPClassUID (00081150) if available
     if (sopClassUID) {
@@ -345,6 +503,33 @@ function createDatasetResponse(files) {
 
 export const completePostController = async (req, res, next) => {
   try {
+    req.uploadPromiseTracker?.stopStatusMonitor?.();
+    req.streamWritePromiseTracker?.stopStatusMonitor?.();
+    if (req.stowProgressReporter) {
+      req.stowProgressReporter.finish();
+      req.stowProgressReporter = null;
+    }
+    if (req.statusMonitorInstancesJobId) {
+      const upload = req.uploadPromiseTracker ?? {
+        getUnsettledCount: () => 0,
+        getSettledCount: () => 0,
+      };
+      const streamWrite = req.streamWritePromiseTracker ?? {
+        getUnsettledCount: () => 0,
+        getSettledCount: () => 0,
+      };
+      StatusMonitor.updateJob('stowInstances', req.statusMonitorInstancesJobId, {
+        instancesCompleted: upload.getSettledCount(),
+        ongoing: upload.getUnsettledCount(),
+        openPromises: streamWrite.getUnsettledCount(),
+        completedPromises: streamWrite.getSettledCount(),
+      });
+      StatusMonitor.endJob('stowInstances', req.statusMonitorInstancesJobId, {
+        failedCount: req.stowInstanceFailures ?? 0,
+      });
+      req.statusMonitorInstancesJobId = null;
+    }
+
     console.noQuiet('uploadListenerPromises length:', req.uploadListenerPromises?.length);
     const results = await Promise.allSettled(req.uploadListenerPromises || []);
     console.noQuiet('results length:', results.length);
@@ -367,32 +552,33 @@ export const completePostController = async (req, res, next) => {
       };
     });
 
-    // Send updateSeries messages for unique seriesUIDs after all instances are processed
-    if (messagingInstance) {
-      const seriesMap = new Map(); // seriesId -> information object
-
-      // Collect unique series from successfully processed files
-      for (const file of files) {
-        if (file.ok && file.result?.information) {
-          const { information } = file.result;
-          if (information?.studyInstanceUid && information?.seriesInstanceUid) {
-            const studyUid = information.studyInstanceUid;
-            const seriesUID = information.seriesInstanceUid;
-            const seriesId = `${studyUid}&${seriesUID}`;
-
-            // Only keep the latest information for each series (or first, doesn't matter for dedupe)
-            if (!seriesMap.has(seriesId)) {
-              seriesMap.set(seriesId, information);
-            }
+    // Build unique series set from successfully processed files (for deletes and for messaging)
+    const seriesMap = new Map(); // seriesId -> information object
+    for (const file of files) {
+      if (file.ok && file.result?.information) {
+        const { information } = file.result;
+        if (information?.studyInstanceUid && information?.seriesInstanceUid) {
+          const studyUid = information.studyInstanceUid;
+          const seriesUID = information.seriesInstanceUid;
+          const seriesId = `${studyUid}&${seriesUID}`;
+          if (!seriesMap.has(seriesId)) {
+            seriesMap.set(seriesId, information);
           }
         }
       }
+    }
 
-      // Send one message per unique seriesUID
+    // Delete series and study summary/index files so they can be regenerated (always, even if messaging disabled)
+    if (stowRootDir && seriesMap.size > 0) {
+      deleteStaleSummaries(stowRootDir, seriesMap);
+    }
+
+    // Send updateSeries messages for unique seriesUIDs after all instances are processed (unless disabled)
+    if (messagingInstance && !disableSummaryUpdates) {
       for (const [seriesId, information] of seriesMap.entries()) {
         try {
           await messagingInstance.sendMessage('updateSeries', seriesId, information);
-          console.log(`Sent updateSeries message for ${seriesId}`);
+          console.noQuiet(`Sent updateSeries message for ${seriesId}`);
         } catch (err) {
           console.error(`Failed to send updateSeries message for ${seriesId}:`, err);
         }

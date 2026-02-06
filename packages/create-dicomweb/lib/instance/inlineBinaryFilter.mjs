@@ -11,33 +11,43 @@ const { TagHex, BULKDATA_VRS } = constants;
 export function inlineBinaryFilter(options = {}) {
  
   /**
-   * Filter method: Called when a tag is being closed (popped from stack)
-   * Determines if the tag should be written as bulkdata and performs the write
+   * Filter method: Called when a tag is being closed (popped from stack).
+   * When converting to InlineBinary, performs the default pop logic and returns
+   * without calling next, so the released dcmjs base pop (which logs when
+   * InlineBinary is set) is never run.
    */
-  function pop(next, result) {
-    // Access the current tag context
+  function pop(next) {
     const current = this.current;
-    const currentTag = current?.tag;
-    const currentVR = current?.vr;
-    const level = current?.level ?? 0;
     const dest = current?.dest;
 
-    // Check if this tag has a Value array and is eligible for bulkdata
-    if( dest?.InlineBinary ) {
-      console.log('********* InlineBinary already set', dest, this.current);
-    }
-    if (!Array.isArray(dest?.Value) || !dest.Value.length || !dest.Value.every(value => value instanceof ArrayBuffer || Buffer.isBuffer(value))) {
-      return next(result);
+    // Check if this tag has a Value array and is eligible for inline binary
+    if (
+      !Array.isArray(dest?.Value) ||
+      !dest.Value.length ||
+      !dest.Value.every(value => value instanceof ArrayBuffer || Buffer.isBuffer(value))
+    ) {
+      return next();
     }
 
-    const buffer = Array.isArray(dest.Value) ? Buffer.concat(dest.Value.map(value => Buffer.from(value))) : dest.Value;
+    const buffer = Array.isArray(dest.Value)
+      ? Buffer.concat(dest.Value.map(value => Buffer.from(value)))
+      : dest.Value;
     const base64 = Buffer.from(buffer).toString('base64');
     delete dest.Value;
-    console.log('********* Setting InlineBinary', dest, this.current);
     dest.InlineBinary = base64;
 
-    // Always call next with the result (synchronously)
-    return next(result);
+    // Default pop behavior without calling next (avoids dcmjs InlineBinary log)
+    const result = current.pop?.() ?? current.dest;
+    if (result.Value === null) {
+      result.Value = [];
+    } else if (
+      result.Value?.length === 1 &&
+      (result.Value[0] === null || result.Value[0] === undefined)
+    ) {
+      result.Value = [];
+    }
+    this.current = current.parent;
+    return result;
   }
 
   return {

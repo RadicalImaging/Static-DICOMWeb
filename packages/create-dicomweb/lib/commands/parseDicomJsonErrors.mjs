@@ -1,8 +1,12 @@
 import fs from "fs";
+import path from 'path';
 import { async, utilities } from 'dcmjs';
 
 const { AsyncDicomReader } = async;
 const { DicomMetadataListener } = utilities;
+
+/** Private tag (0009,1001) Content-Location - filename from multipart request, for matching response to uploaded files */
+const CONTENT_LOCATION_TAG = '00091001';
 
 /**
  * Parses a JSON DICOM response and logs warnings for any items that are not COMPLETED, matched to uploaded file names
@@ -75,47 +79,57 @@ export async function parseAndLogDicomJsonErrors(response, responseText, files) 
 
         // Match response items to files and log warnings
         for (let i = 0; i < failedItems.length; i++) {
-            const failedItem = failedItems[i];
-            
-            // Extract Failure Reason (00081197) if available
-            const failureReasonTag = failedItem['00081197'];
-            const failureReason = failureReasonTag?.Value?.[0];
-            
-            // Build the warning message
-            let warningMessage = 'Failed';
-            if (failureReason !== undefined) {
-                // Failure reason is typically a US (unsigned short) error code
-                // Convert to hex for readability if it's a number
-                if (typeof failureReason === 'number') {
-                    warningMessage = `Failure Reason: 0x${failureReason.toString(16).toUpperCase()}`;
-                } else {
-                    warningMessage = `Failure Reason: ${failureReason}`;
-                }
-            }
-            
-            // Try to match by SOP Instance UID first
-            // In STOW-RS format, this is ReferencedSOPInstanceUID (00081155)
-            const responseSopInstanceUid = failedItem['00081155']?.Value?.[0];
-            let matchedFile = null;
-            
-            if (responseSopInstanceUid) {
-                matchedFile = fileSopInstanceUids.find(
-                    ({ sopInstanceUid }) => sopInstanceUid === responseSopInstanceUid
-                );
-            }
-            
-            // Fall back to position-based matching if SOP Instance UID match failed
-            // Note: This is less reliable since we don't know the exact order
-            if (!matchedFile && i < files.length) {
-                matchedFile = { filePath: files[i].filePath };
-            }
-            
-            // Log warning at noQuiet level
-            if (matchedFile) {
-                console.noQuiet(`Warning for file ${matchedFile.filePath}: ${warningMessage}`);
+          const failedItem = failedItems[i];
+
+          // Extract Failure Reason (00081197) if available
+          const failureReasonTag = failedItem['00081197'];
+          const failureReason = failureReasonTag?.Value?.[0];
+
+          // Build the warning message
+          let warningMessage = 'Failed';
+          if (failureReason !== undefined) {
+            // Failure reason is typically a US (unsigned short) error code
+            // Convert to hex for readability if it's a number
+            if (typeof failureReason === 'number') {
+              warningMessage = `Failure Reason: 0x${failureReason.toString(16).toUpperCase()}`;
             } else {
-                console.noQuiet(`Warning for uploaded file (index ${i}): ${warningMessage}`);
+              warningMessage = `Failure Reason: ${failureReason}`;
             }
+          }
+
+          // Match by Content-Location first (private tag 00091001) - most reliable for failed invalid DICOM
+          // Server includes the multipart Content-Location (filename) so we can match to uploaded files
+          const responseContentLocation = failedItem[CONTENT_LOCATION_TAG]?.Value?.[0];
+          let matchedFile = null;
+
+          if (responseContentLocation) {
+            matchedFile = files.find(
+              ({ filePath }) => path.basename(filePath) === responseContentLocation
+            );
+            if (matchedFile) matchedFile = { filePath: matchedFile.filePath };
+          }
+
+          // Try SOP Instance UID (ReferencedSOPInstanceUID 00081155) if Content-Location didn't match
+          if (!matchedFile) {
+            const responseSopInstanceUid = failedItem['00081155']?.Value?.[0];
+            if (responseSopInstanceUid) {
+              matchedFile = fileSopInstanceUids.find(
+                ({ sopInstanceUid }) => sopInstanceUid === responseSopInstanceUid
+              );
+            }
+          }
+
+          // Fall back to position-based matching - unreliable when multiple files with mixed success/failure
+          if (!matchedFile && i < files.length) {
+            matchedFile = { filePath: files[i].filePath };
+          }
+
+          // Log warning at noQuiet level
+          if (matchedFile) {
+            console.noQuiet(`Warning for file ${matchedFile.filePath}: ${warningMessage}`);
+          } else {
+            console.noQuiet(`Warning for uploaded file (index ${i}): ${warningMessage}`);
+          }
         }
     } catch (error) {
         // If parsing fails, silently ignore (response might not be JSON DICOM format)

@@ -120,7 +120,7 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
   // Step 3: Compare sets - if they match exactly, return early
   if (existingInstanceUIDs.size === actualInstanceUIDs.size &&
       [...existingInstanceUIDs].every(uid => actualInstanceUIDs.has(uid))) {  
-    console.warn('seriesSummary: instance index is up to date');
+    console.noQuiet('seriesSummary: instance index is up to date');
     // return; // Metadata is up to date
   }
 
@@ -189,19 +189,19 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
   }
 
   // Step 7: Write new series metadata file
-  console.warn('seriesSummary: writing new series metadata file');
+  console.noQuiet('seriesSummary: writing new series metadata file');
   const writer = new FileDicomWebWriter({ studyInstanceUid: studyUID, seriesInstanceUid: seriesUID }, { baseDir });
   const metadataStreamInfo = await writer.openSeriesStream('metadata', { gzip: true });
   metadataStreamInfo.stream.write(Buffer.from(JSON.stringify(instanceMetadataArray)));
   await writer.closeStream(metadataStreamInfo.streamKey);
-  console.warn('seriesSummary: metadata file written:', metadataStreamInfo.filepath);
+  console.noQuiet('seriesSummary: metadata file written:', metadataStreamInfo.filepath);
 
   // Step 8: Write series-singleton.json.gz
   if (seriesQuery) {
     const seriesSingletonStreamInfo = await writer.openSeriesStream('series-singleton.json', { gzip: true });
     seriesSingletonStreamInfo.stream.write(Buffer.from(JSON.stringify([seriesQuery])));
     await writer.closeStream(seriesSingletonStreamInfo.streamKey);
-    console.warn('seriesSummary: series-singleton.json file written:', seriesSingletonStreamInfo.filepath);
+    console.noQuiet('seriesSummary: series-singleton.json file written:', seriesSingletonStreamInfo.filepath);
   }
 
   // Step 9: Write instances/index.json.gz
@@ -209,6 +209,6 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
     const instancesIndexStreamInfo = await writer.openSeriesStream('instances/index.json', { gzip: true });
     instancesIndexStreamInfo.stream.write(Buffer.from(JSON.stringify(instancesQuery)));
     await writer.closeStream(instancesIndexStreamInfo.streamKey);
-    console.warn('seriesSummary: instances/index.json file written:', instancesIndexStreamInfo.filepath);
+    console.noQuiet('seriesSummary: instances/index.json file written:', instancesIndexStreamInfo.filepath);
   }
 }

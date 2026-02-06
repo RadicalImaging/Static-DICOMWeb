@@ -4,6 +4,20 @@ let streamOpenCount = 0;
 let streamClosedCount = 0;
 
 /**
+ * Returns current global stream open and closed counts (for logging from DicomWebWriter).
+ * @returns {{ streamOpenCount: number, streamClosedCount: number }}
+ */
+export function getStreamCounts() {
+  return { streamOpenCount, streamClosedCount };
+}
+/** High-water log threshold; log when open count exceeds this */
+const STREAM_OPEN_WARN_THRESHOLD = 500;
+/** Log again every this many beyond the threshold */
+const STREAM_OPEN_WARN_STEP = 100;
+/** Next count at which to log (500, 600, 700, …); reset when count drops below threshold */
+let _streamOpenNextLogAt = STREAM_OPEN_WARN_THRESHOLD;
+
+/**
  * Normalizes a value to an array of Buffers. Supports ArrayBuffer, Buffer, TypedArray, or Array of same.
  * @param {ArrayBuffer|Buffer|TypedArray|Array<ArrayBuffer|Buffer|TypedArray>} value
  * @returns {Buffer[]}
@@ -53,6 +67,16 @@ export class StreamInfo {
     this._processing = false;
 
     streamOpenCount += 1;
+    if (streamOpenCount >= _streamOpenNextLogAt) {
+      const excess = streamOpenCount - STREAM_OPEN_WARN_THRESHOLD;
+      console.noQuiet(
+        `[StreamInfo] open file count exceeded ${STREAM_OPEN_WARN_THRESHOLD} by ${excess}: totalOpen=${streamOpenCount} totalClosed=${streamClosedCount}`
+      );
+      _streamOpenNextLogAt =
+        STREAM_OPEN_WARN_THRESHOLD +
+        STREAM_OPEN_WARN_STEP * Math.floor(excess / STREAM_OPEN_WARN_STEP) +
+        STREAM_OPEN_WARN_STEP;
+    }
     console.verbose(
       `[StreamInfo] open stream streamKey=${this.streamKey ?? 'unknown'} totalOpen=${streamOpenCount} totalClosed=${streamClosedCount}`
     );
@@ -72,6 +96,9 @@ export class StreamInfo {
     if (this._closedLogged) return;
     this._closedLogged = true;
     streamOpenCount -= 1;
+    if (streamOpenCount < STREAM_OPEN_WARN_THRESHOLD) {
+      _streamOpenNextLogAt = STREAM_OPEN_WARN_THRESHOLD;
+    }
     streamClosedCount += 1;
     console.verbose(
       `[StreamInfo] close stream streamKey=${this.streamKey ?? 'unknown'} totalOpen=${streamOpenCount} totalClosed=${streamClosedCount}`
@@ -101,6 +128,11 @@ export class StreamInfo {
    */
   destroyStreams(error) {
     this._markClosed();
+    // Reject the completion promise (tracked by streamWritePromiseTracker)
+    if (this._reject && !this._ended) {
+      this._reject(error);
+      this._ended = true;
+    }
     try {
       if (this.stream && typeof this.stream.destroy === 'function') {
         this.stream.destroy(error);
@@ -112,7 +144,7 @@ export class StreamInfo {
         this.fileStream.destroy(error);
       }
     } catch (destroyError) {
-      console.warn(`Error destroying stream ${this.streamKey ?? 'unknown'}:`, destroyError);
+      console.warn(`Error destroying stream ${this.streamKey}:`, destroyError);
     }
   }
 
@@ -164,7 +196,13 @@ export class StreamInfo {
         for (const buf of item.buffers) {
           const ok = stream.write(buf);
           if (!ok) {
-            await new Promise(res => stream.once('drain', res));
+            await new Promise(resolve => {
+              const timeout = setTimeout(() => resolve(), 250);
+              stream.once('drain', () => {
+                clearTimeout(timeout);
+                resolve();
+              });
+            });
           }
         }
       } else if (item.run !== undefined) {
@@ -203,6 +241,10 @@ export class StreamInfo {
     if (this.failed) {
       this._markClosed();
       this._ended = true;
+      // Reject the completion promise (tracked by streamWritePromiseTracker)
+      if (this._reject) {
+        this._reject(this.error);
+      }
       return;
     }
 
@@ -212,6 +254,11 @@ export class StreamInfo {
     if (destroyed) {
       this._markClosed();
       this._ended = true;
+      // Resolve the completion promise (tracked by streamWritePromiseTracker)
+      // Stream was destroyed, but we treat it as complete
+      if (this._resolve) {
+        this._resolve();
+      }
       return;
     }
 
@@ -219,6 +266,16 @@ export class StreamInfo {
       const done = () => {
         this._markClosed();
         this._ended = true;
+        // Resolve the completion promise (tracked by streamWritePromiseTracker)
+        if (this.failed && this._reject) {
+          console.verbose(
+            `[StreamInfo] rejecting promise for ${this.streamKey ?? 'unknown'}: ${this.error?.message}`
+          );
+          this._reject(this.error);
+        } else if (this._resolve) {
+          console.verbose(`[StreamInfo] resolving promise for ${this.streamKey ?? 'unknown'}`);
+          this._resolve();
+        }
         resolve();
       };
 
