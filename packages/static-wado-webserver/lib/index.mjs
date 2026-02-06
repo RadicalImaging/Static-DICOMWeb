@@ -68,7 +68,7 @@ const DicomWebServer = async params => {
   process.on('exit', code => console.log('Exit code:', code));
   setInterval(() => {
     if (!server.listening) {
-      console.error('⚠️ Server is NOT listening anymore');
+      console.error('?? Server is NOT listening anymore');
     }
   }, 5000);
 
