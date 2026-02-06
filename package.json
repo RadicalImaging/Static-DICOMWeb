@@ -31,13 +31,13 @@
   "dependencies": {
     "@cornerstonejs/dicom-codec": "1.0.9",
     "canvas": "3.1.0",
-    "dcmjs": "0.49.1",
+    "dcmjs": "0.49.4",
     "typescript": "^5.8.2"
   },
   "resolutions": {
     "@cornerstonejs/dicom-codec": "1.0.9",
     "@cornerstonejs/codec-openjph": ">=2.4.5",
-    "dcmjs": "0.49.1",
+    "dcmjs": "0.49.4",
     "canvas": "3.1.0"
   },
   "workspaces": [
@@ -51,7 +51,9 @@
     "docker:dicomwebserver": "docker run -it --mount type=bind,source=/c/dicomweb,target=/dicomweb -p 25080:5000  --rm braveheartsoftware/static-dicomweb:latest",
     "test": "lerna run test --parallel --stream",
     "test:ci": "yarn run test",
-    "build": "lerna run build --stream",
+    "build": "lerna run build --stream --concurrency 1",
+    "build:parallel": "lerna run build --stream",
+    "build:serial": "lerna run build --stream --concurrency 1",
     "build:esm": "lerna run build:esm --stream",
     "build:ci": "yarn run build",
     "clean": "lerna run clean --stream",

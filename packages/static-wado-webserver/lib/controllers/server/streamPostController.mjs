@@ -11,6 +11,8 @@ import { indexSummary } from '@radicalimaging/create-dicomweb';
 import { SagaBusMessaging } from './SagaBusMessaging.mjs';
 
 import { multipartStream } from './multipartStream.mjs';
+import { TrackableReadBufferStream } from './TrackableReadBufferStream.mjs';
+import { deleteStaleSummaries } from './deleteStaleSummaries.mjs';
 
 const maxFileSize = 4 * 1024 * 1024 * 1024;
 const maxTotalFileSize = 10 * maxFileSize;
@@ -18,6 +20,10 @@ const maxTotalFileSize = 10 * maxFileSize;
 // Track if handlers have been initialized
 let handlersInitialized = false;
 let messagingInstance = null;
+/** When true, do not send updateSeries/updateStudy messages (set from params.disableSummary) */
+let disableSummaryUpdates = false;
+/** DICOMweb root used by STOW (set from streamPostController params for use in completePostController) */
+let stowRootDir = null;
 
 // Create a simple in-memory transport compatible with @saga-bus/core
 function createInMemoryTransport() {
@@ -111,7 +117,9 @@ function createInMemoryTransport() {
  * @returns function controller
  */
 export function streamPostController(params) {
+  disableSummaryUpdates = params.disableSummary === true;
   const dicomdir = handleHomeRelative(params.rootDir);
+  stowRootDir = dicomdir;
   console.noQuiet('Storing POST uploads to:', dicomdir);
 
   // Initialize messaging service and register handlers (only once)
@@ -131,11 +139,17 @@ export function streamPostController(params) {
   }
 
   const maxUnsettledReceives = params.maxUnsettledReceives ?? 2;
-  const backPressureTimeoutMs = params.backPressureTimeoutMs ?? 10000;
+  const maxUnsettledStreamWrites = params.maxUnsettledStreamWrites ?? 25;
+  const backPressureTimeoutMs = params.backPressureTimeoutMs ?? 5000;
+  const backpressureWaitMs = params.backpressureWaitMs ?? 100;
+  const backpressureMaxBytes = params.backpressureMaxBytes ?? 128 * 1024;
 
   return multipartStream({
     beforeProcessPart: async req => {
-      req.uploadPromiseTracker = req.uploadPromiseTracker ?? createPromiseTracker();
+      req.uploadPromiseTracker = req.uploadPromiseTracker ?? createPromiseTracker('partTracker');
+      req.streamWritePromiseTracker =
+        req.streamWritePromiseTracker ?? createPromiseTracker('fileTracker');
+
       const unsettled = await req.uploadPromiseTracker.limitUnsettled(
         maxUnsettledReceives,
         backPressureTimeoutMs
@@ -145,17 +159,43 @@ export function streamPostController(params) {
           `[streamPostController] Back pressure: continuing after timeout with ${unsettled} unsettled receives`
         );
       }
+
+      const unsettledStreamWrites = await req.streamWritePromiseTracker.limitUnsettled(
+        maxUnsettledStreamWrites,
+        backPressureTimeoutMs
+      );
+      if (unsettledStreamWrites >= maxUnsettledStreamWrites) {
+        console.warn(
+          `[streamPostController] Back pressure: continuing after timeout with ${unsettledStreamWrites} unsettled stream writes`
+        );
+      }
     },
+    createBufferStream: (req, fileInfo, headers) =>
+      new TrackableReadBufferStream(null, true, {
+        noCopy: true,
+        backpressureMaxBytes,
+        streamWritePromiseTracker: req.streamWritePromiseTracker ?? null,
+        streamWriteLimit: maxUnsettledStreamWrites,
+        backpressureWaitMs,
+        backPressureTimeoutMs,
+      }),
     listener: async (fileInfo, stream, req) => {
       // Called immediately when a file part starts.
       // You can kick off downstream processing and return a promise.
       // This promise is *not awaited* by middleware.
       console.warn('Processing POST upload:', fileInfo);
-      const tracker = req?.uploadPromiseTracker ?? createPromiseTracker();
+      const tracker = req?.uploadPromiseTracker ?? createPromiseTracker('partTracker');
       if (req) req.uploadPromiseTracker = tracker;
 
       try {
-        const promise = instanceFromStream(stream, { dicomdir });
+        const promise = instanceFromStream(stream, {
+          dicomdir,
+          streamWritePromiseTracker: req.streamWritePromiseTracker,
+          writerOptions: {
+            baseDir: dicomdir,
+            streamWritePromiseTracker: req.streamWritePromiseTracker,
+          },
+        });
         tracker.add(promise);
         const result = await promise;
         const { information } = result;
@@ -289,6 +329,16 @@ function createDatasetResponse(files) {
     // Create sequence item
     const item = {};
 
+    // Add Content-Location (filename from request) so clients can match response items to uploaded files.
+    // Uses private tag (0009,1001); clients should match by this when ReferencedSOPInstanceUID is absent (e.g. invalid DICOM).
+    const contentLocation = file.fieldname || file.headers?.['content-location'];
+    if (contentLocation) {
+      item['00091001'] = {
+        vr: 'LO',
+        Value: [contentLocation],
+      };
+    }
+
     // Add ReferencedSOPClassUID (00081150) if available
     if (sopClassUID) {
       item['00081150'] = {
@@ -367,28 +417,29 @@ export const completePostController = async (req, res, next) => {
       };
     });
 
-    // Send updateSeries messages for unique seriesUIDs after all instances are processed
-    if (messagingInstance) {
-      const seriesMap = new Map(); // seriesId -> information object
-
-      // Collect unique series from successfully processed files
-      for (const file of files) {
-        if (file.ok && file.result?.information) {
-          const { information } = file.result;
-          if (information?.studyInstanceUid && information?.seriesInstanceUid) {
-            const studyUid = information.studyInstanceUid;
-            const seriesUID = information.seriesInstanceUid;
-            const seriesId = `${studyUid}&${seriesUID}`;
-
-            // Only keep the latest information for each series (or first, doesn't matter for dedupe)
-            if (!seriesMap.has(seriesId)) {
-              seriesMap.set(seriesId, information);
-            }
+    // Build unique series set from successfully processed files (for deletes and for messaging)
+    const seriesMap = new Map(); // seriesId -> information object
+    for (const file of files) {
+      if (file.ok && file.result?.information) {
+        const { information } = file.result;
+        if (information?.studyInstanceUid && information?.seriesInstanceUid) {
+          const studyUid = information.studyInstanceUid;
+          const seriesUID = information.seriesInstanceUid;
+          const seriesId = `${studyUid}&${seriesUID}`;
+          if (!seriesMap.has(seriesId)) {
+            seriesMap.set(seriesId, information);
           }
         }
       }
+    }
 
-      // Send one message per unique seriesUID
+    // Delete series and study summary/index files so they can be regenerated (always, even if messaging disabled)
+    if (stowRootDir && seriesMap.size > 0) {
+      deleteStaleSummaries(stowRootDir, seriesMap);
+    }
+
+    // Send updateSeries messages for unique seriesUIDs after all instances are processed (unless disabled)
+    if (messagingInstance && !disableSummaryUpdates) {
       for (const [seriesId, information] of seriesMap.entries()) {
         try {
           await messagingInstance.sendMessage('updateSeries', seriesId, information);

@@ -1,7 +1,17 @@
 #!/usr/bin/env bun
 import { Command } from 'commander';
+<<<<<<< HEAD
 import { instanceMain, seriesMain, studyMain, createMain, stowMain, thumbnailMain, indexMain, part10Main } from '../lib/index.mjs';
 import { handleHomeRelative, createVerboseLog } from '@radicalimaging/static-wado-util';
+=======
+import { instanceMain, seriesMain, studyMain, createMain, stowMain, thumbnailMain, indexMain } from '../lib/index.mjs';
+import {
+  handleHomeRelative,
+  createVerboseLog,
+  parseTimeoutToMs,
+  parseSizeToBytes,
+} from '@radicalimaging/static-wado-util';
+>>>>>>> origin/master
 
 const program = new Command();
 
@@ -88,17 +98,37 @@ program
   .command('stow')
   .description('Store DICOM files to a STOW-RS endpoint')
   .argument('<part10...>', 'part 10 file(s) or directory(ies)')
-  .option('--url <url>', 'URL endpoint for STOW-RS storage', 'http://localhost:5000/dicomweb/studies')
-  .option('--header <header>', 'Additional HTTP header in format "Key: Value" (can be specified multiple times)')
-  .option('--max-group-size <size>', 'Maximum size in bytes for grouping files (default: 10MB)', '10485760')
+  .option(
+    '--url <url>',
+    'URL endpoint for STOW-RS storage',
+    'http://localhost:5000/dicomweb/studies'
+  )
+  .option(
+    '--header <header>',
+    'Additional HTTP header in format "Key: Value" (can be specified multiple times)'
+  )
+  .option(
+    '--max-group-size <size>',
+    'Maximum size for grouping files: bytes or with units (k/m/g/t, e.g. 10m, 1g, 2t). Default: 10m',
+    '10m'
+  )
   .option('--send-as-single-files', 'Send each file individually instead of grouping')
   .option('--xml-response', 'Request XML response format instead of JSON')
+  .option(
+    '--timeout <duration>',
+    'Request timeout: hours (10h), minutes (10m), or seconds (3600 or 3600s)'
+  )
+  .option('--parallel <N>', 'Number of parallel STOW-RS requests', '1')
+  .option(
+    '--no-filename-check',
+    'Upload all files regardless of extension (default: skip .gz, .json, .md, .txt, .xml, .pdf, .jpg, .png, .html, .zip, etc.)'
+  )
   .action(async (fileNames, options) => {
     updateVerboseLog();
     const stowOptions = {
-      url: options.url
+      url: options.url,
     };
-    
+
     // Parse additional headers if provided
     if (options.header) {
       const headers = Array.isArray(options.header) ? options.header : [options.header];
@@ -110,31 +140,36 @@ program
         }
       });
     }
-    
-    // Parse max group size (accepts numbers or strings with units like "10MB", "5MB", etc.)
+
+    // Parse max group size (accepts numbers or strings with units like 10m, 10MB, 1g, 2t, etc.)
     if (options.maxGroupSize) {
-      const sizeStr = String(options.maxGroupSize).toUpperCase();
-      if (sizeStr.endsWith('MB')) {
-        stowOptions.maxGroupSize = parseInt(sizeStr) * 1024 * 1024;
-      } else if (sizeStr.endsWith('KB')) {
-        stowOptions.maxGroupSize = parseInt(sizeStr) * 1024;
-      } else if (sizeStr.endsWith('GB')) {
-        stowOptions.maxGroupSize = parseInt(sizeStr) * 1024 * 1024 * 1024;
-      } else {
-        stowOptions.maxGroupSize = parseInt(options.maxGroupSize);
-      }
+      stowOptions.maxGroupSize = parseSizeToBytes(options.maxGroupSize);
     }
-    
+
     // Add sendAsSingleFiles flag if specified
     if (options.sendAsSingleFiles) {
       stowOptions.sendAsSingleFiles = true;
     }
-    
+
     // Add xmlResponse flag if specified
     if (options.xmlResponse) {
       stowOptions.xmlResponse = true;
     }
-    
+
+    // Parse timeout (e.g. 10h, 10m, 3600, 3600s) to milliseconds
+    if (options.timeout) {
+      stowOptions.timeoutMs = parseTimeoutToMs(options.timeout);
+    }
+
+    const parallel = parseInt(options.parallel, 10);
+    if (!Number.isNaN(parallel) && parallel >= 1) {
+      stowOptions.parallel = parallel;
+    }
+
+    if (options.filenameCheck === false) {
+      stowOptions.filenameCheck = false;
+    }
+
     await stowMain(fileNames, stowOptions);
   });
 

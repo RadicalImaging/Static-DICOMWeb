@@ -9,11 +9,14 @@ import {
   otherJsonMap,
   thumbnailMap,
   multipartIndexMap,
-  seriesSingleMap,
-  studySingleMap,
 } from '../../adapters/requestAdapters.mjs';
-import { defaultPostController as oldPostController } from '../../controllers/server/commonControllers.mjs';
-import { streamPostController, completePostController } from '../../controllers/server/streamPostController.mjs';
+import {
+  streamPostController as postController,
+  completePostController,
+} from '../../controllers/server/streamPostController.mjs';
+import { studyQueryController } from '../../controllers/server/indexOnDemandController.mjs';
+import { seriesQueryController } from '../../controllers/server/seriesQueryController.mjs';
+import { seriesMetadataQueryController } from '../../controllers/server/seriesMetadataQueryController.mjs';
 import { defaultNotFoundController as notFoundController } from '../../controllers/server/notFoundControllers.mjs';
 import { defaultGetProxyController } from '../../controllers/server/proxyControllers.mjs';
 import {
@@ -56,8 +59,8 @@ export default function setRoutes(routerExpress, params, dir, hashStudyUidPath) 
   });
 
   // Study and Series query have custom endpoints to retrieve single-UID response
-  routerExpress.get('/studies', studySingleMap);
-  routerExpress.get('/studies/:studyUID/series', seriesSingleMap);
+  routerExpress.get('/studies', studyQueryController(dir, { ...params, hashStudyUidPath }));
+  routerExpress.get('/studies/:studyUID/series', seriesQueryController(dir, params));
 
   routerExpress.get(
     [
@@ -105,16 +108,18 @@ export default function setRoutes(routerExpress, params, dir, hashStudyUidPath) 
 
   routerExpress.get('/studies/:studyUID/series/:seriesUID/instances/:sopUID', dicomMap);
   routerExpress.get(
+    '/studies/:studyUID/series/:seriesUID/metadata',
+    seriesMetadataQueryController(dir, params)
+  );
+  routerExpress.get(
     [
       '/studies/:studyUID/series/metadata',
-      '/studies/:studyUID/series/:seriesUID/metadata',
       '/studies/:studyUID/metadataTree.json',
       '/:ae/studies/:studyUID/metadataTree.json',
     ],
     otherJsonMap
   );
 
-  const postController = params.useOldPostController ? oldPostController : streamPostController;
   routerExpress.post(
     ['/studies', '/studies/:studyUID/series', '/studies/:studyUID/series/:seriesUID/instances'],
     postController(params, hashStudyUidPath),

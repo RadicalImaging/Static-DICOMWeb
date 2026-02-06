@@ -3,8 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { data } from 'dcmjs';
 import { parse as parseContentType } from 'content-type';
 
-import { TrackableReadBufferStream } from "./TrackableReadBufferStream.mjs";
-
 /**
  * Dicer-based multipart parser middleware for DICOMweb STOW-RS.
  *
@@ -16,21 +14,16 @@ import { TrackableReadBufferStream } from "./TrackableReadBufferStream.mjs";
  * @param {number} [opts.limits.totalSize] Max total bytes across all parts (optional)
  * @param {(err: any, fileInfo?: object) => void} [opts.onStreamError]
  * @param {(req: object) => Promise<void>} [opts.beforeProcessPart] Await before processing each DICOM part (for back pressure)
- * @param {number} [opts.backpressureMaxBytes] Max bytes beyond read offset before applying backpressure (default 512kb)
- * @param {number} [opts.backpressureWaitMs] Max ms to wait before delivering next chunk when backpressure applies (default 1000)
+ * @param {(req: object, fileInfo: object, headers: object) => import('./TrackableReadBufferStream.mjs').TrackableReadBufferStream} opts.createBufferStream Create buffer stream for each part (return value must have addBuffer, setComplete; optional shouldPause/waitForBackPressure for backpressure)
  */
 export function multipartStream(opts) {
-  const {
-    listener,
-    limits,
-    onStreamError,
-    beforeProcessPart,
-    backpressureMaxBytes = 512 * 1024,
-    backpressureWaitMs = 1000,
-  } = opts;
+  const { listener, limits, onStreamError, beforeProcessPart, createBufferStream } = opts;
 
   if (typeof listener !== 'function') {
     throw new Error('multipartStream: opts.listener must be a function');
+  }
+  if (typeof createBufferStream !== 'function') {
+    throw new Error('multipartStream: opts.createBufferStream must be a function');
   }
 
   return function middleware(req, res, next) {
@@ -122,7 +115,7 @@ export function multipartStream(opts) {
 
       if (limits?.parts && partCount > limits.parts) {
         part.resume();
-        return abort(Object.assign(new Error('Too many multipart parts'), { statusCode: 413 }));
+        return;
       }
 
       // Dicer's PartStream doesn't expose headers as a property
@@ -291,10 +284,8 @@ export function multipartStream(opts) {
           },
         };
 
-        // Create a fresh buffer stream for this specific part/file
-        // Each file gets its own isolated buffer stream instance (TrackableReadBufferStream
-        // tracks currentStreamSize and pendingEnsureAvailableDesiredBytes for back-pressure)
-        const readBufferStream = new TrackableReadBufferStream(null, true, { noCopy: true });
+        // Create buffer stream for this part (required option; e.g. streamPostController passes tracker via req)
+        const readBufferStream = createBufferStream(req, fileInfo, headers);
 
         // Kick off your listener (do NOT await)
         try {
@@ -306,16 +297,20 @@ export function multipartStream(opts) {
               `[multipartStream] Unhandled error in listener for Part ${partCount}:`,
               err.message || String(err)
             );
+            readBufferStream.setComplete();
             if (onStreamError) onStreamError(err, fileInfo);
+            // Resume part so it drains and emits 'end' – otherwise a paused part never completes
+            // and blocks subsequent parts from being processed (e.g. good file after bad one).
+            part.resume();
           });
           req.uploadListenerPromises.push(p);
           console.warn(
             `[multipartStream] Part ${partCount} added to uploadListenerPromises (total: ${req.uploadListenerPromises.length})`
           );
         } catch (err) {
+          readBufferStream.setComplete();
           if (onStreamError) onStreamError(err, fileInfo);
           part.resume();
-          return abort(err);
         }
 
         req.uploadStreams.push({ fileInfo, stream: readBufferStream });
@@ -330,6 +325,12 @@ export function multipartStream(opts) {
         // These handlers are scoped to this part instance only
         const dataHandler = chunk => {
           if (aborted) return;
+          // If stream was marked complete (e.g. listener threw), discard further data and skip backpressure.
+          // Explicitly resume so the part drains (Dicer needs this to parse the next boundary and emit Part 2+).
+          if (readBufferStream.isComplete) {
+            part.resume();
+            return;
+          }
 
           partBytes += chunk.length;
           totalBytes += chunk.length;
@@ -337,17 +338,19 @@ export function multipartStream(opts) {
           if (limits?.fileSize && partBytes > limits.fileSize) {
             const err = Object.assign(new Error('File too large'), { statusCode: 413 });
             if (onStreamError) onStreamError(err, fileInfo);
-            part.pause();
+            readBufferStream.setComplete();
             part.removeListener('data', dataHandler);
-            return abort(err);
+            part.resume();
+            return;
           }
 
           if (limits?.totalSize && totalBytes > limits.totalSize) {
             const err = Object.assign(new Error('Request too large'), { statusCode: 413 });
             if (onStreamError) onStreamError(err, fileInfo);
-            part.pause();
+            readBufferStream.setComplete();
             part.removeListener('data', dataHandler);
-            return abort(err);
+            part.resume();
+            return;
           }
 
           try {
@@ -356,34 +359,27 @@ export function multipartStream(opts) {
             const chunkCopy = Buffer.from(chunk);
             readBufferStream.addBuffer(chunkCopy);
 
-            // Backpressure: if unread bytes exceed max(backpressureMaxBytes, pending ensureAvailable),
-            // pause the part and wait up to backpressureWaitMs before accepting the next chunk
-            const bytesBeyondOffset =
-              readBufferStream.currentStreamSize - readBufferStream.offset;
-            const pendingAwaitBytes = readBufferStream.maxPendingEnsureAvailableBytes;
-            const threshold = Math.max(backpressureMaxBytes, pendingAwaitBytes);
-            if (bytesBeyondOffset > threshold) {
+            // Backpressure: delegated to stream (shouldPause / waitForBackPressure)
+            const resumeWhenReady = () => {
+              if (!aborted) part.resume();
+            };
+            if (readBufferStream.shouldPause?.()) {
               part.pause();
-              setTimeout(() => {
-                if (!aborted) part.resume();
-              }, backpressureWaitMs);
+              readBufferStream
+                .waitForBackPressure()
+                .then(resumeWhenReady)
+                .catch(() => resumeWhenReady());
             }
           } catch (err) {
             if (onStreamError) onStreamError(err, fileInfo);
-            part.pause();
-            part.removeListener('data', dataHandler);
-            return abort(err);
-          }
-        };
-
-        const endHandler = () => {
-          if (aborted) {
-            console.noQuiet('Setting file complete (aborted)');
             readBufferStream.setComplete();
-            completedParts += 1;
-            checkAllPartsComplete();
+            part.removeListener('data', dataHandler);
+            part.resume();
             return;
           }
+        };;
+
+        const endHandler = () => {
           // Clean up event listeners for this part
           part.removeListener('data', dataHandler);
           part.removeListener('end', endHandler);
@@ -404,6 +400,7 @@ export function multipartStream(opts) {
         };
 
         const errorHandler = err => {
+          console.warn('errorHandler:', err);
           // Clean up event listeners for this part
           part.removeListener('data', dataHandler);
           part.removeListener('end', endHandler);

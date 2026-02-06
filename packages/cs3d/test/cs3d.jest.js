@@ -46,7 +46,7 @@ const iimage = {
 
 describe("@radicalimaging/cs3d", () => {
   it("Should load cs3d", () => {
-    console.log("cs3d loader=", require("@radicalimaging/cs3d"));
+    console.verbose('cs3d loader=', require('@radicalimaging/cs3d'));
     expect(getRenderedBuffer).not.toBeUndefined();
     // expect(renderToCanvas).not.toBeUndefined()
     expect(cs3d).not.toBeUndefined();
@@ -54,7 +54,7 @@ describe("@radicalimaging/cs3d", () => {
 
   it("Canvas should work", () => {
     const canvas = renderCanvas(200, 200);
-    console.log("toDataURL=", canvas.toDataURL());
+    console.noQuiet('toDataURL=', canvas.toDataURL());
     expect(canvas.toDataURL()).not.toBeUndefined();
   });
 
@@ -67,8 +67,8 @@ describe("@radicalimaging/cs3d", () => {
 
     const loadPromise = utilities.renderToCanvasCPU(destinationCanvas, iimage);
     return loadPromise.then(() => {
-      console.warn("Loaded canvas");
-      console.warn("destinationCanvas=", destinationCanvas.toDataURL());
+      console.verbose('Loaded canvas');
+      console.noQuiet('destinationCanvas=', destinationCanvas.toDataURL());
     });
   });
 });

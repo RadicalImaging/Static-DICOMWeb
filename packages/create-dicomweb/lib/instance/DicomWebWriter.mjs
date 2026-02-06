@@ -2,7 +2,7 @@ import { v4 as uuid } from 'uuid';
 import { createGzip } from 'zlib';
 import { uids } from '@radicalimaging/static-wado-util';
 import { MultipartStreamWriter } from './MultipartStreamWriter.mjs';
-import { StreamInfo } from './StreamInfo.mjs';
+import { StreamInfo, getStreamCounts } from './StreamInfo.mjs';
 
 /**
  * Base class for writing DICOMweb outputs
@@ -13,6 +13,7 @@ export class DicomWebWriter {
    * @param {Object} informationProvider - The information provider instance with UIDs
    * @param {Object} options - Configuration options (required)
    * @param {string} options.baseDir - Base directory for output
+   * @param {{ add: (p: Promise) => Promise }|undefined} [options.streamWritePromiseTracker] - Optional tracker for stream write promises (e.g. for back pressure)
    */
   constructor(informationProvider, options) {
     if (!informationProvider || typeof informationProvider !== 'object') {
@@ -26,8 +27,16 @@ export class DicomWebWriter {
     }
     this.informationProvider = informationProvider;
     this.options = options;
+    this.streamWritePromiseTracker = options.streamWritePromiseTracker ?? null;
     this.openStreams = new Map(); // key -> stream info
     this.streamErrors = new Map(); // key -> error
+
+    // Log tracker ID for debugging
+    if (this.streamWritePromiseTracker) {
+      console.verbose(
+        `[DicomWebWriter] created with tracker ${this.streamWritePromiseTracker.getTrackerId()}`
+      );
+    }
   }
 
   /**
@@ -76,56 +85,15 @@ export class DicomWebWriter {
   }
 
   /**
-   * Writes to a stream using a writer function, handling errors and cleanup automatically
-   * This method ensures the stream is properly closed and errors are recorded
-   * @param {Object} streamInfo - The stream info object from openStream
-   * @param {Function} writer - Async or sync function that writes to streamInfo.stream
-   * @returns {Promise<string|undefined>} - Resolves with the relative path when writing completes successfully, or undefined if an error occurred (error is recorded)
+   * Deletes a file and its .gz counterpart if present (e.g. index.json and index.json.gz).
+   * Must be implemented by subclasses that support deletion.
+   * @param {string} relativePath - Relative path within baseDir
+   * @param {string} filename - Filename to delete (without .gz)
+   * @returns {void}
+   * @throws {Error} - If not implemented by subclass
    */
-  writeToStream(streamInfo, writer) {
-    if (!streamInfo || !streamInfo.streamKey) {
-      throw new Error('Invalid streamInfo: must have streamKey property');
-    }
-    if (typeof writer !== 'function') {
-      throw new Error('writer must be a function');
-    }
-
-    try {
-      // Create promise and attach catch handler IMMEDIATELY before any async work
-      // This ensures the catch handler is always in place to prevent unhandled rejections
-      const promise = this._writeToStream(streamInfo, writer);
-
-      // Wrap in Promise.resolve to ensure we have full control and catch handler is attached
-      // This promise will NEVER reject unhandled - it always resolves (with result or undefined)
-      return Promise.resolve(promise).catch(error => {
-        // Error should already be recorded internally by _writeToStream, but catch
-        // any unexpected rejections to prevent process termination
-        const streamKey = streamInfo?.streamKey || 'unknown';
-        if (!this.streamErrors.has(streamKey)) {
-          // Only log if error wasn't already recorded (shouldn't happen, but safety net)
-          console.warn(`Unexpected error in writeToStream for ${streamKey}:`, error.message);
-          try {
-            this.recordStreamError(streamKey, error, true);
-          } catch (recordError) {
-            console.error(`Error in recordStreamError:`, recordError);
-          }
-        }
-        // Always return undefined to indicate failure (error is already recorded)
-        // This ensures the promise resolves (never rejects), preventing unhandled rejections
-        return undefined;
-      });
-    } catch (syncError) {
-      // Handle any synchronous errors (shouldn't happen since _writeToStream is async, but safety net)
-      const streamKey = streamInfo?.streamKey || 'unknown';
-      console.warn(`Synchronous error in writeToStream for ${streamKey}:`, syncError.message);
-      try {
-        this.recordStreamError(streamKey, syncError, true);
-      } catch (recordError) {
-        console.error(`Error in recordStreamError:`, recordError);
-      }
-      // Return a resolved promise with undefined to indicate failure
-      return Promise.resolve(undefined);
-    }
+  delete(relativePath, filename) {
+    throw new Error('delete must be implemented by subclass');
   }
 
   /**
@@ -138,8 +106,7 @@ export class DicomWebWriter {
    * @param {boolean} options.multipart - Whether to wrap as multipart/related
    * @param {string} options.boundary - Multipart boundary (required if multipart=true)
    * @param {string} options.contentType - Content type for multipart part
-   * @param {Function} options.frameWriter - Optional writer function that will be called with the stream and streamInfo. If provided, writeToStream will be called automatically.
-   * @returns {Object} - Stream info object with promise property (or promise from writeToStream if frameWriter is provided)
+   * @returns {Object} - Stream info object with promise property
    */
   openStream(path, filename, options = {}) {
     // Handle path options - append additional path if provided
@@ -189,14 +156,20 @@ export class DicomWebWriter {
     const streamInfo = new StreamInfo(this, data);
     this.openStreams.set(streamKey, streamInfo);
 
-    // If frameWriter is provided, automatically handle writing and cleanup
-    if (options.frameWriter) {
-      // Call writeToStream which will handle writing, closing, and error handling
-      const writePromise = this.writeToStream(streamInfo, options.frameWriter);
-      // Replace the promise in streamInfo with the writeToStream promise
-      streamInfo.promise = writePromise;
-      // Return streamInfo with the write promise
-      return streamInfo;
+    if (this.streamWritePromiseTracker && streamInfo.promise) {
+      this.streamWritePromiseTracker.add(streamInfo.promise);
+      if (
+        (this.streamWritePromiseTracker.getSettledCount() > 0 &&
+          this.streamWritePromiseTracker.getSettledCount() % 500 === 0) ||
+        this.streamWritePromiseTracker.getUnsettledCount() > 50
+      ) {
+        console.noQuiet(
+          '[DicomWebWriter] stream progress:',
+          this.streamWritePromiseTracker.getUnsettledCount(),
+          'unsetteled out of',
+          this.streamWritePromiseTracker.getSettledCount()
+        );
+      }
     }
 
     return streamInfo;
@@ -428,7 +401,7 @@ export class DicomWebWriter {
    * This terminates the stream handling and marks it as failed
    * @param {string} streamKey - The key identifying the stream
    * @param {Error} error - The error that occurred
-   * @param {boolean} skipPromiseReject - If true, don't reject the promise (used when error is already handled by writeToStream)
+   * @param {boolean} skipPromiseReject - If true, don't reject the promise (used when error is already handled elsewhere)
    */
   recordStreamError(streamKey, error, skipPromiseReject = false) {
     const streamInfo = this.openStreams.get(streamKey);
@@ -446,12 +419,7 @@ export class DicomWebWriter {
     streamInfo.destroyStreams(error);
 
     // Only reject the promise if it hasn't been replaced and we're not skipping rejection
-    // When called from _writeToStream, the promise is handled by writeToStream's catch handler,
-    // so we don't need to reject the original promise (which could cause unhandled rejection)
     if (!skipPromiseReject && streamInfo._reject) {
-      // Check if the promise has been replaced (if promise !== the original completion promise)
-      // If it has been replaced, the new promise is already handled by writeToStream
-      const originalPromise = streamInfo.promise;
       try {
         streamInfo._reject(error);
       } catch (rejectError) {

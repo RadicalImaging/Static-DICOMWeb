@@ -31,6 +31,8 @@ const DicomWebServer = async params => {
   await setRoutes(app, params);
 
   const server = http.createServer(app);
+  const serverTimeoutMs = params.serverTimeoutMs ?? 30 * 60 * 1000; // default 30 minutes
+  server.timeout = serverTimeoutMs;
 
   server.listen(
     {
