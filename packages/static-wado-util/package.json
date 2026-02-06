@@ -30,8 +30,9 @@
   "license": "ISC",
   "format": "es",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "lib/index.ts",
   "module": "lib/index.ts",
+  "types": "lib/index.ts",
   "files": [
     "lib",
     "dist",

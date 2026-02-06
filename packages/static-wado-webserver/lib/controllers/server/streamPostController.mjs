@@ -578,7 +578,7 @@ export const completePostController = async (req, res, next) => {
       for (const [seriesId, information] of seriesMap.entries()) {
         try {
           await messagingInstance.sendMessage('updateSeries', seriesId, information);
-          console.log(`Sent updateSeries message for ${seriesId}`);
+          console.noQuiet(`Sent updateSeries message for ${seriesId}`);
         } catch (err) {
           console.error(`Failed to send updateSeries message for ${seriesId}:`, err);
         }

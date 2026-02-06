@@ -48,7 +48,7 @@ export async function studySummary(baseDir, studyUID) {
 
   // Step 1: Check if series/index.json.gz exists
   const seriesIndexPath = `${seriesPath}`;
-  console.warn('studySummary: seriesIndexFileInfo:', seriesIndexPath);
+  console.noQuiet('studySummary: seriesIndexFileInfo:', seriesIndexPath);
 
   let existingSeriesUIDs = new Set();
 
@@ -64,7 +64,7 @@ export async function studySummary(baseDir, studyUID) {
         }
       }
 
-      console.warn('studySummary: existingSeriesUIDs:', existingSeriesUIDs.size);
+      console.noQuiet('studySummary: existingSeriesUIDs:', existingSeriesUIDs.size);
     }
   } catch (error) {
     console.warn('Failed to read existing series index:', error.message);
@@ -74,7 +74,7 @@ export async function studySummary(baseDir, studyUID) {
   // Step 2: Scan the series directory to get actual series UIDs
   const seriesDirectories = await reader.scanDirectory(seriesPath, { withFileTypes: true });
   const actualSeriesUIDs = new Set();
-  console.warn('studySummary: seriesDirectories:', seriesPath, seriesDirectories.length);
+  console.noQuiet('studySummary: seriesDirectories:', seriesPath, seriesDirectories.length);
   for (const entry of seriesDirectories) {
     // If withFileTypes is used, entry is a Dirent object
     if (entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory()) {
@@ -101,7 +101,7 @@ export async function studySummary(baseDir, studyUID) {
     existingSeriesUIDs.size === actualSeriesUIDs.size &&
     [...existingSeriesUIDs].every(uid => actualSeriesUIDs.has(uid))
   ) {
-    console.warn('studySummary: series index is up to date');
+    console.noQuiet('studySummary: series index is up to date');
     return; // Series index is up to date
   }
 
@@ -136,7 +136,7 @@ export async function studySummary(baseDir, studyUID) {
           totalInstances += Number(numberOfInstances) || 0;
         }
       } else {
-        console.warn('studySummary: series singleton file not found:', seriesSingletonPath);
+        console.noQuiet('studySummary: series singleton file not found:', seriesSingletonPath);
       }
     } catch (error) {
       console.warn(`Failed to read series singleton for series ${seriesUID}: ${error.message}`);
@@ -195,19 +195,19 @@ export async function studySummary(baseDir, studyUID) {
   const writer = new FileDicomWebWriter({ studyInstanceUid: studyUID }, { baseDir });
 
   if (seriesQueryArray.length > 0) {
-    console.warn('studySummary: writing new series index file');
+    console.noQuiet('studySummary: writing new series index file');
     const seriesIndexStreamInfo = await writer.openStudyStream('series/index.json', { gzip: true });
     seriesIndexStreamInfo.stream.write(Buffer.from(JSON.stringify(seriesQueryArray)));
     await writer.closeStream(seriesIndexStreamInfo.streamKey);
-    console.warn('studySummary: series/index.json file written:', seriesIndexStreamInfo.filepath);
+    console.noQuiet('studySummary: series/index.json file written:', seriesIndexStreamInfo.filepath);
   }
 
   // Step 8: Write study singleton (studies/${studyUID}/index.json.gz)
   if (studyQuery) {
-    console.warn('studySummary: writing new study singleton file');
+    console.noQuiet('studySummary: writing new study singleton file');
     const studySingletonStreamInfo = await writer.openStudyStream('index.json', { gzip: true });
     studySingletonStreamInfo.stream.write(Buffer.from(JSON.stringify([studyQuery])));
     await writer.closeStream(studySingletonStreamInfo.streamKey);
-    console.warn('studySummary: study singleton file written:', studySingletonStreamInfo.filepath);
+    console.noQuiet('studySummary: study singleton file written:', studySingletonStreamInfo.filepath);
   }
 }

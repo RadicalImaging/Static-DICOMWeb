@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { createRequire } from 'module';
 import { Command } from 'commander';
 import { instanceMain, seriesMain, studyMain, createMain, stowMain, thumbnailMain, indexMain } from '../lib/index.mjs';
 import {
@@ -7,6 +8,12 @@ import {
   parseTimeoutToMs,
   parseSizeToBytes,
 } from '@radicalimaging/static-wado-util';
+
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json');
+const runtime = typeof process !== 'undefined' && process.versions?.bun
+  ? `Bun ${process.versions.bun}`
+  : `Node ${process.versions?.node ?? 'unknown'}`;
 
 const program = new Command();
 
@@ -22,7 +29,7 @@ const updateVerboseLog = () => {
 program
   .name('createdicomweb')
   .description('dcmjs based tools for creation of metadata files')
-  .version('0.0.1')
+  .version(`${pkg.version}\n${runtime}`, '-V, --version', 'output create-dicomweb and runtime (Bun/Node) version')
   .option('-v, --verbose', 'Enable verbose logging')
   .option('-q, --quiet', 'Disable noQuiet logging');
 
