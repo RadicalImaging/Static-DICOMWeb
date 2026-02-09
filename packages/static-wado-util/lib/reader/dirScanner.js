@@ -15,7 +15,10 @@ async function dirScanner(input, options) {
       file = process.cwd();
     }
     const base = path.basename(file);
-    if (base === '__MACOSX' || base.startsWith('.')) {
+    if (
+      base === '__MACOSX' ||
+      (base.startsWith('.') && base.length > 1)
+    ) {
       continue;
     }
     if (!fs.existsSync(file)) {
