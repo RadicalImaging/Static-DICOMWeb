@@ -67,7 +67,8 @@ describe('createPromiseTracker', () => {
     expect(jobs[0].data.completed).toBe(0);
     expect(jobs[0].data.open).toBe(0);
 
-    const p = new Promise((resolve) => setTimeout(() => resolve(1), 5));
+    // Resolve after we've had time to see open=1 (monitor ticks at 0ms and every 20ms)
+    const p = new Promise((resolve) => setTimeout(() => resolve(1), 50));
     tracker.add(p);
     await new Promise((r) => setTimeout(r, 30));
     jobs = StatusMonitor.getOngoingJobs('testType');
