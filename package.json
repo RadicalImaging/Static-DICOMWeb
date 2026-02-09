@@ -43,7 +43,8 @@
     "@cornerstonejs/codec-openjph": ">=2.4.5",
     "dcmjs": "0.49.4",
     "canvas": "3.1.0",
-    "has-flag": "4.0.0"
+    "has-flag": "4.0.0",
+    "node-object-hash": "3.1.1"
   },
   "workspaces": [
     "packages/*"
@@ -53,7 +54,7 @@
     "docker:build": "bun cleanTgz && docker build . -t braveheartsoftware/static-dicomweb:latest",
     "docker:run": "docker run -it --mount type=bind,source=/c/dicomweb,target=/dicomweb --mount type=bind,source=/a/dicom,target=/dicom -p 25080:5000  --rm --entrypoint /bin/bash braveheartsoftware/static-dicomweb:latest",
     "docker:dicomwebserver": "docker run -it --mount type=bind,source=/c/dicomweb,target=/dicomweb -p 25080:5000  --rm braveheartsoftware/static-dicomweb:latest",
-    "test": "lerna run test --parallel --stream",
+    "test": "lerna run test --parallel --stream --",
     "test:ci": "yarn run test",
     "build": "lerna run build --stream --concurrency 1",
     "build:parallel": "lerna run build --stream",

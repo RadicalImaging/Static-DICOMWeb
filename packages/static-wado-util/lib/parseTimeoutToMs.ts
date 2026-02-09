@@ -6,7 +6,7 @@
  * @returns Timeout in milliseconds
  * @throws Error if value is invalid
  */
-export function parseTimeoutToMs(value: string): number {
+export function parseTimeoutToMs(value) {
   const str = String(value).trim().toLowerCase();
   const num = parseFloat(str.replace(/[hms]/g, '').trim());
   if (Number.isNaN(num) || num < 0) {
@@ -17,7 +17,5 @@ export function parseTimeoutToMs(value: string): number {
   if (str.endsWith('h')) return Math.round(num * 3600 * 1000);
   if (str.endsWith('m')) return Math.round(num * 60 * 1000);
   if (str.endsWith('s') || /^\d+(\.\d+)?$/.test(str)) return Math.round(num * 1000);
-  throw new Error(
-    `Invalid timeout "${value}": expected a duration like 10h, 10m, 3600, or 3600s`
-  );
+  throw new Error(`Invalid timeout "${value}": expected a duration like 10h, 10m, 3600, or 3600s`);
 }

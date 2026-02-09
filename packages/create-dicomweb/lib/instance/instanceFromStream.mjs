@@ -1,10 +1,9 @@
 import { async, utilities, data } from 'dcmjs';
-import { Tags, StatusMonitor } from '@radicalimaging/static-wado-util';
+import { Tags, StatusMonitor, createPromiseTracker } from '@radicalimaging/static-wado-util';
 import { writeMultipartFramesFilter } from './writeMultipartFramesFilter.mjs';
 import { writeBulkdataFilter } from './writeBulkdataFilter.mjs';
 import { inlineBinaryFilter } from './inlineBinaryFilter.mjs';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
-import { createPromiseTracker } from 'static-wado-util/lib/createPromiseTracker.mjs';
 
 const { AsyncDicomReader } = async;
 const { setValue } = Tags;

@@ -59,7 +59,8 @@
     "config-point": ">=0.5.1",
     "cross-env": "^7.0.3",
     "dcmjs": "0.49.4",
-    "dicom-parser": "^1.8.13"
+    "dicom-parser": "^1.8.13",
+    "node-object-hash": "^3.0.0"
   },
   "devDependencies": {
     "must": "^0.13.4",

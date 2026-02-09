@@ -6,7 +6,7 @@
  * @returns Size in bytes
  * @throws Error if value is invalid
  */
-export function parseSizeToBytes(value: string): number {
+export function parseSizeToBytes(value) {
   const str = String(value).trim();
   const lower = str.toLowerCase();
   const num = parseFloat(str.replace(/[kmgtb]/gi, '').trim());
@@ -15,7 +15,8 @@ export function parseSizeToBytes(value: string): number {
       `Invalid size "${value}": expected a size like 10k, 10m, 10g, 10t, 10KB, 10MB, 10GB, or 10TB`
     );
   }
-  if (lower.endsWith('tb') || lower.endsWith('t')) return Math.round(num * 1024 * 1024 * 1024 * 1024);
+  if (lower.endsWith('tb') || lower.endsWith('t'))
+    return Math.round(num * 1024 * 1024 * 1024 * 1024);
   if (lower.endsWith('gb') || lower.endsWith('g')) return Math.round(num * 1024 * 1024 * 1024);
   if (lower.endsWith('mb') || lower.endsWith('m')) return Math.round(num * 1024 * 1024);
   if (lower.endsWith('kb') || lower.endsWith('k')) return Math.round(num * 1024);
