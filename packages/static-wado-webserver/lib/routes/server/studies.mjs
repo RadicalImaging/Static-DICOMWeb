@@ -26,6 +26,7 @@ import {
 import byteRangeRequest from '../../controllers/server/byteRangeRequest.mjs';
 import renderedMap from '../../controllers/server/renderedMap.mjs';
 import createMissingThumbnail from '../../controllers/server/createMissingThumbnail.mjs';
+import part10Controller from '../../controllers/server/part10Controller.mjs';
 
 /**
  * Set studies (/studies) routes.
@@ -105,6 +106,14 @@ export default function setRoutes(routerExpress, params, dir, hashStudyUidPath) 
   );
 
   routerExpress.get(['/studies/:studyUID/series/:seriesUID/instances'], qidoMap);
+
+  // Part 10 controller: handles accept negotiation for application/dicom,
+  // application/zip, and multipart/related; type="application/dicom".
+  // Falls through to dicomMap if no Part 10 accept type is requested.
+  routerExpress.get(
+    '/studies/:studyUID/series/:seriesUID/instances/:instanceUID',
+    part10Controller(params)
+  );
 
   routerExpress.get('/studies/:studyUID/series/:seriesUID/instances/:sopUID', dicomMap);
   routerExpress.get(

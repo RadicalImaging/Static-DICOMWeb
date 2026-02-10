@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 1,
   "workspaces": {
     "": {
       "name": "static-dicomweb",
@@ -44,6 +43,7 @@
         "@radicalimaging/cs3d": ">=1.7.0",
         "@radicalimaging/static-wado-creator": ">=1.7.0",
         "@radicalimaging/static-wado-util": ">=1.7.0",
+        "adm-zip": "^0.5.16",
         "canvas": ">=3.1.0",
         "commander": "^12.0.0",
         "config-point": ">=0.5.1",

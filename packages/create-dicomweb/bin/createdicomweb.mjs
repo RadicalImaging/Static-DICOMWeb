@@ -1,9 +1,5 @@
 #!/usr/bin/env bun
 import { Command } from 'commander';
-<<<<<<< HEAD
-import { instanceMain, seriesMain, studyMain, createMain, stowMain, thumbnailMain, indexMain, part10Main } from '../lib/index.mjs';
-import { handleHomeRelative, createVerboseLog } from '@radicalimaging/static-wado-util';
-=======
 import { instanceMain, seriesMain, studyMain, createMain, stowMain, thumbnailMain, indexMain } from '../lib/index.mjs';
 import {
   handleHomeRelative,
@@ -11,7 +7,6 @@ import {
   parseTimeoutToMs,
   parseSizeToBytes,
 } from '@radicalimaging/static-wado-util';
->>>>>>> origin/master
 
 const program = new Command();
 
@@ -270,16 +265,22 @@ program
   .argument('<studyUID>', 'Study Instance UID')
   .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
   .option('--series-uid <seriesUID>', 'Specific Series Instance UID to export (if not provided, exports all series)')
+  .option('--sop-uid <sopUIDs>', 'Comma-separated list of SOP Instance UIDs to export')
   .option('-o, --output <dir>', 'Output directory for Part 10 files', '.')
+  .option('--format <format>', 'Output format: dicom, multipart, zip', 'dicom')
   .option('--continue-on-error', 'Continue processing even if an instance fails')
   .action(async (studyUID, options) => {
     updateVerboseLog();
     const part10Options = {
       dicomdir: handleHomeRelative(options.dicomdir),
       outputDir: options.output,
+      format: options.format,
     };
     if (options.seriesUid) {
       part10Options.seriesUid = options.seriesUid;
+    }
+    if (options.sopUid) {
+      part10Options.sopUids = options.sopUid.split(',').map(s => s.trim());
     }
     if (options.continueOnError) {
       part10Options.continueOnError = true;

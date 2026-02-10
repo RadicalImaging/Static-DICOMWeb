@@ -1,12 +1,25 @@
 import path from 'path';
 import { data } from 'dcmjs';
+import { FileDicomWebReader } from '../instance/FileDicomWebReader.mjs';
 import { DicomWebStream } from '../instance/DicomWebStream.mjs';
-import { Tags, readBulkData } from '@radicalimaging/static-wado-util';
+import { Tags, readBulkData, uids } from '@radicalimaging/static-wado-util';
 
 const { DicomDict, DicomMetaDictionary } = data;
 const { getValue } = Tags;
 
-const UncompressedLEIExplicit = '1.2.840.10008.1.2.1';
+/**
+ * Checks if a transfer syntax is uncompressed (native pixel data format).
+ * Uncompressed transfer syntaxes store pixel data as a single contiguous buffer.
+ * Encapsulated/compressed transfer syntaxes use fragmented format with item delimiters.
+ * @param {string} transferSyntaxUID - Transfer syntax UID
+ * @returns {boolean} - True if uncompressed
+ */
+function isUncompressedTransferSyntax(transferSyntaxUID) {
+  const uidInfo = uids[transferSyntaxUID];
+  return uidInfo?.uncompressed === true;
+}
+
+const UncompressedLEE = '1.2.840.10008.1.2.1';
 
 /**
  * Creates a fresh FileMetaInformationVersion ArrayBuffer
@@ -47,12 +60,16 @@ function createFmi(instanceMetadata, transferSyntaxUID) {
 
 /**
  * Gets the transfer syntax UID from the first frame's bulk data header.
- * Falls back to AvailableTransferSyntaxUIDs, then to default uncompressed.
+ * Falls back to AvailableTransferSyntaxUIDs.
  * @param {string} seriesDir - Series directory path
  * @param {Object} instanceMetadata - Instance metadata object
+ * @param {string} [sopInstanceUID] - SOP Instance UID for logging
  * @returns {Promise<string>} - Transfer syntax UID
+ * @throws {Error} - If transfer syntax cannot be determined (better to fail than create malformed file)
  */
-async function getTransferSyntaxUID(seriesDir, instanceMetadata) {
+async function getTransferSyntaxUID(seriesDir, instanceMetadata, sopInstanceUID) {
+  const instanceId = sopInstanceUID || 'unknown';
+
   // Best option: Read from first frame's bulk data header
   const pixelDataTag = Tags.PixelData;
   const pixelData = instanceMetadata[pixelDataTag];
@@ -65,21 +82,27 @@ async function getTransferSyntaxUID(seriesDir, instanceMetadata) {
         return bulk.transferSyntaxUid;
       }
     } catch (e) {
-      // Fall through to other options
     }
   }
 
-  // Second choice: AvailableTransferSyntaxUIDs
+  // Second choice: AvailableTransferSyntaxUIDs (tag 00083002)
   const availableTS = instanceMetadata[AvailableTransferSyntaxUIDTag];
   if (availableTS?.Value?.[0]) {
     return availableTS.Value[0];
   }
 
-  // Last resort: default to uncompressed
-  console.warn(
-    'Could not determine transfer syntax from frame header or AvailableTransferSyntaxUIDs, using default uncompressed'
+  // Check if instance has pixel data - if not, uncompressed is safe
+  if (!pixelData) {
+    return UncompressedLEE;
+  }
+
+  // If we have pixel data but can't determine transfer syntax, this is an error
+  // Creating a file with wrong transfer syntax will be unreadable
+  throw new Error(
+    `Cannot determine transfer syntax for instance ${instanceId}. ` +
+    `Frame header did not contain transfer-syntax and AvailableTransferSyntaxUID (00083002) is not set. ` +
+    `This would create a malformed DICOM file.`
   );
-  return UncompressedLEIExplicit;
 }
 
 /**
@@ -146,8 +169,10 @@ function base64ToArrayBuffer(base64) {
  * @param {string} seriesDir - Series directory path
  * @param {Object} instanceMetadata - Instance metadata object
  * @param {Object} value - Value object with BulkDataURI
+ * @param {string} sopInstanceUID - SOP Instance UID for better error messages
+ * @param {string} transferSyntaxUID - Transfer syntax UID (determines if pixel data should be concatenated)
  */
-async function readBulkDataValue(seriesDir, instanceMetadata, value) {
+async function readBulkDataValue(seriesDir, instanceMetadata, value, sopInstanceUID, transferSyntaxUID) {
   const { BulkDataURI } = value;
   value.vr = value.vr || 'OB';
   const numberOfFrames = getValue(instanceMetadata, Tags.NumberOfFrames) || 1;
@@ -157,20 +182,60 @@ async function readBulkDataValue(seriesDir, instanceMetadata, value) {
 
   if (BulkDataURI.indexOf('frames') !== -1) {
     // Handle pixel data frames
-    value.Value = [];
+    const frameBuffers = [];
+    let failedFrames = 0;
+
     for (let frame = 1; frame <= numberOfFrames; frame++) {
       try {
         const bulk = await readBulkData(seriesDir, BulkDataURI, frame);
-        if (!bulk) break;
+        if (!bulk) {
+          // Frame file doesn't exist - this is a critical error
+          console.error(`Frame ${frame}/${numberOfFrames} not found for ${sopInstanceUID} at ${BulkDataURI}`);
+          failedFrames++;
+          // Push null placeholder to maintain frame indexing
+          frameBuffers.push(null);
+          continue;
+        }
         // readBulkData returns an object with binaryData property
         const frameData = bulk.binaryData || bulk;
-        value.Value.push(toArrayBuffer(frameData));
+        frameBuffers.push(toArrayBuffer(frameData));
       } catch (e) {
         console.warn(
           `Could not read bulk data for frame ${frame} from ${BulkDataURI}: ${e.message}`
         );
         break;
       }
+    }
+
+    // Filter out null placeholders
+    const validFrames = frameBuffers.filter(v => v !== null);
+
+    // Check if we got any frames at all
+    if (validFrames.length === 0 && numberOfFrames > 0) {
+      throw new Error(`Failed to read any frames for instance ${sopInstanceUID} (expected ${numberOfFrames} frames from ${BulkDataURI})`);
+    }
+
+    // Warn if we're missing frames but have some
+    if (failedFrames > 0 && validFrames.length > 0) {
+      console.warn(`Warning: Only read ${validFrames.length}/${numberOfFrames} frames for ${sopInstanceUID} (${failedFrames} failed)`);
+    }
+
+    // For uncompressed transfer syntaxes, pixel data must be a single contiguous buffer.
+    // For encapsulated/compressed transfer syntaxes, frames are kept as separate fragments.
+    if (isUncompressedTransferSyntax(transferSyntaxUID)) {
+      // Concatenate all frames into a single buffer
+      const totalLength = validFrames.reduce((sum, buf) => sum + buf.byteLength, 0);
+      const combined = new ArrayBuffer(totalLength);
+      const view = new Uint8Array(combined);
+      let offset = 0;
+      for (const frameBuf of validFrames) {
+        view.set(new Uint8Array(frameBuf), offset);
+        offset += frameBuf.byteLength;
+      }
+      value.Value = [combined];
+    } else {
+      // Keep frames as separate fragments for encapsulated transfer syntaxes
+      value.Value = validFrames;
     }
   } else {
     // Handle other bulk data
@@ -179,9 +244,11 @@ async function readBulkDataValue(seriesDir, instanceMetadata, value) {
       if (bulk) {
         const bulkData = bulk.binaryData || bulk;
         value.Value = [toArrayBuffer(bulkData)];
+      } else {
+        console.warn(`Bulk data not found at ${BulkDataURI} for ${sopInstanceUID}`);
       }
     } catch (e) {
-      console.warn(`Could not read bulk data from ${BulkDataURI}: ${e.message}`);
+      console.warn(`Could not read bulk data from ${BulkDataURI} for ${sopInstanceUID}: ${e.message}`);
     }
   }
 }
@@ -279,8 +346,10 @@ function ensureArrayBuffer(value, tag, vr) {
  * Recursively processes instance metadata to convert binary data
  * @param {string} seriesDir - Series directory path
  * @param {Object} instanceMetadata - Instance metadata object
+ * @param {string} [sopInstanceUID] - SOP Instance UID for error messages
+ * @param {string} [transferSyntaxUID] - Transfer syntax UID (determines if pixel data should be concatenated)
  */
-async function readBinaryData(seriesDir, instanceMetadata) {
+async function readBinaryData(seriesDir, instanceMetadata, sopInstanceUID, transferSyntaxUID) {
   for (const tag of Object.keys(instanceMetadata)) {
     // Remove internal tags that shouldn't be in Part 10 output
     if (INTERNAL_TAGS_TO_REMOVE.has(tag)) {
@@ -294,7 +363,7 @@ async function readBinaryData(seriesDir, instanceMetadata) {
 
     // Handle BulkDataURI
     if (v.BulkDataURI) {
-      await readBulkDataValue(seriesDir, instanceMetadata, v);
+      await readBulkDataValue(seriesDir, instanceMetadata, v, sopInstanceUID, transferSyntaxUID);
       continue;
     }
 
@@ -322,7 +391,7 @@ async function readBinaryData(seriesDir, instanceMetadata) {
     if (v.vr === 'SQ' && v.Value && Array.isArray(v.Value)) {
       for (const item of v.Value) {
         if (item && typeof item === 'object') {
-          await readBinaryData(seriesDir, item);
+          await readBinaryData(seriesDir, item, sopInstanceUID, transferSyntaxUID);
         }
       }
       continue;
@@ -399,7 +468,6 @@ async function readBinaryData(seriesDir, instanceMetadata) {
       }
 
       if (shouldDelete) {
-        console.log(`Removing tag ${tag} with empty binary data`);
         delete instanceMetadata[tag];
       } else {
         v.Value = convertedValues;
@@ -409,16 +477,130 @@ async function readBinaryData(seriesDir, instanceMetadata) {
 }
 
 /**
- * Writes a Part 10 buffer to a file using the output writer
- * @param {import('../instance/DicomWebWriter.mjs').DicomWebWriter} outputWriter - Writer with baseDir set to output directory (uses writeFile)
+ * Generates a Part 10 DICOM buffer for a single instance.
+ * Reusable by both CLI and server endpoints.
+ *
+ * @param {string} seriesDir - Series directory path (for reading bulk data)
+ * @param {Object} instanceMetadata - Instance metadata object (will be deep-copied internally)
+ * @returns {Promise<{buffer: Buffer, sopInstanceUID: string, transferSyntaxUID: string}>}
+ */
+export async function generatePart10ForInstance(seriesDir, instanceMetadata) {
+  const instanceCopy = JSON.parse(JSON.stringify(instanceMetadata));
+
+  const sopInstanceUID = getValue(instanceCopy, Tags.SOPInstanceUID);
+  if (!sopInstanceUID) {
+    throw new Error('Could not extract SOPInstanceUID from instance metadata');
+  }
+
+  const transferSyntaxUID = await getTransferSyntaxUID(seriesDir, instanceCopy, sopInstanceUID);
+  await readBinaryData(seriesDir, instanceCopy, sopInstanceUID, transferSyntaxUID);
+  const fmi = createFmi(instanceCopy, transferSyntaxUID);
+
+  const dicomDict = new DicomDict(fmi);
+  dicomDict.dict = instanceCopy;
+
+  const buffer = Buffer.from(dicomDict.write());
+  return { buffer, sopInstanceUID, transferSyntaxUID };
+}
+
+/**
+ * Writes a buffer to a file
+ * @param {string} outputDir - Output directory path
  * @param {string} fileName - File name (without extension)
  * @param {Buffer} buffer - Buffer to write
- * @returns {Promise<string>} - Resolves with the written file path
+ * @param {string} [extension='.dcm'] - File extension
  */
-async function writeBuffer(outputWriter, fileName, buffer) {
-  const filePath = await outputWriter.writeFile('', `${fileName}.dcm`, buffer);
+function writeBuffer(outputDir, fileName, buffer, extension = '.dcm') {
+  // Ensure output directory exists
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  const filePath = path.join(outputDir, `${fileName}${extension}`);
+  fs.writeFileSync(filePath, buffer);
   console.log(`Written: ${filePath}`);
   return filePath;
+}
+
+const MULTIPART_BOUNDARY = '----DICOMwebBoundary';
+
+/**
+ * Wraps a Part 10 buffer in multipart/related format
+ * @param {Buffer} dcmBuffer - Part 10 DICOM binary
+ * @returns {Buffer} - Multipart-wrapped buffer
+ */
+function wrapMultipart(dcmBuffer) {
+  const header = `--${MULTIPART_BOUNDARY}\r\nContent-Type: application/dicom\r\n\r\n`;
+  const footer = `\r\n--${MULTIPART_BOUNDARY}--\r\n`;
+  return Buffer.concat([
+    Buffer.from(header),
+    dcmBuffer,
+    Buffer.from(footer),
+  ]);
+}
+
+/**
+ * Generates Part 10 data for an entire study (or filtered subset).
+ * Used by the server-side controller.
+ *
+ * @param {string} dicomdir - Base directory path where DICOMweb structure is located
+ * @param {string} studyUID - Study Instance UID
+ * @param {Object} [opts] - Options
+ * @param {string} [opts.seriesUid] - Filter to a specific series
+ * @param {string[]} [opts.sopUids] - Filter to specific SOP Instance UIDs
+ * @returns {Promise<{buffers: Array<{buffer: Buffer, sopInstanceUID: string, transferSyntaxUID: string}>, studyUID: string}>}
+ */
+export async function generatePart10ForStudy(dicomdir, studyUID, opts = {}) {
+  const { seriesUid, sopUids } = opts;
+  const reader = new FileDicomWebReader(dicomdir);
+
+  const seriesIndex = await reader.readJsonFile(
+    reader.getStudyPath(studyUID, { path: 'series' }),
+    'index.json'
+  );
+
+  if (!seriesIndex || !Array.isArray(seriesIndex) || seriesIndex.length === 0) {
+    throw new Error(`No series found for study ${studyUID}`);
+  }
+
+  let seriesToProcess = seriesIndex;
+  if (seriesUid) {
+    seriesToProcess = seriesIndex.filter(
+      series => getValue(series, Tags.SeriesInstanceUID) === seriesUid
+    );
+    if (seriesToProcess.length === 0) {
+      throw new Error(`Series ${seriesUid} not found in study ${studyUID}`);
+    }
+  }
+
+  const results = [];
+
+  for (const series of seriesToProcess) {
+    const targetSeriesUID = getValue(series, Tags.SeriesInstanceUID);
+    if (!targetSeriesUID) continue;
+
+    const seriesMetadata = await reader.readJsonFile(
+      reader.getSeriesPath(studyUID, targetSeriesUID),
+      'metadata'
+    );
+
+    if (!seriesMetadata || !Array.isArray(seriesMetadata) || seriesMetadata.length === 0) {
+      continue;
+    }
+
+    const seriesDir = path.join(dicomdir, `studies/${studyUID}/series/${targetSeriesUID}`);
+
+    for (const instanceMetadata of seriesMetadata) {
+      const sopInstanceUID = getValue(instanceMetadata, Tags.SOPInstanceUID);
+      if (!sopInstanceUID) continue;
+      if (sopUids && !sopUids.includes(sopInstanceUID)) continue;
+
+      const result = await generatePart10ForInstance(seriesDir, instanceMetadata);
+      results.push(result);
+    }
+  }
+
+  return { buffers: results, studyUID };
 }
 
 /**
@@ -427,12 +609,13 @@ async function writeBuffer(outputWriter, fileName, buffer) {
  * @param {Object} options - Options object
  * @param {string} options.dicomdir - Base directory path where DICOMweb structure is located
  * @param {string} [options.seriesUid] - Specific Series Instance UID to export (if not provided, exports all series)
- * @param {string} [options.outputDir] - Output directory for Part 10 files (default: '.' when not streaming to response)
- * @param {import('express').Response} [options.response] - If set, stream Part 10 as multipart/related; type="application/dicom" to this Express response
+ * @param {string[]} [options.sopUids] - Filter to specific SOP Instance UIDs
+ * @param {string} [options.outputDir] - Output directory for Part 10 files (default: '.')
+ * @param {string} [options.format] - Output format: 'dicom' (default), 'multipart', 'zip'
  * @param {boolean} [options.continueOnError] - Continue processing even if an instance fails (default: false)
  */
 export async function part10Main(studyUID, options = {}) {
-  const { dicomdir, seriesUid, outputDir = '.', response, continueOnError = false } = options;
+  const { dicomdir, seriesUid, sopUids, outputDir = '.', format = 'dicom', continueOnError = false } = options;
 
   if (!dicomdir) {
     throw new Error('dicomdir option is required');
@@ -477,9 +660,9 @@ export async function part10Main(studyUID, options = {}) {
     }
   }
 
-  console.log(`Exporting ${seriesToProcess.length} series to Part 10 files...`);
-
   let totalInstances = 0;
+  // Collect buffers for zip format
+  const zipEntries = [];
 
   // Step 2: Process each series
   for (const series of seriesToProcess) {
@@ -488,8 +671,6 @@ export async function part10Main(studyUID, options = {}) {
       console.warn('Could not extract SeriesInstanceUID from series, skipping');
       continue;
     }
-
-    console.log(`Processing series ${targetSeriesUID}...`);
 
     // Step 3: Read series metadata to get all instances
     const seriesMetadata = await reader.readJsonFile(
@@ -513,12 +694,12 @@ export async function part10Main(studyUID, options = {}) {
         continue;
       }
 
-      console.log(`Processing instance ${sopInstanceUID}...`);
+      // Filter by SOP UIDs if provided
+      if (sopUids && !sopUids.includes(sopInstanceUID)) {
+        continue;
+      }
 
       try {
-        // Create a deep copy of instance metadata to avoid mutating the original
-        const instanceCopy = JSON.parse(JSON.stringify(instanceMetadata));
-
         // Step 5: Get transfer syntax from first frame header (before readBinaryData modifies things)
         const transferSyntaxUID = await getTransferSyntaxUID(seriesDir, instanceCopy);
 
@@ -546,6 +727,26 @@ export async function part10Main(studyUID, options = {}) {
         );
       }
     }
+  }
+
+  // Write zip archive if format is zip
+  if (format === 'zip' && zipEntries.length > 0) {
+    const AdmZip = (await import('adm-zip')).default;
+    const zip = new AdmZip();
+
+    for (const entry of zipEntries) {
+      zip.addFile(`${entry.sopInstanceUID}.dcm`, entry.buffer);
+    }
+
+    // Ensure output directory exists
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+
+    // Use seriesUid for filename if filtering single series, otherwise studyUID
+    const zipName = seriesUid || studyUID;
+    const zipPath = path.join(outputDir, `${zipName}.zip`);
+    zip.writeZip(zipPath);
   }
 
   console.log(`Part 10 export completed: ${totalInstances} instance(s) written to ${outputDir}`);
