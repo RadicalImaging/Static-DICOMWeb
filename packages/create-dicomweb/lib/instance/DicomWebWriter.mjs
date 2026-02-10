@@ -358,6 +358,19 @@ export class DicomWebWriter {
   }
 
   /**
+   * Aborts all writes in progress. Destroys all open streams and records an abort error.
+   * Use when parsing fails so in-flight frame/bulkdata writes are cancelled.
+   * @param {Error} [error] - Optional error (e.g. the parse error). Defaults to a generic "Aborted" error.
+   */
+  abort(error) {
+    const err = error || new Error('Aborted');
+    const keys = Array.from(this.openStreams.keys());
+    for (const streamKey of keys) {
+      this.recordStreamError(streamKey, err, true);
+    }
+  }
+
+  /**
    * Gets all currently open streams
    * @returns {Map} - Map of streamKey -> stream info
    */

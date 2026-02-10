@@ -269,6 +269,7 @@ export async function instanceFromStream(stream, options = {}) {
     dict = result.dict;
   } catch (err) {
     parseError = err;
+    writer?.abort(err);
     throw err;
   } finally {
     progressFilter.reportProgress?.();
