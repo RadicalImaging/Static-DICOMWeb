@@ -560,7 +560,7 @@ export function multipartStream(opts) {
       if (!aborted) abort(new Error('Request aborted by req.aborted'));
     });
     req.on('close', () => {
-      console.noQuiet('************* client closed connection');
+      console.verbose('client closed connection');
     });
     req.on('error', err => {
       console.noQuiet('Request error:', err);
