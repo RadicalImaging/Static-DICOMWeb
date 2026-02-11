@@ -52,8 +52,9 @@ node_modules/
 **/build/
 **/dist/
 
-# IDE files
+# VS Code
 *.code-workspace
 *~
 *.swp
 .cursor/
+.test

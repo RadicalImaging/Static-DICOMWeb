@@ -45,7 +45,7 @@ const SKIP_EXTENSIONS = new Set([
   'tar',
   'rar',
   '7z',
-  'DS_Store',
+  'properties',
   'db',
   'csv',
 ]);
