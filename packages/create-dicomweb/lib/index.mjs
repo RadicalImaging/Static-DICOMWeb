@@ -3,6 +3,7 @@ export { DicomWebReader } from './instance/DicomWebReader.mjs';
 export { FileDicomWebReader } from './instance/FileDicomWebReader.mjs';
 export { DicomWebWriter } from './instance/DicomWebWriter.mjs';
 export { FileDicomWebWriter } from './instance/FileDicomWebWriter.mjs';
+export { DicomWebStream } from './instance/DicomWebStream.mjs';
 export { StreamInfo } from './instance/StreamInfo.mjs';
 export { seriesSummary } from './instance/SeriesSummary.mjs';
 export { indexSummary } from './instance/IndexSummary.mjs';

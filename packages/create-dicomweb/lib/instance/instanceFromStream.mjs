@@ -4,7 +4,7 @@ import { writeMultipartFramesFilter } from './writeMultipartFramesFilter.mjs';
 import { writeBulkdataFilter } from './writeBulkdataFilter.mjs';
 import { inlineBinaryFilter } from './inlineBinaryFilter.mjs';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
-import { createPromiseTracker } from 'static-wado-util/lib/createPromiseTracker.mjs';
+import { createPromiseTracker } from '@radicalimaging/static-wado-util';
 
 const { AsyncDicomReader } = async;
 const { setValue } = Tags;
@@ -188,17 +188,36 @@ export async function instanceFromStream(stream, options = {}) {
   console.noQuiet('Finished parsing file', information.sopInstanceUid);
 
   if (writer) {
-    console.log('Writing metadata to file', information.sopInstanceUid);
-    const metadataStream = await writer.openInstanceStream('metadata', { gzip: true });
-    metadataStream.stream.write(Buffer.from(JSON.stringify([dict])));
-    await writer.closeStream(metadataStream.streamKey);
+    const studyUID = writer.getStudyUID();
+    const seriesUID = writer.getSeriesUID();
+    const sopUID = writer.getSOPInstanceUID();
+
+    if (!studyUID || !seriesUID || !sopUID) {
+      console.error(
+        `[instanceFromStream] Cannot write metadata - missing UIDs: study=${studyUID || 'MISSING'}, series=${seriesUID || 'MISSING'}, sop=${sopUID || 'MISSING'}`
+      );
+    } else {
+      console.noQuiet('Writing metadata to file', information.sopInstanceUid);
+      const metadataStream = await writer.openInstanceStream('metadata', { gzip: true });
+      metadataStream.stream.write(Buffer.from(JSON.stringify([dict])));
+      await writer.closeStream(metadataStream.streamKey);
+    }
   }
 
   // Wait for all frame writes to complete before returning
   await writer?.awaitAllStreams();
-  console.log('Finished writing metadata to file', information.sopInstanceUid);
+  console.noQuiet('Finished writing metadata to file', information.sopInstanceUid);
 
-  return { fmi, dict, writer, information: listener.information };
+  // Check for stream errors and include them in the result
+  const streamErrors = writer?.hasStreamErrors() ? writer.getStreamErrorSummary() : [];
+  if (streamErrors.length > 0) {
+    console.error(
+      `[instanceFromStream] Stream errors for ${information.sopInstanceUid}:`,
+      streamErrors.map(e => `${e.streamKey}: ${e.error?.message || e.error}`).join(', ')
+    );
+  }
+
+  return { fmi, dict, writer, information: listener.information, streamErrors };
 }
 
 /**

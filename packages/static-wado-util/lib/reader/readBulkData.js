@@ -93,7 +93,9 @@ const readBulkData = async (dirSrc, baseName, frame) => {
   }
 
   const startData = 4 + findIndexOfString(data, '\r\n\r\n');
-  const endData = data.length - separator.length - 2;
+  // End boundary format: \r\n--BOUNDARY--\r\n
+  // We need to subtract: \r\n (2) + separator.length + -- (2) + \r\n (2) = separator.length + 6
+  const endData = data.length - separator.length - 6;
   const header = data.buffer.slice(separator.length, startData);
   const headerStr = new TextDecoder('utf-8').decode(header).replaceAll('\r', '');
   const headerSplit = headerStr.split('\n');
@@ -101,10 +103,17 @@ const readBulkData = async (dirSrc, baseName, frame) => {
   for (const headerItem of headerSplit) {
     if (headerItem.startsWith('Content-Type')) {
       const semi = headerItem.indexOf(';');
-      contentType = headerItem.substring(14, semi);
+      contentType = headerItem.substring(14, semi !== -1 ? semi : undefined).trim();
       const transferSyntaxStart = headerItem.indexOf('transfer-syntax=');
       if (transferSyntaxStart !== -1) {
-        transferSyntaxUid = headerItem.substring(transferSyntaxStart + 16);
+        // Extract transfer syntax, handling potential trailing parameters or whitespace
+        let tsValue = headerItem.substring(transferSyntaxStart + 16);
+        // Remove any trailing semicolons, parameters, or whitespace
+        const nextSemi = tsValue.indexOf(';');
+        if (nextSemi !== -1) {
+          tsValue = tsValue.substring(0, nextSemi);
+        }
+        transferSyntaxUid = tsValue.trim();
       }
       console.noQuiet('Bulkdata content type', `"${contentType}"`, `"${transferSyntaxUid}"`);
     }

@@ -2,11 +2,16 @@
 FROM node:24 as builder
 ENV PATH /app/node_modules/.bin:$PATH
 
-# Install only essential runtime system libraries
+# Install build dependencies for canvas (needs -dev packages for compilation)
 RUN apt-get update && apt-get install -y \
+  build-essential \
+  python3 \
   libpixman-1-dev \
   libcairo2-dev \
   libpango1.0-dev \
+  libjpeg-dev \
+  libgif-dev \
+  librsvg2-dev \
   ca-certificates \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -32,6 +37,19 @@ RUN bun run build && bun run pack:js
 
 FROM node:24 as installer
 
+# Install build dependencies for canvas (needs -dev packages for compilation)
+RUN apt-get update && apt-get install -y \
+  build-essential \
+  python3 \
+  libpixman-1-dev \
+  libcairo2-dev \
+  libpango1.0-dev \
+  libjpeg-dev \
+  libgif-dev \
+  librsvg2-dev \
+  ca-certificates \
+  && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # Install minimal global tools
 RUN npm install -g bun@1.2.19 commander@10.0.1
 
@@ -46,14 +64,15 @@ COPY *.tgz ./
 COPY --from=builder /app/packages/cs3d/*.tgz cs3d.tgz
 COPY --from=builder /app/packages/static-wado-util/*.tgz static-wado-util.tgz
 COPY --from=builder /app/packages/static-wado-creator/*.tgz static-wado-creator.tgz
+COPY --from=builder /app/packages/create-dicomweb/*.tgz create-dicomweb.tgz
 COPY --from=builder /app/packages/static-wado-webserver/*.tgz static-wado-webserver.tgz
 
 # Install all modules at once
 RUN npm install \
-  ./cornerstonejs-dicom-codec-1.0.7.tgz \
   ./cs3d.tgz \
   ./static-wado-util.tgz \
   ./static-wado-creator.tgz \
+  ./create-dicomweb.tgz \
   ./static-wado-webserver.tgz \
   && rm *.tgz
 
@@ -61,11 +80,15 @@ RUN npm install \
 
 FROM oven/bun as dicomwebserver
 
-# Install only essential runtime system libraries
+# Install only essential runtime system libraries (no -dev packages needed at runtime)
 RUN apt-get update && apt-get install -y \
-  libpixman-1-dev \
-  libcairo2-dev \
-  libpango1.0-dev \
+  libpixman-1-0 \
+  libcairo2 \
+  libpango-1.0-0 \
+  libpangocairo-1.0-0 \
+  libjpeg62-turbo \
+  libgif7 \
+  librsvg2-2 \
   ca-certificates \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 

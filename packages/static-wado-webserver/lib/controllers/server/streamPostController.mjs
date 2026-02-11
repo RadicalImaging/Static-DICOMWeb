@@ -319,8 +319,12 @@ function createDatasetResponse(files) {
     const information = file.result?.information;
     const hasInformation = !!information;
 
-    // Determine if this is a valid success (ok AND has information)
-    const isValidSuccess = file.ok && hasInformation;
+    // Check for stream errors (frame/bulkdata writes that failed)
+    const streamErrors = file.result?.streamErrors || [];
+    const hasStreamErrors = streamErrors.length > 0;
+
+    // Determine if this is a valid success (ok AND has information AND no stream errors)
+    const isValidSuccess = file.ok && hasInformation && !hasStreamErrors;
 
     // Extract UIDs only from information object (if it exists)
     const sopClassUID = hasInformation ? getSOPClassUID(information) : null;
@@ -363,6 +367,15 @@ function createDatasetResponse(files) {
       // This includes cases where:
       // - file.ok is false (processing error)
       // - information object doesn't exist (invalid DICOM or parsing failure)
+      // - stream errors occurred (frame/bulkdata write failures)
+
+      // Log the failure reason for debugging
+      if (hasStreamErrors) {
+        console.error(
+          `[STOW] Instance ${sopInstanceUID || 'unknown'} failed due to stream errors:`,
+          streamErrors.map(e => `${e.streamKey}: ${e.error?.message || e.error}`).join(', ')
+        );
+      }
 
       // Add Failure Reason (00081197)
       item['00081197'] = {
