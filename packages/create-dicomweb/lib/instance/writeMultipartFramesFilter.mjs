@@ -98,7 +98,13 @@ export function writeMultipartFramesFilter(options = {}) {
    * @throws {Error} when any required UID is missing
    */
   function assertRequiredUIDs(w) {
-    if (!w?.getStudyUID?.() || !w?.getSeriesUID?.() || !w?.getSOPInstanceUID?.()) {
+    const studyUID = w?.getStudyUID?.();
+    const seriesUID = w?.getSeriesUID?.();
+    const sopUID = w?.getSOPInstanceUID?.();
+    if (!studyUID || !seriesUID || !sopUID) {
+      console.error(
+        `[writeMultipartFramesFilter] Missing UIDs: study=${studyUID || 'MISSING'}, series=${seriesUID || 'MISSING'}, sop=${sopUID || 'MISSING'}`
+      );
       throw new Error(UIDS_REQUIRED_MSG);
     }
   }
