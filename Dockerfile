@@ -70,4 +70,5 @@ RUN echo 'stty erase ^H' >> /etc/profile && \
 COPY ./docker/* .
 
 EXPOSE 5000
-CMD ["dicomwebserver"]
+# CMD ["dicomwebserver"]
+CMD ["monitordicomwebserver", "--show-status"]

@@ -105,6 +105,11 @@ async function configureProgram(defaults = dicomWebServerConfig) {
       description: 'Interval in seconds for status dump when using --show-status. Default: 60',
       defaultValue: 60,
     },
+    {
+      key: '--hang',
+      description: 'Enable /dicomweb/hang endpoint for testing server hangs and stack traces',
+      defaultValue: false,
+    },
   ];
 
   const configuration = {
@@ -139,6 +144,8 @@ async function configureProgram(defaults = dicomWebServerConfig) {
   if (opts.livelockDetect) {
     setLivelockEnabled(true);
   }
+
+  program.dicomWebServerConfig.hang = !!opts.hang;
 
   program.main = main;
 

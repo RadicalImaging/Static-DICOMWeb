@@ -212,6 +212,7 @@
       "version": "1.7.0",
       "bin": {
         "dicomwebserver": "bin/dicomwebserver.mjs",
+        "monitordicomwebserver": "bin/monitordicomwebserver.mjs",
       },
       "dependencies": {
         "@cornerstonejs/dicom-codec": "1.0.9",
@@ -231,6 +232,7 @@
         "morgan": "^1.10.0",
         "regenerator-runtime": "^0.14.1",
         "rxjs": "^7.5.4",
+        "ws": "^8.18.0",
       },
       "devDependencies": {
         "@babel/plugin-transform-runtime": "^7.17.0",

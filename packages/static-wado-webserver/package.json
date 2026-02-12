@@ -44,7 +44,8 @@
     "lib"
   ],
   "bin": {
-    "dicomwebserver": "bin/dicomwebserver.mjs"
+    "dicomwebserver": "bin/dicomwebserver.mjs",
+    "monitordicomwebserver": "bin/monitordicomwebserver.mjs"
   },
   "scripts": {
     "test": "jest --config ./jest.config.js",
@@ -72,7 +73,8 @@
     "formidable": "^3.5.4",
     "morgan": "^1.10.0",
     "regenerator-runtime": "^0.14.1",
-    "rxjs": "^7.5.4"
+    "rxjs": "^7.5.4",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@babel/plugin-transform-runtime": "^7.17.0",

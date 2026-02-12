@@ -39,6 +39,32 @@ import part10Controller from '../../controllers/server/part10Controller.mjs';
 export default function setRoutes(routerExpress, params, dir, hashStudyUidPath) {
   createStudyDirectories(dir);
 
+  // Add hang endpoint for testing if --hang flag is enabled
+  if (params.hang) {
+    console.log('Hang endpoint enabled at /dicomweb/hang');
+    routerExpress.get('/hang', (req, res) => {
+      const timeInSeconds = parseInt(req.query.time || '240', 10);
+      console.log(`[Hang] Starting hang for ${timeInSeconds} seconds...`);
+
+      const startTime = Date.now();
+      let currentTime = Date.now();
+
+      // Tight loop that keeps checking the time
+      while ((currentTime - startTime) / 1000 < timeInSeconds) {
+        currentTime = Date.now();
+      }
+
+      const elapsedSeconds = ((currentTime - startTime) / 1000).toFixed(2);
+      console.log(`[Hang] Completed hang after ${elapsedSeconds} seconds`);
+
+      res.send({
+        message: 'Hang completed',
+        requestedSeconds: timeInSeconds,
+        actualSeconds: parseFloat(elapsedSeconds),
+      });
+    });
+  }
+
   routerExpress.use('/', (req, res, next) => {
     req.staticWadoPath = req.path;
 
