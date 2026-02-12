@@ -66,9 +66,17 @@ const DicomWebServer = async params => {
   process.on('uncaughtException', console.error);
   process.on('unhandledRejection', console.error);
   process.on('exit', code => console.log('Exit code:', code));
+
+  // Track consecutive "not listening" failures
+  let consecutiveNotListening = 0;
   setInterval(() => {
     if (!server.listening) {
-      console.error('?? Server is NOT listening anymore');
+      consecutiveNotListening++;
+      if (consecutiveNotListening >= 5) {
+        console.error('?? Server is NOT listening anymore');
+      }
+    } else {
+      consecutiveNotListening = 0;
     }
   }, 5000);
 

@@ -7,7 +7,7 @@
       "dependencies": {
         "@cornerstonejs/dicom-codec": "1.0.9",
         "canvas": "3.1.0",
-        "dcmjs": "0.49.4",
+        "dcmjs": "0.50.0",
         "typescript": "^5.8.2",
       },
       "devDependencies": {
@@ -52,7 +52,7 @@
         "canvas": ">=3.1.0",
         "commander": "^12.0.0",
         "config-point": ">=0.5.1",
-        "dcmjs": "0.49.4",
+        "dcmjs": "0.50.0",
         "dicom-parser": "^1.8.13",
         "glob": "^11.0.0",
         "node-object-hash": "^3.0.0",
@@ -68,7 +68,7 @@
       "dependencies": {
         "@cornerstonejs/core": "4.14.5",
         "canvas": "3.1.0",
-        "dcmjs": "0.49.4",
+        "dcmjs": "0.50.0",
         "jsdom": "^26.0.0",
         "jsdom-context-require": "^5.2.4",
       },
@@ -90,7 +90,7 @@
         "@radicalimaging/static-wado-util": ">=1.7.0",
         "config-point": ">=0.5.1",
         "cross-env": "^7.0.3",
-        "dcmjs": "0.49.4",
+        "dcmjs": "0.50.0",
         "dicom-parser": "^1.8.13",
         "node-object-hash": "^3.0.0",
       },
@@ -127,7 +127,7 @@
         "@radicalimaging/static-wado-util": ">=1.7.0",
         "canvas": ">=3.1.0",
         "config-point": ">=0.5.1",
-        "dcmjs": "0.49.4",
+        "dcmjs": "0.50.0",
         "dicom-parser": "^1.8.13",
         "glob": "^11.0.0",
         "node-object-hash": "^3.0.0",
@@ -179,7 +179,7 @@
         "@radicalimaging/static-wado-plugins": ">=1.7.0",
         "@radicalimaging/static-wado-util": ">=1.7.0",
         "config-point": ">=0.5.1",
-        "dcmjs": "0.49.4",
+        "dcmjs": "0.50.0",
         "dcmjs-dimse": "^0.1.30",
       },
       "devDependencies": {
@@ -195,7 +195,7 @@
         "@cornerstonejs/dicom-codec": ">=1.0.5",
         "commander": "^10.0.0",
         "config-point": ">=0.5.1",
-        "dcmjs": "0.49.4",
+        "dcmjs": "0.50.0",
         "imurmurhash": "^0.1.4",
         "jpeg-lossless-decoder-js": ">=2.0.4",
         "json5": "^2.2.1",
@@ -224,7 +224,7 @@
         "config-point": ">=0.5.1",
         "content-type": "1.0.5",
         "cors": "^2.8.5",
-        "dcmjs": "0.49.4",
+        "dcmjs": "0.50.0",
         "dcmjs-dimse": "^0.1.30",
         "dicer": "0.3.1",
         "express": "^5",
@@ -245,7 +245,7 @@
     "@cornerstonejs/codec-openjph": ">=2.4.5",
     "@cornerstonejs/dicom-codec": "1.0.9",
     "canvas": "3.1.0",
-    "dcmjs": "0.49.4",
+    "dcmjs": "0.50.0",
     "has-flag": "4.0.0",
     "node-object-hash": "3.1.1",
   },
@@ -1386,7 +1386,7 @@
 
     "dateformat": ["dateformat@3.0.3", "", {}, "sha512-jyCETtSl3VMZMWeRo7iY1FL19ges1t55hMo5yaam4Jrsm5EPL89UQkoQRyiI+Yf4k8r2ZpdngkV8hr1lIdjb3Q=="],
 
-    "dcmjs": ["dcmjs@0.49.4", "", { "dependencies": { "@babel/runtime-corejs3": "^7.22.5", "adm-zip": "^0.5.10", "gl-matrix": "^3.1.0", "lodash.clonedeep": "^4.5.0", "loglevel": "^1.8.1", "ndarray": "^1.0.19", "pako": "^2.0.4" } }, "sha512-w77Gde5JvLjg37FyGIAsTB+oWZIqkO/5NvBeheEVKy6k9XjBgeGsoAbVAByjuGAFLpGqRbf9iWI0edBq87yu/g=="],
+    "dcmjs": ["dcmjs@0.50.0", "", { "dependencies": { "@babel/runtime-corejs3": "^7.22.5", "adm-zip": "^0.5.10", "gl-matrix": "^3.1.0", "lodash.clonedeep": "^4.5.0", "loglevel": "^1.8.1", "ndarray": "^1.0.19", "pako": "^2.0.4" } }, "sha512-StzB8L0N0O/Nj37B+YHHnVkXk3kPP7Ru8wBDj+x4FAGg+dE8HNmX7f3qjU4NTxW6TrkfLwFOlkKNzWUglKOAPA=="],
 
     "dcmjs-dimse": ["dcmjs-dimse@0.1.31", "", { "dependencies": { "async-eventemitter": "^0.2.4", "dcmjs": "^0.38.1", "smart-buffer": "^4.2.0", "ts-mixer": "^6.0.4", "winston": "^3.17.0" } }, "sha512-77rTn3LpZCVyA4a3fCVcXVGVh9FjcJtCZScYhi1l/U0fPMGScVSagEGCEdtakmgZT0CM3aPRgFM38MxMw8fz3Q=="],
 
