@@ -2,6 +2,7 @@
 
 import { spawn } from 'child_process';
 import { WebSocket } from 'ws';
+import { fileURLToPath } from 'url';
 
 const DEBUGGER_PORT = 6499;
 const STATUS_CHECK_INTERVAL = 30000; // 30 seconds
@@ -11,6 +12,7 @@ const STATUS_URL = 'http://localhost:5000/dicomweb/status';
 let serverProcess = null;
 let debuggerWs = null;
 let messageId = 1;
+let debuggerUrl = null;
 
 // Detect platform for process killing
 const isWindows = process.platform === 'win32';
@@ -19,15 +21,47 @@ const isWindows = process.platform === 'win32';
 function startServer() {
   console.log('[Monitor] Starting dicomwebserver with debugger...');
 
+  // Reset debugger URL
+  debuggerUrl = null;
+
   // Pass through any command-line arguments (skip the first two: bun and script name)
   const additionalArgs = process.argv.slice(2);
-  const args = ['--inspect', 'dicomwebserver', ...additionalArgs];
+
+  // Find the actual dicomwebserver script path (use fileURLToPath for cross-platform compatibility)
+  const scriptPath = fileURLToPath(new URL('./dicomwebserver.mjs', import.meta.url));
+  const args = [`--inspect=0.0.0.0:${DEBUGGER_PORT}`, scriptPath, ...additionalArgs];
 
   console.log('[Monitor] Running with args:', args.join(' '));
 
   serverProcess = spawn('bun', args, {
-    stdio: 'inherit',
+    stdio: ['inherit', 'pipe', 'pipe'],
     env: { ...process.env }
+  });
+
+  // Capture stdout to find the debugger URL
+  serverProcess.stdout.on('data', (data) => {
+    const output = data.toString();
+    process.stdout.write(data); // Still show the output
+
+    // Look for the WebSocket URL in Bun's output
+    const match = output.match(/ws:\/\/[^\s]+/);
+    if (match && !debuggerUrl) {
+      debuggerUrl = match[0];
+      console.log('[Monitor] Found debugger URL:', debuggerUrl);
+    }
+  });
+
+  // Capture stderr
+  serverProcess.stderr.on('data', (data) => {
+    const output = data.toString();
+    process.stderr.write(data); // Still show the output
+
+    // Look for the WebSocket URL in stderr too
+    const match = output.match(/ws:\/\/[^\s]+/);
+    if (match && !debuggerUrl) {
+      debuggerUrl = match[0];
+      console.log('[Monitor] Found debugger URL:', debuggerUrl);
+    }
   });
 
   serverProcess.on('exit', (code, signal) => {
@@ -41,21 +75,44 @@ function startServer() {
   });
 }
 
-// Connect to the debugger
-async function connectDebugger() {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://localhost:${DEBUGGER_PORT}`);
+// Connect to the debugger with retries
+async function connectDebugger(retries = 3) {
+  if (!debuggerUrl) {
+    throw new Error('Debugger URL not found - Bun may not have started with --inspect');
+  }
 
-    ws.on('open', () => {
-      console.log('[Monitor] Connected to debugger');
-      resolve(ws);
-    });
+  for (let i = 0; i < retries; i++) {
+    try {
+      console.log(`[Monitor] Attempting to connect to debugger (attempt ${i + 1}/${retries})...`);
+      console.log(`[Monitor] Using URL: ${debuggerUrl}`);
+      const ws = await new Promise((resolve, reject) => {
+        const ws = new WebSocket(debuggerUrl);
 
-    ws.on('error', (err) => {
-      console.error('[Monitor] Debugger connection error:', err.message);
-      reject(err);
-    });
-  });
+        const timeout = setTimeout(() => {
+          ws.close();
+          reject(new Error('Connection timeout'));
+        }, 2000);
+
+        ws.on('open', () => {
+          clearTimeout(timeout);
+          console.log('[Monitor] Connected to debugger');
+          resolve(ws);
+        });
+
+        ws.on('error', (err) => {
+          clearTimeout(timeout);
+          reject(err);
+        });
+      });
+      return ws;
+    } catch (err) {
+      console.error(`[Monitor] Debugger connection failed (attempt ${i + 1}):`, err.message);
+      if (i < retries - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+  }
+  throw new Error(`Failed to connect to debugger after ${retries} attempts`);
 }
 
 // Send a command to the debugger and wait for response
@@ -86,6 +143,13 @@ function sendDebugCommand(ws, method, params = {}) {
 // Get stack traces from all threads
 async function getStackTraces() {
   try {
+    // Wait up to 5 seconds for debugger URL to be found
+    let waitTime = 0;
+    while (!debuggerUrl && waitTime < 5000) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      waitTime += 500;
+    }
+
     if (!debuggerWs || debuggerWs.readyState !== WebSocket.OPEN) {
       debuggerWs = await connectDebugger();
     }
@@ -93,20 +157,48 @@ async function getStackTraces() {
     // Enable the debugger domain
     await sendDebugCommand(debuggerWs, 'Debugger.enable');
 
-    // Pause execution to get stack traces
+    // Try to capture paused event (may not work with tight loops in Bun)
+    let pausedParams = null;
+    const globalHandler = (data) => {
+      try {
+        const message = JSON.parse(data.toString());
+        if (message.method === 'Debugger.paused') {
+          pausedParams = message.params;
+        }
+      } catch (err) {
+        // Ignore parse errors
+      }
+    };
+
+    debuggerWs.on('message', globalHandler);
+
+    // Send pause command
     await sendDebugCommand(debuggerWs, 'Debugger.pause');
 
-    // Wait a bit for the pause to take effect
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Wait for paused event (note: Bun's debugger has limitations with tight loops)
+    console.log('[Monitor] Waiting for paused event (up to 5 seconds)...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
-    // Get the stack trace
-    const stackTrace = await sendDebugCommand(debuggerWs, 'Debugger.getStackTrace');
+    // Clean up listener
+    debuggerWs.off('message', globalHandler);
+
+    const pausedEvent = pausedParams;
 
     console.log('\n========== STACK TRACE ==========');
-    if (stackTrace && stackTrace.result) {
-      console.log(JSON.stringify(stackTrace.result, null, 2));
+    if (pausedEvent && pausedEvent.callFrames) {
+      console.log('Call stack:');
+      pausedEvent.callFrames.forEach((frame, index) => {
+        const location = frame.location || {};
+        const functionName = frame.functionName || '<anonymous>';
+        const url = frame.url || 'unknown';
+        const line = location.lineNumber !== undefined ? location.lineNumber + 1 : '?';
+        const col = location.columnNumber !== undefined ? location.columnNumber + 1 : '?';
+        console.log(`  ${index}: ${functionName} (${url}:${line}:${col})`);
+      });
+      console.log('\nFull details:');
+      console.log(JSON.stringify(pausedEvent.callFrames, null, 2));
     } else {
-      console.log('No stack trace available');
+      console.log('No call frames available');
     }
     console.log('==================================\n');
 
@@ -117,6 +209,21 @@ async function getStackTraces() {
     debuggerWs = null;
   } catch (err) {
     console.error('[Monitor] Failed to get stack trace:', err.message);
+
+    // Fallback: log process information instead
+    console.log('\n========== PROCESS INFO (FALLBACK) ==========');
+    if (serverProcess) {
+      console.log('Process PID:', serverProcess.pid);
+      console.log('Process killed:', serverProcess.killed);
+      console.log('Process exit code:', serverProcess.exitCode);
+      console.log('Process signal code:', serverProcess.signalCode);
+    }
+    console.log('Platform:', process.platform);
+    console.log('Node version:', process.version);
+    console.log('Uptime:', process.uptime(), 'seconds');
+    console.log('Memory usage:', JSON.stringify(process.memoryUsage(), null, 2));
+    console.log('CPU usage:', JSON.stringify(process.cpuUsage(), null, 2));
+    console.log('==============================================\n');
   }
 }
 
@@ -126,21 +233,24 @@ function killServer() {
 
   console.log('[Monitor] Killing unresponsive dicomwebserver...');
 
+  // Capture the specific process instance to kill (so we don't kill a restarted process)
+  const processToKill = serverProcess;
+
   if (isWindows) {
     // On Windows, try to kill gracefully but warn that it might not work
     console.log('[Monitor] Note: Process killing on Windows may not work if the process is truly hung');
     try {
-      serverProcess.kill('SIGTERM');
+      processToKill.kill('SIGTERM');
     } catch (err) {
       console.error('[Monitor] Error killing process:', err.message);
     }
 
     // Force kill after 5 seconds if still running
     setTimeout(() => {
-      if (serverProcess && !serverProcess.killed) {
+      if (processToKill && !processToKill.killed) {
         console.log('[Monitor] Force killing dicomwebserver...');
         try {
-          serverProcess.kill('SIGKILL');
+          processToKill.kill('SIGKILL');
         } catch (err) {
           console.error('[Monitor] Error force killing process:', err.message);
         }
@@ -148,13 +258,13 @@ function killServer() {
     }, 5000);
   } else {
     // On Linux/Unix, standard kill signals should work
-    serverProcess.kill('SIGTERM');
+    processToKill.kill('SIGTERM');
 
     // Force kill after 5 seconds if still running
     setTimeout(() => {
-      if (serverProcess && !serverProcess.killed) {
+      if (processToKill && !processToKill.killed) {
         console.log('[Monitor] Force killing dicomwebserver...');
-        serverProcess.kill('SIGKILL');
+        processToKill.kill('SIGKILL');
       }
     }, 5000);
   }

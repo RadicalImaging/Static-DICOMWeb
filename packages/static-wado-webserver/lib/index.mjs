@@ -72,8 +72,12 @@ const DicomWebServer = async params => {
   setInterval(() => {
     if (!server.listening) {
       consecutiveNotListening++;
-      if (consecutiveNotListening >= 5) {
-        console.error('?? Server is NOT listening anymore');
+      if (consecutiveNotListening >= 15) {
+        console.error(
+          '?? Server is NOT listening anymore (listening=%s, address=%s)',
+          server.listening,
+          JSON.stringify(server.address())
+        );
       }
     } else {
       consecutiveNotListening = 0;

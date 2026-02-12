@@ -58,6 +58,11 @@ RUN mkdir /app
 WORKDIR /app
 ENV PATH=/app/node_modules/.bin:$PATH
 
+# Install curl for health checks
+RUN apt-get update && \
+    apt-get install -y curl && \
+    rm -rf /var/lib/apt/lists/*
+
 # In installer stage
 COPY --from=installer /app ./
 
@@ -70,5 +75,6 @@ RUN echo 'stty erase ^H' >> /etc/profile && \
 COPY ./docker/* .
 
 EXPOSE 5000
+EXPOSE 6499
 # CMD ["dicomwebserver"]
-CMD ["monitordicomwebserver", "--show-status"]
+CMD ["monitordicomwebserver", "--hang"]
