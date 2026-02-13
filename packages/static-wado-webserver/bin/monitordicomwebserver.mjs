@@ -306,20 +306,37 @@ async function monitorLoop() {
   // Wait a bit for the server to start
   await new Promise(resolve => setTimeout(resolve, 5000));
 
+  let consecutiveFailures = 0;
+  const FAILURE_THRESHOLD = 3;
+
   while (true) {
     const isHealthy = await checkStatus();
 
     if (!isHealthy) {
-      console.log('[Monitor] Server is unresponsive, collecting stack trace...');
+      consecutiveFailures++;
+      console.log(`[Monitor] Server check failed (${consecutiveFailures}/${FAILURE_THRESHOLD})`);
 
-      // Get stack trace
-      await getStackTraces();
+      if (consecutiveFailures >= FAILURE_THRESHOLD) {
+        console.log('[Monitor] Server is unresponsive after 3 failed checks, collecting stack trace...');
 
-      // Kill the server process
-      killServer();
+        // Get stack trace
+        await getStackTraces();
 
-      // Wait before next check (the process will restart automatically)
-      await new Promise(resolve => setTimeout(resolve, 10000));
+        // Kill the server process
+        killServer();
+
+        // Reset counter
+        consecutiveFailures = 0;
+
+        // Wait before next check (the process will restart automatically)
+        await new Promise(resolve => setTimeout(resolve, 10000));
+      }
+    } else {
+      // Reset failure counter on successful check
+      if (consecutiveFailures > 0) {
+        console.log('[Monitor] Server recovered, resetting failure counter');
+        consecutiveFailures = 0;
+      }
     }
 
     await new Promise(resolve => setTimeout(resolve, STATUS_CHECK_INTERVAL));

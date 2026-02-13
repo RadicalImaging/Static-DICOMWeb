@@ -125,6 +125,7 @@ program
     '--no-filename-check',
     'Upload all files regardless of extension (default: skip .gz, .json, .md, .txt, .xml, .pdf, .jpg, .png, .html, .zip, etc.)'
   )
+  .option('--progress', 'Show progress with instance count as files are stored')
   .action(async (fileNames, options) => {
     updateVerboseLog();
     const stowOptions = {
@@ -170,6 +171,10 @@ program
 
     if (options.filenameCheck === false) {
       stowOptions.filenameCheck = false;
+    }
+
+    if (options.progress) {
+      stowOptions.progress = true;
     }
 
     const opts = program.opts();

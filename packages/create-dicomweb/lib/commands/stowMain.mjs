@@ -62,6 +62,7 @@ const SKIP_EXTENSIONS = new Set([
  * @param {number} [options.timeoutMs] - Request timeout in milliseconds; no timeout if omitted
  * @param {number} [options.parallel=1] - Number of parallel STOW-RS requests (1 = sequential). When > 1, limitUnsettled uses at least 30 minutes.
  * @param {boolean} [options.filenameCheck=true] - If true, skip common non-DICOM extensions (e.g. gz, json, md, txt, xml, pdf, jpg, png, html, zip). Use false to upload all files.
+ * @param {boolean} [options.progress] - If true, show progress with instance count as files are stored
  * @param {boolean} [options.quiet] - If true, suppress progress and non-error output
  * @param {boolean} [options.verbose] - If true, show per-group storage messages
  */
@@ -75,11 +76,12 @@ export async function stowMain(fileNames, options = {}) {
     timeoutMs,
     parallel = 1,
     filenameCheck = true,
+    progress = false,
     quiet = false,
     verbose = false,
   } = options; // Default 10MB
 
-  const showProgress = !quiet && !verbose;
+  const showProgress = progress && !quiet;
 
   if (!url) {
     throw new Error('url option is required');

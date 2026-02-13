@@ -76,5 +76,5 @@ COPY ./docker/* .
 
 EXPOSE 5000
 EXPOSE 6499
-# CMD ["dicomwebserver"]
-CMD ["monitordicomwebserver", "--hang"]
+# CMD ["dicomwebserver", "-q"]
+CMD ["monitordicomwebserver", "-q"]
