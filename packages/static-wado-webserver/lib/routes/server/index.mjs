@@ -1,4 +1,5 @@
 import setStudiesRoutes from './studies.mjs';
+import { statusController } from '../../controllers/server/statusController.mjs';
 
 /**
  * Middleware to handle Kheops-style JWT link routes.
@@ -34,5 +35,7 @@ export default function setRoutes(routerExpress, params, dir, hashStudyUidPath) 
   // Handle Kheops-style /link/{JWT}/ routes by stripping the prefix
   routerExpress.use(linkRouteMiddleware);
 
+  setStudiesRoutes(routerExpress, params, dir, hashStudyUidPath);
+  routerExpress.get('/status', statusController);
   setStudiesRoutes(routerExpress, params, dir, hashStudyUidPath);
 }

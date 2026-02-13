@@ -27,6 +27,9 @@ const { dicomWebServerConfig } = ConfigPoint.register({
     },
     // proxyAe: "AE-NAME",
 
+    /** When true, enable /dicomweb/hang endpoint for testing (--hang). */
+    hang: false,
+
     webserverPlugins: [],
   },
 });

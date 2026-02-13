@@ -56,3 +56,5 @@ node_modules/
 *.code-workspace
 *~
 *.swp
+.cursor/
+.test

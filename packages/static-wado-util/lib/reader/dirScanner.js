@@ -14,20 +14,30 @@ async function dirScanner(input, options) {
     if (file === '.') {
       file = process.cwd();
     }
+    const base = path.basename(file);
+    if (
+      base === '__MACOSX' ||
+      (base.startsWith('.') && base.length > 1)
+    ) {
+      continue;
+    }
     if (!fs.existsSync(file)) {
       console.warn('File does not exist', file);
       continue;
     }
     if (fs.lstatSync(file).isDirectory()) {
       const names = await fs.promises.readdir(file);
+      const filtered = names.filter(
+        (name) => name !== '__MACOSX' && !name.startsWith('.')
+      );
       if (options.recursive !== false) {
         await dirScanner(
-          names.map(dirFile => `${file}/${dirFile}`),
+          filtered.map((dirFile) => `${file}/${dirFile}`),
           options
         );
       } else {
-        for (let j = 0; j < names.length; j++) {
-          const name = names[j];
+        for (let j = 0; j < filtered.length; j++) {
+          const name = filtered[j];
           if (
             !options.matchList ||
             options.matchList.length == 0 ||

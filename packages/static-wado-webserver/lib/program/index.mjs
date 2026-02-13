@@ -3,6 +3,7 @@ const { parseTimeoutToMs } = staticWadoUtil;
 import dicomWebServerConfig from '../dicomWebServerConfig.mjs';
 import DicomWebServer from '../index.mjs';
 import { installFromEnv } from '../util/asyncStackDump.mjs';
+import { setLivelockEnabled } from '../util/livelockRegistry.mjs';
 
 function main() {
   return DicomWebServer(this.dicomWebServerConfig).then(value => value.listen());
@@ -34,6 +35,12 @@ async function configureProgram(defaults = dicomWebServerConfig) {
     {
       key: '-q, --quiet',
       description: 'Quiet/minimal output',
+      defaultValue: false,
+    },
+    {
+      key: '--progress',
+      description:
+        'Show progress feedback during STOW-RS uploads (enables quiet logging so progress is visible)',
       defaultValue: false,
     },
     {
@@ -77,6 +84,32 @@ async function configureProgram(defaults = dicomWebServerConfig) {
       description: 'Do not update series and study summaries after STOW-RS uploads',
       defaultValue: false,
     },
+    {
+      key: '--livelock-detect',
+      description:
+        'Enable livelock detection for STOW stream reads (log after threshold ms if ensureAvailable is stuck)',
+      defaultValue: false,
+    },
+    {
+      key: '--show-status',
+      description: 'Periodically dump status JSON (pretty-printed) to the console',
+      defaultValue: false,
+    },
+    {
+      key: '--status-diagnostic',
+      description: 'Include diagnostic info in status dump (ongoing jobs, livelock config and reports)',
+      defaultValue: false,
+    },
+    {
+      key: '--status-time <seconds>',
+      description: 'Interval in seconds for status dump when using --show-status. Default: 60',
+      defaultValue: 60,
+    },
+    {
+      key: '--hang',
+      description: 'Enable /dicomweb/hang endpoint for testing server hangs and stack traces',
+      defaultValue: false,
+    },
   ];
 
   const configuration = {
@@ -92,11 +125,27 @@ async function configureProgram(defaults = dicomWebServerConfig) {
   const program = staticWadoUtil.configureProgram(configuration);
   const opts = program.opts();
   program.dicomWebServerConfig = Object.assign(Object.create(defaults), opts);
+  // --progress implies quiet so progress output is visible
+  if (opts.progress) {
+    program.dicomWebServerConfig.quiet = true;
+  }
+  program.dicomWebServerConfig.progress = !!opts.progress;
   program.dicomWebServerConfig.rootDir = opts.dir;
   program.dicomWebServerConfig.port = opts.port || 5000;
   const timeoutStr = opts.timeout ?? '30m';
   program.dicomWebServerConfig.serverTimeoutMs =
     timeoutStr === '0' ? 0 : parseTimeoutToMs(timeoutStr);
+
+  const statusTimeSec = typeof opts.statusTime !== 'undefined' ? Number(opts.statusTime) : 60;
+  program.dicomWebServerConfig.showStatus = !!opts.showStatus;
+  program.dicomWebServerConfig.statusDiagnostic = !!opts.statusDiagnostic;
+  program.dicomWebServerConfig.statusTime = Number.isFinite(statusTimeSec) ? statusTimeSec : 60;
+
+  if (opts.livelockDetect) {
+    setLivelockEnabled(true);
+  }
+
+  program.dicomWebServerConfig.hang = !!opts.hang;
 
   program.main = main;
 

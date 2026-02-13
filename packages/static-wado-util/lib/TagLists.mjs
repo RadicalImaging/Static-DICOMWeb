@@ -1,9 +1,9 @@
-import hashFactory from 'node-object-hash';
+import { hasher as createHasher } from 'node-object-hash';
 import Tags from './dictionary/Tags.mjs';
 
 /* eslint "no-param-reassign": "off" */
 
-const hasher = hashFactory.hasher();
+const hasher = createHasher();
 
 const { PatientID, PatientName, IssuerOfPatientID } = Tags;
 const { StudyDescription, AccessionNumber, StudyInstanceUID, StudyDate, StudyTime } = Tags;
