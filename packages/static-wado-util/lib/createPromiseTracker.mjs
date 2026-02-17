@@ -1,7 +1,15 @@
+import { StatusMonitor } from './StatusMonitor.mjs';
+
 /** Threshold above which we log a warning about pending promise count */
 const PENDING_PROMISE_WARN_THRESHOLD = 500;
 /** Log again every this many beyond the threshold */
 const PENDING_PROMISE_WARN_STEP = 100;
+
+/** Default interval (ms) for status monitor updates */
+const DEFAULT_STATUS_MONITOR_INTERVAL_MS = 500;
+
+/** Auto-stop status monitor after this many ms with no change in total (settled + unsettled) or if still 0 */
+const STATUS_MONITOR_IDLE_STOP_MS = 5 * 60 * 1000;
 
 /** Counter for assigning unique IDs to trackers */
 let trackerIdCounter = 0;
@@ -135,5 +143,83 @@ export function createPromiseTracker(name) {
     return trackerId;
   }
 
-  return { add, limitUnsettled, getUnsettledCount, getSettledCount, getTrackerId };
+  /** Interval id when status monitor is running; null otherwise */
+  let statusMonitorIntervalId = null;
+
+  /**
+   * Start periodically updating a StatusMonitor job with this tracker's settled/unsettled counts.
+   * Stops automatically when getUnsettledCount() becomes 0 (job is done from this tracker's perspective).
+   * Call stopStatusMonitor() to stop early (e.g. on abort).
+   *
+   * @param {string} typeId - Job type (e.g. 'stowInstances')
+   * @param {string} jobId - Job id from StatusMonitor.startJob
+   * @param {object} [options]
+   * @param {number} [options.intervalMs=500] - How often to update
+   * @param {(settled: number, unsettled: number) => object} [options.buildData] - Build job data from counts. If omitted, uses { [settledKey]: settled, [unsettledKey]: unsettled }.
+   * @param {string} [options.settledKey='settled'] - Key for settled count when buildData is omitted
+   * @param {string} [options.unsettledKey='unsettled'] - Key for unsettled count when buildData is omitted
+   * @param {number} [options.idleStopMs=300000] - Auto-stop after this many ms if (settled+unsettled) is still 0 or stops increasing. Default 5 minutes.
+   */
+  function startStatusMonitor(typeId, jobId, options = {}) {
+    if (statusMonitorIntervalId != null) {
+      clearInterval(statusMonitorIntervalId);
+      statusMonitorIntervalId = null;
+    }
+    const intervalMs = options.intervalMs ?? DEFAULT_STATUS_MONITOR_INTERVAL_MS;
+    const idleStopMs = options.idleStopMs ?? STATUS_MONITOR_IDLE_STOP_MS;
+    const buildData =
+      options.buildData ??
+      ((s, u) => ({
+        [options.settledKey ?? 'settled']: s,
+        [options.unsettledKey ?? 'unsettled']: u,
+      }));
+
+    const startTime = Date.now();
+    let lastTotal = -1;
+    let lastTotalChangeTime = startTime;
+
+    function tick() {
+      const settled = getSettledCount();
+      const unsettled = getUnsettledCount();
+      const total = settled + unsettled;
+      StatusMonitor.updateJob(typeId, jobId, buildData(settled, unsettled));
+
+      const now = Date.now();
+      if (total !== lastTotal) {
+        lastTotal = total;
+        lastTotalChangeTime = now;
+      }
+      // Auto-stop when: (1) still 0 after idleStopMs, or (2) total has not increased for idleStopMs
+      if (total === 0 && now - startTime >= idleStopMs) {
+        stopStatusMonitor();
+        return;
+      }
+      if (now - lastTotalChangeTime >= idleStopMs) {
+        stopStatusMonitor();
+      }
+    }
+
+    statusMonitorIntervalId = setInterval(tick, intervalMs);
+    tick();
+  }
+
+  /**
+   * Stop the status monitor interval (if running). No-op if not started or already stopped.
+   */
+  function stopStatusMonitor() {
+    if (statusMonitorIntervalId != null) {
+      clearInterval(statusMonitorIntervalId);
+      statusMonitorIntervalId = null;
+    }
+  }
+
+  return {
+    add,
+    limitUnsettled,
+    getUnsettledCount,
+    getSettledCount,
+    getTrackerId,
+    startStatusMonitor,
+    stopStatusMonitor,
+  };
 }

@@ -37,7 +37,7 @@ export async function indexSummary(baseDir, studyUIDs = []) {
           existingStudyUIDs.set(studyUID, studyQuery);
         }
       }
-      console.warn(`indexSummary: found ${existingStudiesIndex.length} existing studies in index`);
+      console.noQuiet(`indexSummary: found ${existingStudiesIndex.length} existing studies in index`);
     }
   } catch (error) {
     console.warn(`Failed to read existing studies index: ${error.message}`);
@@ -49,7 +49,7 @@ export async function indexSummary(baseDir, studyUIDs = []) {
   
   if (studyUIDs.length === 0) {
     // No UIDs provided - scan the studies directory
-    console.warn('indexSummary: scanning studies directory for all studies');
+    console.noQuiet('indexSummary: scanning studies directory for all studies');
     const studiesPath = path.join(reader.baseDir, studiesIndexPath);
     
     if (fs.existsSync(studiesPath)) {
@@ -83,7 +83,7 @@ export async function indexSummary(baseDir, studyUIDs = []) {
     }
   }
 
-  console.warn(`indexSummary: processing ${studiesToProcess.size} studies`);
+  console.noQuiet(`indexSummary: processing ${studiesToProcess.size} studies`);
 
   // Step 3: Read study singleton files for each study to process
   const updatedStudyUIDs = new Map();
@@ -104,7 +104,7 @@ export async function indexSummary(baseDir, studyUIDs = []) {
         const studyUIDFromQuery = getValue(studyQuery, Tags.StudyInstanceUID);
         if (studyUIDFromQuery) {
           updatedStudyUIDs.set(studyUIDFromQuery, studyQuery);
-          console.warn(`indexSummary: read study singleton for ${studyUIDFromQuery}`);
+          console.noQuiet(`indexSummary: read study singleton for ${studyUIDFromQuery}`);
         } else {
           console.warn(`indexSummary: study singleton for ${studyUID} missing StudyInstanceUID`);
         }
@@ -145,12 +145,12 @@ export async function indexSummary(baseDir, studyUIDs = []) {
   sortStudies(finalStudiesIndex);
 
   // Step 6: Write the updated studies/index.json.gz file
-  console.warn(`indexSummary: writing updated studies index with ${finalStudiesIndex.length} studies`);
+  console.noQuiet(`indexSummary: writing updated studies index with ${finalStudiesIndex.length} studies`);
   
   // Use an empty informationProvider since we're writing at the root studies level
   const writer = new FileDicomWebWriter({}, { baseDir });
   const studiesIndexStreamInfo = writer.openStream(studiesIndexPath, 'index.json', { gzip: true });
   studiesIndexStreamInfo.stream.write(Buffer.from(JSON.stringify(finalStudiesIndex)));
   await writer.closeStream(studiesIndexStreamInfo.streamKey);
-  console.warn('indexSummary: studies/index.json.gz file written:', studiesIndexStreamInfo.filepath);
+  console.noQuiet('indexSummary: studies/index.json.gz file written:', studiesIndexStreamInfo.filepath);
 }

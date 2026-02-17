@@ -59,9 +59,9 @@ export async function seriesMain(studyUID, options = {}) {
   // Process each series
   for (const seriesUID of seriesUIDs) {
     try {
-      console.log(`Processing series ${seriesUID}...`);
+      console.noQuiet(`Processing series ${seriesUID}...`);
       await seriesSummary(dicomdir, studyUID, seriesUID);
-      console.log(`Completed series ${seriesUID}`);
+      console.noQuiet(`Completed series ${seriesUID}`);
     } catch (error) {
       console.error(`Error processing series ${seriesUID}: ${error.message}`);
       throw error;

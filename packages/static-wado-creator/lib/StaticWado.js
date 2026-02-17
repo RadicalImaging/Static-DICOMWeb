@@ -8,6 +8,7 @@ const {
   JSONWriter,
   asyncIterableToBuffer,
   Tags,
+  createProgressReporter,
 } = require('@radicalimaging/static-wado-util');
 const dicomParser = require('dicom-parser');
 const fs = require('fs');
@@ -98,8 +99,7 @@ class StaticWado {
     dicomCodec.setConfig({ verbose });
     const directoryName = handleHomeRelative(rootDir);
     this.showProgress = showProgress;
-    this.processedFiles = 0;
-    this.totalFiles = 0;
+    this.progressReporter = createProgressReporter({ total: 0, enabled: showProgress });
 
     this.options = {
       ...configuration,
@@ -162,28 +162,22 @@ class StaticWado {
    * @param {*} params
    */
   updateProgress() {
-    if (!this.showProgress) return;
-    this.processedFiles++;
-    const percentage = Math.round((this.processedFiles / this.totalFiles) * 100);
-    const progressBar =
-      '='.repeat(Math.floor(percentage / 4)) + '-'.repeat(25 - Math.floor(percentage / 4));
-    process.stdout.write(
-      `\r[${progressBar}] ${percentage}% | ${this.processedFiles}/${this.totalFiles} files`
-    );
+    this.progressReporter.addProcessed(1);
   }
 
   async processFiles(files, params) {
     if (this.showProgress) {
       // Count total files first
+      let totalFiles = 0;
       for (const file of files) {
         try {
           if (fs.statSync(file).isDirectory()) {
             const dirFiles = fs.readdirSync(file, { recursive: true });
-            this.totalFiles += dirFiles.filter(
+            totalFiles += dirFiles.filter(
               f => !fs.statSync(path.join(file, f)).isDirectory()
             ).length;
           } else {
-            this.totalFiles++;
+            totalFiles++;
           }
         } catch (e) {
           console.verbose('File not dicom', e);
@@ -196,7 +190,8 @@ class StaticWado {
           );
         }
       }
-      console.noQuiet(`\nProcessing ${this.totalFiles} DICOM files...\n`);
+      this.progressReporter.setTotal(totalFiles);
+      console.noQuiet(`\nProcessing ${totalFiles} DICOM files...\n`);
     }
 
     let filesProcessed = 0;
@@ -236,7 +231,7 @@ class StaticWado {
     }
 
     if (this.showProgress) {
-      console.log('\n'); // Move to next line after progress bar
+      this.progressReporter.finish();
     }
     return result;
   }

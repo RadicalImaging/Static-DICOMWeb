@@ -18,9 +18,9 @@ export async function studyMain(studyUID, options = {}) {
   }
   
   try {
-    console.log(`Processing study ${studyUID}...`);
+    console.noQuiet(`Processing study ${studyUID}...`);
     await studySummary(dicomdir, studyUID);
-    console.log(`Completed study ${studyUID}`);
+    console.noQuiet(`Completed study ${studyUID}`);
   } catch (error) {
     console.error(`Error processing study ${studyUID}: ${error.message}`);
     throw error;

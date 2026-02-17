@@ -27,7 +27,10 @@
   "homepage": "https://github.com/radicalimaging/static-dicomweb#readme",
   "license": "ISC",
   "main": "lib/index.mjs",
-  "module": "dist/index.js",
+  "module": "lib/index.mjs",
+  "exports": {
+    ".": "./lib/index.mjs"
+  },
   "directories": {
     "lib": "lib",
     "dist": "dist",
@@ -52,7 +55,7 @@
     "canvas": ">=3.1.0",
     "commander": "^12.0.0",
     "config-point": ">=0.5.1",
-    "dcmjs": "0.49.4",
+    "dcmjs": "0.50.0",
     "dicom-parser": "^1.8.13",
     "glob": "^11.0.0",
     "node-object-hash": "^3.0.0",
@@ -63,10 +66,9 @@
   },
   "scripts": {
     "test": "jest --config ./jest.config.cjs",
-    "build": "bun run build:esm",
-    "build:esm": "bun build lib/index.mjs --target node --outdir dist",
     "clean": "rimraf dist",
-    "link:exec": "bun link",
+    "unlink:exec": "bun unlink || echo Already unlinked",
+    "link:exec": "bun run unlink:exec && bun link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "createdicomweb": "bun bin/createdicomweb.mjs --",
     "pack:js": "npm pack --",

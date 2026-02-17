@@ -163,7 +163,7 @@ export class DicomWebWriter {
           this.streamWritePromiseTracker.getSettledCount() % 500 === 0) ||
         this.streamWritePromiseTracker.getUnsettledCount() > 50
       ) {
-        console.noQuiet(
+        console.verbose(
           '[DicomWebWriter] stream progress:',
           this.streamWritePromiseTracker.getUnsettledCount(),
           'unsetteled out of',
@@ -371,6 +371,19 @@ export class DicomWebWriter {
    */
   _recordStreamFailure(streamKey, streamInfo, error) {
     this.recordStreamError(streamKey, error, true);
+  }
+
+  /**
+   * Aborts all writes in progress. Destroys all open streams and records an abort error.
+   * Use when parsing fails so in-flight frame/bulkdata writes are cancelled.
+   * @param {Error} [error] - Optional error (e.g. the parse error). Defaults to a generic "Aborted" error.
+   */
+  abort(error) {
+    const err = error || new Error('Aborted');
+    const keys = Array.from(this.openStreams.keys());
+    for (const streamKey of keys) {
+      this.recordStreamError(streamKey, err, true);
+    }
   }
 
   /**
