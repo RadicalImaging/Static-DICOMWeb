@@ -121,7 +121,13 @@ export function writeMultipartFramesFilter(options = {}) {
 
     const frameWriter = getWriter(this);
     if (frameWriter) {
-      assertRequiredUIDs(frameWriter);
+      try {
+        assertRequiredUIDs(frameWriter);
+      } catch {
+        // UIDs not available – fall back to inline data
+        currentFrameNumber = null;
+        return next(dest);
+      }
       currentFrameNumber++;
       const frameNumber = currentFrameNumber;
       const streamKey = `frame:${frameNumber}`;
@@ -155,7 +161,13 @@ export function writeMultipartFramesFilter(options = {}) {
     if (!frameWriter) {
       return next(v);
     }
-    assertRequiredUIDs(frameWriter);
+    try {
+      assertRequiredUIDs(frameWriter);
+    } catch {
+      // UIDs not available – fall back to inline data
+      currentFrameNumber = null;
+      return next(v);
+    }
     currentFrameNumber++;
     const frameNumber = currentFrameNumber;
     const relativePath = writeFullFrame(frameWriter, frameNumber, v);
