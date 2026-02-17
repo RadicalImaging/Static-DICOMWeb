@@ -66,11 +66,11 @@ export class StatusMonitor {
     const count = completedCountByType.get(typeId) ?? 0;
     completedCountByType.set(typeId, count + 1);
     const isFailed =
-      finalData.failed === true ||
-      finalData.aborted === true ||
+      finalData.failed ||
+      finalData.aborted ||
       (typeof finalData.failedCount === 'number' && finalData.failedCount > 0);
     if (isFailed) {
-      const failedCount = failedCountByType.get(typeId) ?? 0;
+      const failedCount = failedCountByType.get(typeId) || 0;
       failedCountByType.set(typeId, failedCount + 1);
     }
   }
