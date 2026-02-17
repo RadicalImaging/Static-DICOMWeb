@@ -8,7 +8,7 @@ const { getValue } = Tags;
 
 /**
  * Creates or updates studies/index.json.gz file by adding/updating study information
- * 
+ *
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @param {string[]} studyUIDs - Optional array of Study Instance UIDs to process (if empty, scans all studies)
  * @returns {Promise<void>}
@@ -37,7 +37,7 @@ export async function indexSummary(baseDir, studyUIDs = []) {
           existingStudyUIDs.set(studyUID, studyQuery);
         }
       }
-      console.noQuiet(`indexSummary: found ${existingStudiesIndex.length} existing studies in index`);
+      console.verbose(`indexSummary: found ${existingStudiesIndex.length} existing studies in index`);
     }
   } catch (error) {
     console.warn(`Failed to read existing studies index: ${error.message}`);
@@ -46,15 +46,15 @@ export async function indexSummary(baseDir, studyUIDs = []) {
 
   // Step 2: Determine which studies to process
   let studiesToProcess = new Set();
-  
+
   if (studyUIDs.length === 0) {
     // No UIDs provided - scan the studies directory
-    console.noQuiet('indexSummary: scanning studies directory for all studies');
+    console.verbose('indexSummary: scanning studies directory for all studies');
     const studiesPath = path.join(reader.baseDir, studiesIndexPath);
-    
+
     if (fs.existsSync(studiesPath)) {
       const studyDirectories = await reader.scanDirectory(studiesIndexPath, { withFileTypes: true });
-      
+
       for (const entry of studyDirectories) {
         // If withFileTypes is used, entry is a Dirent object
         if (entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory()) {
@@ -63,7 +63,7 @@ export async function indexSummary(baseDir, studyUIDs = []) {
           // Fallback: if entry is a string, check if it's a directory
           const studyDirPath = `${studiesIndexPath}/${entry}`;
           const fullStudyPath = path.join(reader.baseDir, studyDirPath);
-          
+
           try {
             const stats = fs.lstatSync(fullStudyPath);
             if (stats.isDirectory()) {
@@ -83,28 +83,28 @@ export async function indexSummary(baseDir, studyUIDs = []) {
     }
   }
 
-  console.noQuiet(`indexSummary: processing ${studiesToProcess.size} studies`);
+  console.verbose(`indexSummary: processing ${studiesToProcess.size} studies`);
 
   // Step 3: Read study singleton files for each study to process
   const updatedStudyUIDs = new Map();
-  
+
   for (const studyUID of studiesToProcess) {
     const studyPath = reader.getStudyPath(studyUID);
-    
+
     try {
       // Read the study singleton file (studies/{studyUID}/index.json.gz)
       const studySingleton = await reader.readJsonFile(studyPath, 'index.json');
-      
+
       if (studySingleton) {
         // Study singleton files are arrays with one element
-        let studyQuery = Array.isArray(studySingleton) && studySingleton.length > 0 
-          ? studySingleton[0] 
+        let studyQuery = Array.isArray(studySingleton) && studySingleton.length > 0
+          ? studySingleton[0]
           : studySingleton;
-        
+
         const studyUIDFromQuery = getValue(studyQuery, Tags.StudyInstanceUID);
         if (studyUIDFromQuery) {
           updatedStudyUIDs.set(studyUIDFromQuery, studyQuery);
-          console.noQuiet(`indexSummary: read study singleton for ${studyUIDFromQuery}`);
+          console.verbose(`indexSummary: read study singleton for ${studyUIDFromQuery}`);
         } else {
           console.warn(`indexSummary: study singleton for ${studyUID} missing StudyInstanceUID`);
         }
@@ -120,13 +120,13 @@ export async function indexSummary(baseDir, studyUIDs = []) {
   // Start with existing studies that are NOT being updated
   const finalStudiesIndex = [];
   const processedUIDs = new Set(updatedStudyUIDs.keys());
-  
+
   for (const [studyUID, studyQuery] of existingStudyUIDs.entries()) {
     if (!processedUIDs.has(studyUID)) {
       // Keep existing study if it's not being updated and still exists
       const studyPath = reader.getStudyPath(studyUID);
       const studyDirPath = path.join(reader.baseDir, studyPath);
-      
+
       // Check if study directory still exists
       if (fs.existsSync(studyDirPath) && fs.lstatSync(studyDirPath).isDirectory()) {
         finalStudiesIndex.push(studyQuery);
@@ -135,7 +135,7 @@ export async function indexSummary(baseDir, studyUIDs = []) {
       }
     }
   }
-  
+
   // Add/update studies that were processed
   for (const [studyUID, studyQuery] of updatedStudyUIDs.entries()) {
     finalStudiesIndex.push(studyQuery);
@@ -145,12 +145,12 @@ export async function indexSummary(baseDir, studyUIDs = []) {
   sortStudies(finalStudiesIndex);
 
   // Step 6: Write the updated studies/index.json.gz file
-  console.noQuiet(`indexSummary: writing updated studies index with ${finalStudiesIndex.length} studies`);
-  
+  console.verbose(`indexSummary: writing updated studies index with ${finalStudiesIndex.length} studies`);
+
   // Use an empty informationProvider since we're writing at the root studies level
   const writer = new FileDicomWebWriter({}, { baseDir });
   const studiesIndexStreamInfo = writer.openStream(studiesIndexPath, 'index.json', { gzip: true });
   studiesIndexStreamInfo.stream.write(Buffer.from(JSON.stringify(finalStudiesIndex)));
   await writer.closeStream(studiesIndexStreamInfo.streamKey);
-  console.noQuiet('indexSummary: studies/index.json.gz file written:', studiesIndexStreamInfo.filepath);
+  console.verbose('indexSummary: studies/index.json.gz file written:', studiesIndexStreamInfo.filepath);
 }

@@ -55,7 +55,7 @@ function updateLocation(instanceMetadata, instanceUID) {
 
 /**
  * Creates or updates series metadata/index.json.gz file
- * 
+ *
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @param {string} studyUID - Study Instance UID
  * @param {string} seriesUID - Series Instance UID
@@ -76,7 +76,7 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
 
   try {
     existingMetadata = await reader.readJsonFile(seriesPath, 'metadata');
-    
+
     // Extract SOP Instance UIDs from existing metadata
     if (existingMetadata && Array.isArray(existingMetadata)) {
       for (const instance of existingMetadata) {
@@ -95,7 +95,7 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
   // Step 2: Scan the instances directory to get actual instance UIDs
   const instanceDirectories = await reader.scanDirectory(instancesPath, { withFileTypes: true });
   const actualInstanceUIDs = new Set();
-  
+
   for (const entry of instanceDirectories) {
     // If withFileTypes is used, entry is a Dirent object
     if (entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory()) {
@@ -104,7 +104,7 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
       // Fallback: if entry is a string, check if it's a directory
       const instanceDirPath = `${instancesPath}/${entry}`;
       const fullInstancePath = path.join(reader.baseDir, instanceDirPath);
-      
+
       try {
         const stats = fs.lstatSync(fullInstancePath);
         if (stats.isDirectory()) {
@@ -119,29 +119,29 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
 
   // Step 3: Compare sets - if they match exactly, return early
   if (existingInstanceUIDs.size === actualInstanceUIDs.size &&
-      [...existingInstanceUIDs].every(uid => actualInstanceUIDs.has(uid))) {  
-    console.noQuiet('seriesSummary: instance index is up to date');
+      [...existingInstanceUIDs].every(uid => actualInstanceUIDs.has(uid))) {
+    console.verbose('seriesSummary: instance index is up to date');
     // return; // Metadata is up to date
   }
 
   // Step 4: Read all instance metadata files and collect them
   const instanceMetadataArray = [];
-  
+
   for (const instanceUID of actualInstanceUIDs) {
     const instancePath = reader.getInstancePath(studyUID, seriesUID, instanceUID);
-    
+
     try {
       let instanceMetadata = await reader.readJsonFile(instancePath, 'metadata');
-      
+
       if (instanceMetadata) {
         // Instance metadata files are arrays with one element
         if (Array.isArray(instanceMetadata) && instanceMetadata.length > 0) {
           instanceMetadata = instanceMetadata[0];
         }
-        
+
         // Update BulkDataURI paths from instance-relative to series-relative
         instanceMetadata = updateLocation(instanceMetadata, instanceUID);
-        
+
         instanceMetadataArray.push(instanceMetadata);
       }
     } catch (error) {
@@ -153,15 +153,15 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
   instanceMetadataArray.sort((a, b) => {
     const instanceNumberA = getValue(a, Tags.InstanceNumber);
     const instanceNumberB = getValue(b, Tags.InstanceNumber);
-    
+
     // Convert to numbers if possible, otherwise compare as strings
     const numA = instanceNumberA !== undefined ? Number(instanceNumberA) : Number.MAX_SAFE_INTEGER;
     const numB = instanceNumberB !== undefined ? Number(instanceNumberB) : Number.MAX_SAFE_INTEGER;
-    
+
     if (!isNaN(numA) && !isNaN(numB)) {
       return numA - numB;
     }
-    
+
     // Fallback to string comparison
     const strA = String(instanceNumberA || '');
     const strB = String(instanceNumberB || '');
@@ -171,16 +171,16 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
   // Step 6: Extract series query and instances query
   let seriesQuery = null;
   const instancesQuery = [];
-  
+
   if (instanceMetadataArray.length > 0) {
     // Extract series query from the first instance
     const firstInstance = instanceMetadataArray[0];
     seriesQuery = TagLists.extract(firstInstance, 'series', TagLists.SeriesQuery);
     // console.warn('seriesSummary: seriesQuery:', seriesQuery);
-    
+
     // Add NumberOfSeriesRelatedInstances to series query
     setValue(seriesQuery, Tags.NumberOfSeriesRelatedInstances, instanceMetadataArray.length);
-    
+
     // Extract instance query for each instance
     for (const instanceMetadata of instanceMetadataArray) {
       const instanceQuery = TagLists.extract(instanceMetadata, 'instance', TagLists.InstanceQuery);
@@ -189,19 +189,19 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
   }
 
   // Step 7: Write new series metadata file
-  console.noQuiet('seriesSummary: writing new series metadata file');
+  console.verbose('seriesSummary: writing new series metadata file');
   const writer = new FileDicomWebWriter({ studyInstanceUid: studyUID, seriesInstanceUid: seriesUID }, { baseDir });
   const metadataStreamInfo = await writer.openSeriesStream('metadata', { gzip: true });
   metadataStreamInfo.stream.write(Buffer.from(JSON.stringify(instanceMetadataArray)));
   await writer.closeStream(metadataStreamInfo.streamKey);
-  console.noQuiet('seriesSummary: metadata file written:', metadataStreamInfo.filepath);
+  console.verbose('seriesSummary: metadata file written:', metadataStreamInfo.filepath);
 
   // Step 8: Write series-singleton.json.gz
   if (seriesQuery) {
     const seriesSingletonStreamInfo = await writer.openSeriesStream('series-singleton.json', { gzip: true });
     seriesSingletonStreamInfo.stream.write(Buffer.from(JSON.stringify([seriesQuery])));
     await writer.closeStream(seriesSingletonStreamInfo.streamKey);
-    console.noQuiet('seriesSummary: series-singleton.json file written:', seriesSingletonStreamInfo.filepath);
+    console.verbose('seriesSummary: series-singleton.json file written:', seriesSingletonStreamInfo.filepath);
   }
 
   // Step 9: Write instances/index.json.gz
@@ -209,6 +209,6 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
     const instancesIndexStreamInfo = await writer.openSeriesStream('instances/index.json', { gzip: true });
     instancesIndexStreamInfo.stream.write(Buffer.from(JSON.stringify(instancesQuery)));
     await writer.closeStream(instancesIndexStreamInfo.streamKey);
-    console.noQuiet('seriesSummary: instances/index.json file written:', instancesIndexStreamInfo.filepath);
+    console.verbose('seriesSummary: instances/index.json file written:', instancesIndexStreamInfo.filepath);
   }
 }
