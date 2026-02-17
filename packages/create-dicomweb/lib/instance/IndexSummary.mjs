@@ -18,42 +18,34 @@ async function buildStudiesIndex(reader, studiesToProcess) {
 
   // Read existing studies/index.json.gz
   const existingStudyUIDs = new Map();
-  try {
-    const existingData = await reader.readJsonFile(studiesIndexPath, 'index.json');
-    if (existingData && Array.isArray(existingData)) {
-      for (const studyQuery of existingData) {
-        const studyUID = getValue(studyQuery, Tags.StudyInstanceUID);
-        if (studyUID) {
-          existingStudyUIDs.set(studyUID, studyQuery);
-        }
+  const existingData = await reader.readJsonFile(studiesIndexPath, 'index.json', { deleteFileOnError: true });
+  if (existingData && Array.isArray(existingData)) {
+    for (const studyQuery of existingData) {
+      const studyUID = getValue(studyQuery, Tags.StudyInstanceUID);
+      if (studyUID) {
+        existingStudyUIDs.set(studyUID, studyQuery);
       }
     }
-  } catch (error) {
-    console.warn(`Failed to read existing studies index: ${error.message}`);
   }
 
   // Read study singleton files for each study to process
   const updatedStudyUIDs = new Map();
   for (const studyUID of studiesToProcess) {
     const studyPath = reader.getStudyPath(studyUID);
-    try {
-      const studySingleton = await reader.readJsonFile(studyPath, 'index.json');
-      if (studySingleton) {
-        let studyQuery = Array.isArray(studySingleton) && studySingleton.length > 0
-          ? studySingleton[0]
-          : studySingleton;
-        const studyUIDFromQuery = getValue(studyQuery, Tags.StudyInstanceUID);
-        if (studyUIDFromQuery) {
-          updatedStudyUIDs.set(studyUIDFromQuery, studyQuery);
-          console.noQuiet(`indexSummary: read study singleton for ${studyUIDFromQuery}`);
-        } else {
-          console.warn(`indexSummary: study singleton for ${studyUID} missing StudyInstanceUID`);
-        }
+    const studySingleton = await reader.readJsonFile(studyPath, 'index.json', { deleteFileOnError: true });
+    if (studySingleton) {
+      let studyQuery = Array.isArray(studySingleton) && studySingleton.length > 0
+        ? studySingleton[0]
+        : studySingleton;
+      const studyUIDFromQuery = getValue(studyQuery, Tags.StudyInstanceUID);
+      if (studyUIDFromQuery) {
+        updatedStudyUIDs.set(studyUIDFromQuery, studyQuery);
+        console.verbose(`indexSummary: read study singleton for ${studyUIDFromQuery}`);
       } else {
-        console.warn(`indexSummary: study singleton file not found for ${studyUID}`);
+        console.warn(`indexSummary: study singleton for ${studyUID} missing StudyInstanceUID`);
       }
-    } catch (error) {
-      console.warn(`Failed to read study singleton for ${studyUID}: ${error.message}`);
+    } else {
+      console.noQuiet(`indexSummary: study singleton file not found for ${studyUID}`);
     }
   }
 
@@ -68,7 +60,7 @@ async function buildStudiesIndex(reader, studiesToProcess) {
       if (fs.existsSync(studyDirPath) && fs.lstatSync(studyDirPath).isDirectory()) {
         finalStudiesIndex.push(studyQuery);
       } else {
-        console.warn(`indexSummary: removing study ${studyUID} from index (directory not found)`);
+        console.noQuiet(`indexSummary: removing study ${studyUID} from index (directory not found)`);
       }
     }
   }

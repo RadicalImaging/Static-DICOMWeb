@@ -66,17 +66,13 @@ async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
 
   for (const instanceUID of actualInstanceUIDs) {
     const instancePath = reader.getInstancePath(studyUID, seriesUID, instanceUID);
-    try {
-      let instanceMetadata = await reader.readJsonFile(instancePath, 'metadata');
-      if (instanceMetadata) {
-        if (Array.isArray(instanceMetadata) && instanceMetadata.length > 0) {
-          instanceMetadata = instanceMetadata[0];
-        }
-        instanceMetadata = updateLocation(instanceMetadata, instanceUID);
-        instanceMetadataArray.push(instanceMetadata);
+    let instanceMetadata = await reader.readJsonFile(instancePath, 'metadata', { deleteFileOnError: true });
+    if (instanceMetadata) {
+      if (Array.isArray(instanceMetadata) && instanceMetadata.length > 0) {
+        instanceMetadata = instanceMetadata[0];
       }
-    } catch (error) {
-      console.warn(`Failed to read metadata for instance ${instanceUID}: ${error.message}`);
+      instanceMetadata = updateLocation(instanceMetadata, instanceUID);
+      instanceMetadataArray.push(instanceMetadata);
     }
   }
 
@@ -131,19 +127,14 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
 
   // Step 1: Check if series metadata exists
   let existingInstanceUIDs = new Set();
-  try {
-    const existingMetadata = await reader.readJsonFile(seriesPath, 'metadata');
-    if (existingMetadata && Array.isArray(existingMetadata)) {
-      for (const instance of existingMetadata) {
-        const sopUID = getValue(instance, Tags.SOPInstanceUID);
-        if (sopUID) {
-          existingInstanceUIDs.add(sopUID);
-        }
+  const existingMetadata = await reader.readJsonFile(seriesPath, 'metadata', { deleteFileOnError: true });
+  if (existingMetadata && Array.isArray(existingMetadata)) {
+    for (const instance of existingMetadata) {
+      const sopUID = getValue(instance, Tags.SOPInstanceUID);
+      if (sopUID) {
+        existingInstanceUIDs.add(sopUID);
       }
     }
-  } catch (error) {
-    console.warn(`Failed to read existing series metadata: ${error.message}`);
-    existingInstanceUIDs = new Set();
   }
 
   // Step 2: Scan the instances directory to get actual instance UIDs
@@ -170,14 +161,14 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
   // Step 3: Compare sets - if they match exactly, return early
   if (existingInstanceUIDs.size === actualInstanceUIDs.size &&
       [...existingInstanceUIDs].every(uid => actualInstanceUIDs.has(uid))) {
-    console.noQuiet('seriesSummary: instance index is up to date');
+    console.verbose('seriesSummary: instance index is up to date');
     // return; // Metadata is up to date
   }
 
   const informationProvider = { studyInstanceUid: studyUID, seriesInstanceUid: seriesUID };
 
   // Step 7: Write new series metadata file with retry
-  console.noQuiet('seriesSummary: writing new series metadata file');
+  console.verbose('seriesSummary: writing new series metadata file');
   await writeWithRetry({
     informationProvider,
     baseDir,

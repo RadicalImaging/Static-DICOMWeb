@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { open } from 'fs/promises';
 import path from 'path';
 import { DicomWebWriter } from './DicomWebWriter.mjs';
 
@@ -17,22 +18,55 @@ function getTempRelativePath(relativePath) {
   return 'studies/temp';
 }
 
+const COMPARE_BLOCK_SIZE = 4096;
+
 /**
- * Compares two files byte-by-byte.
+ * Compares two files by size then block-by-block without reading entire files into memory.
+ * Safe for arbitrarily large files (multi-GB).
  * @param {string} fileA - Path to first file
  * @param {string} fileB - Path to second file
- * @returns {boolean} - True if files are byte-identical
+ * @returns {Promise<boolean>} - True if files are byte-identical
  */
-function filesAreIdentical(fileA, fileB) {
+async function filesAreIdentical(fileA, fileB) {
+  let fdA, fdB;
   try {
-    const statA = fs.statSync(fileA);
-    const statB = fs.statSync(fileB);
+    fdA = await open(fileA, 'r');
+    fdB = await open(fileB, 'r');
+
+    const [statA, statB] = await Promise.all([fdA.stat(), fdB.stat()]);
     if (statA.size !== statB.size) return false;
-    const bufA = fs.readFileSync(fileA);
-    const bufB = fs.readFileSync(fileB);
-    return bufA.equals(bufB);
+    // Zero-length files with same size are identical
+    if (statA.size === 0) return true;
+
+    // Capture destination mtime before comparison so we can detect concurrent writes
+    const mtimeBefore = statB.mtimeMs;
+
+    const bufA = Buffer.allocUnsafe(COMPARE_BLOCK_SIZE);
+    const bufB = Buffer.allocUnsafe(COMPARE_BLOCK_SIZE);
+    let offset = 0;
+
+    while (offset < statA.size) {
+      const [readA, readB] = await Promise.all([
+        fdA.read(bufA, 0, COMPARE_BLOCK_SIZE, offset),
+        fdB.read(bufB, 0, COMPARE_BLOCK_SIZE, offset),
+      ]);
+      if (readA.bytesRead !== readB.bytesRead) return false;
+      if (!bufA.subarray(0, readA.bytesRead).equals(bufB.subarray(0, readB.bytesRead))) {
+        return false;
+      }
+      offset += readA.bytesRead;
+    }
+
+    // Re-stat destination to ensure it was not modified during the comparison
+    const statBAfter = await fdB.stat();
+    if (statBAfter?.mtimeMs !== mtimeBefore) return false;
+
+    return true;
   } catch {
     return false;
+  } finally {
+    await fdA?.close().catch(() => {});
+    await fdB?.close().catch(() => {});
   }
 }
 
@@ -140,7 +174,7 @@ export class FileDicomWebWriter extends DicomWebWriter {
     const result = await super.closeStream(streamKey);
 
     if (result && streamInfo && streamInfo.tempFilepath) {
-      this._moveTempToFinal(streamInfo);
+      await this._moveTempToFinal(streamInfo);
     }
 
     return result;
@@ -153,7 +187,7 @@ export class FileDicomWebWriter extends DicomWebWriter {
    * @param {Object} streamInfo - The stream info
    * @private
    */
-  _moveTempToFinal(streamInfo) {
+  async _moveTempToFinal(streamInfo) {
     const { tempFilepath, filepath, finalDir, originalMtime, compareOnClose } = streamInfo;
 
     try {
@@ -176,7 +210,7 @@ export class FileDicomWebWriter extends DicomWebWriter {
 
       // If compareOnClose is enabled and a destination file exists, check identity
       if (compareOnClose && currentMtime !== null) {
-        if (filesAreIdentical(tempFilepath, filepath)) {
+        if (await filesAreIdentical(tempFilepath, filepath)) {
           streamInfo.writeStatus = 'identical';
           this._cleanupTempFile(tempFilepath);
           return;

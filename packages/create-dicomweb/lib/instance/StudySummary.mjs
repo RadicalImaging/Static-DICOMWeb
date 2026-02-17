@@ -21,7 +21,7 @@ async function getFirstInstanceMetadata(reader, studyUID, seriesUIDs) {
       const instanceUID = entry?.name ?? entry;
       if (typeof instanceUID !== 'string') continue;
       const instancePath = reader.getInstancePath(studyUID, seriesUID, instanceUID);
-      const metadata = await reader.readJsonFile(instancePath, 'metadata');
+      const metadata = await reader.readJsonFile(instancePath, 'metadata', { deleteFileOnError: true });
       if (metadata) {
         return Array.isArray(metadata) && metadata.length > 0 ? metadata[0] : metadata;
       }
@@ -55,7 +55,7 @@ async function readStudyData(reader, studyUID) {
           actualSeriesUIDs.add(entry);
         }
       } catch (error) {
-        console.warn(`Could not stat ${seriesDirPath}: ${error.message}`);
+        console.verbose(`Could not stat ${seriesDirPath}: ${error.message}`);
       }
     }
   }
@@ -67,25 +67,21 @@ async function readStudyData(reader, studyUID) {
 
   for (const seriesUID of actualSeriesUIDs) {
     const seriesSingletonPath = reader.getSeriesPath(studyUID, seriesUID);
-    try {
-      let seriesSingleton = await reader.readJsonFile(seriesSingletonPath, 'series-singleton.json');
-      if (seriesSingleton) {
-        if (Array.isArray(seriesSingleton) && seriesSingleton.length > 0) {
-          seriesSingleton = seriesSingleton[0];
-        }
-        if (!firstSeriesSingleton) {
-          firstSeriesSingleton = seriesSingleton;
-        }
-        seriesQueryArray.push(seriesSingleton);
-        const numberOfInstances = getValue(seriesSingleton, Tags.NumberOfSeriesRelatedInstances);
-        if (numberOfInstances !== undefined) {
-          totalInstances += Number(numberOfInstances) || 0;
-        }
-      } else {
-        console.noQuiet('studySummary: series singleton file not found:', seriesSingletonPath);
+    let seriesSingleton = await reader.readJsonFile(seriesSingletonPath, 'series-singleton.json', { deleteFileOnError: true });
+    if (seriesSingleton) {
+      if (Array.isArray(seriesSingleton) && seriesSingleton.length > 0) {
+        seriesSingleton = seriesSingleton[0];
       }
-    } catch (error) {
-      console.warn(`Failed to read series singleton for series ${seriesUID}: ${error.message}`);
+      if (!firstSeriesSingleton) {
+        firstSeriesSingleton = seriesSingleton;
+      }
+      seriesQueryArray.push(seriesSingleton);
+      const numberOfInstances = getValue(seriesSingleton, Tags.NumberOfSeriesRelatedInstances);
+      if (numberOfInstances !== undefined) {
+        totalInstances += Number(numberOfInstances) || 0;
+      }
+    } else {
+      console.verbose('studySummary: series singleton file not found:', seriesSingletonPath);
     }
   }
 
@@ -149,23 +145,18 @@ export async function studySummary(baseDir, studyUID) {
   const seriesPath = `${studyPath}/series`;
 
   // Check if series/index.json.gz exists and is up to date
-  console.noQuiet('studySummary: seriesIndexFileInfo:', seriesPath);
+  console.verbose('studySummary: seriesIndexFileInfo:', seriesPath);
 
   let existingSeriesUIDs = new Set();
-  try {
-    const existingSeriesIndex = await reader.readJsonFile(seriesPath, 'index.json');
-    if (existingSeriesIndex) {
-      for (const seriesQuery of existingSeriesIndex) {
-        const seriesUID = getValue(seriesQuery, Tags.SeriesInstanceUID);
-        if (seriesUID) {
-          existingSeriesUIDs.add(seriesUID);
-        }
+  const existingSeriesIndex = await reader.readJsonFile(seriesPath, 'index.json', { deleteFileOnError: true });
+  if (existingSeriesIndex) {
+    for (const seriesQuery of existingSeriesIndex) {
+      const seriesUID = getValue(seriesQuery, Tags.SeriesInstanceUID);
+      if (seriesUID) {
+        existingSeriesUIDs.add(seriesUID);
       }
-      console.noQuiet('studySummary: existingSeriesUIDs:', existingSeriesUIDs.size);
     }
-  } catch (error) {
-    console.warn('Failed to read existing series index:', error.message);
-    existingSeriesUIDs = new Set();
+    console.verbose('studySummary: existingSeriesUIDs:', existingSeriesUIDs.size);
   }
 
   // Scan to check if update is needed
@@ -183,7 +174,7 @@ export async function studySummary(baseDir, studyUID) {
           actualSeriesUIDs.add(entry);
         }
       } catch (error) {
-        console.warn(`Could not stat ${seriesDirPath}: ${error.message}`);
+        console.verbose(`Could not stat ${seriesDirPath}: ${error.message}`);
       }
     }
   }
@@ -192,14 +183,14 @@ export async function studySummary(baseDir, studyUID) {
     existingSeriesUIDs.size === actualSeriesUIDs.size &&
     [...existingSeriesUIDs].every(uid => actualSeriesUIDs.has(uid))
   ) {
-    console.noQuiet('studySummary: series index is up to date');
+    console.verbose('studySummary: series index is up to date');
     return;
   }
 
   const informationProvider = { studyInstanceUid: studyUID };
 
   // Write series/index.json.gz with retry
-  console.noQuiet('studySummary: writing new series index file');
+  console.verbose('studySummary: writing new series index file');
   await writeWithRetry({
     informationProvider,
     baseDir,
@@ -213,7 +204,7 @@ export async function studySummary(baseDir, studyUID) {
   });
 
   // Write study singleton (studies/${studyUID}/index.json.gz) with retry
-  console.noQuiet('studySummary: writing new study singleton file');
+  console.verbose('studySummary: writing new study singleton file');
   await writeWithRetry({
     informationProvider,
     baseDir,
