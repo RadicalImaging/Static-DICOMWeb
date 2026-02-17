@@ -285,6 +285,8 @@ export function streamPostController(params) {
       try {
         const promise = instanceFromStream(stream, {
           dicomdir,
+          sizeBulkdataTags: params.sizeBulkdataTags,
+          sizePrivateBulkdataTags: params.sizePrivateBulkdataTags,
           streamWritePromiseTracker: req.streamWritePromiseTracker,
           writerOptions: {
             baseDir: dicomdir,
