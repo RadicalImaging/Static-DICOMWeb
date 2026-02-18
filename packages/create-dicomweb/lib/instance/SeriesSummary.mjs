@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { FileDicomWebReader } from './FileDicomWebReader.mjs';
-import { writeWithRetry } from './writeWithRetry.mjs';
+import { writeMultipleWithRetry } from './writeWithRetry.mjs';
 import { Tags, TagLists } from '@radicalimaging/static-wado-util';
 
 const { getValue, setValue } = Tags;
@@ -26,7 +26,7 @@ function updateLocation(instanceMetadata, instanceUID) {
 
   function processObject(obj, instanceUid) {
     if (Array.isArray(obj)) {
-      return obj.map((item) => processObject(item, instanceUid));
+      return obj.map(item => processObject(item, instanceUid));
     }
 
     if (obj && typeof obj === 'object') {
@@ -66,7 +66,9 @@ async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
 
   for (const instanceUID of actualInstanceUIDs) {
     const instancePath = reader.getInstancePath(studyUID, seriesUID, instanceUID);
-    let instanceMetadata = await reader.readJsonFile(instancePath, 'metadata', { deleteFileOnError: true });
+    let instanceMetadata = await reader.readJsonFile(instancePath, 'metadata', {
+      deleteFileOnError: true,
+    });
     if (instanceMetadata) {
       if (Array.isArray(instanceMetadata) && instanceMetadata.length > 0) {
         instanceMetadata = instanceMetadata[0];
@@ -116,7 +118,7 @@ async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
  * @param {string} seriesUID - Series Instance UID
  * @returns {Promise<void>}
  */
-export async function seriesSummary(baseDir, studyUID, seriesUID) {
+export async function seriesSummary(baseDir, studyUID, seriesUID, options) {
   if (!baseDir || !studyUID || !seriesUID) {
     throw new Error('baseDir, studyUID, and seriesUID are required');
   }
@@ -125,9 +127,11 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
   const seriesPath = reader.getSeriesPath(studyUID, seriesUID);
   const instancesPath = `${seriesPath}/instances`;
 
-  // Step 1: Check if series metadata exists
+  // Check if series metadata exists
   let existingInstanceUIDs = new Set();
-  const existingMetadata = await reader.readJsonFile(seriesPath, 'metadata', { deleteFileOnError: true });
+  const existingMetadata = await reader.readJsonFile(seriesPath, 'metadata', {
+    deleteFileOnError: true,
+  });
   if (existingMetadata && Array.isArray(existingMetadata)) {
     for (const instance of existingMetadata) {
       const sopUID = getValue(instance, Tags.SOPInstanceUID);
@@ -137,7 +141,7 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
     }
   }
 
-  // Step 2: Scan the instances directory to get actual instance UIDs
+  // Scan the instances directory to get actual instance UIDs
   const instanceDirectories = await reader.scanDirectory(instancesPath, { withFileTypes: true });
   const actualInstanceUIDs = new Set();
 
@@ -158,51 +162,44 @@ export async function seriesSummary(baseDir, studyUID, seriesUID) {
     }
   }
 
-  // Step 3: Compare sets - if they match exactly, return early
-  if (existingInstanceUIDs.size === actualInstanceUIDs.size &&
-      [...existingInstanceUIDs].every(uid => actualInstanceUIDs.has(uid))) {
+  // Compare sets - if they match exactly, return early
+  if (
+    existingInstanceUIDs.size === actualInstanceUIDs.size &&
+    [...existingInstanceUIDs].every(uid => actualInstanceUIDs.has(uid))
+  ) {
     console.verbose('seriesSummary: instance index is up to date');
     // return; // Metadata is up to date
   }
 
   const informationProvider = { studyInstanceUid: studyUID, seriesInstanceUid: seriesUID };
 
-  // Step 7: Write new series metadata file with retry
-  console.verbose('seriesSummary: writing new series metadata file');
-  await writeWithRetry({
+  // Write all series-level files in one retry loop so readSeriesData is called once per attempt
+  console.verbose('seriesSummary: writing series metadata and index files');
+  await writeMultipleWithRetry({
+    ...options,
     informationProvider,
     baseDir,
-    openStream: (writer) => writer.openSeriesStream('metadata', { gzip: true, compareOnClose: true }),
-    generateData: async () => {
-      const data = await readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs);
-      return JSON.stringify(data.instanceMetadataArray);
-    },
-    label: `seriesSummary(${studyUID}/${seriesUID}) metadata`,
-  });
-
-  // Step 8: Write series-singleton.json.gz with retry
-  await writeWithRetry({
-    informationProvider,
-    baseDir,
-    openStream: (writer) => writer.openSeriesStream('series-singleton.json', { gzip: true, compareOnClose: true }),
-    generateData: async () => {
-      const data = await readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs);
-      if (!data.seriesQuery) return null;
-      return JSON.stringify([data.seriesQuery]);
-    },
-    label: `seriesSummary(${studyUID}/${seriesUID}) series-singleton.json`,
-  });
-
-  // Step 9: Write instances/index.json.gz with retry
-  await writeWithRetry({
-    informationProvider,
-    baseDir,
-    openStream: (writer) => writer.openSeriesStream('instances/index.json', { gzip: true, compareOnClose: true }),
-    generateData: async () => {
-      const data = await readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs);
-      if (data.instancesQuery.length === 0) return null;
-      return JSON.stringify(data.instancesQuery);
-    },
-    label: `seriesSummary(${studyUID}/${seriesUID}) instances/index.json`,
+    generatePayload: () => readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs),
+    writes: [
+      {
+        openStream: writer =>
+          writer.openSeriesStream('metadata', { gzip: true, compareOnClose: true }),
+        getData: data => JSON.stringify(data.instanceMetadataArray),
+        label: `seriesSummary(${studyUID}/${seriesUID}) metadata`,
+      },
+      {
+        openStream: writer =>
+          writer.openSeriesStream('series-singleton.json', { gzip: true, compareOnClose: true }),
+        getData: data => (data.seriesQuery ? JSON.stringify([data.seriesQuery]) : null),
+        label: `seriesSummary(${studyUID}/${seriesUID}) series-singleton.json`,
+      },
+      {
+        openStream: writer =>
+          writer.openSeriesStream('instances/index.json', { gzip: true, compareOnClose: true }),
+        getData: data =>
+          data?.instancesQuery?.length ? JSON.stringify(data.instancesQuery) : null,
+        label: `seriesSummary(${studyUID}/${seriesUID}) instances/index.json`,
+      },
+    ],
   });
 }

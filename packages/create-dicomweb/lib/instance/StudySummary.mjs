@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { FileDicomWebReader } from './FileDicomWebReader.mjs';
-import { writeWithRetry } from './writeWithRetry.mjs';
+import { writeMultipleWithRetry } from './writeWithRetry.mjs';
 import { Tags, TagLists } from '@radicalimaging/static-wado-util';
 
 const { getValue, setValue } = Tags;
@@ -21,7 +21,9 @@ async function getFirstInstanceMetadata(reader, studyUID, seriesUIDs) {
       const instanceUID = entry?.name ?? entry;
       if (typeof instanceUID !== 'string') continue;
       const instancePath = reader.getInstancePath(studyUID, seriesUID, instanceUID);
-      const metadata = await reader.readJsonFile(instancePath, 'metadata', { deleteFileOnError: true });
+      const metadata = await reader.readJsonFile(instancePath, 'metadata', {
+        deleteFileOnError: true,
+      });
       if (metadata) {
         return Array.isArray(metadata) && metadata.length > 0 ? metadata[0] : metadata;
       }
@@ -67,7 +69,9 @@ async function readStudyData(reader, studyUID) {
 
   for (const seriesUID of actualSeriesUIDs) {
     const seriesSingletonPath = reader.getSeriesPath(studyUID, seriesUID);
-    let seriesSingleton = await reader.readJsonFile(seriesSingletonPath, 'series-singleton.json', { deleteFileOnError: true });
+    let seriesSingleton = await reader.readJsonFile(seriesSingletonPath, 'series-singleton.json', {
+      deleteFileOnError: true,
+    });
     if (seriesSingleton) {
       if (Array.isArray(seriesSingleton) && seriesSingleton.length > 0) {
         seriesSingleton = seriesSingleton[0];
@@ -148,7 +152,9 @@ export async function studySummary(baseDir, studyUID) {
   console.verbose('studySummary: seriesIndexFileInfo:', seriesPath);
 
   let existingSeriesUIDs = new Set();
-  const existingSeriesIndex = await reader.readJsonFile(seriesPath, 'index.json', { deleteFileOnError: true });
+  const existingSeriesIndex = await reader.readJsonFile(seriesPath, 'index.json', {
+    deleteFileOnError: true,
+  });
   if (existingSeriesIndex) {
     for (const seriesQuery of existingSeriesIndex) {
       const seriesUID = getValue(seriesQuery, Tags.SeriesInstanceUID);
@@ -189,31 +195,26 @@ export async function studySummary(baseDir, studyUID) {
 
   const informationProvider = { studyInstanceUid: studyUID };
 
-  // Write series/index.json.gz with retry
-  console.verbose('studySummary: writing new series index file');
-  await writeWithRetry({
+  // Write both study-level files in one retry loop so readStudyData is called once per attempt
+  console.verbose('studySummary: writing series index and study singleton files');
+  await writeMultipleWithRetry({
     informationProvider,
     baseDir,
-    openStream: (writer) => writer.openStudyStream('series/index.json', { gzip: true, compareOnClose: true }),
-    generateData: async () => {
-      const data = await readStudyData(reader, studyUID);
-      if (data.seriesQueryArray.length === 0) return null;
-      return JSON.stringify(data.seriesQueryArray);
-    },
-    label: `studySummary(${studyUID}) series/index.json`,
-  });
-
-  // Write study singleton (studies/${studyUID}/index.json.gz) with retry
-  console.verbose('studySummary: writing new study singleton file');
-  await writeWithRetry({
-    informationProvider,
-    baseDir,
-    openStream: (writer) => writer.openStudyStream('index.json', { gzip: true, compareOnClose: true }),
-    generateData: async () => {
-      const data = await readStudyData(reader, studyUID);
-      if (!data.studyQuery) return null;
-      return JSON.stringify([data.studyQuery]);
-    },
-    label: `studySummary(${studyUID}) index.json`,
+    generatePayload: () => readStudyData(reader, studyUID),
+    writes: [
+      {
+        openStream: writer =>
+          writer.openStudyStream('series/index.json', { gzip: true, compareOnClose: true }),
+        getData: data =>
+          data.seriesQueryArray.length > 0 ? JSON.stringify(data.seriesQueryArray) : null,
+        label: `studySummary(${studyUID}) series/index.json`,
+      },
+      {
+        openStream: writer =>
+          writer.openStudyStream('index.json', { gzip: true, compareOnClose: true }),
+        getData: data => (data.studyQuery ? JSON.stringify([data.studyQuery]) : null),
+        label: `studySummary(${studyUID}) index.json`,
+      },
+    ],
   });
 }
