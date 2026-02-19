@@ -13,46 +13,46 @@ import { indexSummary } from '../instance/IndexSummary.mjs';
  */
 export async function createMain(fileNames, options = {}) {
   const { dicomdir, studyIndex = true } = options;
-  
+
   if (!dicomdir) {
     throw new Error('dicomdir option is required');
   }
-  
+
   // Step 1: Process instances and collect study UIDs
   console.log('Processing instances...');
   const studyUIDs = await instanceMain(fileNames, options);
-  
+
   if (studyUIDs.size === 0) {
     console.warn('No study UIDs found in processed instances');
     return;
   }
-  
+
   console.log(`Found ${studyUIDs.size} unique study(ies)`);
-  
+
   // Step 2: For each study UID, process series and then study metadata
   for (const studyUID of studyUIDs) {
     try {
       // Process series for this study
-      console.log(`Processing series for study ${studyUID}...`);
+      console.noQuiet(`Processing series for study ${studyUID}...`);
       await seriesMain(studyUID, options);
-      
+
       // Process study metadata right after series
-      console.log(`Processing study metadata for study ${studyUID}...`);
+      console.noQuiet(`Processing study metadata for study ${studyUID}...`);
       await studyMain(studyUID, options);
-      
-      console.log(`Completed processing for study ${studyUID}`);
+
+      console.noQuiet(`Completed processing for study ${studyUID}`);
     } catch (error) {
       console.error(`Error processing study ${studyUID}: ${error.message}`);
       throw error;
     }
   }
-  
+
   // Step 3: Create/update studies/index.json.gz file unless disabled
   if (studyIndex) {
-    console.log('Creating/updating studies index...');
+    console.noQuiet('Creating/updating studies index...');
     const studyUIDsArray = Array.from(studyUIDs);
     await indexSummary(dicomdir, studyUIDsArray);
   }
-  
+
   console.log('Completed all processing');
 }

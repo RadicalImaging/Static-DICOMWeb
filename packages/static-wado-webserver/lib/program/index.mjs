@@ -1,5 +1,5 @@
 import * as staticWadoUtil from '@radicalimaging/static-wado-util';
-const { parseTimeoutToMs } = staticWadoUtil;
+const { parseTimeoutToMs, parseSizeToBytes } = staticWadoUtil;
 import dicomWebServerConfig from '../dicomWebServerConfig.mjs';
 import DicomWebServer from '../index.mjs';
 import { installFromEnv } from '../util/asyncStackDump.mjs';
@@ -106,6 +106,14 @@ async function configureProgram(defaults = dicomWebServerConfig) {
       defaultValue: 60,
     },
     {
+      key: '--bulkdata-size <size>',
+      description: 'Size threshold for public bulkdata tags (bytes or with units e.g. 128k). Default: 131074',
+    },
+    {
+      key: '--private-bulkdata-size <size>',
+      description: 'Size threshold for private bulkdata tags (bytes or with units e.g. 128). Default: 128',
+    },
+    {
       key: '--hang',
       description: 'Enable /dicomweb/hang endpoint for testing server hangs and stack traces',
       defaultValue: false,
@@ -143,6 +151,13 @@ async function configureProgram(defaults = dicomWebServerConfig) {
 
   if (opts.livelockDetect) {
     setLivelockEnabled(true);
+  }
+
+  if (opts.bulkdataSize) {
+    program.dicomWebServerConfig.sizeBulkdataTags = parseSizeToBytes(opts.bulkdataSize);
+  }
+  if (opts.privateBulkdataSize) {
+    program.dicomWebServerConfig.sizePrivateBulkdataTags = parseSizeToBytes(opts.privateBulkdataSize);
   }
 
   program.dicomWebServerConfig.hang = !!opts.hang;

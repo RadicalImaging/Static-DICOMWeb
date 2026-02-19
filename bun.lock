@@ -245,7 +245,7 @@
     "@cornerstonejs/codec-openjph": ">=2.4.5",
     "@cornerstonejs/dicom-codec": "1.0.9",
     "canvas": "3.1.0",
-    "dcmjs": "0.50.0",
+    "dcmjs": "0.50.1",
     "has-flag": "4.0.0",
     "node-object-hash": "3.1.1",
   },
@@ -1386,7 +1386,7 @@
 
     "dateformat": ["dateformat@3.0.3", "", {}, "sha512-jyCETtSl3VMZMWeRo7iY1FL19ges1t55hMo5yaam4Jrsm5EPL89UQkoQRyiI+Yf4k8r2ZpdngkV8hr1lIdjb3Q=="],
 
-    "dcmjs": ["dcmjs@0.50.0", "", { "dependencies": { "@babel/runtime-corejs3": "^7.22.5", "adm-zip": "^0.5.10", "gl-matrix": "^3.1.0", "lodash.clonedeep": "^4.5.0", "loglevel": "^1.8.1", "ndarray": "^1.0.19", "pako": "^2.0.4" } }, "sha512-StzB8L0N0O/Nj37B+YHHnVkXk3kPP7Ru8wBDj+x4FAGg+dE8HNmX7f3qjU4NTxW6TrkfLwFOlkKNzWUglKOAPA=="],
+    "dcmjs": ["dcmjs@0.50.1", "", { "dependencies": { "@babel/runtime-corejs3": "^7.22.5", "adm-zip": "^0.5.10", "gl-matrix": "^3.1.0", "lodash.clonedeep": "^4.5.0", "loglevel": "^1.8.1", "ndarray": "^1.0.19", "pako": "^2.0.4" } }, "sha512-858uKIFD8plzv0lPcvZceA/ZGH/wzZf36wFkQToie3pSWp8YRI88dysQYQI1DJxc6AyGPk6eyf6RwKJbhoiQUw=="],
 
     "dcmjs-dimse": ["dcmjs-dimse@0.1.31", "", { "dependencies": { "async-eventemitter": "^0.2.4", "dcmjs": "^0.38.1", "smart-buffer": "^4.2.0", "ts-mixer": "^6.0.4", "winston": "^3.17.0" } }, "sha512-77rTn3LpZCVyA4a3fCVcXVGVh9FjcJtCZScYhi1l/U0fPMGScVSagEGCEdtakmgZT0CM3aPRgFM38MxMw8fz3Q=="],
 

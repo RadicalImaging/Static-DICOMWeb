@@ -27,6 +27,11 @@ const { dicomWebServerConfig } = ConfigPoint.register({
     },
     // proxyAe: "AE-NAME",
 
+    /** Size threshold in bytes for public bulkdata tags (default: 131074, i.e. 128k + 2). Set via --bulkdata-size. */
+    sizeBulkdataTags: undefined,
+    /** Size threshold in bytes for private bulkdata tags (default: 128). Set via --private-bulkdata-size. */
+    sizePrivateBulkdataTags: undefined,
+
     /** When true, enable /dicomweb/hang endpoint for testing (--hang). */
     hang: false,
 

@@ -85,6 +85,8 @@ program
   .argument('<part10...>', 'part 10 file(s) or directory(ies)')
   .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
   .option('--no-study-index', 'Skip creating/updating studies/index.json.gz file')
+  .option('--bulkdata-size <size>', 'Size threshold in bytes for public bulkdata tags (default: 131074, i.e. 128k + 2)')
+  .option('--private-bulkdata-size <size>', 'Size threshold in bytes for private bulkdata tags (default: 128)')
   .action(async (fileNames, options) => {
     updateVerboseLog();
     const createOptions = {};
@@ -93,6 +95,12 @@ program
     }
     // studyIndex defaults to true unless --no-study-index is specified
     createOptions.studyIndex = options.studyIndex !== false;
+    if (options.bulkdataSize) {
+      createOptions.sizeBulkdataTags = parseSizeToBytes(options.bulkdataSize);
+    }
+    if (options.privateBulkdataSize) {
+      createOptions.sizePrivateBulkdataTags = parseSizeToBytes(options.privateBulkdataSize);
+    }
     await createMain(fileNames, createOptions);
   });
 

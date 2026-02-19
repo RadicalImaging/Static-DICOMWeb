@@ -4,12 +4,10 @@ import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
 
 const { TagHex, BULKDATA_VRS } = constants;
 
-
 /**
  * Filter that converts to inline binary.
  */
 export function inlineBinaryFilter(options = {}) {
- 
   /**
    * Filter method: Called when a tag is being closed (popped from stack).
    * When converting to InlineBinary, performs the default pop logic and returns
@@ -37,16 +35,10 @@ export function inlineBinaryFilter(options = {}) {
     dest.InlineBinary = base64;
 
     // Default pop behavior without calling next (avoids dcmjs InlineBinary log)
-    const result = current.pop?.() ?? current.dest;
-    if (result.Value === null) {
-      result.Value = [];
-    } else if (
-      result.Value?.length === 1 &&
-      (result.Value[0] === null || result.Value[0] === undefined)
-    ) {
-      result.Value = [];
-    }
-    this.current = current.parent;
+    const result = this.current.pop?.() ?? this.current.dest;
+    delete result.Value;
+    result.InlineBinary = base64;
+    this.current = this.current.parent;
     return result;
   }
 

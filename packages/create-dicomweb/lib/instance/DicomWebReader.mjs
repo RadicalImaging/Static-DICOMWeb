@@ -202,9 +202,10 @@ export class DicomWebReader {
      * Reads a JSON file from a relative path
      * @param {string} relativePath - Relative path within baseDir
      * @param {string} filename - Filename to read
+     * @param {Object} [options] - Options (e.g. deleteFileOnError; see FileDicomWebReader)
      * @returns {Promise<Object|undefined>} - Parsed JSON object or undefined if file doesn't exist
      */
-    async readJsonFile(relativePath, filename) {
+    async readJsonFile(relativePath, filename, options = {}) {
       const stream = await this.openInputStream(relativePath, filename);
       if (!stream) {
         return undefined;

@@ -104,6 +104,34 @@ export class FileDicomWebReader extends DicomWebReader {
   }
 
   /**
+   * Reads a JSON file; on decompress or parse error, optionally deletes the file and returns undefined.
+   * @param {string} relativePath - Relative path within baseDir
+   * @param {string} filename - Filename to read
+   * @param {Object} [options] - Options
+   * @param {boolean} [options.deleteFileOnError=false] - If true, delete the file (or .gz) on read/parse error and return undefined
+   * @returns {Promise<Object|undefined>} - Parsed JSON or undefined if missing or (when deleteFileOnError) on error
+   */
+  async readJsonFile(relativePath, filename, options = {}) {
+    const fileInfo = this.fileExists(relativePath, filename);
+    if (!fileInfo) {
+      return undefined;
+    }
+    try {
+      return await super.readJsonFile(relativePath, filename, options);
+    } catch (error) {
+      if (options.deleteFileOnError) {
+        try {
+          await fs.promises.unlink(fileInfo.path);
+          console.noQuiet(`Deleted corrupted file ${fileInfo.path}: ${error.message}`);
+        } catch (unlinkErr) {
+          console.warn(`Failed to delete corrupted file ${fileInfo.path}: ${unlinkErr.message}`);
+        }
+      }
+      return undefined;
+    }
+  }
+
+  /**
    * Scans a directory and returns its contents
    * @param {string} relativePath - Relative path to scan
    * @param {Object} [options] - Scan options
