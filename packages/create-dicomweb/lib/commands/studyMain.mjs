@@ -8,17 +8,17 @@ import { studySummary } from '../instance/StudySummary.mjs';
  */
 export async function studyMain(studyUID, options = {}) {
   const { dicomdir } = options;
-  
+
   if (!dicomdir) {
     throw new Error('dicomdir option is required');
   }
-  
+
   if (!studyUID) {
     throw new Error('studyUID is required');
   }
-  
+
   try {
-    console.noQuiet(`Processing study ${studyUID}...`);
+    console.verbose(`Processing study ${studyUID}...`);
     await studySummary(dicomdir, studyUID);
     console.noQuiet(`Completed study ${studyUID}`);
   } catch (error) {

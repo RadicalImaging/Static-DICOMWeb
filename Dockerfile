@@ -12,7 +12,7 @@ COPY --parents bun.lock *.tgz package.json packages/*/package.json ./
 
 # Install dependencies
 ENV PATH=/app/node_modules/.bin:$PATH
-RUN bun install 
+RUN bun install
 # Copy remaining source code
 COPY --link --exclude=node_modules --exclude=**/dist . .
 
@@ -77,4 +77,4 @@ COPY ./docker/* .
 EXPOSE 5000
 EXPOSE 6499
 # CMD ["dicomwebserver", "-q"]
-CMD ["monitordicomwebserver", "-q"]
+CMD ["monitordicomwebserver"]

@@ -349,10 +349,6 @@ export function multipartStream(opts) {
           // Add error handler to prevent unhandled promise rejections
           // The error will still be caught by Promise.allSettled in completePostController
           p.catch(err => {
-            console.error(
-              `[multipartStream] Unhandled error in listener for Part ${partCount}:`,
-              err.message || String(err)
-            );
             readBufferStream.setComplete();
             if (onStreamError) onStreamError(err, fileInfo);
             // Resume part so it drains and emits 'end' – otherwise a paused part never completes
@@ -489,7 +485,7 @@ export function multipartStream(opts) {
 
       // Only proceed if Dicer has finished parsing AND all parts have completed
       if (dicerFinished && completedParts >= partCount && partCount > 0) {
-        console.noQuiet(
+        console.verbose(
           `[multipartStream] All parts completed. Total parts: ${partCount}, Completed: ${completedParts}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`
         );
 
@@ -500,7 +496,7 @@ export function multipartStream(opts) {
           const WAIT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
           let waitTimeoutId = null;
           try {
-            console.warn(
+            console.verbose(
               `[multipartStream] Waiting for ${req.uploadListenerPromises.length} listener promise(s) to complete...`
             );
             // While progress is being made, wait for it to complete
@@ -521,7 +517,7 @@ export function multipartStream(opts) {
             await Promise.race([Promise.allSettled(req.uploadListenerPromises), abortWhenCalled]);
             if (waitTimeoutId) clearTimeout(waitTimeoutId);
             if (aborted) return;
-            console.warn(`[multipartStream] All listener promises completed`);
+            console.verbose(`[multipartStream] All listener promises completed`);
           } catch (err) {
             if (waitTimeoutId) clearTimeout(waitTimeoutId);
             if (aborted) return;
@@ -546,7 +542,7 @@ export function multipartStream(opts) {
     dicer.on('finish', () => {
       if (aborted) return;
       dicerFinished = true;
-      console.noQuiet(
+      console.verbose(
         `[multipartStream] Dicer finished parsing. Total parts: ${partCount}, Completed: ${completedParts}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`
       );
       // Check if all parts have already completed (might happen if parts finish before Dicer finishes)

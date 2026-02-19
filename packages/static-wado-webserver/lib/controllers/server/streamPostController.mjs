@@ -123,7 +123,7 @@ export function streamPostController(params) {
   disableSummaryUpdates = params.disableSummary === true;
   const dicomdir = handleHomeRelative(params.rootDir);
   stowRootDir = dicomdir;
-  console.noQuiet('Storing POST uploads to:', dicomdir);
+  console.noQuiet('[streamPostController] Storing POST uploads to:', dicomdir);
 
   // Initialize messaging service and register handlers (only once)
   if (!messagingInstance) {
@@ -135,7 +135,7 @@ export function streamPostController(params) {
     setupMessageHandlers(messagingInstance, dicomdir, params);
     if (messagingInstance.start) {
       messagingInstance.start().catch(err => {
-        console.error('Failed to start messaging service:', err);
+        console.error('[streamPostController] Failed to start messaging service:', err);
       });
     }
     handlersInitialized = true;
@@ -199,6 +199,13 @@ export function streamPostController(params) {
         });
         req.statusMonitorPostJobId = null;
       }
+      console.noQuiet(
+        '[streamPostController] POST upload complete:',
+        partCount,
+        'files,',
+        totalBytes,
+        'bytes in'
+      );
     },
     onRequestAbort: (req, err) => {
       req.uploadPromiseTracker?.stopStatusMonitor?.();
@@ -278,7 +285,7 @@ export function streamPostController(params) {
       // Called immediately when a file part starts.
       // You can kick off downstream processing and return a promise.
       // This promise is *not awaited* by middleware.
-      console.verbose('Processing POST upload:', fileInfo);
+      console.verbose('[streamPostController] Processing POST upload:', fileInfo);
       const tracker = req?.uploadPromiseTracker ?? createPromiseTracker('partTracker');
       if (req) req.uploadPromiseTracker = tracker;
 
@@ -300,7 +307,7 @@ export function streamPostController(params) {
         tracker.add(promise);
         const result = await promise;
         const { information } = result;
-        console.verbose('information:', information);
+        console.verbose('[streamPostController] information:', information);
 
         req.stowProgressReporter?.addProcessed(1);
         return result;
@@ -343,12 +350,12 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
     const [studyUid, seriesUID] = id.split('&');
 
     if (!studyUid || !seriesUID) {
-      console.error(`Invalid updateSeries message id format: ${id}`);
+      console.error(`[streamPostController] Invalid updateSeries message id format: ${id}`);
       return;
     }
 
     try {
-      console.noQuiet(`Processing updateSeries for study ${studyUid}, series ${seriesUID}`);
+      console.verbose(`[streamPostController] Processing updateSeries for study ${studyUid}, series ${seriesUID}`);
       // Call seriesMain to update the series
       await seriesMain(studyUid, {
         dicomdir,
@@ -357,9 +364,9 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
 
       // After series update completes, send updateStudy message
       await messaging.sendMessage('updateStudy', studyUid, data);
-      console.noQuiet(`Sent updateStudy message for study ${studyUid}`);
+      console.verbose(`[streamPostController] Sent updateStudy message for study ${studyUid}`);
     } catch (err) {
-      console.warn(`Error processing updateSeries for ${id}:`, err);
+      console.warn(`[streamPostController] Error processing updateSeries for ${id}:`, err);
       throw err; // Re-throw to allow retry/redelivery
     }
   });
@@ -370,12 +377,12 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
     const studyUid = id;
 
     if (!studyUid) {
-      console.error(`Invalid updateStudy message id: ${id}`);
+      console.error(`[streamPostController] Invalid updateStudy message id: ${id}`);
       return;
     }
 
     try {
-      console.noQuiet(`Processing updateStudy for study ${studyUid}`);
+      console.verbose(`[streamPostController] Processing updateStudy for study ${studyUid}`);
       // Call studyMain to update the study
       await studyMain(studyUid, {
         dicomdir,
@@ -384,13 +391,13 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
       // Create/update studies/index.json.gz file unless disabled
       const studyIndex = params.studyIndex !== false; // Default to true unless explicitly disabled
       if (studyIndex) {
-        console.noQuiet(`Creating/updating studies index for study ${studyUid}`);
+        console.verbose(`[streamPostController] Creating/updating studies index for study ${studyUid}`);
         await indexSummary(dicomdir, [studyUid]);
       }
 
-      console.noQuiet(`Completed updateStudy for study ${studyUid}`);
+      console.verbose(`[streamPostController] Completed updateStudy for study ${studyUid}`);
     } catch (err) {
-      console.error(`Error processing updateStudy for ${studyUid}:`, err);
+      console.error(`[streamPostController] Error processing updateStudy for ${studyUid}:`, err);
       throw err; // Re-throw to allow retry/redelivery
     }
   });
@@ -545,9 +552,9 @@ export const completePostController = async (req, res, next) => {
       req.statusMonitorInstancesJobId = null;
     }
 
-    console.noQuiet('uploadListenerPromises length:', req.uploadListenerPromises?.length);
+    console.verbose('[streamPostController] uploadListenerPromises length:', req.uploadListenerPromises?.length);
     const results = await Promise.allSettled(req.uploadListenerPromises || []);
-    console.noQuiet('results length:', results.length);
+    console.verbose('[streamPostController] results length:', results.length);
 
     const files = (req.uploadStreams || []).map((entry, index) => {
       const r = results[index];
@@ -593,9 +600,9 @@ export const completePostController = async (req, res, next) => {
       for (const [seriesId, information] of seriesMap.entries()) {
         try {
           await messagingInstance.sendMessage('updateSeries', seriesId, information);
-          console.noQuiet(`Sent updateSeries message for ${seriesId}`);
+          console.verbose(`[streamPostController] Sent updateSeries message for ${seriesId}`);
         } catch (err) {
-          console.error(`Failed to send updateSeries message for ${seriesId}:`, err);
+          console.error(`[streamPostController] Failed to send updateSeries message for ${seriesId}:`, err);
         }
       }
     }
@@ -603,7 +610,7 @@ export const completePostController = async (req, res, next) => {
     // Create the dataset response (used for both JSON and XML)
     const datasetResponse = createDatasetResponse(files);
 
-    console.verbose('Dataset response:', JSON.stringify(datasetResponse, null, 2));
+    console.verbose('[streamPostController] Dataset response:', JSON.stringify(datasetResponse, null, 2));
 
     // Check Accept header to determine response format
     const acceptHeader = req.headers.accept || '';

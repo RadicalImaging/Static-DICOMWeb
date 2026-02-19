@@ -121,7 +121,7 @@ export async function indexSummary(baseDir, studyUIDs = []) {
     }
   }
 
-  console.noQuiet(`indexSummary: processing ${studiesToProcess.size} studies`);
+  console.verbose(`indexSummary: processing ${studiesToProcess.size} studies`);
 
   // Write the updated studies/index.json.gz file with retry
   console.noQuiet('indexSummary: writing updated studies index');
