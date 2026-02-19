@@ -140,7 +140,7 @@ export class TrackableReadBufferStream extends ReadBufferStream {
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
     if (tracker?.getUnsettledCount() > limit) {
-      console.noQuiet(
+      console.verbose(
         '[TrackableReadBufferStream] waitForBackPressure: tracker',
         tracker.getTrackerId(),
         'unsettled',

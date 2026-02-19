@@ -215,7 +215,7 @@ export class SagaBusMessaging {
     for (let i = 0; i < batch.length; i++) {
       if (i === keepIndex) continue;
       const d = batch[i];
-      this.logger.info("[SagaBusMessaging] Deduped pending message before start:", {
+      console.verbose('[SagaBusMessaging] Deduped pending message before start:', {
         key,
         type: d.msg.type,
         id: d.msg.id,
