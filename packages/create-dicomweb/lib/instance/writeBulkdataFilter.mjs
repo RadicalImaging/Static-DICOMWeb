@@ -204,15 +204,21 @@ export function writeBulkdataFilter(options = {}) {
       return next(result);
     }
 
-    // Get the writer
-    const bulkdataWriter = getWriter(this);
-    if (!bulkdataWriter) {
-      console.warn('Writer not available, information not yet populated');
+    // Get the writer – if the study/series/SOP UIDs are not yet available the
+    // writer (or its UID accessors) may throw.  In that case, fall back to
+    // keeping the data inline (binary/base64).
+    let bulkdataWriter, studyUID;
+    try {
+      bulkdataWriter = getWriter(this);
+      if (!bulkdataWriter) {
+        return next(result);
+      }
+      studyUID = bulkdataWriter.getStudyUID();
+    } catch {
+      // UIDs not available yet – keep data inline
       return next(result);
     }
 
-    // Check if StudyInstanceUID is available
-    const studyUID = bulkdataWriter.getStudyUID();
     if (!studyUID) {
       // StudyInstanceUID not yet available, skip bulkdata conversion
       return next(result);

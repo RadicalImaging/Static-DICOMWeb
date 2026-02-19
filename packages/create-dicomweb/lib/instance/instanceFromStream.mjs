@@ -10,6 +10,22 @@ const { setValue } = Tags;
 const { DicomMetadataListener, createInformationFilter } = utilities;
 const { ReadBufferStream } = data;
 
+/**
+ * Returns true if stream is a ReadBufferStream-like object (has reset + addBuffer).
+ * Used so that TrackableReadBufferStream (or any buffer stream from another package copy of dcmjs)
+ * is treated as a buffer stream and used directly, avoiding fromAsyncStream() which expects
+ * an async iterable and would throw "Object is not async iterable".
+ * @param {*} stream
+ * @returns {boolean}
+ */
+function isReadBufferStreamLike(stream) {
+  return (
+    stream &&
+    typeof stream.reset === 'function' &&
+    typeof stream.addBuffer === 'function'
+  );
+}
+
 const PARSE_JOB_TYPE = 'stowInstanceParse';
 
 /**
@@ -91,8 +107,8 @@ function createProgressFilter(parentJob, parseJob, throttleMs) {
 export async function instanceFromStream(stream, options = {}) {
   const reader = new AsyncDicomReader();
 
-  // Check if the input is a ReadBufferStream instance
-  if (stream instanceof ReadBufferStream) {
+  // Check if the input is a ReadBufferStream instance or a buffer-stream-like (e.g. TrackableReadBufferStream from another package copy of dcmjs)
+  if (stream instanceof ReadBufferStream || isReadBufferStreamLike(stream)) {
     // If it's already a ReadBufferStream, use it directly
     // Ensure endOffset is synchronized with the actual buffer size before resetting
     // Check multiple possible sources for the buffer size
@@ -219,7 +235,7 @@ export async function instanceFromStream(stream, options = {}) {
   }
 
   // Final validation of stream state before reading (especially for ReadBufferStream)
-  if (reader.stream instanceof ReadBufferStream) {
+  if (reader.stream instanceof ReadBufferStream || isReadBufferStreamLike(reader.stream)) {
     // Re-check and update stream properties right before reading
     // The stream might have received more data since initialization
     if (
