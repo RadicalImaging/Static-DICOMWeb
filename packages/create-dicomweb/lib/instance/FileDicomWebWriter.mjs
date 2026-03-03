@@ -95,7 +95,16 @@ export class FileDicomWebWriter extends DicomWebWriter {
       try {
         fs.unlinkSync(p);
       } catch (err) {
-        if (err?.code !== 'ENOENT') {
+        if ((err?.code === 'EISDIR' || err?.code === 'EPERM') && /[/\\]metadata(\.gz)?$/.test(p)) {
+          try {
+            // Handle some incorrectly created directories instead of files
+            fs.rmSync(p, { recursive: true, force: true });
+          } catch (rmErr) {
+            if (rmErr?.code !== 'ENOENT') {
+              console.warn(`[FileDicomWebWriter] Could not delete metadata directory ${p}:`, rmErr?.message || rmErr);
+            }
+          }
+        } else if (err?.code !== 'ENOENT') {
           console.warn(`[FileDicomWebWriter] Could not delete ${p}:`, err?.message || err);
         }
       }
@@ -124,9 +133,33 @@ export class FileDicomWebWriter extends DicomWebWriter {
     let originalMtime = null;
     try {
       const stat = fs.statSync(finalFilepath);
-      originalMtime = stat.mtimeMs;
+      if (stat.isDirectory()) {
+        if (/[/\\]metadata(\.gz)?$/.test(finalFilepath)) {
+          // Destination is a metadata directory (old format) - remove it so it can be replaced with a file
+          fs.rmSync(finalFilepath, { recursive: true, force: true });
+          console.noQuiet(`[FileDicomWebWriter] Cleaned up old metadata directory at ${finalFilepath}`);
+        } else {
+          throw new Error(`Destination is a directory (not metadata), refusing to delete: ${finalFilepath}`);
+        }
+      } else {
+        originalMtime = stat.mtimeMs;
+      }
     } catch (err) {
+      if (err?.message?.startsWith('Destination is a directory')) throw err;
       // File doesn't exist yet, that's fine
+    }
+
+    // If writing a .gz metadata file, also clean up any stale directory at the non-.gz path (old format)
+    if (filename.endsWith('.gz') && /[/\\]metadata\.gz$/.test(finalFilepath)) {
+      const nonGzPath = finalFilepath.slice(0, -3);
+      try {
+        if (fs.statSync(nonGzPath).isDirectory()) {
+          fs.rmSync(nonGzPath, { recursive: true, force: true });
+          console.noQuiet(`[FileDicomWebWriter] Cleaned up old metadata directory format at ${nonGzPath}`);
+        }
+      } catch {
+        // Not found or not a directory, nothing to clean
+      }
     }
 
     // Temp directory: studies/<studyUID>/temp/ or studies/temp/
