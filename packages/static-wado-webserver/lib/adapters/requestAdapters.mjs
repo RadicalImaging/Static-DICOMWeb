@@ -60,6 +60,7 @@ export const otherJsonMap = (req, res, next) => {
  * Handles returning thumbnail jpeg
  */
 export const thumbnailMap = (req, res, next) => {
+  if (res.headersSent) return;
   res.setHeader('content-type', 'image/jpeg');
   req.url = `${req.staticWadoPath}`;
   next();
