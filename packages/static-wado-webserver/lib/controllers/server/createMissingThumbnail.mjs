@@ -49,8 +49,11 @@ export default function createMissingThumbnail(options) {
       await thumbnailMain(studyUID, thumbnailOptions);
       console.verbose('Created missing thumbnail');
     } catch (e) {
-      // Ignore e
-      console.warn('Caught', e);
+      console.warn('Thumbnail generation failed:', e?.message || e);
+      if (!res.headersSent) {
+        res.status(404).json({ error: e?.message || 'Thumbnail not available' });
+      }
+      return;
     }
     next();
   };

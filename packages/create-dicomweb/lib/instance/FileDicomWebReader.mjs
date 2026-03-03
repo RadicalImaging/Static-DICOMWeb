@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { createGunzip } from 'zlib';
 import { DicomWebReader } from './DicomWebReader.mjs';
+import { removeStaleMetadataDir } from './removeStaleMetadataDir.mjs';
 
 /**
  * File-based implementation of DicomWebReader
@@ -45,9 +46,15 @@ export class FileDicomWebReader extends DicomWebReader {
       }
     }
 
-    // Check uncompressed file first
+    // Check uncompressed file first (must be a regular file, not a directory)
     if (fs.existsSync(fullPath)) {
-      return { exists: true, path: fullPath, isCompressed: false };
+      try {
+        if (fs.lstatSync(fullPath).isFile()) {
+          return { exists: true, path: fullPath, isCompressed: false };
+        }
+      } catch {
+        // stat failed, skip
+      }
     }
     
     // Check compressed version
@@ -124,7 +131,11 @@ export class FileDicomWebReader extends DicomWebReader {
           await fs.promises.unlink(fileInfo.path);
           console.noQuiet(`Deleted corrupted file ${fileInfo.path}: ${error.message}`);
         } catch (unlinkErr) {
-          console.warn(`Failed to delete corrupted file ${fileInfo.path}: ${unlinkErr.message}`);
+          if (await removeStaleMetadataDir(fileInfo.path)) {
+            console.warn(`Deleted corrupted metadata directory ${fileInfo.path}: ${error.message}`);
+          } else {
+            console.warn(`Failed to delete corrupted file ${fileInfo.path}: ${unlinkErr.message}`);
+          }
         }
       }
       return undefined;

@@ -2,6 +2,7 @@ import fs from 'fs';
 import { open } from 'fs/promises';
 import path from 'path';
 import { DicomWebWriter } from './DicomWebWriter.mjs';
+import { removeStaleMetadataDirSync } from './removeStaleMetadataDir.mjs';
 
 /**
  * Derives the temp directory path for a given relativePath.
@@ -95,7 +96,9 @@ export class FileDicomWebWriter extends DicomWebWriter {
       try {
         fs.unlinkSync(p);
       } catch (err) {
-        if (err?.code !== 'ENOENT') {
+        if (removeStaleMetadataDirSync(p)) {
+          // Cleaned up old metadata directory
+        } else if (err?.code !== 'ENOENT') {
           console.warn(`[FileDicomWebWriter] Could not delete ${p}:`, err?.message || err);
         }
       }
@@ -124,9 +127,26 @@ export class FileDicomWebWriter extends DicomWebWriter {
     let originalMtime = null;
     try {
       const stat = fs.statSync(finalFilepath);
-      originalMtime = stat.mtimeMs;
+      if (stat.isDirectory()) {
+        if (removeStaleMetadataDirSync(finalFilepath)) {
+          console.noQuiet(`[FileDicomWebWriter] Cleaned up old metadata directory at ${finalFilepath}`);
+        } else {
+          throw new Error(`Destination is a directory (not metadata), refusing to delete: ${finalFilepath}`);
+        }
+      } else {
+        originalMtime = stat.mtimeMs;
+      }
     } catch (err) {
+      if (err?.message?.startsWith('Destination is a directory')) throw err;
       // File doesn't exist yet, that's fine
+    }
+
+    // If writing a .gz file, also clean up any stale metadata directory at the non-.gz path (old format)
+    if (filename.endsWith('.gz')) {
+      const nonGzPath = finalFilepath.slice(0, -3);
+      if (removeStaleMetadataDirSync(nonGzPath)) {
+        console.noQuiet(`[FileDicomWebWriter] Cleaned up old metadata directory format at ${nonGzPath}`);
+      }
     }
 
     // Temp directory: studies/<studyUID>/temp/ or studies/temp/
