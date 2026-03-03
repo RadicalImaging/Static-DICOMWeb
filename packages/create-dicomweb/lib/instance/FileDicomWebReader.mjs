@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { createGunzip } from 'zlib';
 import { DicomWebReader } from './DicomWebReader.mjs';
+import { removeStaleMetadataDir } from './removeStaleMetadataDir.mjs';
 
 /**
  * File-based implementation of DicomWebReader
@@ -130,13 +131,8 @@ export class FileDicomWebReader extends DicomWebReader {
           await fs.promises.unlink(fileInfo.path);
           console.noQuiet(`Deleted corrupted file ${fileInfo.path}: ${error.message}`);
         } catch (unlinkErr) {
-          if ((unlinkErr.code === 'EISDIR' || unlinkErr.code === 'EPERM') && /[/\\]metadata(\.gz)?$/.test(fileInfo.path)) {
-            try {
-              await fs.promises.rm(fileInfo.path, { recursive: true, force: true });
-              console.warn(`Deleted corrupted metadata directory ${fileInfo.path}: ${error.message}`);
-            } catch (rmErr) {
-              console.warn(`Failed to delete corrupted metadata directory ${fileInfo.path}: ${rmErr.message}`);
-            }
+          if (await removeStaleMetadataDir(fileInfo.path)) {
+            console.warn(`Deleted corrupted metadata directory ${fileInfo.path}: ${error.message}`);
           } else {
             console.warn(`Failed to delete corrupted file ${fileInfo.path}: ${unlinkErr.message}`);
           }

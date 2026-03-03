@@ -2,6 +2,7 @@ import fs from 'fs';
 import { open } from 'fs/promises';
 import path from 'path';
 import { DicomWebWriter } from './DicomWebWriter.mjs';
+import { removeStaleMetadataDirSync } from './removeStaleMetadataDir.mjs';
 
 /**
  * Derives the temp directory path for a given relativePath.
@@ -95,15 +96,8 @@ export class FileDicomWebWriter extends DicomWebWriter {
       try {
         fs.unlinkSync(p);
       } catch (err) {
-        if ((err?.code === 'EISDIR' || err?.code === 'EPERM') && /[/\\]metadata(\.gz)?$/.test(p)) {
-          try {
-            // Handle some incorrectly created directories instead of files
-            fs.rmSync(p, { recursive: true, force: true });
-          } catch (rmErr) {
-            if (rmErr?.code !== 'ENOENT') {
-              console.warn(`[FileDicomWebWriter] Could not delete metadata directory ${p}:`, rmErr?.message || rmErr);
-            }
-          }
+        if (removeStaleMetadataDirSync(p)) {
+          // Cleaned up old metadata directory
         } else if (err?.code !== 'ENOENT') {
           console.warn(`[FileDicomWebWriter] Could not delete ${p}:`, err?.message || err);
         }
@@ -134,9 +128,7 @@ export class FileDicomWebWriter extends DicomWebWriter {
     try {
       const stat = fs.statSync(finalFilepath);
       if (stat.isDirectory()) {
-        if (/[/\\]metadata(\.gz)?$/.test(finalFilepath)) {
-          // Destination is a metadata directory (old format) - remove it so it can be replaced with a file
-          fs.rmSync(finalFilepath, { recursive: true, force: true });
+        if (removeStaleMetadataDirSync(finalFilepath)) {
           console.noQuiet(`[FileDicomWebWriter] Cleaned up old metadata directory at ${finalFilepath}`);
         } else {
           throw new Error(`Destination is a directory (not metadata), refusing to delete: ${finalFilepath}`);
@@ -149,16 +141,11 @@ export class FileDicomWebWriter extends DicomWebWriter {
       // File doesn't exist yet, that's fine
     }
 
-    // If writing a .gz metadata file, also clean up any stale directory at the non-.gz path (old format)
-    if (filename.endsWith('.gz') && /[/\\]metadata\.gz$/.test(finalFilepath)) {
+    // If writing a .gz file, also clean up any stale metadata directory at the non-.gz path (old format)
+    if (filename.endsWith('.gz')) {
       const nonGzPath = finalFilepath.slice(0, -3);
-      try {
-        if (fs.statSync(nonGzPath).isDirectory()) {
-          fs.rmSync(nonGzPath, { recursive: true, force: true });
-          console.noQuiet(`[FileDicomWebWriter] Cleaned up old metadata directory format at ${nonGzPath}`);
-        }
-      } catch {
-        // Not found or not a directory, nothing to clean
+      if (removeStaleMetadataDirSync(nonGzPath)) {
+        console.noQuiet(`[FileDicomWebWriter] Cleaned up old metadata directory format at ${nonGzPath}`);
       }
     }
 
