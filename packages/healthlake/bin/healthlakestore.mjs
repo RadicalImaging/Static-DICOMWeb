@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { curieStoreConfig, configureProgram } from "../lib/index.mjs";
 
 // Configure program commander and run the action

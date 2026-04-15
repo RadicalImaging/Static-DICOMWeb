@@ -33,12 +33,10 @@
   },
   "directories": {
     "lib": "lib",
-    "dist": "dist",
     "bin": "bin"
   },
   "files": [
     "bin",
-    "dist",
     "lib"
   ],
   "bin": {

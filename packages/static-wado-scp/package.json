@@ -32,7 +32,7 @@
   },
   "homepage": "https://github.com/radicalimaging/static-dicomweb#readme",
   "license": "ISC",
-  "main": "lib/index.js",
+  "main": "lib/index.mjs",
   "directories": {
     "lib": "lib",
     "bin": "bin"
@@ -42,14 +42,12 @@
     "lib"
   ],
   "bin": {
-    "dicomwebscp": "bin/dicomwebscp.js"
+    "dicomwebscp": "bin/dicomwebscp.mjs"
   },
   "scripts": {
     "test": "jest --config ./jest.config.js",
-    "build": "bun run build:esm",
-    "build:esm": "bun build lib/index.js --target node --outdir dist",
-    "link:exec": "npm link",
-    "dicomwebscp": "node bin/dicomwebscpDev.js --",
+    "link:exec": "bun link",
+    "dicomwebscp": "bun bin/dicomwebscpDev.mjs --",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
     "publishJS": "yarn publish  --no-git-tag-version"

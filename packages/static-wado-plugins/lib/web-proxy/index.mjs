@@ -1,7 +1,7 @@
-const ConfigPoint = require('config-point');
-const { createProxyMiddleware } = require('http-proxy-middleware');
+import ConfigPoint from 'config-point';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
-module.exports = ConfigPoint.createConfiguration('webProxy', {
+export default ConfigPoint.createConfiguration('webProxy', {
   setRoute: (router, item) => {
     const forwardPath = item.forwardPath || 'http://localhost:3000';
     console.log('Web Proxy to', forwardPath);

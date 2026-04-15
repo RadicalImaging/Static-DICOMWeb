@@ -1,6 +1,6 @@
-const { plugins } = require('@radicalimaging/static-wado-plugins');
+import { plugins } from '@radicalimaging/static-wado-plugins';
 
-const loadedPlugins = {};
+export const loadedPlugins = {};
 
 const loadPlugins = options => {
   const { studyQuery } = options;
@@ -17,6 +17,4 @@ const loadPlugins = options => {
     });
 };
 
-loadPlugins.loadedPlugins = loadedPlugins;
-
-module.exports = loadPlugins;
+export default loadPlugins;

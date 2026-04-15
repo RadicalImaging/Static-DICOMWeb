@@ -1,6 +1,6 @@
-const ConfigPoint = require('config-point');
-const dcmjsDimse = require('dcmjs-dimse');
-const { aeConfig, assertions } = require('@radicalimaging/static-wado-util');
+import ConfigPoint from 'config-point';
+import dcmjsDimse from 'dcmjs-dimse';
+import { aeConfig, assertions } from '@radicalimaging/static-wado-util';
 
 const { Client } = dcmjsDimse;
 const { CFindRequest } = dcmjsDimse.requests;
@@ -63,4 +63,4 @@ const { studiesQueryByIndex } = ConfigPoint.register({
   },
 });
 
-module.exports = studiesQueryByIndex;
+export default studiesQueryByIndex;

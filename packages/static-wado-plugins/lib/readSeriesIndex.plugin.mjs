@@ -1,5 +1,5 @@
-const ConfigPoint = require('config-point');
-const { JSONReader } = require('@radicalimaging/static-wado-util');
+import ConfigPoint from 'config-point';
+import { JSONReader } from '@radicalimaging/static-wado-util';
 
 const { readSeriesIndex } = ConfigPoint.register({
   readSeriesIndex: {
@@ -10,4 +10,4 @@ const { readSeriesIndex } = ConfigPoint.register({
   },
 });
 
-module.exports = readSeriesIndex;
+export default readSeriesIndex;

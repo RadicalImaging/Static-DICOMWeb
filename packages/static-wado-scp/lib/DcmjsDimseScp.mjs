@@ -1,8 +1,8 @@
-const { Stats } = require('@radicalimaging/static-wado-util');
-const StaticWado = require('@radicalimaging/static-wado-creator');
-const dcmjsDimse = require('dcmjs-dimse');
-const dcmjs = require('dcmjs');
-const { loadedPlugins } = require('./loadPlugins');
+import { Stats } from '@radicalimaging/static-wado-util';
+import StaticWado from '@radicalimaging/static-wado-creator';
+import dcmjsDimse from 'dcmjs-dimse';
+import dcmjs from 'dcmjs';
+import { loadedPlugins } from './loadPlugins.mjs';
 
 const { Scp, Dataset } = dcmjsDimse;
 const { CEchoResponse, CStoreResponse, CFindResponse } = dcmjsDimse.responses;
@@ -190,4 +190,4 @@ DcmjsDimseScp.setParams = params => {
   staticParams = params;
 };
 
-module.exports = DcmjsDimseScp;
+export default DcmjsDimseScp;
