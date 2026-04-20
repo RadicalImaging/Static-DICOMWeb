@@ -3,10 +3,28 @@ import dcmjs from 'dcmjs';
 const { WriteBufferStream } = dcmjs.data;
 
 /**
+ * Parsed multipart part headers keyed by lowercase header name.
+ *
+ * For structured headers (such as `content-disposition`), values are represented
+ * as objects with a `value` or `type` key and parsed attributes.
+ *
+ * @typedef {Record<string, string | Record<string, string>>} MultipartPartHeaders
+ */
+
+/**
+ * Callback invoked when a multipart part begins.
+ *
+ * @callback MultipartPartHandler
+ * @param {MultipartPartHeaders} headers Parsed headers for the current part
+ * @param {import('dcmjs').data.WriteBufferStream} bufferStream Writable stream collecting part body data
+ * @returns {void}
+ */
+
+/**
  * Parses multipart/form-data header values into an object.
  * 
  * @param {string} headerString - The raw header string
- * @returns {Object} Parsed header object with lowercase keys
+ * @returns {MultipartPartHeaders} Parsed header object with lowercase keys
  */
 function parseHeaders(headerString) {
   const headers = {};
@@ -116,8 +134,7 @@ function extractBoundaryFromStream(data) {
  * The boundary is automatically detected from the stream separator strings, not from headers.
  * 
  * @param {Object} req - Express.js request object with a readable stream
- * @param {Function} onPart - Callback function called when a new part starts
- *                            Signature: (headers, bufferStream) => void
+ * @param {MultipartPartHandler} onPart Callback function called when a new part starts
  * @param {Object} options - Parser options
  * @param {number} options.bufferSize - Initial buffer size for BufferStream (default: 64KB)
  * @returns {Promise<void>} Promise that resolves when parsing is complete

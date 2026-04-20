@@ -143,12 +143,20 @@ export function writeMultipartFramesFilter(options = {}) {
    * - Pattern B: Inside frame array — v is a fragment; write to current frame stream and pass through.
    */
   function value(next, v) {
+    const currentTagRaw = this.current?.tag;
+    const currentTag = typeof currentTagRaw === 'string'
+      ? currentTagRaw.replace(/^x/i, '').toUpperCase()
+      : '';
+    if (currentTag === TAGS.TransferSyntaxUID) {
+      const transferSyntaxUid = Array.isArray(v) ? v[0] : v;
+      if (typeof transferSyntaxUid === 'string' && transferSyntaxUid.length > 0) {
+        this.information.transferSyntaxUid = transferSyntaxUid;
+      }
+    }
+
     if (currentFrameNumber === null) {
       return next(v);
     }
-    const current = this.current;
-    const currentTag = current?.tag;
-    const level = current?.level ?? 0;
 
     // Pattern B: streaming frames — we're inside startObject([]) for this frame, each value is a fragment
     if (pixelDataStreamInfo) {

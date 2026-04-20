@@ -4,6 +4,22 @@ import { uids } from '@radicalimaging/static-wado-util';
 import { MultipartStreamWriter } from './MultipartStreamWriter.mjs';
 import { StreamInfo, getStreamCounts } from './StreamInfo.mjs';
 
+const EQUIVALENT_UNCOMPRESSED_TRANSFER_SYNTAX_UIDS = new Set([
+  '1.2.840.10008.1.2',   // Implicit VR Little Endian
+  '1.2.840.10008.1.2.1', // Explicit VR Little Endian
+  '1.2.840.10008.1.2.2', // Explicit VR Big Endian (retired)
+]);
+
+function normalizeEquivalentUncompressedTransferSyntaxUid(tsUID) {
+  if (!tsUID) {
+    return tsUID;
+  }
+  if (EQUIVALENT_UNCOMPRESSED_TRANSFER_SYNTAX_UIDS.has(tsUID)) {
+    return '1.2.840.10008.1.2.1';
+  }
+  return tsUID;
+}
+
 /**
  * Base class for writing DICOMweb outputs
  * Defines the interface for writing files at different hierarchy levels
@@ -257,10 +273,18 @@ export class DicomWebWriter {
     }
     const path = `studies/${studyUID}/series/${seriesUID}/instances/${sopUID}/frames`;
 
-    const tsUID = this.getTransferSyntaxUID();
+    const rawTsUID = this.getTransferSyntaxUID();
+    const tsUID = normalizeEquivalentUncompressedTransferSyntaxUid(rawTsUID);
+
+    const isEquivalentUncompressedSyntax =
+      rawTsUID && EQUIVALENT_UNCOMPRESSED_TRANSFER_SYNTAX_UIDS.has(rawTsUID);
+    const transferSyntaxUidForHeader = isEquivalentUncompressedSyntax ? tsUID : rawTsUID;
 
     // Determine content type based on transfer syntax UID
     const type = tsUID ? uids[tsUID] || uids.default || {} : {};
+    // We only select part MIME type here; no decode/decompress is performed in frame writing.
+    // Preserve raw tsuid for non-equivalent syntaxes. For equivalent uncompressed syntaxes,
+    // use canonical explicit little endian in the header.
     const contentType = options.contentType || type.contentType || 'application/octet-stream';
 
     // Generate boundary ID
@@ -268,14 +292,20 @@ export class DicomWebWriter {
 
     // Build Content-Type header with transfer-syntax attribute if available
     let contentTypeHeader = contentType;
-    if (tsUID) {
-      contentTypeHeader = `${contentType};transfer-syntax=${tsUID}`;
+    if (transferSyntaxUidForHeader) {
+      contentTypeHeader = `${contentType};transfer-syntax=${transferSyntaxUidForHeader}`;
     }
-    console.verbose('TSUID:', tsUID);
-
     // Generate filename based on frame number and compression
     const shouldGzip = options.gzip ?? this._shouldGzipFrame(tsUID);
     const filename = shouldGzip ? `${frameNumber}.mht.gz` : `${frameNumber}.mht`;
+
+    // Ensure stale frame variants are removed when transfer syntax/gzip mode changes
+    // (e.g. previous writes may have left 1.mht.gz while current write is 1.mht).
+    try {
+      this.delete(path, `${frameNumber}.mht`);
+    } catch {
+      // delete is optional for writer implementations that do not support filesystem cleanup
+    }
 
     // Open the stream with multipart wrapping
     const streamInfo = this.openStream(path, filename, {

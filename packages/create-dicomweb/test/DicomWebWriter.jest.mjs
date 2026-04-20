@@ -275,6 +275,32 @@ describe('DicomWebWriter', () => {
       expect(streamInfo.filename).not.toMatch(/\.gz$/);
       expect(streamInfo.gzipped).toBe(false);
     });
+
+    test('should preserve RLE transfer syntax in frame content type', async () => {
+      informationProvider.transferSyntaxUid = '1.2.840.10008.1.2.5';
+
+      const streamInfo = await writer.openFrameStream(1);
+      expect(streamInfo.contentType).toContain('image/dicom-rle');
+      expect(streamInfo.contentType).toContain(
+        'transfer-syntax=1.2.840.10008.1.2.5'
+      );
+      expect(streamInfo.filename).toMatch(/\.mht$/);
+      expect(streamInfo.filename).not.toMatch(/\.gz$/);
+      expect(streamInfo.gzipped).toBe(false);
+    });
+
+    test('should support frame deflate transfer syntax in frame content type', async () => {
+      informationProvider.transferSyntaxUid = '1.2.840.10008.1.2.8.1';
+
+      const streamInfo = await writer.openFrameStream(1);
+      expect(streamInfo.contentType).toContain('application/octet-stream');
+      expect(streamInfo.contentType).toContain(
+        'transfer-syntax=1.2.840.10008.1.2.8.1'
+      );
+      expect(streamInfo.filename).toMatch(/\.mht$/);
+      expect(streamInfo.filename).not.toMatch(/\.gz$/);
+      expect(streamInfo.gzipped).toBe(false);
+    });
   });
 
   describe('Error Handling', () => {
