@@ -1,6 +1,6 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
-const { dicomWebScpConfig, configureProgram } = require("../lib");
+import { dicomWebScpConfig, configureProgram } from "../lib/index.mjs";
 
 // Configure program commander
 configureProgram(dicomWebScpConfig).then(() => {

@@ -1,7 +1,7 @@
-const ConfigPoint = require('config-point');
-const { staticWadoConfig } = require('@radicalimaging/static-wado-util');
-const scpMain = require('./scpMain.js');
-const cstoreMain = require('./cstoreMain.js');
+import ConfigPoint from 'config-point';
+import { staticWadoConfig } from '@radicalimaging/static-wado-util';
+import scpMain from './scpMain.mjs';
+import cstoreMain from './cstoreMain.mjs';
 
 /**
  * Defines the basic configuration values for the dicomwebserver component.  See the README for more details.
@@ -66,4 +66,4 @@ const { dicomWebScpConfig } = ConfigPoint.register({
   },
 });
 
-module.exports = dicomWebScpConfig;
+export default dicomWebScpConfig;

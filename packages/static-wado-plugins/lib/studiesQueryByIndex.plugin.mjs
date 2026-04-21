@@ -1,5 +1,5 @@
-const ConfigPoint = require('config-point');
-const { JSONReader, qidoFilter } = require('@radicalimaging/static-wado-util');
+import ConfigPoint from 'config-point';
+import { JSONReader, qidoFilter } from '@radicalimaging/static-wado-util';
 
 const { studiesQueryByIndex } = ConfigPoint.register({
   studiesQueryByIndex: {
@@ -34,4 +34,4 @@ const { studiesQueryByIndex } = ConfigPoint.register({
   },
 });
 
-module.exports = studiesQueryByIndex;
+export default studiesQueryByIndex;

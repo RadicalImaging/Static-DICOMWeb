@@ -15,6 +15,7 @@ const jxl = 'image/x-jxl';
 const htj2k = 'image/jphc';
 const jp2 = 'image/jp2';
 const rle = 'image/dicom-rle';
+const frameDeflate = 'application/octet-stream';
 
 const uids = {
   '1.2.840.10008.1.2': uncompressed,
@@ -43,6 +44,8 @@ const uids = {
   '1.2.840.10008.1.2.4.202': { contentType: htj2k, extension: '.jhc' },
   '1.2.840.10008.1.2.4.203': { contentType: htj2k, lossy: true },
   '1.2.840.10008.1.2.5': { contentType: rle },
+  // Encapsulated Deflated Image Frame Compression
+  '1.2.840.10008.1.2.8.1': { contentType: frameDeflate },
   default: {},
 };
 

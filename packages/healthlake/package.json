@@ -24,29 +24,22 @@
     "directory": "packages/static-wado-deploy"
   },
   "license": "ISC",
-  "main": "build/@radicalimaging/healthlake.js",
-  "module": "build/@radicalimaging/healthlake.es.js",
+  "main": "lib/index.mjs",
+  "module": "lib/index.mjs",
   "directories": {
     "lib": "lib",
-    "build": "build",
     "bin": "bin"
   },
   "files": [
     "bin",
-    "build",
     "lib"
   ],
   "bin": {
     "curiestore": "bin/healthlakestore.mjs"
   },
   "scripts": {
-    "dev": "cross-env NODE_ENV=development webpack --config .webpack/webpack.dev.js --watch --debug --output-pathinfo",
-    "dev:dicom-pdf": "yarn run dev",
     "link:exec": "bun link",
-    "build": "echo disabled for now due to dependency issues",
-    "test": "jest --config ./jest.config.js --passWithNoTests",
-    "build:package": "yarn run build",
-    "start": "yarn run dev"
+    "test": "jest --config ./jest.config.js --passWithNoTests"
   },
   "jest": {
     "verbose": true

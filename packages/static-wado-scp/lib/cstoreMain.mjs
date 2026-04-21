@@ -1,9 +1,11 @@
-const { adaptProgramOpts } = require('@radicalimaging/static-wado-creator');
+import StaticWado from '@radicalimaging/static-wado-creator';
+
+const { adaptProgramOpts } = StaticWado;
 
 /**
  *
  */
-module.exports = function cstoreMain(destinationAe, studies, defaults) {
+export default function cstoreMain(destinationAe, studies, defaults) {
   const options = adaptProgramOpts(defaults, {
     ...this,
     isInstance: false,
@@ -12,4 +14,4 @@ module.exports = function cstoreMain(destinationAe, studies, defaults) {
     isStudyData: true,
   });
   console.log('cstoreMain', destinationAe, studies, options);
-};
+}

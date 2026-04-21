@@ -3,7 +3,7 @@
 import {
   deployConfig,
   configureProgram,
-} from "@radicalimaging/static-wado-deploy";
+} from "../lib/index.mjs";
 
 // Configure program commander and run the action
 configureProgram(deployConfig);
