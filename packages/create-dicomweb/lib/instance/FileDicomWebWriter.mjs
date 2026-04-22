@@ -83,8 +83,22 @@ async function filesAreIdentical(fileA, fileB) {
  * File-based implementation of DicomWebWriter
  * Writes DICOMweb files to the filesystem using temp files for atomicity.
  * Files are written to a temp directory and moved to their final location on close.
+ *
+ * When `options.deferFinalMove` is true, closeStream() writes and flushes data to
+ * temp files but does NOT rename them to the final location. Instead, stream info
+ * is accumulated in `pendingMoves`. Call `commitPendingMoves()` to atomically
+ * rename all temp files, or `rollbackPendingMoves()` to discard them.
+ * This supports a "validate before commit" pattern where a pluggable
+ * `validateInstance` hook runs after all data is written but before files are visible.
  */
 export class FileDicomWebWriter extends DicomWebWriter {
+  constructor(informationProvider, options) {
+    super(informationProvider, options);
+    this.deferFinalMove = options?.deferFinalMove ?? false;
+    /** @type {Array<Object>} Stream info objects awaiting final rename */
+    this.pendingMoves = [];
+  }
+
   /**
    * Deletes a file and its .gz counterpart if present. Ignores ENOENT.
    * @param {string} relativePath - Relative path within baseDir
@@ -194,10 +208,36 @@ export class FileDicomWebWriter extends DicomWebWriter {
     const result = await super.closeStream(streamKey);
 
     if (result && streamInfo && streamInfo.tempFilepath) {
-      await this._moveTempToFinal(streamInfo);
+      if (this.deferFinalMove) {
+        this.pendingMoves.push(streamInfo);
+      } else {
+        await this._moveTempToFinal(streamInfo);
+      }
     }
 
     return result;
+  }
+
+  /**
+   * Renames all deferred temp files to their final destinations.
+   * Only meaningful when `deferFinalMove` is true. Call after validation passes.
+   */
+  async commitPendingMoves() {
+    for (const streamInfo of this.pendingMoves) {
+      await this._moveTempToFinal(streamInfo);
+    }
+    this.pendingMoves = [];
+  }
+
+  /**
+   * Removes all deferred temp files without renaming.
+   * Only meaningful when `deferFinalMove` is true. Call when validation fails.
+   */
+  rollbackPendingMoves() {
+    for (const streamInfo of this.pendingMoves) {
+      this._cleanupTempFile(streamInfo.tempFilepath);
+    }
+    this.pendingMoves = [];
   }
 
   /**
