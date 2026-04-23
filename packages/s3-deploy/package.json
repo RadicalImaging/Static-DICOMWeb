@@ -29,21 +29,42 @@
   },
   "homepage": "https://github.com/Radical/static-dicomweb#readme",
   "license": "ISC",
-  "main": "lib/index.js",
+  "main": "lib/index.mjs",
+  "module": "lib/index.mjs",
+  "types": "dist/index.d.mts",
   "files": [
     "index.ts",
     "lib",
-    "build"
+    "build",
+    "dist"
   ],
   "exports": {
-    ".": "./lib/index.js",
-    "./s3.plugin.mjs": "./lib/s3.plugin.mjs"
+    ".": {
+      "default": "./lib/index.mjs",
+      "esm": "./dist/index.mjs",
+      "types": "./dist/index.d.mts"
+    },
+    "./s3.plugin.mjs": {
+      "default": "./lib/s3.plugin.mjs",
+      "esm": "./dist/s3.plugin.mjs",
+      "types": "./dist/s3.plugin.d.mts"
+    },
+    "./*.js": {
+      "default": "./lib/*.ts",
+      "esm": "./dist/*.js",
+      "types": "./dist/*.d.ts"
+    },
+    "./*": {
+      "default": "./lib/*",
+      "esm": "./dist/*.mjs",
+      "types": "./dist/*.d.mts"
+    }
   },
   "scripts": {
     "copyFiles": "cp -R lib build",
     "test": "jest --config ./jest.config.cjs --passWithNoTests",
     "build": "bun run copyFiles && bun run build:esm",
-    "build:esm": "bun build lib/index.mjs --target node --outdir dist",
+    "build:esm": "tsc --project ./tsconfig.json",
     "deploy": "yarn build && yarn deployOnly",
     "deployOnly": "cdk deploy -a build/index.js",
     "destroy": "cdk destroy -a build/index.js",

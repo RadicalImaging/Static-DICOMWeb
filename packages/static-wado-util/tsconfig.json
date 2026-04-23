@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./lib",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "declaration": true,
+    "skipLibCheck": true,
+    "noCheck": true
+  },
+  "include": ["./lib/**/*"]
+}

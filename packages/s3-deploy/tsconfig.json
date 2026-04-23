@@ -1,9 +1,13 @@
 {
   "compilerOptions": {
-    "outDir": "build",
+    "outDir": "dist",
+    "rootDir": "lib",
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "node",
+    "declaration": true,
+    "allowJs": true,
+    "skipLibCheck": true,
     "lib": [
       "es2016",
       "es2017.object",
@@ -24,7 +28,6 @@
     "strictPropertyInitialization": false
   },
   "include": [
-    "./lib/*.ts",
-    "./*.ts"
+    "./lib/**/*"
   ]
 }

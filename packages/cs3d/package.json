@@ -29,10 +29,30 @@
   },
   "homepage": "https://github.com/radicalimaging/static-dicomweb#readme",
   "license": "ISC",
-  "main": "lib/index.ts",
-  "module": "dist/cs3d/index.js",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
+  "types": "dist/index.d.ts",
   "exports": {
-    "node": "./dist/index.js"
+    ".": {
+      "default": "./src/index.ts",
+      "require": "./src/index.ts",
+      "import": "./src/index.ts",
+      "esm": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./*.mjs": {
+      "default": "./src/*.mjs",
+      "import": "./src/*.mjs",
+      "esm": "./dist/*.mjs",
+      "types": "./dist/*.d.mts"
+    },
+    "./*": {
+      "default": "./src/*",
+      "require": "./src/*",
+      "import": "./src/*",
+      "esm": "./dist/*.js",
+      "types": "./dist/*.d.ts"
+    }
   },
   "files": [
     "src",
@@ -44,7 +64,7 @@
     "build": "bun run build:esm",
     "build:esm": "tsc --project ./tsconfig.json",
     "build:esm:watch": "tsc --project ./tsconfig.json --watch",
-    "cs3d": "bun run build:esm && bun run dist/cs3d.js --",
+    "cs3d": "bun run src/cs3d.ts --",
     "clean": "rimraf dist",
     "link:exec": "bun link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",

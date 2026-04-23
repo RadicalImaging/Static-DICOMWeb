@@ -1,5 +1,4 @@
-const { getRenderedBuffer } = require('./getRenderedBuffer');
-const renderToCanvas = require('./renderToCanvas');
+import { getRenderedBuffer } from './getRenderedBuffer.ts';
+import renderToCanvas from './renderToCanvas.js';
 
-exports.getRenderedBuffer = getRenderedBuffer;
-exports.renderToCanvas = renderToCanvas;
+export { getRenderedBuffer, renderToCanvas };

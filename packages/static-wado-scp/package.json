@@ -33,6 +33,12 @@
   "homepage": "https://github.com/radicalimaging/static-dicomweb#readme",
   "license": "ISC",
   "main": "lib/index.mjs",
+  "exports": {
+    ".": {
+      "default": "./lib/index.mjs",
+      "esm": "./lib/index.mjs"
+    }
+  },
   "directories": {
     "lib": "lib",
     "bin": "bin"

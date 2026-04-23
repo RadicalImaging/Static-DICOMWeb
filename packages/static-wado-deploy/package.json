@@ -31,8 +31,14 @@
   "license": "ISC",
   "main": "lib/index.mjs",
   "exports": {
-    ".": "./lib/index.mjs",
-    "./mocks/MockPlugin.mjs": "./mocks/MockPlugin.mjs"
+    ".": {
+      "default": "./lib/index.mjs",
+      "esm": "./lib/index.mjs"
+    },
+    "./mocks/MockPlugin.mjs": {
+      "default": "./mocks/MockPlugin.mjs",
+      "esm": "./mocks/MockPlugin.mjs"
+    }
   },
   "files": [
     "bin",
