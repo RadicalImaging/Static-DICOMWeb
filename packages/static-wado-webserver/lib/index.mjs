@@ -98,4 +98,5 @@ export {
   completePostController,
   getStowMessaging,
 } from './controllers/server/streamPostController.mjs';
+export { instanceFromStream } from '@radicalimaging/create-dicomweb';
 export { deleteStaleSummaries } from './controllers/server/deleteStaleSummaries.mjs';

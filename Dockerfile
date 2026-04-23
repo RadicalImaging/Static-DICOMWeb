@@ -17,7 +17,7 @@ RUN bun install
 COPY --link --exclude=node_modules --exclude=**/dist . .
 
 # Build and pack
-RUN bun run build && bun run pack:js
+RUN lerna run build --stream --concurrency 1 --ignore @radicalimaging/s3-deploy && bun run pack:js
 
 
 FROM node:24 as installer
