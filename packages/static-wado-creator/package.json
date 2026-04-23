@@ -44,13 +44,16 @@
   },
   "files": [
     "bin",
-    "lib"
+    "lib",
+    "dist"
   ],
   "bin": {
     "mkdicomweb": "bin/mkdicomweb.mjs"
   },
   "scripts": {
     "test": "jest --config ./jest.config.js",
+    "build": "bun run build:esm",
+    "build:esm": "bun -e \"import { mkdirSync, cpSync } from 'node:fs'; mkdirSync('dist', { recursive: true }); cpSync('lib', 'dist', { recursive: true });\"",
     "clean": "rimraf dist",
     "link:exec": "bun link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",

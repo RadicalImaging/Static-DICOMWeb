@@ -44,7 +44,8 @@
   },
   "files": [
     "bin",
-    "lib"
+    "lib",
+    "dist"
   ],
   "bin": {
     "dicomwebserver": "bin/dicomwebserver.mjs",
@@ -54,6 +55,9 @@
     "test": "jest --config ./jest.config.js",
     "unlink:exec": "bun unlink || echo Already unlinked",
     "link:exec": "bun run unlink:exec && bun link",
+    "build": "bun run build:esm",
+    "build:esm": "bun -e \"import { mkdirSync, cpSync } from 'node:fs'; mkdirSync('dist', { recursive: true }); cpSync('lib', 'dist', { recursive: true });\"",
+    "clean": "rimraf dist",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
     "pack:js": "npm pack --",

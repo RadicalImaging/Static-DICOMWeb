@@ -40,7 +40,8 @@
   },
   "files": [
     "bin",
-    "lib"
+    "lib",
+    "dist"
   ],
   "bin": {
     "createdicomweb": "bin/createdicomweb.mjs"
@@ -67,6 +68,8 @@
   },
   "scripts": {
     "test": "jest --config ./jest.config.cjs",
+    "build": "bun run build:esm",
+    "build:esm": "bun -e \"import { mkdirSync, cpSync } from 'node:fs'; mkdirSync('dist', { recursive: true }); cpSync('lib', 'dist', { recursive: true });\"",
     "clean": "rimraf dist",
     "unlink:exec": "bun unlink || echo Already unlinked",
     "link:exec": "bun run unlink:exec && bun link",

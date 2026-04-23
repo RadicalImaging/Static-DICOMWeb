@@ -32,7 +32,7 @@
   "type": "module",
   "main": "lib/index.ts",
   "module": "lib/index.ts",
-  "types": "lib/index.ts",
+  "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "default": "./lib/index.ts",

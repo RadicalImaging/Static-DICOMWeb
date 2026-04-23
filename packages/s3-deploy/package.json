@@ -65,6 +65,7 @@
     "test": "jest --config ./jest.config.cjs --passWithNoTests",
     "build": "bun run copyFiles && bun run build:esm",
     "build:esm": "tsc --project ./tsconfig.json",
+    "clean": "rimraf dist",
     "deploy": "yarn build && yarn deployOnly",
     "deployOnly": "cdk deploy -a build/index.js",
     "destroy": "cdk destroy -a build/index.js",
