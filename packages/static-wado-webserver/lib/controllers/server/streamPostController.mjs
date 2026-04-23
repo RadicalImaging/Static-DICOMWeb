@@ -290,6 +290,8 @@ export function streamPostController(params) {
       const tracker = req?.uploadPromiseTracker ?? createPromiseTracker('partTracker');
       if (req) req.uploadPromiseTracker = tracker;
 
+      const { validateInstance } = params;
+
       try {
         const promise = instanceFromStream(stream, {
           dicomdir,
@@ -299,6 +301,7 @@ export function streamPostController(params) {
           writerOptions: {
             baseDir: dicomdir,
             streamWritePromiseTracker: req.streamWritePromiseTracker,
+            deferFinalMove: !!validateInstance,
           },
           statusMonitorJob:
             req?.statusMonitorInstancesJobId != null
@@ -307,8 +310,19 @@ export function streamPostController(params) {
         });
         tracker.add(promise);
         const result = await promise;
-        const { information } = result;
+        const { information, writer } = result;
         console.verbose('[streamPostController] information:', information);
+
+        // If a validateInstance hook is provided, run it before committing files
+        if (validateInstance && writer) {
+          try {
+            await validateInstance(result, req);
+            await writer.commitPendingMoves();
+          } catch (validationError) {
+            writer.rollbackPendingMoves();
+            throw validationError;
+          }
+        }
 
         req.stowProgressReporter?.addProcessed(1);
         return result;
@@ -521,3 +535,14 @@ export const completePostController = async (req, res, next) => {
     next(err);
   }
 };
+
+/**
+ * Returns the module-level SagaBusMessaging instance initialized by streamPostController.
+ * Plugins can use this to send updateSeries/updateStudy messages without duplicating
+ * the handler registration logic.
+ *
+ * Returns null if streamPostController has not been called yet.
+ */
+export function getStowMessaging() {
+  return messagingInstance;
+}

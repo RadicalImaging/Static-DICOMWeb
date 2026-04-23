@@ -296,13 +296,15 @@ export function multipartStream(opts) {
           .toLowerCase()
           .trim();
 
-        // If you're "part 10 only", you probably want to accept:
-        // - application/dicom
-        // - application/dicom; transfer-syntax=...
-        // - application/dicom+octet-stream (sometimes seen)
-        const isDicomPart = partContentType.startsWith('application/dicom');
+        // Accept DICOM parts by content type. Many browsers and upload tools
+        // send parts as application/octet-stream rather than application/dicom.
+        // In a STOW-RS context, treat octet-stream as DICOM since all parts
+        // in a STOW-RS request are expected to be Part 10 files.
+        const isDicomPart =
+          partContentType.startsWith('application/dicom') ||
+          partContentType === 'application/octet-stream';
 
-        // If you want to skip non-DICOM parts (e.g. metadata JSON), do it here:
+        // Skip non-DICOM parts (e.g. metadata JSON):
         if (!isDicomPart) {
           console.warn(
             `[multipartStream] Part ${partCount} skipped - not DICOM (content-type: ${partContentType})`
