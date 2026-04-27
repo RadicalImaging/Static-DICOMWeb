@@ -286,6 +286,7 @@ export async function instanceFromStream(stream, options = {}) {
   } catch (err) {
     parseError = err;
     writer?.abort(err);
+    writer?.rollbackPendingMoves();
     throw err;
   } finally {
     progressFilter.reportProgress?.();
@@ -327,7 +328,21 @@ export async function instanceFromStream(stream, options = {}) {
   await writer?.awaitAllStreams();
   console.verbose('Finished writing metadata to file', information.sopInstanceUid);
 
-  return { fmi, dict, writer, information: listener.information };
+  const result = { fmi, dict, writer, information: listener.information };
+
+  // If a validateInstance hook is provided, run it before committing temp files.
+  // On success, commit (rename temp → final). On failure, rollback (delete temps).
+  if (options.validateInstance && writer) {
+    try {
+      await options.validateInstance(result);
+      await writer.commitPendingMoves();
+    } catch (validationError) {
+      writer.rollbackPendingMoves();
+      throw validationError;
+    }
+  }
+
+  return result;
 }
 
 /**
