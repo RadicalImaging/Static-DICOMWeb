@@ -61,7 +61,7 @@
     }
   },
   "scripts": {
-    "copyFiles": "cp -R lib build",
+    "copyFiles": "node -e \"const fs=require('fs'); fs.rmSync('build',{recursive:true,force:true}); fs.cpSync('lib','build',{recursive:true});\"",
     "test": "jest --config ./jest.config.cjs --passWithNoTests",
     "build": "bun run copyFiles && bun run build:esm",
     "build:esm": "tsc --project ./tsconfig.json",
