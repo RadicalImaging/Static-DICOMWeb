@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/cs3d",
-  "version": "1.7.4",
+  "version": "1.7.6",
   "description": "Cornerstone3D CLI Utilities",
   "publishConfig": {
     "access": "public"
@@ -74,7 +74,7 @@
     "publishJS": "yarn publish  --no-git-tag-version"
   },
   "dependencies": {
-    "@cornerstonejs/core": "4.14.5",
+    "@cornerstonejs/core": "^4.22.3",
     "canvas": "3.1.0",
     "dcmjs": "0.50.0",
     "jsdom": "^26.0.0",
