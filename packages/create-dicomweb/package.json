@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/create-dicomweb",
-  "version": "1.7.4",
+  "version": "1.7.6",
   "description": "Library to convert part 10 to DICOMweb file format using the streaming dcmjs parser",
   "publishConfig": {
     "access": "public"
