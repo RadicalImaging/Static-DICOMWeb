@@ -31,20 +31,36 @@
   "license": "ISC",
   "main": "lib/index.mjs",
   "exports": {
-    ".": "./lib/index.mjs",
-    "./lib/readSeriesIndex.plugin.mjs": "./lib/readSeriesIndex.plugin.mjs",
-    "./lib/studiesQueryByIndex.plugin.mjs": "./lib/studiesQueryByIndex.plugin.mjs",
-    "./lib/studiesQueryToScp.plugin.mjs": "./lib/studiesQueryToScp.plugin.mjs"
+    ".": {
+      "default": "./lib/index.mjs",
+      "esm": "./lib/index.mjs"
+    },
+    "./lib/readSeriesIndex.plugin.mjs": {
+      "default": "./lib/readSeriesIndex.plugin.mjs",
+      "esm": "./lib/readSeriesIndex.plugin.mjs"
+    },
+    "./lib/studiesQueryByIndex.plugin.mjs": {
+      "default": "./lib/studiesQueryByIndex.plugin.mjs",
+      "esm": "./lib/studiesQueryByIndex.plugin.mjs"
+    },
+    "./lib/studiesQueryToScp.plugin.mjs": {
+      "default": "./lib/studiesQueryToScp.plugin.mjs",
+      "esm": "./lib/studiesQueryToScp.plugin.mjs"
+    }
   },
   "directories": {
     "lib": "lib"
   },
   "files": [
-    "lib"
+    "lib",
+    "dist"
   ],
   "scripts": {
     "test": "jest --config ./jest.config.js",
     "link:exec": "bun link",
+    "build": "bun run build:esm",
+    "build:esm": "bun -e \"import { mkdirSync, cpSync } from 'node:fs'; mkdirSync('dist', { recursive: true }); cpSync('lib', 'dist', { recursive: true });\"",
+    "clean": "rimraf dist",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
     "publishJS": "yarn publish  --no-git-tag-version"

@@ -25,7 +25,8 @@ describe('@radicalimaging/static-wado-webserver', () => {
   });
 
   it('loaded studiesQueryByIndex', async () => {
-    const { generator } = await import(plugins.studiesQueryByIndex);
+    const imported = await import(plugins.studiesQueryByIndex);
+    const { generator } = imported.default || imported;
     const queryFunction = generator(params);
     must(queryFunction).be.function();
   });

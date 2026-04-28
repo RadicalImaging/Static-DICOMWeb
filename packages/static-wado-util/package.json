@@ -32,7 +32,24 @@
   "type": "module",
   "main": "lib/index.ts",
   "module": "lib/index.ts",
-  "types": "lib/index.ts",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "default": "./lib/index.ts",
+      "esm": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./*.mjs": {
+      "default": "./lib/*.mjs",
+      "esm": "./dist/*.mjs",
+      "types": "./dist/*.d.mts"
+    },
+    "./*": {
+      "default": "./lib/*",
+      "esm": "./dist/*",
+      "types": "./dist/*.d.ts"
+    }
+  },
   "files": [
     "lib",
     "dist",
@@ -55,7 +72,7 @@
   "scripts": {
     "test": "jest --config ./jest.config.cjs",
     "build": "bun run build:esm",
-    "build:esm": "bun build lib/index.ts --format esm --outdir dist --target node",
+    "build:esm": "tsc --project ./tsconfig.json",
     "clean": "rimraf dist",
     "link:exec": "npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",

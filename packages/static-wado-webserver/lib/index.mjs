@@ -90,6 +90,7 @@ const DicomWebServer = async params => {
 export default DicomWebServer;
 export { dicomWebServerConfig, configureProgram };
 export * from './util/multipartStreamParser.mjs';
+export * from './util/stowResponseBuilder.mjs';
 export { multipartStream } from './controllers/server/multipartStream.mjs';
 export { TrackableReadBufferStream } from './controllers/server/TrackableReadBufferStream.mjs';
 export {

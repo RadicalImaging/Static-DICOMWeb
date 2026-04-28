@@ -26,19 +26,29 @@
   "license": "ISC",
   "main": "lib/index.mjs",
   "module": "lib/index.mjs",
+  "exports": {
+    ".": {
+      "default": "./lib/index.mjs",
+      "esm": "./lib/index.mjs"
+    }
+  },
   "directories": {
     "lib": "lib",
     "bin": "bin"
   },
   "files": [
     "bin",
-    "lib"
+    "lib",
+    "dist"
   ],
   "bin": {
     "curiestore": "bin/healthlakestore.mjs"
   },
   "scripts": {
     "link:exec": "bun link",
+    "build": "bun run build:esm",
+    "build:esm": "bun -e \"import { mkdirSync, cpSync } from 'node:fs'; mkdirSync('dist', { recursive: true }); cpSync('lib', 'dist', { recursive: true });\"",
+    "clean": "rimraf dist",
     "test": "jest --config ./jest.config.js --passWithNoTests"
   },
   "jest": {

@@ -1,8 +1,8 @@
 import { createCanvas } from 'canvas';
 import { utilities, setCanvasCreator } from '@cornerstonejs/core';
 
-import canvasImageToBuffer from '../adapters/canvasImageToBuffer.js';
-import createImage from '../image/createImage.js';
+import canvasImageToBuffer from '../adapters/canvasImageToBuffer';
+import createImage from '../image/createImage';
 
 function getValue(metadata, tag) {
   const value = metadata[tag];

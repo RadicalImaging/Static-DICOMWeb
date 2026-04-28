@@ -15,6 +15,7 @@
     "@babel/plugin-transform-private-methods": "^7.28.6",
     "@babel/plugin-transform-runtime": "^7.17.0",
     "@babel/preset-env": "^7.16.11",
+    "@babel/preset-typescript": "^7.28.5",
     "@babel/runtime": "^7.17.0",
     "babel-plugin-transform-import-meta": "^2.3.3",
     "eslint": "^9.14.0",

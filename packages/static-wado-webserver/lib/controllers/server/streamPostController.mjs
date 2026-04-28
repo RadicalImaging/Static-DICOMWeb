@@ -16,6 +16,7 @@ import { multipartStream } from './multipartStream.mjs';
 import { TrackableReadBufferStream } from './TrackableReadBufferStream.mjs';
 import { deleteStaleSummaries } from './deleteStaleSummaries.mjs';
 import { getLivelockDetectMs } from '../../util/livelockRegistry.mjs';
+import { createDatasetResponseFromUploadedFiles } from '../../util/stowResponseBuilder.mjs';
 
 const maxFileSize = 4 * 1024 * 1024 * 1024;
 const maxTotalFileSize = 10 * maxFileSize;
@@ -406,126 +407,6 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
   });
 }
 
-/**
- * Helper function to extract SOP Class UID from information object
- * Only uses information object, assumes it's non-null when called
- */
-function getSOPClassUID(information) {
-  return information?.sopClassUid || null;
-}
-
-/**
- * Helper function to extract SOP Instance UID from information object
- * Only uses information object, assumes it's non-null when called
- */
-function getSOPInstanceUID(information) {
-  return information?.sopInstanceUid || null;
-}
-
-/**
- * Creates the STOW-RS response in the correct format
- * Returns an object with 00081199 (ReferencedSOPSequence) for successes
- * and 00081198 (FailedSOPSequence) for failures
- *
- * If information object doesn't exist, the instance is treated as failed
- */
-function createDatasetResponse(files) {
-  const response = {};
-  const successItems = [];
-  const failedItems = [];
-
-  for (const file of files) {
-    // Check if information object exists - if not, treat as failed
-    const information = file.result?.information;
-    const hasInformation = !!information;
-
-    // Check for stream errors (frame/bulkdata writes that failed)
-    const streamErrors = file.result?.streamErrors || [];
-    const hasStreamErrors = streamErrors.length > 0;
-
-    // Determine if this is a valid success (ok AND has information AND no stream errors)
-    const isValidSuccess = file.ok && hasInformation && !hasStreamErrors;
-
-    // Extract UIDs only from information object (if it exists)
-    const sopClassUID = hasInformation ? getSOPClassUID(information) : null;
-    const sopInstanceUID = hasInformation ? getSOPInstanceUID(information) : null;
-
-    // Create sequence item
-    const item = {};
-
-    // Add Content-Location (filename from request) so clients can match response items to uploaded files.
-    // Uses private tag (0009,1001); clients should match by this when ReferencedSOPInstanceUID is absent (e.g. invalid DICOM).
-    const contentLocation = file.fieldname || file.headers?.['content-location'];
-    if (contentLocation) {
-      item['00091001'] = {
-        vr: 'LO',
-        Value: [contentLocation],
-      };
-    }
-
-    // Add ReferencedSOPClassUID (00081150) if available
-    if (sopClassUID) {
-      item['00081150'] = {
-        vr: 'UI',
-        Value: [sopClassUID],
-      };
-    }
-
-    // Add ReferencedSOPInstanceUID (00081155) if available
-    if (sopInstanceUID) {
-      item['00081155'] = {
-        vr: 'UI',
-        Value: [sopInstanceUID],
-      };
-    }
-
-    if (isValidSuccess) {
-      // Success - add to ReferencedSOPSequence (00081199)
-      successItems.push(item);
-    } else {
-      // Failure - add to FailedSOPSequence (00081198)
-      // This includes cases where:
-      // - file.ok is false (processing error)
-      // - information object doesn't exist (invalid DICOM or parsing failure)
-      // - stream errors occurred (frame/bulkdata write failures)
-
-      // Log the failure reason for debugging
-      if (hasStreamErrors) {
-        console.error(
-          `[STOW] Instance ${sopInstanceUID || 'unknown'} failed due to stream errors:`,
-          streamErrors.map(e => `${e.streamKey}: ${e.error?.message || e.error}`).join(', ')
-        );
-      }
-
-      // Add Failure Reason (00081197)
-      item['00081197'] = {
-        vr: 'US',
-        Value: [0xc000], // Processing failure (generic error code)
-      };
-
-      failedItems.push(item);
-    }
-  }
-
-  // Add ReferencedSOPSequence (00081199) if there are successful items
-  if (successItems.length > 0) {
-    response['00081199'] = {
-      vr: 'SQ',
-      Value: successItems,
-    };
-  }
-
-  // Add FailedSOPSequence (00081198) if there are failed items
-  if (failedItems.length > 0) {
-    response['00081198'] = {
-      vr: 'SQ',
-      Value: failedItems,
-    };
-  }
-
-  return response;
-}
-
 export const completePostController = async (req, res, next) => {
   try {
     req.uploadPromiseTracker?.stopStatusMonitor?.();
@@ -611,7 +492,7 @@ export const completePostController = async (req, res, next) => {
     }
 
     // Create the dataset response (used for both JSON and XML)
-    const datasetResponse = createDatasetResponse(files);
+    const datasetResponse = createDatasetResponseFromUploadedFiles(files, { logger: console });
 
     console.verbose('[streamPostController] Dataset response:', JSON.stringify(datasetResponse, null, 2));
 

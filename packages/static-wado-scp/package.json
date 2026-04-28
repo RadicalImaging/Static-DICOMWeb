@@ -33,13 +33,20 @@
   "homepage": "https://github.com/radicalimaging/static-dicomweb#readme",
   "license": "ISC",
   "main": "lib/index.mjs",
+  "exports": {
+    ".": {
+      "default": "./lib/index.mjs",
+      "esm": "./lib/index.mjs"
+    }
+  },
   "directories": {
     "lib": "lib",
     "bin": "bin"
   },
   "files": [
     "bin",
-    "lib"
+    "lib",
+    "dist"
   ],
   "bin": {
     "dicomwebscp": "bin/dicomwebscp.mjs"
@@ -47,6 +54,9 @@
   "scripts": {
     "test": "jest --config ./jest.config.js",
     "link:exec": "bun link",
+    "build": "bun run build:esm",
+    "build:esm": "bun -e \"import { mkdirSync, cpSync } from 'node:fs'; mkdirSync('dist', { recursive: true }); cpSync('lib', 'dist', { recursive: true });\"",
+    "clean": "rimraf dist",
     "dicomwebscp": "bun bin/dicomwebscpDev.mjs --",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
