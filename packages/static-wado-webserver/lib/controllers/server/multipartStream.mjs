@@ -298,8 +298,9 @@ export function multipartStream(opts) {
 
         // Accept DICOM parts by content type. Many browsers and upload tools
         // send parts as application/octet-stream rather than application/dicom.
-        // In a STOW-RS context, treat octet-stream as DICOM since all parts
-        // in a STOW-RS request are expected to be Part 10 files.
+        // In a STOW-RS context, treat octet-stream as DICOM since unknown types
+        // are not images, and thus can be considered to be Part 10 files.
+        // This implementation only deals with Part 10 at this time.
         const isDicomPart =
           partContentType.startsWith('application/dicom') ||
           partContentType === 'application/octet-stream';

@@ -301,8 +301,9 @@ export function streamPostController(params) {
           writerOptions: {
             baseDir: dicomdir,
             streamWritePromiseTracker: req.streamWritePromiseTracker,
-            deferFinalMove: !!validateInstance,
+            deferFinalMove: true,
           },
+          validateInstance: validateInstance ? validateInstance.bind(null, req) : undefined,
           statusMonitorJob:
             req?.statusMonitorInstancesJobId != null
               ? { typeId: 'stowInstances', jobId: req.statusMonitorInstancesJobId }
@@ -310,19 +311,7 @@ export function streamPostController(params) {
         });
         tracker.add(promise);
         const result = await promise;
-        const { information, writer } = result;
-        console.verbose('[streamPostController] information:', information);
-
-        // If a validateInstance hook is provided, run it before committing files
-        if (validateInstance && writer) {
-          try {
-            await validateInstance(result, req);
-            await writer.commitPendingMoves();
-          } catch (validationError) {
-            writer.rollbackPendingMoves();
-            throw validationError;
-          }
-        }
+        console.verbose('[streamPostController] information:', result.information);
 
         req.stowProgressReporter?.addProcessed(1);
         return result;
