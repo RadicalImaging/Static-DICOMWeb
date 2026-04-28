@@ -101,6 +101,22 @@ export class DicomWebWriter {
   }
 
   /**
+   * Renames all deferred temp files to their final destinations.
+   * No-op in the base class. Subclasses that support deferFinalMove override this.
+   */
+  async commitPendingMoves() {
+    // No-op: base class does not defer moves
+  }
+
+  /**
+   * Removes all deferred temp files without renaming.
+   * No-op in the base class. Subclasses that support deferFinalMove override this.
+   */
+  rollbackPendingMoves() {
+    // No-op: base class does not defer moves
+  }
+
+  /**
    * Deletes a file and its .gz counterpart if present (e.g. index.json and index.json.gz).
    * Must be implemented by subclasses that support deletion.
    * @param {string} relativePath - Relative path within baseDir

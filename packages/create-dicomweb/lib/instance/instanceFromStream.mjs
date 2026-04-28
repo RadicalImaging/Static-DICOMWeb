@@ -286,6 +286,7 @@ export async function instanceFromStream(stream, options = {}) {
   } catch (err) {
     parseError = err;
     writer?.abort(err);
+    writer?.rollbackPendingMoves();
     throw err;
   } finally {
     progressFilter.reportProgress?.();
@@ -306,28 +307,43 @@ export async function instanceFromStream(stream, options = {}) {
     throw e;
   }
 
-  if (dict && reader.meta) {
-    const meta = reader.meta;
-    const transferSyntax = meta['00020010']?.Value?.[0];
-    if (transferSyntax) {
-      setValue(dict, Tags.AvailableTransferSyntaxUID, transferSyntax);
+  try {
+    if (dict && reader.meta) {
+      const meta = reader.meta;
+      const transferSyntax = meta['00020010']?.Value?.[0];
+      if (transferSyntax) {
+        setValue(dict, Tags.AvailableTransferSyntaxUID, transferSyntax);
+      }
     }
+
+    console.verbose('Finished parsing file', information.sopInstanceUid);
+
+    if (writer) {
+      console.verbose('Writing metadata to file', information.sopInstanceUid);
+      const metadataStream = await writer.openInstanceStream('metadata', { gzip: true });
+      metadataStream.stream.write(Buffer.from(JSON.stringify([dict])));
+      await writer.closeStream(metadataStream.streamKey);
+    }
+
+    // Wait for all frame writes to complete before returning
+    await writer?.awaitAllStreams();
+    console.verbose('Finished writing metadata to file', information.sopInstanceUid);
+
+    const result = { fmi, dict, writer, information: listener.information };
+
+    // If a validateInstance hook is provided, run it before committing temp files.
+    if (options.validateInstance) {
+      await options.validateInstance(result);
+    }
+
+    // Commit deferred moves (rename temp → final). No-op on base class.
+    await writer?.commitPendingMoves();
+
+    return result;
+  } catch (err) {
+    writer?.rollbackPendingMoves();
+    throw err;
   }
-
-  console.verbose('Finished parsing file', information.sopInstanceUid);
-
-  if (writer) {
-    console.verbose('Writing metadata to file', information.sopInstanceUid);
-    const metadataStream = await writer.openInstanceStream('metadata', { gzip: true });
-    metadataStream.stream.write(Buffer.from(JSON.stringify([dict])));
-    await writer.closeStream(metadataStream.streamKey);
-  }
-
-  // Wait for all frame writes to complete before returning
-  await writer?.awaitAllStreams();
-  console.verbose('Finished writing metadata to file', information.sopInstanceUid);
-
-  return { fmi, dict, writer, information: listener.information };
 }
 
 /**
