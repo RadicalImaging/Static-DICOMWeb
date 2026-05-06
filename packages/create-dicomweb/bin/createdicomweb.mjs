@@ -235,18 +235,28 @@ function parseFrameNumbers(frameNumbersStr) {
 program
   .command('thumbnail')
   .description('Generate thumbnail(s) for DICOM instance(s)')
-  .argument('<studyUID>', 'Study Instance UID (required)')
+  .argument('[studySelector]', 'Study selector: StudyInstanceUID, query pattern (e.g. PatientID=25), or true for all studies')
   .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
+  .option('--output-dicomdir <path>', 'Output directory for generated thumbnails (required when --dicomdir is http/https)')
+  .option('--study-selector <selector>', 'Study selector override: StudyInstanceUID, query pattern, or true')
   .option('--series-uid <seriesUID>', 'Specific Series Instance UID to process (if not provided, uses first series from study query)')
   .option('--sop-uid <sopUID>', 'Specific SOP Instance UID to process (if not provided, uses first instance from series)')
   .option('--frame-numbers <frames>', 'Frame numbers to generate thumbnails for (comma-separated, supports ranges, e.g., "1-3,17")', '1')
   .option('--series-thumbnail', 'Generate thumbnails for series (middle SOP instance, middle frame for multiframe)')
-  .action(async (studyUID, options) => {
+  .option(
+    '--all-thumbnails',
+    'Generate thumbnails for every SOP instance plus series and study level (uses middle frame for multiframe)'
+  )
+  .action(async (studySelectorArg, options) => {
     updateVerboseLog();
     const thumbnailOptions = {};
     if (options.dicomdir) {
       thumbnailOptions.dicomdir = handleHomeRelative(options.dicomdir);
     }
+    if (options.outputDicomdir) {
+      thumbnailOptions.outputDicomdir = handleHomeRelative(options.outputDicomdir);
+    }
+    thumbnailOptions.studySelector = studySelectorArg || options.studySelector || 'true';
     if (options.seriesUid) {
       thumbnailOptions.seriesUid = options.seriesUid;
     }
@@ -255,6 +265,9 @@ program
     }
     if (options.seriesThumbnail) {
       thumbnailOptions.seriesThumbnail = true;
+    }
+    if (options.allThumbnails) {
+      thumbnailOptions.allThumbnails = true;
     }
     
     // Parse frame numbers
@@ -266,7 +279,7 @@ program
       process.exit(1);
     }
     
-    await thumbnailMain(studyUID, thumbnailOptions);
+    await thumbnailMain(thumbnailOptions.studySelector, thumbnailOptions);
   });
 
 program

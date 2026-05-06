@@ -1,7 +1,8 @@
 import { FileDicomWebReader } from './FileDicomWebReader.mjs';
+import { HttpDicomWebReader } from './HttpDicomWebReader.mjs';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
 import { MultipartResponseDicomWebWriter } from './MultipartResponseDicomWebWriter.mjs';
-import { isDicomDirLocation, dicomDirPathFromLocation } from './dicomDirLocation.mjs';
+import { isDicomDirLocation, dicomDirPathFromLocation, isHttpLocation } from './dicomDirLocation.mjs';
 
 /**
  * Factory for file-based DICOMweb reader/writer instances from a dicomdir (file) location.
@@ -39,6 +40,9 @@ export class DicomWebStream {
    * @returns {import('./FileDicomWebReader.mjs').FileDicomWebReader|null}
    */
   static createReader(location) {
+    if (isHttpLocation(location)) {
+      return new HttpDicomWebReader(location);
+    }
     const baseDir = dicomDirPathFromLocation(location);
     if (baseDir == null) {
       return null;

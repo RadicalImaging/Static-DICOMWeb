@@ -170,6 +170,20 @@ export class DicomWebReader {
     return this.openInputStream(relativePath, filename);
   }
 
+  /**
+   * Reads bulk data for an instance/frame.
+   * Must be implemented by subclasses.
+   * @param {string} studyUID - Study Instance UID
+   * @param {string} seriesUID - Series Instance UID
+   * @param {string} bulkDataURI - BulkData URI from metadata
+   * @param {number} [frameNumber] - Optional frame number (1-based)
+   * @param {string} [instanceUID] - Optional SOP Instance UID for resolving instance-relative frame paths
+   * @returns {Promise<{binaryData:ArrayBuffer,transferSyntaxUid:string|null,contentType:string}|null>}
+   */
+  async readBulkData(studyUID, seriesUID, bulkDataURI, frameNumber = undefined, instanceUID = undefined) {
+    throw new Error('readBulkData must be implemented by subclass');
+  }
+
     /**
    * Reads a JSON file from a stream and parses it
    * @param {Readable} stream - Readable stream containing JSON data

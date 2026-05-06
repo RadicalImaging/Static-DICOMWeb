@@ -20,21 +20,24 @@ export default async function (options, program) {
 export async function studyMainSingle(studyUID, options) {
   console.warn('Uploading study', studyUID);
   const studyDirectory = studyUID ? `studies/${studyUID}` : 'studies';
+  const uploadOptions = options.thumbnailOnly
+    ? { ...options, include: ['thumbnail'], exclude: ['temp'], index: false }
+    : options;
   if (options.retrieve) {
     console.log('Retrieve studyUID', studyUID);
-    await commonMain(this, 'root', options, retrieveDeploy.bind(null, studyDirectory));
+    await commonMain(this, 'root', uploadOptions, retrieveDeploy.bind(null, studyDirectory));
 
     return;
   }
 
-  if (!options.skipStore) {
-    await commonMain(this, 'root', options, uploadDeploy.bind(null, studyDirectory));
+  if (!uploadOptions.skipStore) {
+    await commonMain(this, 'root', uploadOptions, uploadDeploy.bind(null, studyDirectory));
     console.log('Storing studyUID', studyUID);
-    await commonMain(this, 'root', options, uploadDeploy.bind(null, studyDirectory));
+    await commonMain(this, 'root', uploadOptions, uploadDeploy.bind(null, studyDirectory));
   }
-  if (options.index) {
+  if (uploadOptions.index) {
     console.log('Calling commonMain to create index');
-    await commonMain(this, 'root', options, uploadIndex.bind(null, studyDirectory));
+    await commonMain(this, 'root', uploadOptions, uploadIndex.bind(null, studyDirectory));
   } else {
     console.log('NOT Calling commonMain to create index');
   }

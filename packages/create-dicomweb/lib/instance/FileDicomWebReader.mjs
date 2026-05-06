@@ -3,6 +3,7 @@ import path from 'path';
 import { createGunzip } from 'zlib';
 import { DicomWebReader } from './DicomWebReader.mjs';
 import { removeStaleMetadataDir } from './removeStaleMetadataDir.mjs';
+import { readBulkData as readBulkDataFromFile } from '@radicalimaging/static-wado-util';
 
 /**
  * File-based implementation of DicomWebReader
@@ -108,6 +109,27 @@ export class FileDicomWebReader extends DicomWebReader {
    */
   async openInputStream(relativePath, filename) {
     return this._openStream(relativePath, filename);
+  }
+
+  async readBulkData(studyUID, seriesUID, bulkDataURI, frameNumber = undefined, instanceUID = undefined) {
+    const studyDir = path.join(this.baseDir, `studies/${studyUID}`);
+    const seriesDir = path.join(studyDir, `series/${seriesUID}`);
+
+    if (bulkDataURI.indexOf('frames') !== -1) {
+      const isSeriesRelative = bulkDataURI.startsWith('./instances/');
+      if (!isSeriesRelative && !instanceUID) {
+        throw new Error(
+          'No SOPInstanceUID in instance metadata; cannot resolve instance-relative frames path'
+        );
+      }
+      const frameBaseDir = isSeriesRelative
+        ? seriesDir
+        : path.join(seriesDir, 'instances', instanceUID);
+      const frameBaseName = isSeriesRelative ? bulkDataURI : './frames';
+      return readBulkDataFromFile(frameBaseDir, frameBaseName, frameNumber);
+    }
+
+    return readBulkDataFromFile(seriesDir, bulkDataURI);
   }
 
   /**

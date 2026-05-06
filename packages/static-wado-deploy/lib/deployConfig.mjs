@@ -106,6 +106,11 @@ const { deployConfig } = ConfigPoint.register({
             description: 'Skip storing, so that indexing only is done',
             defaultValue: false,
           },
+          {
+            key: '--thumbnail-only',
+            description: 'Upload only thumbnail files under the selected studies',
+            defaultValue: false,
+          },
         ],
         isDefault: true,
         main: studiesMain,

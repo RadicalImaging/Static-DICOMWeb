@@ -150,6 +150,7 @@ class DeployGroup {
     const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
     const files = [];
     const directories = [];
+    const includePatterns = Array.isArray(this.options.include) ? this.options.include : [];
 
     // Separate files and directories for optimized processing
     for (const entry of entries) {
@@ -160,8 +161,11 @@ class DeployGroup {
       const shouldExclude = Array.from(excludePatterns).some(
         pattern => entryRelativePath.indexOf(pattern) !== -1
       );
+      const shouldInclude =
+        includePatterns.length === 0 ||
+        includePatterns.some(pattern => entryRelativePath.indexOf(pattern) !== -1);
 
-      if (shouldExclude) continue;
+      if (shouldExclude || !shouldInclude) continue;
 
       if (entry.isDirectory()) {
         directories.push({ path: fullPath, relativePath: entryRelativePath });
