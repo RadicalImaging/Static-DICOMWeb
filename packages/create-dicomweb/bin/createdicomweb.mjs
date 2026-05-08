@@ -247,8 +247,13 @@ program
     '--all-thumbnails',
     'Generate thumbnails for every SOP instance plus series and study level (uses middle frame for multiframe)'
   )
-  .action(async (studySelectorArg, options) => {
-    updateVerboseLog();
+  .option('--force', 'Regenerate thumbnails even if they already exist at the output location')
+  .action(async (studySelectorArg, options, command) => {
+    const merged =
+      typeof command?.optsWithGlobals === 'function'
+        ? command.optsWithGlobals()
+        : { ...program.opts(), ...options };
+    createVerboseLog(!!merged.verbose, { quiet: !!merged.quiet });
     const thumbnailOptions = {};
     if (options.dicomdir) {
       thumbnailOptions.dicomdir = handleHomeRelative(options.dicomdir);
@@ -269,7 +274,10 @@ program
     if (options.allThumbnails) {
       thumbnailOptions.allThumbnails = true;
     }
-    
+    if (options.force) {
+      thumbnailOptions.force = true;
+    }
+
     // Parse frame numbers
     try {
       const frameNumbers = parseFrameNumbers(options.frameNumbers);

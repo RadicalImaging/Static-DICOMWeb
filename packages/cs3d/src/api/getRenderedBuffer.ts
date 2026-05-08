@@ -12,6 +12,17 @@ function getValue(metadata, tag) {
   }
   return value.Value[0];
 }
+
+/** PS3.x-style one-line warning for thumbnail render skips (machine-readable UIDs) */
+function warnThumbnailRenderDicom(metadata: Record<string, unknown> | undefined, err: unknown) {
+  const study = metadata ? getValue(metadata, '0020000D') : undefined;
+  const series = metadata ? getValue(metadata, '0020000E') : undefined;
+  const sop = metadata ? getValue(metadata, '00080018') : undefined;
+  const reason = err instanceof Error ? err.message : String(err);
+  console.warn(
+    `*** DICOM warning [THUMBNAIL_RENDER] StudyInstanceUID=${study ?? 'unknown'} SeriesInstanceUID=${series ?? 'unknown'} SOPInstanceUID=${sop ?? 'unknown'}: ${reason}`
+  );
+}
 /**
  * It gets through callback call the rendered image into canvas.
  * It simulates rendering of decodedPixel data into server side (fake) canvas.
@@ -50,6 +61,6 @@ export async function getRenderedBuffer(
     const buffer = canvasImageToBuffer(canvasDest, 'image/jpeg', quality);
     await doneCallback?.(buffer, canvasDest);
   } catch (e) {
-    console.warn('Unable to create rendered (thumbnail) because:', e);
+    warnThumbnailRenderDicom(metadata as Record<string, unknown>, e);
   }
 }

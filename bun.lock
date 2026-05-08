@@ -41,7 +41,7 @@
     },
     "packages/create-dicomweb": {
       "name": "@radicalimaging/create-dicomweb",
-      "version": "1.7.4",
+      "version": "1.7.6",
       "bin": {
         "createdicomweb": "bin/createdicomweb.mjs",
       },
@@ -65,7 +65,7 @@
     },
     "packages/cs3d": {
       "name": "@radicalimaging/cs3d",
-      "version": "1.7.4",
+      "version": "1.7.6",
       "dependencies": {
         "@cornerstonejs/core": "^4.22.3",
         "canvas": "3.1.0",
@@ -102,7 +102,7 @@
     },
     "packages/s3-deploy": {
       "name": "@radicalimaging/s3-deploy",
-      "version": "1.7.4",
+      "version": "1.7.6",
       "dependencies": {
         "@aws-sdk/client-s3": "^3.374.0",
         "@aws-sdk/lib-storage": "^3.862.0",
@@ -119,7 +119,7 @@
     },
     "packages/static-wado-creator": {
       "name": "@radicalimaging/static-wado-creator",
-      "version": "1.7.4",
+      "version": "1.7.6",
       "bin": {
         "mkdicomweb": "bin/mkdicomweb.mjs",
       },
@@ -140,7 +140,7 @@
     },
     "packages/static-wado-deploy": {
       "name": "@radicalimaging/static-wado-deploy",
-      "version": "1.7.4",
+      "version": "1.7.6",
       "bin": {
         "deploydicomweb": "bin/deploydicomweb.mjs",
       },
@@ -158,7 +158,7 @@
     },
     "packages/static-wado-plugins": {
       "name": "@radicalimaging/static-wado-plugins",
-      "version": "1.7.4",
+      "version": "1.7.6",
       "dependencies": {
         "@radicalimaging/static-wado-util": ">=1.7.0",
         "config-point": ">=0.5.1",
@@ -171,7 +171,7 @@
     },
     "packages/static-wado-scp": {
       "name": "@radicalimaging/static-wado-scp",
-      "version": "1.7.4",
+      "version": "1.7.6",
       "bin": {
         "dicomwebscp": "bin/dicomwebscp.mjs",
       },
@@ -189,7 +189,7 @@
     },
     "packages/static-wado-util": {
       "name": "@radicalimaging/static-wado-util",
-      "version": "1.7.4",
+      "version": "1.7.6",
       "dependencies": {
         "@cornerstonejs/codec-openjpeg": ">=1.2.3",
         "@cornerstonejs/codec-openjph": ">=2.4.5",
@@ -210,7 +210,7 @@
     },
     "packages/static-wado-webserver": {
       "name": "@radicalimaging/static-wado-webserver",
-      "version": "1.7.4",
+      "version": "1.7.6",
       "bin": {
         "dicomwebserver": "bin/dicomwebserver.mjs",
         "monitordicomwebserver": "bin/monitordicomwebserver.mjs",

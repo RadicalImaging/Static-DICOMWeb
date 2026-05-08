@@ -1,6 +1,22 @@
 import { Readable } from 'stream';
 import { DicomWebReader } from './DicomWebReader.mjs';
 
+/**
+ * Extract transfer syntax UID from WADO-RS / fetch response headers.
+ * @param {Headers} headers
+ * @returns {string|null}
+ */
+function transferSyntaxUidFromResponseHeaders(headers) {
+  const ct = headers.get('content-type') || '';
+  const m = ct.match(/transfer-syntax\s*=\s*["']?([0-9.]+)["']?/i);
+  if (m) return m[1];
+  for (const name of ['x-transfer-syntax-uid', 'x-dicom-transfer-syntax']) {
+    const v = headers.get(name);
+    if (v?.trim()) return v.trim();
+  }
+  return null;
+}
+
 function normalizeBaseUrl(baseUrl) {
   return baseUrl.replace(/\/+$/, '');
 }
@@ -61,7 +77,15 @@ export class HttpDicomWebReader extends DicomWebReader {
   }
 
   async _fetch(url) {
+    console.verbose('[HttpDicomWebReader] GET', url);
     const response = await fetch(url);
+    const ct = response.headers.get('content-type');
+    const cl = response.headers.get('content-length');
+    console.verbose(
+      `[HttpDicomWebReader] <- ${response.status} ${response.statusText}`,
+      ct ? `content-type=${ct}` : '',
+      cl != null ? `content-length=${cl}` : ''
+    );
     if (response.status === 404) return null;
     if (!response.ok) {
       throw new Error(`HTTP ${response.status} for ${url}`);
@@ -72,12 +96,16 @@ export class HttpDicomWebReader extends DicomWebReader {
   async readJsonFile(relativePath, filename) {
     const qidoPath = this._mapRelativePathToQido(relativePath, filename);
     if (qidoPath) {
-      const response = await this._fetch(joinUrlPath(this.baseUrl, qidoPath));
+      const reqUrl = joinUrlPath(this.baseUrl, qidoPath);
+      console.verbose('[HttpDicomWebReader] readJsonFile (QIDO)', reqUrl);
+      const response = await this._fetch(reqUrl);
       if (!response) return undefined;
       return response.json();
     }
 
-    const response = await this._fetch(joinUrlPath(this.baseUrl, relativePath, filename));
+    const reqUrl = joinUrlPath(this.baseUrl, relativePath, filename);
+    console.verbose('[HttpDicomWebReader] readJsonFile', reqUrl);
+    const response = await this._fetch(reqUrl);
     if (!response) return undefined;
     return response.json();
   }
@@ -97,10 +125,15 @@ export class HttpDicomWebReader extends DicomWebReader {
     const response = await this._fetch(url);
     if (!response) return null;
     const binaryData = await response.arrayBuffer();
+    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+    const transferSyntaxUid = transferSyntaxUidFromResponseHeaders(response.headers);
+    console.verbose(
+      `[HttpDicomWebReader] readBulkData frame=${frameNumber ?? 'n/a'} bytes=${binaryData.byteLength} transferSyntaxUid=${transferSyntaxUid ?? '(not in headers)'}`
+    );
     return {
       binaryData,
-      transferSyntaxUid: null,
-      contentType: response.headers.get('content-type') || 'application/octet-stream',
+      transferSyntaxUid,
+      contentType,
     };
   }
 
@@ -109,7 +142,9 @@ export class HttpDicomWebReader extends DicomWebReader {
     if (typeof studySelector === 'string' && studySelector !== 'true') {
       query = `?${studySelector}`;
     }
-    const response = await this._fetch(joinUrlPath(this.baseUrl, `studies${query}`));
+    const reqUrl = joinUrlPath(this.baseUrl, `studies${query}`);
+    console.verbose('[HttpDicomWebReader] queryStudies', reqUrl);
+    const response = await this._fetch(reqUrl);
     if (!response) return [];
     const list = await response.json();
     return Array.isArray(list) ? list : [];

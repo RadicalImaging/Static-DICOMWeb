@@ -338,7 +338,9 @@ class S3Ops {
         });
 
         await upload.done();
-        console.verbose('Successfully uploaded', Key);
+        console.verbose(
+          `Successfully uploaded s3://${this.group.Bucket}/${Key} (${ContentSize} bytes) <- ${fileName}`
+        );
         return true;
       } catch (error) {
         lastError = error;
