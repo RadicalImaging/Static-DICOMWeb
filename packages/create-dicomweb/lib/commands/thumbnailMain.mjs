@@ -1,5 +1,7 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
+import { pipeline } from 'stream/promises';
 import { pathToFileURL } from 'url';
 import { DicomWebStream } from '../instance/DicomWebStream.mjs';
 import { FileDicomWebWriter } from '../instance/FileDicomWebWriter.mjs';
@@ -12,8 +14,16 @@ import {
   putS3ThumbnailJpeg,
   s3ObjectExists,
 } from '../instance/s3ThumbnailOutput.mjs';
-import { Tags, qidoFilter, handleHomeRelative } from '@radicalimaging/static-wado-util';
-import StaticWado from '@radicalimaging/static-wado-creator';
+import {
+  Tags,
+  qidoFilter,
+  handleHomeRelative,
+  execSpawn,
+} from '@radicalimaging/static-wado-util';
+import StaticWado, {
+  getVideoFileExtensionForTransferSyntaxUid,
+  isVideoTransferSyntaxUid,
+} from '@radicalimaging/static-wado-creator';
 
 const { getValue } = Tags;
 
@@ -75,6 +85,201 @@ function resolveThumbnailTransferSyntaxUid(bulkData, pixelData, instanceMetadata
     transferSyntaxUid: ts,
     resolutionNote: 'single-part bulk (may use tag 00083002 AvailableTransferSyntaxUID)',
   };
+}
+
+function getMetadataTransferSyntaxForRouting(metadata) {
+  return getTransferSyntaxFromInstanceMetadata(metadata, { includeAvailableTransferSyntax: true });
+}
+
+function hasPhotometricInterpretation(metadata) {
+  return Boolean(getValue(metadata, Tags.PhotometricInterpretation));
+}
+
+function isSegInstance(metadata) {
+  return getValue(metadata, Tags.Modality) === 'SEG';
+}
+
+/**
+ * @returns {{ ok: boolean, reason?: string, metaTs?: string }}
+ */
+function thumbnailInstancePrecheck(metadata, force) {
+  const metaTs = getMetadataTransferSyntaxForRouting(metadata);
+  const isVid = metaTs && isVideoTransferSyntaxUid(metaTs);
+  if (!isVid && !hasPhotometricInterpretation(metadata)) {
+    return { ok: false, reason: 'missing PhotometricInterpretation (00280004)', metaTs };
+  }
+  if (isSegInstance(metadata) && !force) {
+    return { ok: false, reason: 'Modality is SEG (use --force to thumbnail)', metaTs };
+  }
+  return { ok: true, metaTs };
+}
+
+async function loadVideoBytesFromPixelBulk(reader, studyUID, seriesUID, instanceMetadata, frameNumber = 1) {
+  const sopUID = getValue(instanceMetadata, Tags.SOPInstanceUID);
+  const pixelData = instanceMetadata[Tags.PixelData];
+  if (!pixelData?.BulkDataURI) {
+    console.verbose('[thumbnail] video bulk fallback: no PixelData BulkDataURI');
+    return null;
+  }
+  try {
+    const bulkData = await reader.readBulkData(
+      studyUID,
+      seriesUID,
+      pixelData.BulkDataURI,
+      frameNumber,
+      sopUID
+    );
+    if (!bulkData?.binaryData) return null;
+    const bd = bulkData.binaryData;
+    const buf = bd instanceof ArrayBuffer ? Buffer.from(bd) : Buffer.from(bd);
+    return buf.byteLength ? buf : null;
+  } catch (e) {
+    console.verbose('[thumbnail] video bulk fallback read failed', e);
+    return null;
+  }
+}
+
+/**
+ * Stream `instances/.../rendered/index.<ext>` to disk (avoids holding full clip in JS heap).
+ * @returns {Promise<boolean>}
+ */
+async function streamRenderedVideoToFile(reader, studyUID, seriesUID, instanceUID, ext, destPath) {
+  const filename = path.posix.join('rendered', `index.${ext}`);
+  let stream;
+  try {
+    stream = await reader.openInstanceInputStream(studyUID, seriesUID, instanceUID, filename);
+  } catch {
+    return false;
+  }
+  if (!stream) return false;
+  const out = fs.createWriteStream(destPath);
+  try {
+    await pipeline(stream, out);
+    return true;
+  } catch (e) {
+    console.verbose('[thumbnail] stream rendered video to disk failed', e);
+    try {
+      await fs.promises.unlink(destPath);
+    } catch {
+      /* ignore */
+    }
+    return false;
+  }
+}
+
+async function ffmpegExtractFirstFrameToJpeg(videoPath, jpegOutPath) {
+  const code = await execSpawn(
+    `ffmpeg -hide_banner -loglevel error -i "${videoPath}" -y -f image2 -frames:v 1 -update 1 "${jpegOutPath}"`
+  );
+  if (code !== 0) {
+    throw new Error(`ffmpeg exited with code ${code}`);
+  }
+}
+
+/**
+ * Video transfer syntax: prefer `rendered/index.<ext>`; if missing, read encapsulated video from PixelData bulk (same bits as VideoWriter).
+ * @returns {Promise<Buffer|null>} JPEG bytes, or null if not a video TS / nothing readable
+ */
+async function tryThumbnailFromRenderedVideo(
+  reader,
+  studyUID,
+  seriesUID,
+  instanceUID,
+  instanceMetadata,
+  frameNumber = 1
+) {
+  const metaTs = getMetadataTransferSyntaxForRouting(instanceMetadata);
+  if (!metaTs || !isVideoTransferSyntaxUid(metaTs)) return null;
+
+  const ext = getVideoFileExtensionForTransferSyntaxUid(metaTs);
+  if (!ext) return null;
+
+  console.verbose('[thumbnail] video TS — trying rendered/index.' + ext, { metaTs });
+
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'cdw-thumb-'));
+  const vidPath = path.join(tmpDir, `video.${ext}`);
+  const jpgPath = path.join(tmpDir, 'thumb.jpg');
+  try {
+    let haveVideo = await streamRenderedVideoToFile(reader, studyUID, seriesUID, instanceUID, ext, vidPath);
+    if (!haveVideo) {
+      console.verbose('[thumbnail] video TS — no rendered stream; PixelData bulk frame', { frameNumber });
+      const vidBuf = await loadVideoBytesFromPixelBulk(reader, studyUID, seriesUID, instanceMetadata, frameNumber);
+      if (!vidBuf?.length) return null;
+      await fs.promises.writeFile(vidPath, vidBuf);
+    }
+
+    await ffmpegExtractFirstFrameToJpeg(vidPath, jpgPath);
+    return await fs.promises.readFile(jpgPath);
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+async function persistThumbnailJpeg({
+  jpegBuffer,
+  dicomdir,
+  outputDicomdir,
+  studyUID,
+  seriesUID,
+  instanceUID,
+  level,
+  filename,
+  transferSyntaxUidForWriter,
+}) {
+  const outBase = outputRoot(outputDicomdir, dicomdir);
+  const useS3 = isS3OutputUri(outBase);
+
+  let s3Client;
+  let s3Bucket;
+  let s3KeyPrefix;
+  if (useS3) {
+    const parsed = parseS3OutputUri(outBase);
+    s3Bucket = parsed.bucket;
+    s3KeyPrefix = parsed.keyPrefix;
+    s3Client = await getBunS3ClientForBucket(s3Bucket);
+  }
+
+  const writer = useS3
+    ? null
+    : new FileDicomWebWriter(
+        {
+          studyInstanceUid: studyUID,
+          seriesInstanceUid: seriesUID,
+          sopInstanceUid: instanceUID,
+          transferSyntaxUid: transferSyntaxUidForWriter,
+        },
+        { baseDir: outBase }
+      );
+
+  const buf = Buffer.from(jpegBuffer);
+
+  if (useS3) {
+    const relKey = thumbnailRelativeKey(level, studyUID, seriesUID, instanceUID, filename);
+    const key = joinS3ObjectKey(s3KeyPrefix, relKey);
+    await putS3ThumbnailJpeg(s3Client, key, buf, s3Bucket);
+  } else {
+    let thumbnailStreamInfo;
+    if (level === 'study') {
+      thumbnailStreamInfo = await writer.openStudyStream(filename, { gzip: false });
+    } else if (level === 'series') {
+      thumbnailStreamInfo = await writer.openSeriesStream(filename, { gzip: false });
+    } else {
+      thumbnailStreamInfo = await writer.openInstanceStream(filename, { gzip: false });
+    }
+
+    thumbnailStreamInfo.stream.write(buf);
+    await writer.closeStream(thumbnailStreamInfo.streamKey);
+  }
+
+  logThumbnailWritten({
+    dicomdir,
+    outputDicomdir,
+    studyUID,
+    seriesUID,
+    instanceUID,
+    level,
+    filename,
+  });
 }
 
 function parseSelectorToQuery(selector) {
@@ -283,6 +488,7 @@ async function writeThumbnailForTarget({
   frameNumber,
   level,
   force,
+  thumbnailFilename = 'thumbnail',
 }) {
   const instanceUID = getValue(instanceMetadata, Tags.SOPInstanceUID);
   if (!instanceUID) {
@@ -295,9 +501,22 @@ async function writeThumbnailForTarget({
     seriesUID,
     instanceUID,
     frameNumber,
+    thumbnailFilename,
     outputBase: outputRoot(outputDicomdir, dicomdir),
     force: !!force,
   });
+
+  const pre = thumbnailInstancePrecheck(instanceMetadata, force);
+  if (!pre.ok) {
+    warnThumbnailSkippedDicom({
+      studyUID,
+      seriesUID,
+      instanceUID,
+      level,
+      error: new Error(pre.reason),
+    });
+    return;
+  }
 
   if (!force) {
     try {
@@ -308,7 +527,7 @@ async function writeThumbnailForTarget({
         seriesUID,
         instanceUID,
         level,
-        filename: 'thumbnail',
+        filename: thumbnailFilename,
       });
       if (exists) {
         logThumbnailAlreadyExists({
@@ -318,7 +537,7 @@ async function writeThumbnailForTarget({
           seriesUID,
           instanceUID,
           level,
-          filename: 'thumbnail',
+          filename: thumbnailFilename,
         });
         return;
       }
@@ -327,83 +546,74 @@ async function writeThumbnailForTarget({
     }
   }
 
+  const metaTs = pre.metaTs;
+  if (metaTs && isVideoTransferSyntaxUid(metaTs)) {
+    try {
+      const jpegBuf = await tryThumbnailFromRenderedVideo(
+        reader,
+        studyUID,
+        seriesUID,
+        instanceUID,
+        instanceMetadata,
+        frameNumber
+      );
+      if (jpegBuf?.length) {
+        await persistThumbnailJpeg({
+          jpegBuffer: jpegBuf,
+          dicomdir,
+          outputDicomdir,
+          studyUID,
+          seriesUID,
+          instanceUID,
+          level,
+          filename: thumbnailFilename,
+          transferSyntaxUidForWriter: DEFAULT_TRANSFER_SYNTAX_UID,
+        });
+        return;
+      }
+      warnThumbnailSkippedDicom({
+        studyUID,
+        seriesUID,
+        instanceUID,
+        level,
+        error: new Error(
+          'Video transfer syntax but neither rendered/index.<ext> nor PixelData bulk could be read for ffmpeg'
+        ),
+      });
+    } catch (error) {
+      warnThumbnailSkippedDicom({ studyUID, seriesUID, instanceUID, level, error });
+    }
+    return;
+  }
+
   try {
     const pixelData = await readPixelData(reader, studyUID, seriesUID, instanceMetadata, frameNumber);
     const transferSyntaxUid = pixelData.transferSyntaxUid;
-    const outBase = outputRoot(outputDicomdir, dicomdir);
-    const useS3 = isS3OutputUri(outBase);
 
     let imageFrame = pixelData.binaryData;
     if (imageFrame instanceof ArrayBuffer) {
       imageFrame = new Uint8Array(imageFrame);
     }
 
-    let s3Client;
-    let s3Bucket;
-    let s3KeyPrefix;
-    if (useS3) {
-      const parsed = parseS3OutputUri(outBase);
-      s3Bucket = parsed.bucket;
-      s3KeyPrefix = parsed.keyPrefix;
-      s3Client = await getBunS3ClientForBucket(s3Bucket);
-    }
-
-    const writer = useS3
-      ? null
-      : new FileDicomWebWriter(
-          {
-            studyInstanceUid: studyUID,
-            seriesInstanceUid: seriesUID,
-            sopInstanceUid: instanceUID,
-            transferSyntaxUid,
-          },
-          { baseDir: outBase }
-        );
-
-    const writeThumbnailCallback = async buffer => {
+    await StaticWado.internalGenerateImage(imageFrame, null, instanceMetadata, transferSyntaxUid, async buffer => {
       if (!buffer) {
         console.warn(
           `*** DICOM warning [THUMBNAIL_SKIP] StudyInstanceUID=${studyUID} SeriesInstanceUID=${seriesUID} SOPInstanceUID=${instanceUID} Level=${level}: No thumbnail buffer generated after render`
         );
         return;
       }
-
-      if (useS3) {
-        const relKey = thumbnailRelativeKey(level, studyUID, seriesUID, instanceUID, 'thumbnail');
-        const key = joinS3ObjectKey(s3KeyPrefix, relKey);
-        await putS3ThumbnailJpeg(s3Client, key, Buffer.from(buffer), s3Bucket);
-      } else {
-        let thumbnailStreamInfo;
-        if (level === 'study') {
-          thumbnailStreamInfo = await writer.openStudyStream('thumbnail', { gzip: false });
-        } else if (level === 'series') {
-          thumbnailStreamInfo = await writer.openSeriesStream('thumbnail', { gzip: false });
-        } else {
-          thumbnailStreamInfo = await writer.openInstanceStream('thumbnail', { gzip: false });
-        }
-
-        thumbnailStreamInfo.stream.write(Buffer.from(buffer));
-        await writer.closeStream(thumbnailStreamInfo.streamKey);
-      }
-
-      logThumbnailWritten({
+      await persistThumbnailJpeg({
+        jpegBuffer: buffer,
         dicomdir,
         outputDicomdir,
         studyUID,
         seriesUID,
         instanceUID,
         level,
-        filename: 'thumbnail',
+        filename: thumbnailFilename,
+        transferSyntaxUidForWriter: transferSyntaxUid,
       });
-    };
-
-    await StaticWado.internalGenerateImage(
-      imageFrame,
-      null,
-      instanceMetadata,
-      transferSyntaxUid,
-      writeThumbnailCallback
-    );
+    });
   } catch (error) {
     warnThumbnailSkippedDicom({ studyUID, seriesUID, instanceUID, level, error });
   }
@@ -563,106 +773,33 @@ async function generateForStudy(studyUID, options = {}) {
     if (!instanceMetadata) throw new Error(`Instance ${instanceUid} not found in series metadata`);
   }
   const targetInstanceUID = getValue(instanceMetadata, Tags.SOPInstanceUID);
-  const outBase = outputRoot(outputDicomdir, dicomdir);
-  const useS3 = isS3OutputUri(outBase);
-  let writer = null;
-  let lastTransferSyntaxUid = null;
+  console.verbose('[thumbnail] instance thumbnail target', {
+    studyUID,
+    seriesUID: targetSeriesUID,
+    sopInstanceUID: targetInstanceUID,
+    hint: instanceUid ? 'from --sop-uid' : 'first entry in series metadata (use --sop-uid for another instance)',
+  });
 
-  let s3Client;
-  let s3Bucket;
-  let s3KeyPrefix;
-  if (useS3) {
-    const parsed = parseS3OutputUri(outBase);
-    s3Bucket = parsed.bucket;
-    s3KeyPrefix = parsed.keyPrefix;
-    s3Client = await getBunS3ClientForBucket(s3Bucket);
-    console.verbose('[thumbnail] S3 thumbnail output', { bucket: s3Bucket, keyPrefix: s3KeyPrefix || '(root)' });
-  }
+  const metaTsRoute = getMetadataTransferSyntaxForRouting(instanceMetadata);
+  const isVidInst = Boolean(metaTsRoute && isVideoTransferSyntaxUid(metaTsRoute));
+  /** One ffmpeg thumbnail per video instance; multi-frame frame lists apply to regular pixel data only */
+  const frameNumsToRun =
+    isVidInst && framesToProcess.length > 1 ? [framesToProcess[0]] : framesToProcess;
 
-  for (const frameNum of framesToProcess) {
+  for (const frameNum of frameNumsToRun) {
     const thumbnailFilename = framesToProcess.length > 1 ? `thumbnail-${frameNum}` : 'thumbnail';
-
-    if (!force) {
-      try {
-        const exists = await thumbnailExistsAtOutput({
-          outputDicomdir,
-          dicomdir,
-          studyUID,
-          seriesUID: targetSeriesUID,
-          instanceUID: targetInstanceUID,
-          level: 'instance',
-          filename: thumbnailFilename,
-        });
-        if (exists) {
-          logThumbnailAlreadyExists({
-            dicomdir,
-            outputDicomdir,
-            studyUID,
-            seriesUID: targetSeriesUID,
-            instanceUID: targetInstanceUID,
-            level: 'instance',
-            filename: thumbnailFilename,
-          });
-          continue;
-        }
-      } catch (error) {
-        console.verbose(`[thumbnail] could not check existing thumbnail for frame ${frameNum}; will attempt generation`, error);
-      }
-    }
-
-    try {
-      const pixelData = await readPixelData(reader, studyUID, targetSeriesUID, instanceMetadata, frameNum);
-      const frameTransferSyntaxUid = pixelData.transferSyntaxUid;
-      if (!useS3 && (!writer || lastTransferSyntaxUid !== frameTransferSyntaxUid)) {
-        writer = new FileDicomWebWriter(
-          {
-            studyInstanceUid: studyUID,
-            seriesInstanceUid: targetSeriesUID,
-            sopInstanceUid: targetInstanceUID,
-            transferSyntaxUid: frameTransferSyntaxUid,
-          },
-          { baseDir: outBase }
-        );
-        lastTransferSyntaxUid = frameTransferSyntaxUid;
-      }
-      let imageFrame = pixelData.binaryData;
-      if (imageFrame instanceof ArrayBuffer) imageFrame = new Uint8Array(imageFrame);
-      await StaticWado.internalGenerateImage(imageFrame, null, instanceMetadata, frameTransferSyntaxUid, async buffer => {
-        if (!buffer) return;
-        if (useS3) {
-          const relKey = thumbnailRelativeKey(
-            'instance',
-            studyUID,
-            targetSeriesUID,
-            targetInstanceUID,
-            thumbnailFilename
-          );
-          const key = joinS3ObjectKey(s3KeyPrefix, relKey);
-          await putS3ThumbnailJpeg(s3Client, key, Buffer.from(buffer), s3Bucket);
-        } else {
-          const thumbnailStreamInfo = await writer.openInstanceStream(thumbnailFilename, { gzip: false });
-          thumbnailStreamInfo.stream.write(Buffer.from(buffer));
-          await writer.closeStream(thumbnailStreamInfo.streamKey);
-        }
-        logThumbnailWritten({
-          dicomdir,
-          outputDicomdir,
-          studyUID,
-          seriesUID: targetSeriesUID,
-          instanceUID: targetInstanceUID,
-          level: 'instance',
-          filename: thumbnailFilename,
-        });
-      });
-    } catch (error) {
-      warnThumbnailSkippedDicom({
-        studyUID,
-        seriesUID: targetSeriesUID,
-        instanceUID: targetInstanceUID,
-        level: `instance/frame-${frameNum}`,
-        error,
-      });
-    }
+    await writeThumbnailForTarget({
+      reader,
+      dicomdir,
+      outputDicomdir,
+      studyUID,
+      seriesUID: targetSeriesUID,
+      instanceMetadata,
+      frameNumber: frameNum,
+      level: 'instance',
+      force,
+      thumbnailFilename,
+    });
   }
 }
 

@@ -22,6 +22,17 @@ const VIDEO_TYPES = {
 const isVideo = value =>
   VIDEO_TYPES[value && value.string ? value.string(Tags.RawTransferSyntaxUID) : value];
 
+/**
+ * File extension (mp4, mpg, h265) for `rendered/index.<ext>` written by VideoWriter, or null.
+ * @param {string|import('dcmjs').data.DicomDict} value - Transfer syntax UID string or dataset-like object
+ * @returns {string|null}
+ */
+function getVideoFileExtensionForTransferSyntaxUid(value) {
+  const key = value && value.string ? value.string(Tags.RawTransferSyntaxUID) : value;
+  if (typeof key !== 'string') return null;
+  return VIDEO_TYPES[key] || null;
+}
+
 const VideoWriter = () =>
   async function run(id, dataSet) {
     console.log(`Writing video  ${id.sopInstanceUid}`);
@@ -51,3 +62,5 @@ const VideoWriter = () =>
 
 module.exports = VideoWriter;
 VideoWriter.isVideo = isVideo;
+VideoWriter.VIDEO_TYPES = VIDEO_TYPES;
+VideoWriter.getVideoFileExtensionForTransferSyntaxUid = getVideoFileExtensionForTransferSyntaxUid;
