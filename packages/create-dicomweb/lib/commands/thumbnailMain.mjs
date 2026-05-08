@@ -119,7 +119,9 @@ function outputRoot(outputDicomdir, dicomdir) {
 }
 
 /**
- * Same display URL as {@link logThumbnailWritten}: https://, file://, or s3://
+ * Browser-oriented URL for logs: when output is S3, prefer {@link dicomdir} as HTTPS prefix so the path
+ * matches where reads are served; fall back to `s3://` only if there is no HTTP retrieve base.
+ * Otherwise same as before: https from dicomdir, or file:// for local output.
  * @param {Object} p
  */
 function formatThumbnailOutputHref({ dicomdir, outputDicomdir, studyUID, seriesUID, instanceUID, level, filename }) {
@@ -127,6 +129,11 @@ function formatThumbnailOutputHref({ dicomdir, outputDicomdir, studyUID, seriesU
   const outBase = outputRoot(outputDicomdir, dicomdir);
 
   if (isS3OutputUri(outBase)) {
+    const retrieveBase = String(dicomdir ?? '').trim();
+    if (/^https?:\/\//i.test(retrieveBase)) {
+      const base = retrieveBase.replace(/\/?$/, '/');
+      return new URL(rel, base).href;
+    }
     const { bucket, keyPrefix } = parseS3OutputUri(outBase);
     const key = joinS3ObjectKey(keyPrefix, rel);
     return `s3://${bucket}/${key}`;
@@ -143,7 +150,7 @@ function formatThumbnailOutputHref({ dicomdir, outputDicomdir, studyUID, seriesU
 }
 
 /**
- * In non-quiet mode, print where the thumbnail was written: https://, file://, or s3://
+ * In non-quiet mode, print where the thumbnail was written (retrieve HTTPS when S3 output + HTTP dicomdir).
  */
 function logThumbnailWritten(params) {
   console.noQuiet('Thumbnail written:', formatThumbnailOutputHref(params));
