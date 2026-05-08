@@ -20,13 +20,61 @@ const { getValue } = Tags;
 /** Explicit VR Little Endian — default when no transfer syntax is found in headers or metadata */
 const DEFAULT_TRANSFER_SYNTAX_UID = '1.2.840.10008.1.2.1';
 
-function getTransferSyntaxFromInstanceMetadata(metadata) {
+/**
+ * Transfer syntax from instance metadata.
+ * Tag {@link Tags.AvailableTransferSyntaxUID} (00083002) is only meaningful for **single-part** bulk
+ * storage (e.g. raw compressed files where path/extension implies a TS family); see {@link resolveThumbnailTransferSyntaxUid}.
+ *
+ * @param {Object} metadata
+ * @param {{ includeAvailableTransferSyntax?: boolean }} [opts]
+ */
+function getTransferSyntaxFromInstanceMetadata(metadata, { includeAvailableTransferSyntax = true } = {}) {
+  if (includeAvailableTransferSyntax) {
+    const available = getValue(metadata, Tags.AvailableTransferSyntaxUID);
+    if (available) return available;
+  }
   const hex = getValue(metadata, Tags.TransferSyntaxUID);
   if (hex) return hex;
   const nat = metadata?.TransferSyntaxUID;
   if (nat?.Value?.[0]) return nat.Value[0];
   if (typeof nat === 'string') return nat;
   return undefined;
+}
+
+/**
+ * Inner multipart Content-Type `transfer-syntax=` overrides metadata (including 00083002).
+ * {@link Tags.AvailableTransferSyntaxUID} applies only when bulk data was **not** multipart/related-wrapped.
+ *
+ * @param {Object} bulkData - Result of {@link DicomWebReader.readBulkData}
+ * @param {Object} pixelData - PixelData element from instance metadata
+ * @param {Object} instanceMetadata
+ * @returns {{ transferSyntaxUid: string | undefined, resolutionNote: string }}
+ */
+function resolveThumbnailTransferSyntaxUid(bulkData, pixelData, instanceMetadata) {
+  const innerUid = bulkData.transferSyntaxUid;
+  if (bulkData.transferSyntaxFromInnerPart && innerUid) {
+    return { transferSyntaxUid: innerUid, resolutionNote: 'inner multipart Content-Type transfer-syntax' };
+  }
+
+  if (bulkData.wasMultipart) {
+    const ts =
+      innerUid ||
+      pixelData.transferSyntaxUid ||
+      getTransferSyntaxFromInstanceMetadata(instanceMetadata, { includeAvailableTransferSyntax: false });
+    return {
+      transferSyntaxUid: ts,
+      resolutionNote: 'multipart bulk without inner transfer-syntax (tag 00083002 not applied)',
+    };
+  }
+
+  const ts =
+    innerUid ||
+    pixelData.transferSyntaxUid ||
+    getTransferSyntaxFromInstanceMetadata(instanceMetadata, { includeAvailableTransferSyntax: true });
+  return {
+    transferSyntaxUid: ts,
+    resolutionNote: 'single-part bulk (may use tag 00083002 AvailableTransferSyntaxUID)',
+  };
 }
 
 function parseSelectorToQuery(selector) {
@@ -171,15 +219,23 @@ async function readPixelData(reader, studyUID, seriesUID, instanceMetadata, fram
     throw new Error(`Failed to read bulk data for frame ${frameNumber}`);
   }
 
-  const fromMeta = getTransferSyntaxFromInstanceMetadata(instanceMetadata);
-  let transferSyntaxUid =
-    bulkData.transferSyntaxUid ||
-    pixelData.transferSyntaxUid ||
-    fromMeta;
+  const { transferSyntaxUid: resolvedTs, resolutionNote } = resolveThumbnailTransferSyntaxUid(
+    bulkData,
+    pixelData,
+    instanceMetadata
+  );
+  let transferSyntaxUid = resolvedTs;
+
+  const fromMetaWithAvailable = getTransferSyntaxFromInstanceMetadata(instanceMetadata, {
+    includeAvailableTransferSyntax: true,
+  });
+  const fromMetaNoAvailable = getTransferSyntaxFromInstanceMetadata(instanceMetadata, {
+    includeAvailableTransferSyntax: false,
+  });
 
   if (!transferSyntaxUid) {
     console.warn(
-      `[thumbnail] No TransferSyntaxUID in metadata or HTTP headers for instance ${sopUID}; using default ${DEFAULT_TRANSFER_SYNTAX_UID}. If decoding fails, inspect responses with -v.`
+      `[thumbnail] No transfer syntax for instance ${sopUID} (${resolutionNote}); using default ${DEFAULT_TRANSFER_SYNTAX_UID}. If decoding fails, inspect responses with -v.`
     );
     transferSyntaxUid = DEFAULT_TRANSFER_SYNTAX_UID;
   }
@@ -187,10 +243,14 @@ async function readPixelData(reader, studyUID, seriesUID, instanceMetadata, fram
   console.verbose('[thumbnail] readPixelData resolved', {
     sopInstanceUID: sopUID,
     transferSyntaxUid,
+    resolutionNote,
+    wasMultipart: !!bulkData.wasMultipart,
+    transferSyntaxFromInnerPart: !!bulkData.transferSyntaxFromInnerPart,
     sources: {
       bulkDataResponse: bulkData.transferSyntaxUid ?? '(none)',
       pixelDataTag: pixelData.transferSyntaxUid ?? '(none)',
-      instanceMetadata: fromMeta ?? '(none)',
+      metadata00083002: fromMetaWithAvailable ?? '(none)',
+      metadata00020010only: fromMetaNoAvailable ?? '(none)',
     },
     contentType: bulkData.contentType,
     byteLength:

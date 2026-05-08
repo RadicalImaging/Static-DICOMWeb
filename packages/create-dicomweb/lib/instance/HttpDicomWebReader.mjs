@@ -1,5 +1,17 @@
 import { Readable } from 'stream';
+import { extractMultipart } from '@radicalimaging/static-wado-util';
 import { DicomWebReader } from './DicomWebReader.mjs';
+
+/**
+ * Extract transfer-syntax UID from a Content-Type header value (HTTP or MIME part).
+ * @param {string} ct
+ * @returns {string|null}
+ */
+function transferSyntaxUidFromContentTypeHeader(ct) {
+  if (!ct) return null;
+  const m = ct.match(/transfer-syntax\s*=\s*["']?([0-9.]+)["']?/i);
+  return m ? m[1] : null;
+}
 
 /**
  * Extract transfer syntax UID from WADO-RS / fetch response headers.
@@ -8,8 +20,8 @@ import { DicomWebReader } from './DicomWebReader.mjs';
  */
 function transferSyntaxUidFromResponseHeaders(headers) {
   const ct = headers.get('content-type') || '';
-  const m = ct.match(/transfer-syntax\s*=\s*["']?([0-9.]+)["']?/i);
-  if (m) return m[1];
+  const fromCt = transferSyntaxUidFromContentTypeHeader(ct);
+  if (fromCt) return fromCt;
   for (const name of ['x-transfer-syntax-uid', 'x-dicom-transfer-syntax']) {
     const v = headers.get(name);
     if (v?.trim()) return v.trim();
@@ -124,16 +136,47 @@ export class HttpDicomWebReader extends DicomWebReader {
     const url = this._resolveBulkDataPath(studyUID, seriesUID, bulkDataURI, frameNumber);
     const response = await this._fetch(url);
     if (!response) return null;
-    const binaryData = await response.arrayBuffer();
-    const contentType = response.headers.get('content-type') || 'application/octet-stream';
-    const transferSyntaxUid = transferSyntaxUidFromResponseHeaders(response.headers);
+    let binaryData = await response.arrayBuffer();
+    const outerContentType = response.headers.get('content-type') || 'application/octet-stream';
+    let contentType = outerContentType;
+    let transferSyntaxUid = transferSyntaxUidFromResponseHeaders(response.headers);
+    let wasMultipart = false;
+    let transferSyntaxFromInnerPart = false;
+
+    /** WADO-RS frame bodies are often multipart/related: decode inner part and read transfer-syntax from its Content-Type */
+    if (/multipart/i.test(outerContentType)) {
+      wasMultipart = true;
+      try {
+        const extracted = extractMultipart(outerContentType, binaryData);
+        if (extracted?.pixelData?.byteLength) {
+          binaryData = extracted.pixelData;
+          const partCt = extracted.multipartContentType || extracted.contentType || '';
+          const fromPart = transferSyntaxUidFromContentTypeHeader(partCt);
+          if (fromPart) {
+            transferSyntaxUid = fromPart;
+            transferSyntaxFromInnerPart = true;
+          }
+          if (extracted.contentType && extracted.contentType !== outerContentType) {
+            contentType = extracted.contentType;
+          }
+          console.verbose(
+            `[HttpDicomWebReader] readBulkData extracted multipart part bytes=${binaryData.byteLength} partContentType=${partCt.slice(0, 120)} transferSyntaxUid=${transferSyntaxUid ?? '(not in part)'} transferSyntaxFromInnerPart=${transferSyntaxFromInnerPart}`
+          );
+        }
+      } catch (err) {
+        console.verbose('[HttpDicomWebReader] multipart extract failed; using full response buffer', err);
+      }
+    }
+
     console.verbose(
-      `[HttpDicomWebReader] readBulkData frame=${frameNumber ?? 'n/a'} bytes=${binaryData.byteLength} transferSyntaxUid=${transferSyntaxUid ?? '(not in headers)'}`
+      `[HttpDicomWebReader] readBulkData frame=${frameNumber ?? 'n/a'} bytes=${binaryData.byteLength} transferSyntaxUid=${transferSyntaxUid ?? '(not in headers)'} wasMultipart=${wasMultipart}`
     );
     return {
       binaryData,
       transferSyntaxUid,
       contentType,
+      wasMultipart,
+      transferSyntaxFromInnerPart,
     };
   }
 
