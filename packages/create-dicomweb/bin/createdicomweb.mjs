@@ -242,10 +242,13 @@ program
   .option('--series-uid <seriesUID>', 'Specific Series Instance UID to process (if not provided, uses first series from study query)')
   .option('--sop-uid <sopUID>', 'Specific SOP Instance UID to process (if not provided, uses first instance from series)')
   .option('--frame-numbers <frames>', 'Frame numbers to generate thumbnails for (comma-separated, supports ranges, e.g., "1-3,17")', '1')
-  .option('--series-thumbnail', 'Generate thumbnails for series (middle SOP instance, middle frame for multiframe)')
   .option(
-    '--all-thumbnails',
-    'Generate thumbnails for every SOP instance plus series and study level (uses middle frame for multiframe)'
+    '--study-thumbnail',
+    'Representative mode: include study-level thumbnail and only instance JPEGs for the study-representative SOP (middle series, middle instance). Combine with --series-thumbnail so every series also gets a series-level thumbnail.'
+  )
+  .option(
+    '--series-thumbnail',
+    'Representative mode: include series-level thumbnail(s) from each series’ middle SOP and only instance JPEGs for those representative SOPs (plus study-representative SOP when --study-thumbnail is set). Omit both flags for full study thumbnail generation.'
   )
   .option('--force', 'Regenerate thumbnails even if they already exist at the output location')
   .action(async (studySelectorArg, options, command) => {
@@ -268,11 +271,11 @@ program
     if (options.sopUid) {
       thumbnailOptions.instanceUid = options.sopUid;
     }
+    if (options.studyThumbnail) {
+      thumbnailOptions.studyThumbnail = true;
+    }
     if (options.seriesThumbnail) {
       thumbnailOptions.seriesThumbnail = true;
-    }
-    if (options.allThumbnails) {
-      thumbnailOptions.allThumbnails = true;
     }
     if (options.force) {
       thumbnailOptions.force = true;

@@ -1,5 +1,5 @@
 import { Readable } from 'stream';
-import { extractMultipart } from '@radicalimaging/static-wado-util';
+import { extractMultipart, resolveBulkDataLocation, bulkDataHttpPathUnderRoot } from '@radicalimaging/static-wado-util';
 import { DicomWebReader } from './DicomWebReader.mjs';
 
 /**
@@ -58,36 +58,6 @@ export class HttpDicomWebReader extends DicomWebReader {
     return null;
   }
 
-  _resolveBulkDataPath(studyUID, seriesUID, bulkDataURI, frameNumber) {
-    const frameSuffix = frameNumber ? `/${frameNumber}` : '';
-    if (/^https?:\/\//i.test(bulkDataURI)) {
-      return `${bulkDataURI}${frameSuffix}`;
-    }
-
-    if (bulkDataURI.startsWith('./')) {
-      const rel = bulkDataURI.slice(2);
-      return joinUrlPath(this.baseUrl, `studies/${studyUID}/series/${seriesUID}`, `${rel}${frameSuffix}`);
-    }
-
-    if (bulkDataURI.startsWith('instances/')) {
-      return joinUrlPath(
-        this.baseUrl,
-        `studies/${studyUID}/series/${seriesUID}`,
-        `${bulkDataURI}${frameSuffix}`
-      );
-    }
-
-    if (bulkDataURI.startsWith('studies/')) {
-      return joinUrlPath(this.baseUrl, `${bulkDataURI}${frameSuffix}`);
-    }
-
-    return joinUrlPath(
-      this.baseUrl,
-      `studies/${studyUID}/series/${seriesUID}`,
-      `${bulkDataURI}${frameSuffix}`
-    );
-  }
-
   async _fetch(url) {
     console.verbose('[HttpDicomWebReader] GET', url);
     const response = await fetch(url);
@@ -133,7 +103,18 @@ export class HttpDicomWebReader extends DicomWebReader {
   }
 
   async readBulkData(studyUID, seriesUID, bulkDataURI, frameNumber = undefined, instanceUID = undefined) {
-    const url = this._resolveBulkDataPath(studyUID, seriesUID, bulkDataURI, frameNumber);
+    const spec = resolveBulkDataLocation(bulkDataURI, {
+      studyUID,
+      seriesUID,
+      instanceUID,
+      frameNumber,
+    });
+    let url;
+    if (spec.kind === 'httpAbsolute') {
+      url = spec.url;
+    } else {
+      url = joinUrlPath(this.baseUrl, bulkDataHttpPathUnderRoot(spec));
+    }
     const response = await this._fetch(url);
     if (!response) return null;
     let binaryData = await response.arrayBuffer();

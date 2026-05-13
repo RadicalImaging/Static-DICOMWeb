@@ -14,6 +14,7 @@ import {
   putS3ThumbnailJpeg,
   s3ObjectExists,
 } from '../instance/s3ThumbnailOutput.mjs';
+import { isHttpLocation } from '../instance/dicomDirLocation.mjs';
 import {
   Tags,
   qidoFilter,
@@ -29,6 +30,37 @@ const { getValue } = Tags;
 
 /** Explicit VR Little Endian — default when no transfer syntax is found in headers or metadata */
 const DEFAULT_TRANSFER_SYNTAX_UID = '1.2.840.10008.1.2.1';
+
+/**
+ * Modalities that do not carry raster pixel data suitable for JPEG thumbnails.
+ * SR/PR/KO/RWV/SEG are required; others are common DICOM non-image service-object modalities.
+ * Use `--force` to attempt a thumbnail anyway.
+ */
+const THUMBNAIL_OMIT_MODALITIES = new Set([
+  'SR',
+  'SEG',
+  'PR',
+  'KO',
+  'RWV',
+  'AU',
+  'DOC',
+  'REG',
+  'RTSTRUCT',
+  'RTPLAN',
+  'RTDOSE',
+  'RTRECORD',
+  'ECG',
+  'EPS',
+  'OT',
+  'TEXT',
+]);
+
+function modalityOmittedFromThumbnails(metadata) {
+  const raw = getValue(metadata, Tags.Modality);
+  if (!raw || typeof raw !== 'string') return null;
+  const mod = raw.trim().toUpperCase();
+  return THUMBNAIL_OMIT_MODALITIES.has(mod) ? mod : null;
+}
 
 /**
  * Transfer syntax from instance metadata.
@@ -95,21 +127,22 @@ function hasPhotometricInterpretation(metadata) {
   return Boolean(getValue(metadata, Tags.PhotometricInterpretation));
 }
 
-function isSegInstance(metadata) {
-  return getValue(metadata, Tags.Modality) === 'SEG';
-}
-
 /**
  * @returns {{ ok: boolean, reason?: string, metaTs?: string }}
  */
 function thumbnailInstancePrecheck(metadata, force) {
+  const omittedMod = modalityOmittedFromThumbnails(metadata);
+  if (omittedMod && !force) {
+    return {
+      ok: false,
+      reason: `Modality ${omittedMod} is omitted from thumbnail generation (use --force to override)`,
+      metaTs: undefined,
+    };
+  }
   const metaTs = getMetadataTransferSyntaxForRouting(metadata);
   const isVid = metaTs && isVideoTransferSyntaxUid(metaTs);
   if (!isVid && !hasPhotometricInterpretation(metadata)) {
     return { ok: false, reason: 'missing PhotometricInterpretation (00280004)', metaTs };
-  }
-  if (isSegInstance(metadata) && !force) {
-    return { ok: false, reason: 'Modality is SEG (use --force to thumbnail)', metaTs };
   }
   return { ok: true, metaTs };
 }
@@ -335,7 +368,7 @@ function formatThumbnailOutputHref({ dicomdir, outputDicomdir, studyUID, seriesU
 
   if (isS3OutputUri(outBase)) {
     const retrieveBase = String(dicomdir ?? '').trim();
-    if (/^https?:\/\//i.test(retrieveBase)) {
+    if (isHttpLocation(retrieveBase)) {
       const base = retrieveBase.replace(/\/?$/, '/');
       return new URL(rel, base).href;
     }
@@ -345,7 +378,7 @@ function formatThumbnailOutputHref({ dicomdir, outputDicomdir, studyUID, seriesU
   }
 
   const dicomdirStr = String(dicomdir ?? '').trim();
-  if (/^https?:\/\//i.test(dicomdirStr)) {
+  if (isHttpLocation(dicomdirStr)) {
     const base = dicomdirStr.replace(/\/?$/, '/');
     return new URL(rel, base).href;
   }
@@ -642,6 +675,41 @@ async function resolveStudyUIDs(reader, studySelector) {
   return [studySelector];
 }
 
+/**
+ * Instance-level JPEG(s) for one representative SOP (middle frame / video rules).
+ */
+async function writeRepresentativeInstanceThumbnails({
+  reader,
+  dicomdir,
+  outputDicomdir,
+  studyUID,
+  seriesUID,
+  instanceMetadata,
+  framesToProcess,
+  force,
+}) {
+  const metaTsRoute = getMetadataTransferSyntaxForRouting(instanceMetadata);
+  const isVidInst = Boolean(metaTsRoute && isVideoTransferSyntaxUid(metaTsRoute));
+  const frameNumsToRun =
+    isVidInst && framesToProcess.length > 1 ? [framesToProcess[0]] : framesToProcess;
+
+  for (const frameNum of frameNumsToRun) {
+    const thumbnailFilename = framesToProcess.length > 1 ? `thumbnail-${frameNum}` : 'thumbnail';
+    await writeThumbnailForTarget({
+      reader,
+      dicomdir,
+      outputDicomdir,
+      studyUID,
+      seriesUID,
+      instanceMetadata,
+      frameNumber: frameNum,
+      level: 'instance',
+      force,
+      thumbnailFilename,
+    });
+  }
+}
+
 async function generateForStudy(studyUID, options = {}) {
   const {
     reader,
@@ -651,16 +719,20 @@ async function generateForStudy(studyUID, options = {}) {
     instanceUid,
     frameNumbers,
     frameNumber,
-    allThumbnails,
+    onDemandThumbnail,
+    studyThumbnail,
     seriesThumbnail,
     force,
   } = options;
   const framesToProcess = frameNumbers || (frameNumber ? [frameNumber] : [1]);
+  const studyT = !!studyThumbnail;
+  const seriesT = !!seriesThumbnail;
 
   console.verbose('[thumbnail] generateForStudy start', {
     studyUID,
-    allThumbnails: !!allThumbnails,
-    seriesThumbnail: !!seriesThumbnail,
+    onDemandThumbnail: !!onDemandThumbnail,
+    studyThumbnail: studyT,
+    seriesThumbnail: seriesT,
     seriesUid: seriesUid ?? '(any)',
     instanceUid: instanceUid ?? '(default)',
     framesToProcess,
@@ -684,27 +756,49 @@ async function generateForStudy(studyUID, options = {}) {
     if (!seriesToProcess.length) throw new Error(`Series ${seriesUid} not found in study ${studyUID}`);
   }
 
-  if (allThumbnails) {
-    const seriesMetadataCache = [];
-    for (const seriesItem of seriesToProcess) {
-      const targetSeriesUID = getValue(seriesItem, Tags.SeriesInstanceUID);
-      if (!targetSeriesUID) continue;
-      const seriesMetadata = await reader.readJsonFile(reader.getSeriesPath(studyUID, targetSeriesUID), 'metadata');
-      if (!Array.isArray(seriesMetadata) || !seriesMetadata.length) continue;
-      seriesMetadataCache.push({ seriesUid: targetSeriesUID, metadata: seriesMetadata });
-      for (const metadata of seriesMetadata) {
-        const numberOfFrames = getValue(metadata, Tags.NumberOfFrames) || 1;
-        await writeThumbnailForTarget({
-          reader,
-          dicomdir,
-          outputDicomdir,
-          studyUID,
-          seriesUID: targetSeriesUID,
-          instanceMetadata: metadata,
-          frameNumber: Math.ceil(numberOfFrames / 2),
-          level: 'instance',
-          force,
-        });
+  /** On-demand: one thumbnail for the URL the server requested (legacy --summary-thumbnail semantics). */
+  if (onDemandThumbnail) {
+    if (instanceUid) {
+      const targetSeriesUID = getValue(seriesToProcess[0], Tags.SeriesInstanceUID);
+      const seriesMetadata = await reader.readJsonFile(
+        reader.getSeriesPath(studyUID, targetSeriesUID),
+        'metadata'
+      );
+      if (!Array.isArray(seriesMetadata) || !seriesMetadata.length) {
+        throw new Error(`No series metadata found for series ${targetSeriesUID}`);
+      }
+      const instanceMetadata = seriesMetadata.find(
+        instance => getValue(instance, Tags.SOPInstanceUID) === instanceUid
+      );
+      if (!instanceMetadata) {
+        throw new Error(`Instance ${instanceUid} not found in series metadata`);
+      }
+      console.verbose('[thumbnail] on-demand instance target', {
+        studyUID,
+        seriesUID: targetSeriesUID,
+        sopInstanceUID: instanceUid,
+      });
+      await writeRepresentativeInstanceThumbnails({
+        reader,
+        dicomdir,
+        outputDicomdir,
+        studyUID,
+        seriesUID: targetSeriesUID,
+        instanceMetadata,
+        framesToProcess,
+        force,
+      });
+      return;
+    }
+
+    if (seriesUid) {
+      const targetSeriesUID = getValue(seriesToProcess[0], Tags.SeriesInstanceUID);
+      const seriesMetadata = await reader.readJsonFile(
+        reader.getSeriesPath(studyUID, targetSeriesUID),
+        'metadata'
+      );
+      if (!Array.isArray(seriesMetadata) || !seriesMetadata.length) {
+        throw new Error(`No series metadata found for series ${targetSeriesUID}`);
       }
       const middle = seriesMetadata[Math.floor(seriesMetadata.length / 2)];
       const middleFrames = getValue(middle, Tags.NumberOfFrames) || 1;
@@ -719,17 +813,29 @@ async function generateForStudy(studyUID, options = {}) {
         level: 'series',
         force,
       });
+      return;
     }
-    if (!seriesMetadataCache.length) return;
-    const middleSeries = seriesMetadataCache[Math.floor(seriesMetadataCache.length / 2)];
-    const middleInstance = middleSeries.metadata[Math.floor(middleSeries.metadata.length / 2)];
+
+    const middleSeriesEntry = seriesToProcess[Math.floor(seriesToProcess.length / 2)];
+    const middleSeriesUID = getValue(middleSeriesEntry, Tags.SeriesInstanceUID);
+    if (!middleSeriesUID) {
+      throw new Error(`Could not resolve middle series UID for study ${studyUID}`);
+    }
+    const middleSeriesMetadata = await reader.readJsonFile(
+      reader.getSeriesPath(studyUID, middleSeriesUID),
+      'metadata'
+    );
+    if (!Array.isArray(middleSeriesMetadata) || !middleSeriesMetadata.length) {
+      throw new Error(`No metadata for middle series ${middleSeriesUID}`);
+    }
+    const middleInstance = middleSeriesMetadata[Math.floor(middleSeriesMetadata.length / 2)];
     const middleFrames = getValue(middleInstance, Tags.NumberOfFrames) || 1;
     await writeThumbnailForTarget({
       reader,
       dicomdir,
       outputDicomdir,
       studyUID,
-      seriesUID: middleSeries.seriesUid,
+      seriesUID: middleSeriesUID,
       instanceMetadata: middleInstance,
       frameNumber: Math.ceil(middleFrames / 2),
       level: 'study',
@@ -738,69 +844,139 @@ async function generateForStudy(studyUID, options = {}) {
     return;
   }
 
-  if (seriesThumbnail) {
-    for (const series of seriesToProcess) {
-      const targetSeriesUID = getValue(series, Tags.SeriesInstanceUID);
-      if (!targetSeriesUID) continue;
-      const metadata = await reader.readJsonFile(reader.getSeriesPath(studyUID, targetSeriesUID), 'metadata');
-      if (!Array.isArray(metadata) || !metadata.length) continue;
-      const middle = metadata[Math.floor(metadata.length / 2)];
-      const middleFrames = getValue(middle, Tags.NumberOfFrames) || 1;
+  /** Study and/or series “representative” mode: only instance JPEGs for SOPs used as study/series thumbnails. */
+  if (studyT || seriesT) {
+    const instanceJobs = [];
+    const seenSop = new Set();
+
+    const pushInstanceJob = (seriesUID, metadata) => {
+      const sop = getValue(metadata, Tags.SOPInstanceUID);
+      if (!sop || seenSop.has(sop)) return;
+      seenSop.add(sop);
+      instanceJobs.push({ seriesUID, metadata });
+    };
+
+    if (studyT) {
+      const middleSeriesEntry = seriesToProcess[Math.floor(seriesToProcess.length / 2)];
+      const middleSeriesUID = getValue(middleSeriesEntry, Tags.SeriesInstanceUID);
+      if (!middleSeriesUID) {
+        throw new Error(`Could not resolve middle series UID for study ${studyUID}`);
+      }
+      const middleSeriesMetadata = await reader.readJsonFile(
+        reader.getSeriesPath(studyUID, middleSeriesUID),
+        'metadata'
+      );
+      if (!Array.isArray(middleSeriesMetadata) || !middleSeriesMetadata.length) {
+        throw new Error(`No metadata for middle series ${middleSeriesUID}`);
+      }
+      const studyRepInstance = middleSeriesMetadata[Math.floor(middleSeriesMetadata.length / 2)];
+      const studyRepFrames = getValue(studyRepInstance, Tags.NumberOfFrames) || 1;
       await writeThumbnailForTarget({
         reader,
         dicomdir,
         outputDicomdir,
         studyUID,
-        seriesUID: targetSeriesUID,
-        instanceMetadata: middle,
-        frameNumber: Math.ceil(middleFrames / 2),
-        level: 'series',
+        seriesUID: middleSeriesUID,
+        instanceMetadata: studyRepInstance,
+        frameNumber: Math.ceil(studyRepFrames / 2),
+        level: 'study',
+        force,
+      });
+      pushInstanceJob(middleSeriesUID, studyRepInstance);
+    }
+
+    if (seriesT) {
+      for (const series of seriesToProcess) {
+        const targetSeriesUID = getValue(series, Tags.SeriesInstanceUID);
+        if (!targetSeriesUID) continue;
+        const metadata = await reader.readJsonFile(reader.getSeriesPath(studyUID, targetSeriesUID), 'metadata');
+        if (!Array.isArray(metadata) || !metadata.length) continue;
+        const middle = metadata[Math.floor(metadata.length / 2)];
+        const middleFrames = getValue(middle, Tags.NumberOfFrames) || 1;
+        const writeSeriesLevel = seriesT;
+        if (writeSeriesLevel) {
+          await writeThumbnailForTarget({
+            reader,
+            dicomdir,
+            outputDicomdir,
+            studyUID,
+            seriesUID: targetSeriesUID,
+            instanceMetadata: middle,
+            frameNumber: Math.ceil(middleFrames / 2),
+            level: 'series',
+            force,
+          });
+        }
+        pushInstanceJob(targetSeriesUID, middle);
+      }
+    }
+
+    for (const { seriesUID: suid, metadata } of instanceJobs) {
+      await writeRepresentativeInstanceThumbnails({
+        reader,
+        dicomdir,
+        outputDicomdir,
+        studyUID,
+        seriesUID: suid,
+        instanceMetadata: metadata,
+        framesToProcess,
         force,
       });
     }
     return;
   }
 
-  const targetSeriesUID = getValue(seriesToProcess[0], Tags.SeriesInstanceUID);
-  const seriesMetadata = await reader.readJsonFile(reader.getSeriesPath(studyUID, targetSeriesUID), 'metadata');
-  if (!Array.isArray(seriesMetadata) || !seriesMetadata.length) {
-    throw new Error(`No series metadata found for series ${targetSeriesUID}`);
-  }
-
-  let instanceMetadata = seriesMetadata[0];
-  if (instanceUid) {
-    instanceMetadata = seriesMetadata.find(instance => getValue(instance, Tags.SOPInstanceUID) === instanceUid);
-    if (!instanceMetadata) throw new Error(`Instance ${instanceUid} not found in series metadata`);
-  }
-  const targetInstanceUID = getValue(instanceMetadata, Tags.SOPInstanceUID);
-  console.verbose('[thumbnail] instance thumbnail target', {
-    studyUID,
-    seriesUID: targetSeriesUID,
-    sopInstanceUID: targetInstanceUID,
-    hint: instanceUid ? 'from --sop-uid' : 'first entry in series metadata (use --sop-uid for another instance)',
-  });
-
-  const metaTsRoute = getMetadataTransferSyntaxForRouting(instanceMetadata);
-  const isVidInst = Boolean(metaTsRoute && isVideoTransferSyntaxUid(metaTsRoute));
-  /** One ffmpeg thumbnail per video instance; multi-frame frame lists apply to regular pixel data only */
-  const frameNumsToRun =
-    isVidInst && framesToProcess.length > 1 ? [framesToProcess[0]] : framesToProcess;
-
-  for (const frameNum of frameNumsToRun) {
-    const thumbnailFilename = framesToProcess.length > 1 ? `thumbnail-${frameNum}` : 'thumbnail';
+  // Default: every SOP instance + every series + study-level thumbnail.
+  const seriesMetadataCache = [];
+  for (const seriesItem of seriesToProcess) {
+    const targetSeriesUID = getValue(seriesItem, Tags.SeriesInstanceUID);
+    if (!targetSeriesUID) continue;
+    const seriesMetadata = await reader.readJsonFile(reader.getSeriesPath(studyUID, targetSeriesUID), 'metadata');
+    if (!Array.isArray(seriesMetadata) || !seriesMetadata.length) continue;
+    seriesMetadataCache.push({ seriesUid: targetSeriesUID, metadata: seriesMetadata });
+    for (const metadata of seriesMetadata) {
+      const numberOfFrames = getValue(metadata, Tags.NumberOfFrames) || 1;
+      await writeThumbnailForTarget({
+        reader,
+        dicomdir,
+        outputDicomdir,
+        studyUID,
+        seriesUID: targetSeriesUID,
+        instanceMetadata: metadata,
+        frameNumber: Math.ceil(numberOfFrames / 2),
+        level: 'instance',
+        force,
+      });
+    }
+    const middle = seriesMetadata[Math.floor(seriesMetadata.length / 2)];
+    const middleFrames = getValue(middle, Tags.NumberOfFrames) || 1;
     await writeThumbnailForTarget({
       reader,
       dicomdir,
       outputDicomdir,
       studyUID,
       seriesUID: targetSeriesUID,
-      instanceMetadata,
-      frameNumber: frameNum,
-      level: 'instance',
+      instanceMetadata: middle,
+      frameNumber: Math.ceil(middleFrames / 2),
+      level: 'series',
       force,
-      thumbnailFilename,
     });
   }
+  if (!seriesMetadataCache.length) return;
+  const middleSeries = seriesMetadataCache[Math.floor(seriesMetadataCache.length / 2)];
+  const middleInstance = middleSeries.metadata[Math.floor(middleSeries.metadata.length / 2)];
+  const middleFrames = getValue(middleInstance, Tags.NumberOfFrames) || 1;
+  await writeThumbnailForTarget({
+    reader,
+    dicomdir,
+    outputDicomdir,
+    studyUID,
+    seriesUID: middleSeries.seriesUid,
+    instanceMetadata: middleInstance,
+    frameNumber: Math.ceil(middleFrames / 2),
+    level: 'study',
+    force,
+  });
 }
 
 /**
@@ -812,8 +988,9 @@ async function generateForStudy(studyUID, options = {}) {
  * @param {string} [options.instanceUid] - Specific SOP Instance UID to process (if not provided, uses first instance from series)
  * @param {number|number[]} [options.frameNumber] - Frame number to use for thumbnail (default: 1) - deprecated, use frameNumbers instead
  * @param {number[]} [options.frameNumbers] - Array of frame numbers to generate thumbnails for (default: [1])
- * @param {boolean} [options.seriesThumbnail] - Generate thumbnails for series (middle SOP instance, middle frame for multiframe)
- * @param {boolean} [options.allThumbnails] - Generate thumbnails for all SOP instances, all series, and study level
+ * @param {boolean} [options.studyThumbnail] - With {@link options.seriesThumbnail}, restrict instance JPEGs to representative SOPs only; write study-level thumbnail from middle series/instance. When both flags are set, also write a series-level thumbnail for every series.
+ * @param {boolean} [options.seriesThumbnail] - With study/series representative mode: write series-level thumbnails (all series when combined with {@link options.studyThumbnail}, otherwise each series in scope) and restrict instance JPEGs to those representative SOPs.
+ * @param {boolean} [options.onDemandThumbnail] - Internal: generate a single thumbnail implied by instance/series/study selection (used by the static webserver).
  * @param {boolean} [options.force] - Regenerate even when output thumbnail already exists
  */
 export async function thumbnailMain(studySelector, options = {}) {
@@ -825,7 +1002,7 @@ export async function thumbnailMain(studySelector, options = {}) {
   if (!reader) {
     throw new Error(`dicomdir is not a valid file/http location: ${dicomdir}`);
   }
-  if (/^https?:\/\//i.test(dicomdir) && !outputDicomdir) {
+  if (isHttpLocation(dicomdir) && !outputDicomdir) {
     throw new Error('--output-dicomdir is required when dicomdir is http/https');
   }
   if ((outputDicomdir || dicomdir).startsWith('http')) {

@@ -26,25 +26,22 @@ export default function createMissingThumbnail(options) {
     );
 
     try {
+      // Each request is for a single thumbnail (instance/series/study). Use on-demand semantics
+      // so thumbnailMain creates only the required thumbnail, not every thumbnail in the study.
       const thumbnailOptions = {
         dicomdir: baseDir,
+        onDemandThumbnail: true,
       };
 
       if (instanceUID) {
-        // Generate thumbnail for specific instance
         thumbnailOptions.instanceUid = instanceUID;
         if (seriesUID) {
           thumbnailOptions.seriesUid = seriesUID;
         }
       } else if (seriesUID) {
-        // Generate series thumbnail (middle SOP instance, middle frame)
         thumbnailOptions.seriesUid = seriesUID;
-        thumbnailOptions.seriesThumbnail = true;
-      } else {
-        // Only studyUID provided - use default behavior (first series, first instance)
-        // Note: study-level thumbnails are not currently supported
-        console.verbose('Only studyUID provided, using default behavior');
       }
+      // else: only studyUID provided -> study-level thumbnail (middle series, middle instance, middle frame).
 
       await thumbnailMain(studyUID, thumbnailOptions);
       console.verbose('Created missing thumbnail');

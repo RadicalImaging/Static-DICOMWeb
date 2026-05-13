@@ -3,7 +3,7 @@ import path from 'path';
 import { createGunzip } from 'zlib';
 import { DicomWebReader } from './DicomWebReader.mjs';
 import { removeStaleMetadataDir } from './removeStaleMetadataDir.mjs';
-import { readBulkData as readBulkDataFromFile } from '@radicalimaging/static-wado-util';
+import { readBulkData as readBulkDataFromFile, resolveBulkDataLocation } from '@radicalimaging/static-wado-util';
 
 /**
  * File-based implementation of DicomWebReader
@@ -112,24 +112,17 @@ export class FileDicomWebReader extends DicomWebReader {
   }
 
   async readBulkData(studyUID, seriesUID, bulkDataURI, frameNumber = undefined, instanceUID = undefined) {
-    const studyDir = path.join(this.baseDir, `studies/${studyUID}`);
-    const seriesDir = path.join(studyDir, `series/${seriesUID}`);
-
-    if (bulkDataURI.indexOf('frames') !== -1) {
-      const isSeriesRelative = bulkDataURI.startsWith('./instances/');
-      if (!isSeriesRelative && !instanceUID) {
-        throw new Error(
-          'No SOPInstanceUID in instance metadata; cannot resolve instance-relative frames path'
-        );
-      }
-      const frameBaseDir = isSeriesRelative
-        ? seriesDir
-        : path.join(seriesDir, 'instances', instanceUID);
-      const frameBaseName = isSeriesRelative ? bulkDataURI : './frames';
-      return readBulkDataFromFile(frameBaseDir, frameBaseName, frameNumber);
+    const spec = resolveBulkDataLocation(bulkDataURI, {
+      studyUID,
+      seriesUID,
+      instanceUID,
+      frameNumber,
+    });
+    if (spec.kind !== 'readBulkData') {
+      throw new Error(`FileDicomWebReader: unsupported bulk resolve kind ${spec.kind}`);
     }
-
-    return readBulkDataFromFile(seriesDir, bulkDataURI);
+    const dir = path.join(this.baseDir, spec.dirSuffix);
+    return readBulkDataFromFile(dir, spec.baseName, spec.frame);
   }
 
   /**

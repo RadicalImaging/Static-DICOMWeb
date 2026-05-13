@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { constants } from 'dcmjs';
+import { bulkDataUriRelativeFromInstance } from '@radicalimaging/static-wado-util';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
 
 const { TagHex, BULKDATA_VRS } = constants;
@@ -237,7 +238,7 @@ export function writeBulkdataFilter(options = {}) {
 
     // Replace Value array with BulkDataURI immediately (synchronously)
     delete dest.Value;
-    dest.BulkDataURI = `../../../../bulkdata/${hashPath}.gz`;
+    dest.BulkDataURI = bulkDataUriRelativeFromInstance(`${hashPath}.gz`);
 
     // Only write bulkdata file if the value is an array of ArrayBuffers or Buffers
     if (!isWritableData) {
