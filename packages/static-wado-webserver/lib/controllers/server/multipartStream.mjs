@@ -1,4 +1,4 @@
-import Dicer from 'dicer';
+import Dicer from '../../vendor/dicer-compat/Dicer.mjs';
 import { randomUUID } from 'node:crypto';
 import { data } from 'dcmjs';
 import { parse as parseContentType } from 'content-type';

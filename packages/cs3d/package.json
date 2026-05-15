@@ -74,14 +74,14 @@
     "publishJS": "yarn publish  --no-git-tag-version"
   },
   "dependencies": {
-    "@cornerstonejs/core": "^4.22.3",
+    "@cornerstonejs/core": "4.22.3",
     "canvas": "3.1.0",
-    "dcmjs": "0.50.0",
-    "jsdom": "^26.0.0",
-    "jsdom-context-require": "^5.2.4"
+    "dcmjs": "0.50.1",
+    "jsdom": "26.1.0",
+    "jsdom-context-require": "5.2.7"
   },
   "devDependencies": {
-    "@babel/plugin-proposal-class-properties": "^7.18.6",
-    "babel-plugin-transform-import-meta": "^2.3.3"
+    "@babel/plugin-proposal-class-properties": "7.18.6",
+    "babel-plugin-transform-import-meta": "2.3.3"
   }
 }

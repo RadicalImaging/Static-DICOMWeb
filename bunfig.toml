@@ -1,0 +1,7 @@
+# https://bun.sh/docs/runtime/bunfig
+[install]
+frozenLockfile = true
+exact = true
+saveTextLockfile = true
+# Optional supply-chain knob (pnpm-style “minimum release age”), in seconds:
+# minimumReleaseAge = 86400
