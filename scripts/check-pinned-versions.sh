@@ -9,11 +9,17 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 is_pinned() {
   local version="$1"
   [[ -z "$version" ]] && return 1
-  [[ "$version" =~ ^(workspace:|file:|npm:) ]] && return 0
-  [[ "$version" =~ ^https?:// ]] && return 0
-  [[ "$version" =~ [\^~*] ]] && return 1
-  [[ "$version" == *">="* ]] && return 1
-  [[ "$version" == *"<="* ]] && return 1
+  case "$version" in
+    workspace:*|file:*|npm:*) return 0 ;;
+    http://*|https://*) return 0 ;;
+  esac
+  case "$version" in
+    ^*) return 1 ;;
+    *'~'*) return 1 ;;
+    *'*'*) return 1 ;;
+    *'>='*) return 1 ;;
+    *'<='*) return 1 ;;
+  esac
   return 0
 }
 
@@ -21,16 +27,19 @@ check_dep_block() {
   local pkg="$1"
   local block="$2"
   local entry name version
+  local block_failed=0
 
-  while IFS= read -r entry; do
+  while IFS= read -r entry || [[ -n "${entry:-}" ]]; do
     [[ -z "$entry" ]] && continue
     name="${entry%%$'\t'*}"
     version="${entry#*$'\t'}"
     if ! is_pinned "$version"; then
       echo "Unpinned dependency in ${pkg} ${block}: ${name} -> ${version}" >&2
-      return 1
+      block_failed=1
     fi
-  done < <(jq -r --arg b "$block" '.[$b] // {} | to_entries[] | "\(.key)\t\(.value)"' "$pkg" 2>/dev/null || true)
+  done < <(jq -r --arg b "$block" '.[$b] // {} | to_entries[] | "\(.key)\t\(.value|tostring)"' "$pkg" 2>/dev/null || true)
+
+  [[ "$block_failed" -eq 0 ]]
 }
 
 failed=0
