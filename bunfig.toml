@@ -3,5 +3,5 @@
 frozenLockfile = true
 exact = true
 saveTextLockfile = true
-# Optional supply-chain knob (pnpm-style “minimum release age”), in seconds:
-# minimumReleaseAge = 86400
+# Supply-chain knob: skip package versions published in the last 2 days (seconds).
+minimumReleaseAge = 172800
