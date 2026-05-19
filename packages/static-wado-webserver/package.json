@@ -52,6 +52,7 @@
     "monitordicomwebserver": "bin/monitordicomwebserver.mjs"
   },
   "scripts": {
+    "pretest": "bun run build:esm",
     "test": "jest --config ./jest.config.js",
     "unlink:exec": "bun unlink || echo Already unlinked",
     "link:exec": "bun run unlink:exec && bun link",
