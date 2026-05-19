@@ -69,12 +69,12 @@
     "verbose": true
   },
   "dependencies": {
-    "@radicalimaging/static-wado-util": ">=1.7.0",
-    "config-point": ">=0.5.1",
-    "dcmjs-dimse": "^0.1.30",
-    "http-proxy-middleware": "^2.0.6"
+    "@radicalimaging/static-wado-util": ">=1.7.6",
+    "config-point": "0.8.0",
+    "dcmjs-dimse": "0.1.31",
+    "http-proxy-middleware": "2.0.9"
   },
   "devDependencies": {
-    "must": "^0.13.4"
+    "must": "0.13.4"
   }
 }
