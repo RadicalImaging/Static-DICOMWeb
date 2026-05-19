@@ -1,7 +1,15 @@
 #!/usr/bin/env bun
 import { createRequire } from 'module';
 import { Command } from 'commander';
-import { instanceMain, seriesMain, studyMain, createMain, stowMain, thumbnailMain, indexMain } from '../lib/index.mjs';
+import {
+  instanceMain,
+  seriesMain,
+  studyMain,
+  createMain,
+  stowMain,
+  thumbnailMain,
+  indexMain,
+} from '../lib/index.mjs';
 import {
   handleHomeRelative,
   createVerboseLog,
@@ -11,9 +19,10 @@ import {
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
-const runtime = typeof process !== 'undefined' && process.versions?.bun
-  ? `Bun ${process.versions.bun}`
-  : `Node ${process.versions?.node ?? 'unknown'}`;
+const runtime =
+  typeof process !== 'undefined' && process.versions?.bun
+    ? `Bun ${process.versions.bun}`
+    : `Node ${process.versions?.node ?? 'unknown'}`;
 
 const program = new Command();
 
@@ -29,7 +38,11 @@ const updateVerboseLog = () => {
 program
   .name('createdicomweb')
   .description('dcmjs based tools for creation of metadata files')
-  .version(`${pkg.version}\n${runtime}`, '-V, --version', 'output create-dicomweb and runtime (Bun/Node) version')
+  .version(
+    `${pkg.version}\n${runtime}`,
+    '-V, --version',
+    'output create-dicomweb and runtime (Bun/Node) version'
+  )
   .option('-v, --verbose', 'Enable verbose logging')
   .option('-q, --quiet', 'Disable noQuiet logging');
 
@@ -37,7 +50,11 @@ program
   .command('instance')
   .description('Store instance data')
   .argument('<part10>', 'part 10 file(s)')
-  .option('--dicomdir <path>', 'Base directory path where binary .mht files will be written in DICOMweb structure','~/dicomweb')
+  .option(
+    '--dicomdir <path>',
+    'Base directory path where binary .mht files will be written in DICOMweb structure',
+    '~/dicomweb'
+  )
   .action(async (fileName, options) => {
     updateVerboseLog();
     const instanceOptions = {};
@@ -51,8 +68,15 @@ program
   .command('series')
   .description('Generate series metadata files')
   .argument('<studyUID>', 'Study Instance UID')
-  .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
-  .option('--series-uid <seriesUID>', 'Specific Series Instance UID to process (if not provided, processes all series in the study)')
+  .option(
+    '--dicomdir <path>',
+    'Base directory path where DICOMweb structure is located',
+    '~/dicomweb'
+  )
+  .option(
+    '--series-uid <seriesUID>',
+    'Specific Series Instance UID to process (if not provided, processes all series in the study)'
+  )
   .action(async (studyUID, options) => {
     updateVerboseLog();
     const seriesOptions = {};
@@ -69,7 +93,11 @@ program
   .command('study')
   .description('Generate study metadata files')
   .argument('<studyUID>', 'Study Instance UID')
-  .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
+  .option(
+    '--dicomdir <path>',
+    'Base directory path where DICOMweb structure is located',
+    '~/dicomweb'
+  )
   .action(async (studyUID, options) => {
     updateVerboseLog();
     const studyOptions = {};
@@ -81,12 +109,24 @@ program
 
 program
   .command('create')
-  .description('Process instances and generate series and study metadata for all discovered studies')
+  .description(
+    'Process instances and generate series and study metadata for all discovered studies'
+  )
   .argument('<part10...>', 'part 10 file(s) or directory(ies)')
-  .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
+  .option(
+    '--dicomdir <path>',
+    'Base directory path where DICOMweb structure is located',
+    '~/dicomweb'
+  )
   .option('--no-study-index', 'Skip creating/updating studies/index.json.gz file')
-  .option('--bulkdata-size <size>', 'Size threshold in bytes for public bulkdata tags (default: 131074, i.e. 128k + 2)')
-  .option('--private-bulkdata-size <size>', 'Size threshold in bytes for private bulkdata tags (default: 128)')
+  .option(
+    '--bulkdata-size <size>',
+    'Size threshold in bytes for public bulkdata tags (default: 131074, i.e. 128k + 2)'
+  )
+  .option(
+    '--private-bulkdata-size <size>',
+    'Size threshold in bytes for private bulkdata tags (default: 128)'
+  )
   .action(async (fileNames, options) => {
     updateVerboseLog();
     const createOptions = {};
@@ -235,13 +275,32 @@ function parseFrameNumbers(frameNumbersStr) {
 program
   .command('thumbnail')
   .description('Generate thumbnail(s) for DICOM instance(s)')
-  .argument('[studySelector]', 'Study selector: StudyInstanceUID, query pattern (e.g. PatientID=25), or true for all studies')
-  .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
-  .option('--output-dicomdir <path>', 'Output directory for generated thumbnails (required when --dicomdir is http/https)')
-  .option('--study-selector <selector>', 'Study selector override: StudyInstanceUID, query pattern, or true')
-  .option('--series-uid <seriesUID>', 'Specific Series Instance UID to process (if not provided, uses first series from study query)')
-  .option('--sop-uid <sopUID>', 'Specific SOP Instance UID to process (if not provided, uses first instance from series)')
-  .option('--frame-numbers <frames>', 'Frame numbers to generate thumbnails for (comma-separated, supports ranges, e.g., "1-3,17")', '1')
+  .argument(
+    '[studySelector]',
+    'Study selector: StudyInstanceUID, query pattern (e.g. PatientID=25), or true for all studies'
+  )
+  .option(
+    '--dicomdir <path>',
+    'Base directory path where DICOMweb structure is located',
+    '~/dicomweb'
+  )
+  .option(
+    '--output-dicomdir <path>',
+    'Output directory for generated thumbnails (required when --dicomdir is http/https)'
+  )
+  .option(
+    '--series-uid <seriesUID>',
+    'Specific Series Instance UID to process (if not provided, uses first series from study query)'
+  )
+  .option(
+    '--sop-uid <sopUID>',
+    'Specific SOP Instance UID to process (if not provided, uses first instance from series)'
+  )
+  .option(
+    '--frame-numbers <frames>',
+    'Frame numbers to generate thumbnails for (comma-separated, supports ranges, e.g., "1-3,17")',
+    '1'
+  )
   .option(
     '--study-thumbnail',
     'Representative mode: include study-level thumbnail and only instance JPEGs for the study-representative SOP (middle series, middle instance). Combine with --series-thumbnail so every series also gets a series-level thumbnail.'
@@ -289,15 +348,22 @@ program
       console.error(`Error parsing frame numbers: ${error.message}`);
       process.exit(1);
     }
-    
+
     await thumbnailMain(thumbnailOptions.studySelector, thumbnailOptions);
   });
 
 program
   .command('index')
   .description('Create or update studies/index.json.gz file by adding/updating study information')
-  .argument('[studyUIDs...]', 'Optional Study Instance UID(s) to process (if not provided, scans all studies)')
-  .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
+  .argument(
+    '[studyUIDs...]',
+    'Optional Study Instance UID(s) to process (if not provided, scans all studies)'
+  )
+  .option(
+    '--dicomdir <path>',
+    'Base directory path where DICOMweb structure is located',
+    '~/dicomweb'
+  )
   .action(async (studyUIDs, options) => {
     updateVerboseLog();
     const indexOptions = {};
@@ -311,8 +377,15 @@ program
   .command('part10')
   .description('Export DICOMweb metadata to Part 10 DICOM files')
   .argument('<studyUID>', 'Study Instance UID')
-  .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
-  .option('--series-uid <seriesUID>', 'Specific Series Instance UID to export (if not provided, exports all series)')
+  .option(
+    '--dicomdir <path>',
+    'Base directory path where DICOMweb structure is located',
+    '~/dicomweb'
+  )
+  .option(
+    '--series-uid <seriesUID>',
+    'Specific Series Instance UID to export (if not provided, exports all series)'
+  )
   .option('--sop-uid <sopUIDs>', 'Comma-separated list of SOP Instance UIDs to export')
   .option('-o, --output <dir>', 'Output directory for Part 10 files', '.')
   .option('--format <format>', 'Output format: dicom, multipart, zip', 'dicom')
