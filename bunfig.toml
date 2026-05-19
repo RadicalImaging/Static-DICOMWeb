@@ -1,0 +1,7 @@
+# https://bun.sh/docs/runtime/bunfig
+[install]
+frozenLockfile = true
+exact = true
+saveTextLockfile = true
+# Supply-chain knob: skip package versions published in the last 2 days (seconds).
+minimumReleaseAge = 172800

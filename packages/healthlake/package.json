@@ -55,18 +55,18 @@
     "verbose": true
   },
   "dependencies": {
-    "@radicalimaging/s3-deploy": ">=1.7.0",
-    "@radicalimaging/static-wado-deploy": ">=1.7.0",
-    "@radicalimaging/static-wado-plugins": ">=1.7.0",
-    "@radicalimaging/static-wado-util": ">=1.7.0",
-    "config-point": ">=0.5.1",
-    "cross-env": "^7.0.3",
-    "dcmjs": "0.50.0",
-    "dicom-parser": "^1.8.13",
-    "node-object-hash": "^3.0.0"
+    "@radicalimaging/s3-deploy": ">=1.7.6",
+    "@radicalimaging/static-wado-deploy": ">=1.7.6",
+    "@radicalimaging/static-wado-plugins": ">=1.7.6",
+    "@radicalimaging/static-wado-util": ">=1.7.6",
+    "config-point": "0.8.0",
+    "cross-env": "7.0.3",
+    "dcmjs": "0.50.1",
+    "dicom-parser": "1.8.21",
+    "node-object-hash": "3.1.1"
   },
   "devDependencies": {
-    "must": "^0.13.4",
-    "ts-jest": "^28.0.2"
+    "must": "0.13.4",
+    "ts-jest": "28.0.8"
   }
 }

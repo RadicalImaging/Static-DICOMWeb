@@ -1,0 +1,3 @@
+# Used only by `bun run install:update-lockfile` — default `bunfig.toml` keeps frozen lockfile.
+[install]
+frozenLockfile = false

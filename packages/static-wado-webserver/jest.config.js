@@ -2,6 +2,11 @@ const baseConfig = require('../../.config/jest/jest.config.cjs');
 
 module.exports = {
   ...baseConfig,
+  moduleNameMapper: {
+    ...baseConfig.moduleNameMapper,
+    // Vendored dicer: compiled to dist/ by tsc (see pretest); lib/ keeps TypeScript only
+    '^\\.\\./\\.\\./vendor/dicer/(.*)\\.js$': '<rootDir>/dist/vendor/dicer/$1.js',
+  },
   moduleFileExtensions: ['js', 'jsx', 'ts', 'tsx', 'mjs'],
   transformIgnorePatterns: [
     // Transform all ESM modules in node_modules, including Bun's .bun directory structure
