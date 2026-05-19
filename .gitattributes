@@ -1,1 +1,52 @@
+# Normalize text files to LF in the repository and on checkout.
+* text=auto eol=lf
+
+# Shell
 *.sh text eol=lf
+*.bash text eol=lf
+*.zsh text eol=lf
+*.ps1 text eol=lf
+
+# JavaScript / TypeScript
+*.js text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.jsx text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+
+# Config and markup
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.xml text eol=lf
+*.txt text eol=lf
+*.env text eol=lf
+*.toml text eol=lf
+*.ini text eol=lf
+*.properties text eol=lf
+Dockerfile text eol=lf
+Makefile text eol=lf
+
+# Git metadata
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Binary — do not normalize
+*.png -text
+*.jpg -text
+*.jpeg -text
+*.gif -text
+*.ico -text
+*.webp -text
+*.pdf -text
+*.zip -text
+*.gz -text
+*.tgz -text
+*.dcm -text
+*.mht -text
+*.mht.gz -text
