@@ -31,7 +31,6 @@ export async function studyMainSingle(studyUID, options) {
   }
 
   if (!uploadOptions.skipStore) {
-    await commonMain(this, 'root', uploadOptions, uploadDeploy.bind(null, studyDirectory));
     console.log('Storing studyUID', studyUID);
     await commonMain(this, 'root', uploadOptions, uploadDeploy.bind(null, studyDirectory));
   }
