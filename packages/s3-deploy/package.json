@@ -84,8 +84,8 @@
   "dependencies": {
     "@aws-sdk/client-s3": "3.975.0",
     "@aws-sdk/lib-storage": "3.975.0",
-    "@radicalimaging/static-wado-plugins": "workspace:*",
-    "@radicalimaging/static-wado-util": "workspace:*",
+    "@radicalimaging/static-wado-plugins": ">=1.7.6",
+    "@radicalimaging/static-wado-util": ">=1.7.6",
     "aws-cdk-lib": "2.251.0",
     "config-point": "0.8.0",
     "constructs": "10.4.5",

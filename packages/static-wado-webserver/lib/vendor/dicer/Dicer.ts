@@ -1,7 +1,8 @@
-import { Writable } from 'node:stream';
+import { Writable, type ReadableOptions } from 'node:stream';
 import StreamSearch from 'streamsearch';
-import PartStream from './PartStream.mjs';
-import HeaderParser from './HeaderParser.mjs';
+import PartStream from './PartStream.js';
+import HeaderParser from './HeaderParser.js';
+import type { DicerConfig, MultipartHeaders } from './types.js';
 
 const DASH = 45;
 const B_ONEDASH = Buffer.from('-');
@@ -9,7 +10,24 @@ const B_CRLF = Buffer.from('\r\n');
 const EMPTY_FN = () => {};
 
 export default class Dicer extends Writable {
-  constructor(cfg) {
+  _bparser?: StreamSearch;
+  _hparser?: HeaderParser;
+  _headerFirst?: boolean;
+  _dashes = 0;
+  _parts = 0;
+  _finished = false;
+  _realFinish = false;
+  _isPreamble = true;
+  _justMatched = false;
+  _firstWrite = true;
+  _inHeader = true;
+  _part?: PartStream;
+  _cb?: (error?: Error | null) => void;
+  _ignoreData = false;
+  _partOpts: ReadableOptions = {};
+  _pause = false;
+
+  constructor(cfg?: DicerConfig) {
     super(cfg);
 
     if (!cfg || (!cfg.headerFirst && typeof cfg.boundary !== 'string'))
@@ -20,40 +38,28 @@ export default class Dicer extends Writable {
 
     this._headerFirst = cfg.headerFirst;
 
-    this._dashes = 0;
-    this._parts = 0;
-    this._finished = false;
-    this._realFinish = false;
-    this._isPreamble = true;
-    this._justMatched = false;
-    this._firstWrite = true;
-    this._inHeader = true;
-    this._part = undefined;
-    this._cb = undefined;
-    this._ignoreData = false;
     this._partOpts = typeof cfg.partHwm === 'number' ? { highWaterMark: cfg.partHwm } : {};
-    this._pause = false;
 
     this._hparser = new HeaderParser(cfg);
-    this._hparser.on('header', header => {
+    this._hparser.on('header', (header: MultipartHeaders) => {
       this._inHeader = false;
-      this._part.emit('header', header);
+      this._part?.emit('header', header);
     });
-    this._hparser.on('error', err => {
+    this._hparser.on('error', (err: Error) => {
       if (this._part && !this._ignoreData) {
         this._part.emit('error', err);
         this._part.push(null);
       }
+      this.emit('error', err);
     });
   }
 
-  emit(ev) {
-    if (ev !== 'finish' || this._realFinish) {
-      Writable.prototype.emit.apply(this, arguments);
-      return;
+  emit(event: string | symbol, ...args: unknown[]): boolean {
+    if (event !== 'finish' || this._realFinish) {
+      return super.emit(event, ...args);
     }
 
-    if (this._finished) return;
+    if (this._finished) return false;
 
     process.nextTick(() => {
       this.emit('error', new Error('Unexpected end of multipart data'));
@@ -79,19 +85,21 @@ export default class Dicer extends Writable {
       this.emit('finish');
       this._realFinish = false;
     });
+
+    return false;
   }
 
-  _write(data, encoding, cb) {
-    if (!this._hparser && !this._bparser) return cb();
+  _write(data: Buffer, _encoding: BufferEncoding, cb: (error?: Error | null) => void): void {
+    if (!this._hparser || !this._bparser) return cb();
 
     if (this._headerFirst && this._isPreamble) {
       if (!this._part) {
         this._part = new PartStream(this._partOpts);
-        if (this._events.preamble) this.emit('preamble', this._part);
+        if (this.listenerCount('preamble') > 0) this.emit('preamble', this._part);
         else ignore(this);
       }
       const r = this._hparser.push(data);
-      if (!this._inHeader && r !== undefined && r < data.length) data = data.slice(r);
+      if (!this._inHeader && r !== undefined && r < data.length) data = data.subarray(r);
       else return cb();
     }
 
@@ -106,22 +114,28 @@ export default class Dicer extends Writable {
     else cb();
   }
 
-  reset() {
+  reset(): void {
     this._part = undefined;
     this._bparser = undefined;
     this._hparser = undefined;
   }
 
-  setBoundary(boundary) {
+  setBoundary(boundary: string): void {
     this._bparser = new StreamSearch(`\r\n--${boundary}`, onInfo.bind(this));
   }
 }
 
-function onInfo(isMatch, data, start, end) {
-  let buf;
+function onInfo(
+  this: Dicer,
+  isMatch: boolean,
+  data: Buffer | false,
+  start: number,
+  end: number
+): void {
+  let buf: Buffer | undefined;
   let i = 0;
-  let r;
-  let ev;
+  let r: number | undefined;
+  let ev: 'preamble' | 'part';
   let shouldWriteMore = true;
 
   if (!this._part && this._justMatched && data) {
@@ -136,8 +150,8 @@ function onInfo(isMatch, data, start, end) {
       }
     }
     if (this._dashes === 2) {
-      if (start + i < end && this._events.trailer)
-        this.emit('trailer', data.slice(start + i, end));
+      if (start + i < end && this.listenerCount('trailer') > 0)
+        this.emit('trailer', data.subarray(start + i, end));
       this.reset();
       this._finished = true;
       if (this._parts === 0) {
@@ -155,29 +169,31 @@ function onInfo(isMatch, data, start, end) {
       unpause(this);
     };
     ev = this._isPreamble ? 'preamble' : 'part';
-    if (this._events[ev]) this.emit(ev, this._part);
+    if (this.listenerCount(ev) > 0) this.emit(ev, this._part);
     else ignore(this);
     if (!this._isPreamble) this._inHeader = true;
   }
-  if (data && start < end && !this._ignoreData) {
+  const part = this._part;
+  const hparser = this._hparser;
+  if (data && start < end && !this._ignoreData && part && hparser) {
     if (this._isPreamble || !this._inHeader) {
-      if (buf) shouldWriteMore = this._part.push(buf);
-      shouldWriteMore = this._part.push(data.slice(start, end));
+      if (buf) shouldWriteMore = part.push(buf) !== false;
+      shouldWriteMore = part.push(data.subarray(start, end)) !== false;
       if (!shouldWriteMore) this._pause = true;
     } else if (!this._isPreamble && this._inHeader) {
-      if (buf) this._hparser.push(buf);
-      r = this._hparser.push(data.slice(start, end));
+      if (buf) hparser.push(buf);
+      r = hparser.push(data.subarray(start, end));
       if (!this._inHeader && r !== undefined && r < end)
         onInfo.call(this, false, data, start + r, end);
     }
   }
-  if (isMatch) {
-    this._hparser.reset();
+  if (isMatch && part && hparser) {
+    hparser.reset();
     if (this._isPreamble) {
       this._isPreamble = false;
     } else {
       ++this._parts;
-      this._part.on('end', () => {
+      part.on('end', () => {
         if (--this._parts === 0) {
           if (this._finished) {
             this._realFinish = true;
@@ -189,7 +205,7 @@ function onInfo(isMatch, data, start, end) {
         }
       });
     }
-    this._part.push(null);
+    part.push(null);
     this._part = undefined;
     this._ignoreData = false;
     this._justMatched = true;
@@ -197,7 +213,7 @@ function onInfo(isMatch, data, start, end) {
   }
 }
 
-function ignore(self) {
+function ignore(self: Dicer): void {
   if (self._part && !self._ignoreData) {
     self._ignoreData = true;
     self._part.on('error', EMPTY_FN);
@@ -205,7 +221,7 @@ function ignore(self) {
   }
 }
 
-function unpause(self) {
+function unpause(self: Dicer): void {
   if (!self._pause) return;
 
   self._pause = false;

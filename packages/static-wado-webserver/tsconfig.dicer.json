@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./lib/vendor/dicer",
+    "rootDir": "./lib/vendor/dicer",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "declaration": false,
+    "skipLibCheck": true
+  },
+  "include": ["./lib/vendor/dicer/**/*.ts"]
+}

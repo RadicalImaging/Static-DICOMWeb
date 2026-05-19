@@ -50,9 +50,9 @@
     "verbose": true
   },
   "dependencies": {
-    "@radicalimaging/cs3d": "workspace:*",
-    "@radicalimaging/static-wado-creator": "workspace:*",
-    "@radicalimaging/static-wado-util": "workspace:*",
+    "@radicalimaging/cs3d": ">=1.7.6",
+    "@radicalimaging/static-wado-creator": ">=1.7.6",
+    "@radicalimaging/static-wado-util": ">=1.7.6",
     "adm-zip": "0.5.16",
     "canvas": "3.1.0",
     "commander": "12.1.0",
