@@ -178,6 +178,42 @@ class S3Ops {
     }
   }
 
+  /**
+   * Restores the local file name for a multipart object whose ".mht"
+   * extension was stripped by fileToKey on upload. The directory listing
+   * can only guess "<key>.gz" for extension-less keys; the object's
+   * content type and encoding (known once it is fetched) determine the
+   * real name: <key>.mht for plain multipart, <key>.mht.gz when the
+   * object is gzip encoded.
+   */
+  retrieveFileName(destFile, contentType, contentEncoding) {
+    if (!contentType || !contentType.startsWith(multipartRelated)) return destFile;
+    if (!endsWith(destFile, '.gz')) return destFile;
+    const base = destFile.substring(0, destFile.length - 3);
+    const lastSegment = base.substring(
+      Math.max(base.lastIndexOf('/'), base.lastIndexOf('\\')) + 1
+    );
+    if (lastSegment.indexOf('.') !== -1) return destFile;
+    return contentEncoding === 'gzip' ? `${base}.mht.gz` : `${base}.mht`;
+  }
+
+  /**
+   * The local file names a listed object may be stored under. An
+   * extension-less key guessed as "<key>.gz" may really be a multipart
+   * file stored locally as <key>.mht or <key>.mht.gz.
+   */
+  localCandidates(fileName) {
+    const candidates = [fileName];
+    if (endsWith(fileName, '.gz')) {
+      const base = fileName.substring(0, fileName.length - 3);
+      const lastSegment = base.substring(base.lastIndexOf('/') + 1);
+      if (lastSegment.indexOf('.') === -1) {
+        candidates.push(`${base}.mht`, `${base}.mht.gz`);
+      }
+    }
+    return candidates;
+  }
+
   /** Retrieves the given s3 URI to the specified destination path */
   async retrieve(uri, destFile, options = { force: false }) {
     const remoteUri = this.remoteRelativeToUri(uri);
@@ -204,7 +240,8 @@ class S3Ops {
 
     try {
       const result = await this.client.send(command);
-      const { Body } = result;
+      const { Body, ContentType, ContentEncoding } = result;
+      destFile = this.retrieveFileName(destFile, ContentType, ContentEncoding);
       await copyTo(Body, destFile);
       console.info('Retrieved', Key);
     } catch (e) {
