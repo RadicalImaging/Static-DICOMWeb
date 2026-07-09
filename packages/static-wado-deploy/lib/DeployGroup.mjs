@@ -368,7 +368,12 @@ class DeployGroup {
       fs.closeSync(fd);
     }
     if (bytesRead < 2) return undefined;
-    const base = existingPath.substring(0, existingPath.length - 3);
+    let base = existingPath.substring(0, existingPath.length - 3);
+    if (base.endsWith('.json')) {
+      // A directory-index guess (index.json.gz) holding multipart content
+      // belongs at index.mht(.gz)
+      base = base.substring(0, base.length - '.json'.length);
+    }
     let corrected;
     if (header[0] === 0x2d && header[1] === 0x2d) {
       // Multipart boundary "--" - an uncompressed .mht stored as .gz
