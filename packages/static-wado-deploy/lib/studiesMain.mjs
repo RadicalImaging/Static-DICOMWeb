@@ -3,10 +3,9 @@ import uploadDeploy from './uploadDeploy.mjs';
 import uploadIndex from './uploadIndex.mjs';
 import retrieveDeploy from './retrieveDeploy.mjs';
 
-export default async function (options, program) {
-  const { args: studies } = program;
+export default async function (studies, options) {
   if (!studies?.length) {
-    return;
+    throw new Error("No study UIDs specified - provide one or more study UIDs, or '*' for all studies.");
   }
 
   if (studies.length === 1 && studies[0] === '*') {
