@@ -189,11 +189,18 @@ class S3Ops {
   retrieveFileName(destFile, contentType, contentEncoding) {
     if (!contentType || !contentType.startsWith(multipartRelated)) return destFile;
     if (!endsWith(destFile, '.gz')) return destFile;
-    const base = destFile.substring(0, destFile.length - 3);
+    let base = destFile.substring(0, destFile.length - 3);
     const lastSegment = base.substring(
       Math.max(base.lastIndexOf('/'), base.lastIndexOf('\\')) + 1
     );
-    if (lastSegment.indexOf('.') !== -1) return destFile;
+    if (lastSegment === 'index.json') {
+      // Directory-index guess for a key with children (e.g. the instance-level
+      // Part 10 rendition at .../instances/<sop>): multipart content really
+      // lives at <dir>/index.mht rather than <dir>/index.json.
+      base = base.substring(0, base.length - '.json'.length);
+    } else if (lastSegment.indexOf('.') !== -1) {
+      return destFile;
+    }
     return contentEncoding === 'gzip' ? `${base}.mht.gz` : `${base}.mht`;
   }
 
@@ -209,6 +216,11 @@ class S3Ops {
       const lastSegment = base.substring(base.lastIndexOf('/') + 1);
       if (lastSegment.indexOf('.') === -1) {
         candidates.push(`${base}.mht`, `${base}.mht.gz`);
+      } else if (lastSegment === 'index.json') {
+        // Directory-index guess may really be a multipart rendition at
+        // <dir>/index.mht(.gz) (e.g. instance-level Part 10 files).
+        const indexBase = base.substring(0, base.length - '.json'.length);
+        candidates.push(`${indexBase}.mht`, `${indexBase}.mht.gz`);
       }
     }
     return candidates;

@@ -1,4 +1,5 @@
 import { async, utilities, data } from 'dcmjs';
+import { v4 as uuid } from 'uuid';
 import { Tags, StatusMonitor, createPromiseTracker } from '@radicalimaging/static-wado-util';
 import { writeMultipartFramesFilter } from './writeMultipartFramesFilter.mjs';
 import { writeBulkdataFilter } from './writeBulkdataFilter.mjs';
@@ -27,6 +28,60 @@ function isReadBufferStreamLike(stream) {
 }
 
 const PARSE_JOB_TYPE = 'stowInstanceParse';
+
+/** Modalities whose original Part 10 binary is stored as instances/<sop>/index.mht.gz */
+const RAW_PART10_MODALITIES = new Set(['SEG', 'SR']);
+/** SOP Classes whose original Part 10 binary is stored (Basic Structured Display) */
+const RAW_PART10_SOP_CLASSES = new Set(['1.2.840.10008.5.1.4.1.1.30']);
+
+/**
+ * Returns true when the original Part 10 binary should be stored for this
+ * instance (segmentations and structured reports), mirroring the
+ * static-wado-creator RawDicomWriter selector.
+ * @param {Object} dict - Parsed instance dataset (DICOM JSON model)
+ * @returns {boolean}
+ */
+function shouldStoreRawPart10(dict) {
+  const modality = dict?.[Tags.Modality]?.Value?.[0];
+  const sopClass = dict?.[Tags.SOPClassUID]?.Value?.[0];
+  return RAW_PART10_MODALITIES.has(modality) || RAW_PART10_SOP_CLASSES.has(sopClass);
+}
+
+/**
+ * Writes the original Part 10 bytes (as received) to the instance-level
+ * rendition instances/<sop>/index.mht.gz - a gzipped multipart/related wrapper
+ * with Content-Type: application/dicom, the same format RawDicomWriter used
+ * and the format dicomwebserver serves for instance retrieval.
+ * The source bytes are re-read from the parse stream, which retains its
+ * buffers on the STOW path (clearBuffers is false there).
+ * @param {Object} writer - DicomWebWriter used for this instance
+ * @param {Object} stream - The stream the instance was parsed from
+ * @param {string} sopInstanceUID - For logging
+ * @returns {Promise<void>}
+ */
+async function writeRawPart10(writer, stream, sopInstanceUID) {
+  const rawSize = stream?.size;
+  const canReRead =
+    typeof stream?.getBuffer === 'function' &&
+    rawSize > 0 &&
+    (typeof stream.hasData !== 'function' || stream.hasData(0, rawSize));
+  if (!canReRead) {
+    console.verbose('Raw Part 10 not stored for', sopInstanceUID, '- source bytes unavailable');
+    return;
+  }
+  const raw = stream.getBuffer(0, rawSize);
+  const rawBuffer = ArrayBuffer.isView(raw)
+    ? Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength)
+    : Buffer.from(raw);
+  const rawStream = await writer.openInstanceStream('index.mht', {
+    gzip: true,
+    multipart: true,
+    contentType: 'application/dicom',
+    boundary: `BOUNDARY_${uuid()}`,
+  });
+  rawStream.stream.write(rawBuffer);
+  await writer.closeStream(rawStream.streamKey);
+}
 
 /**
  * Creates a filter that counts addTag/value calls and reports progress to StatusMonitor.
@@ -323,6 +378,20 @@ export async function instanceFromStream(stream, options = {}) {
       const metadataStream = await writer.openInstanceStream('metadata', { gzip: true });
       metadataStream.stream.write(Buffer.from(JSON.stringify([dict])));
       await writer.closeStream(metadataStream.streamKey);
+    }
+
+    // Store the original Part 10 binary for segmentations/structured reports so
+    // instance retrieval can serve it directly instead of re-creating it.
+    if (writer && options.writeRawPart10 !== false && shouldStoreRawPart10(dict)) {
+      try {
+        await writeRawPart10(writer, reader.stream, information.sopInstanceUid);
+      } catch (err) {
+        console.warn(
+          'Unable to store raw Part 10 for',
+          information.sopInstanceUid,
+          err?.message ?? err
+        );
+      }
     }
 
     // Wait for all frame writes to complete before returning
