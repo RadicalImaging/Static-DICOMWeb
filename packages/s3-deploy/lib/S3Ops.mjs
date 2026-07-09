@@ -219,14 +219,45 @@ class S3Ops {
     return this.group.path ? contentItem.Key.substring(this.group.path.length) : contentItem.Key;
   }
 
-  contentItemToFileName(contentItem) {
+  contentItemToFileName(contentItem, isDirectory = false) {
     const s = this.getPath(contentItem);
     if (endsWith(s, 'thumbnail')) return s;
     if (endsWith(s, '/')) return `${s}index.json.gz`;
-    if (endsWith(s, '/series') || endsWith(s, '/studies') || endsWith(s, '/instances'))
+    if (
+      isDirectory ||
+      endsWith(s, '/series') ||
+      endsWith(s, '/studies') ||
+      endsWith(s, '/instances')
+    )
       return `${s}/index.json.gz`;
     if (endsWith(s, '.gz') || endsWith(s, '.jls')) return s;
     return `${s}.gz`;
+  }
+
+  /**
+   * Assigns the local fileName to each listed item. An object whose key also
+   * has children in the listing (e.g. "studies/<uid>" alongside
+   * "studies/<uid>/series/...") is a directory index object created by
+   * fileToKey stripping "/index.json.gz" on upload, so it maps back to
+   * <key>/index.json.gz rather than <key>.gz.
+   */
+  assignFileNames(results) {
+    const keys = results.map(it => it.Key).sort();
+    const hasChildren = key => {
+      const childPrefix = `${key}/`;
+      let lo = 0;
+      let hi = keys.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (keys[mid] < childPrefix) lo = mid + 1;
+        else hi = mid;
+      }
+      return lo < keys.length && keys[lo].startsWith(childPrefix);
+    };
+    for (const item of results) {
+      item.fileName = this.contentItemToFileName(item, hasChildren(item.Key));
+    }
+    return results;
   }
 
   async dir(uri) {
@@ -256,11 +287,10 @@ class S3Ops {
             ...it,
             size: it.Size,
             relativeUri: this.getPath(it),
-            fileName: this.contentItemToFileName(it),
           });
         });
         if (!result.IsTruncated) {
-          return results;
+          return this.assignFileNames(results);
         }
         ContinuationToken = result.NextContinuationToken;
         if (!ContinuationToken) {
@@ -268,10 +298,10 @@ class S3Ops {
         }
       } catch (e) {
         console.log('Error sending', Bucket, remoteUri, e);
-        return results;
+        return this.assignFileNames(results);
       }
     }
-    return results;
+    return this.assignFileNames(results);
   }
 
   async upload(dir, file, hash, excludeExisting = {}) {
