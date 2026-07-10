@@ -1,4 +1,5 @@
 import fs from 'fs';
+import zlib from 'zlib';
 import { configGroup, handleHomeRelative } from '@radicalimaging/static-wado-util';
 import path from 'path';
 import { plugins } from '@radicalimaging/static-wado-plugins';
@@ -333,6 +334,69 @@ class DeployGroup {
     }
   }
 
+  /**
+   * Finds the local file a listed object is already stored under, checking
+   * the alternate .mht names a multipart object may have locally. A file
+   * left under the generic ".gz" name by an older retrieve is renamed to
+   * its correct multipart name, determined from its leading bytes.
+   * @returns {string|undefined} Full path of the existing local file
+   */
+  findExistingLocal(fileName) {
+    const candidates = this.ops.localCandidates ? this.ops.localCandidates(fileName) : [fileName];
+    const existing = candidates.find(name => fs.existsSync(path.join(this.baseDir, name)));
+    if (existing === undefined) return undefined;
+    const existingPath = path.join(this.baseDir, existing);
+    if (existing === fileName && candidates.length > 1 && !this.options.dryRun) {
+      return this.renameLegacyMultipart(existingPath) || existingPath;
+    }
+    return existingPath;
+  }
+
+  /**
+   * Renames a multipart file stored under a plain ".gz" name to
+   * <base>.mht or <base>.mht.gz according to its content. Files that are
+   * not multipart (e.g. gzipped JSON such as metadata.gz) are left alone.
+   * @returns {string|undefined} The corrected path, if renamed
+   */
+  renameLegacyMultipart(existingPath) {
+    const fd = fs.openSync(existingPath, 'r');
+    const header = Buffer.alloc(1024);
+    let bytesRead;
+    try {
+      bytesRead = fs.readSync(fd, header, 0, header.length, 0);
+    } finally {
+      fs.closeSync(fd);
+    }
+    if (bytesRead < 2) return undefined;
+    let base = existingPath.substring(0, existingPath.length - 3);
+    if (base.endsWith('.json')) {
+      // A directory-index guess (index.json.gz) holding multipart content
+      // belongs at index.mht(.gz)
+      base = base.substring(0, base.length - '.json'.length);
+    }
+    let corrected;
+    if (header[0] === 0x2d && header[1] === 0x2d) {
+      // Multipart boundary "--" - an uncompressed .mht stored as .gz
+      corrected = `${base}.mht`;
+    } else if (header[0] === 0x1f && header[1] === 0x8b) {
+      // Gzip data - only rename when the compressed content is multipart
+      try {
+        const inflated = zlib.gunzipSync(header.subarray(0, bytesRead), {
+          finishFlush: zlib.constants.Z_SYNC_FLUSH,
+        });
+        if (inflated[0] === 0x2d && inflated[1] === 0x2d) {
+          corrected = `${base}.mht.gz`;
+        }
+      } catch (e) {
+        console.verbose('Unable to inspect gzip content of', existingPath, e.message);
+      }
+    }
+    if (!corrected || fs.existsSync(corrected)) return undefined;
+    fs.renameSync(existingPath, corrected);
+    console.noQuiet('Renamed', existingPath, 'to', corrected);
+    return corrected;
+  }
+
   async dir(uri) {
     const list = await this.ops.dir(uri);
     return list.reduce((acc, value) => {
@@ -388,9 +452,10 @@ class DeployGroup {
       if (isExcluded) {
         continue;
       }
-      if (fs.existsSync(destName) && !force) {
-        if (this.ops.shouldSkip(item, destName)) {
-          console.verbose('Skipping', destName);
+      if (!force) {
+        const existingPath = this.findExistingLocal(item.fileName);
+        if (existingPath && this.ops.shouldSkip(item, existingPath)) {
+          console.verbose('Skipping', existingPath);
           skippedItems += 1;
           continue;
         }

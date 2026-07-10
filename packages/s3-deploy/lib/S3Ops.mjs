@@ -178,6 +178,54 @@ class S3Ops {
     }
   }
 
+  /**
+   * Restores the local file name for a multipart object whose ".mht"
+   * extension was stripped by fileToKey on upload. The directory listing
+   * can only guess "<key>.gz" for extension-less keys; the object's
+   * content type and encoding (known once it is fetched) determine the
+   * real name: <key>.mht for plain multipart, <key>.mht.gz when the
+   * object is gzip encoded.
+   */
+  retrieveFileName(destFile, contentType, contentEncoding) {
+    if (!contentType || !contentType.startsWith(multipartRelated)) return destFile;
+    if (!endsWith(destFile, '.gz')) return destFile;
+    let base = destFile.substring(0, destFile.length - 3);
+    const lastSegment = base.substring(
+      Math.max(base.lastIndexOf('/'), base.lastIndexOf('\\')) + 1
+    );
+    if (lastSegment === 'index.json') {
+      // Directory-index guess for a key with children (e.g. the instance-level
+      // Part 10 rendition at .../instances/<sop>): multipart content really
+      // lives at <dir>/index.mht rather than <dir>/index.json.
+      base = base.substring(0, base.length - '.json'.length);
+    } else if (lastSegment.indexOf('.') !== -1) {
+      return destFile;
+    }
+    return contentEncoding === 'gzip' ? `${base}.mht.gz` : `${base}.mht`;
+  }
+
+  /**
+   * The local file names a listed object may be stored under. An
+   * extension-less key guessed as "<key>.gz" may really be a multipart
+   * file stored locally as <key>.mht or <key>.mht.gz.
+   */
+  localCandidates(fileName) {
+    const candidates = [fileName];
+    if (endsWith(fileName, '.gz')) {
+      const base = fileName.substring(0, fileName.length - 3);
+      const lastSegment = base.substring(base.lastIndexOf('/') + 1);
+      if (lastSegment.indexOf('.') === -1) {
+        candidates.push(`${base}.mht`, `${base}.mht.gz`);
+      } else if (lastSegment === 'index.json') {
+        // Directory-index guess may really be a multipart rendition at
+        // <dir>/index.mht(.gz) (e.g. instance-level Part 10 files).
+        const indexBase = base.substring(0, base.length - '.json'.length);
+        candidates.push(`${indexBase}.mht`, `${indexBase}.mht.gz`);
+      }
+    }
+    return candidates;
+  }
+
   /** Retrieves the given s3 URI to the specified destination path */
   async retrieve(uri, destFile, options = { force: false }) {
     const remoteUri = this.remoteRelativeToUri(uri);
@@ -204,7 +252,8 @@ class S3Ops {
 
     try {
       const result = await this.client.send(command);
-      const { Body } = result;
+      const { Body, ContentType, ContentEncoding } = result;
+      destFile = this.retrieveFileName(destFile, ContentType, ContentEncoding);
       await copyTo(Body, destFile);
       console.info('Retrieved', Key);
     } catch (e) {
@@ -219,14 +268,45 @@ class S3Ops {
     return this.group.path ? contentItem.Key.substring(this.group.path.length) : contentItem.Key;
   }
 
-  contentItemToFileName(contentItem) {
+  contentItemToFileName(contentItem, isDirectory = false) {
     const s = this.getPath(contentItem);
     if (endsWith(s, 'thumbnail')) return s;
     if (endsWith(s, '/')) return `${s}index.json.gz`;
-    if (endsWith(s, '/series') || endsWith(s, '/studies') || endsWith(s, '/instances'))
+    if (
+      isDirectory ||
+      endsWith(s, '/series') ||
+      endsWith(s, '/studies') ||
+      endsWith(s, '/instances')
+    )
       return `${s}/index.json.gz`;
     if (endsWith(s, '.gz') || endsWith(s, '.jls')) return s;
     return `${s}.gz`;
+  }
+
+  /**
+   * Assigns the local fileName to each listed item. An object whose key also
+   * has children in the listing (e.g. "studies/<uid>" alongside
+   * "studies/<uid>/series/...") is a directory index object created by
+   * fileToKey stripping "/index.json.gz" on upload, so it maps back to
+   * <key>/index.json.gz rather than <key>.gz.
+   */
+  assignFileNames(results) {
+    const keys = results.map(it => it.Key).sort();
+    const hasChildren = key => {
+      const childPrefix = `${key}/`;
+      let lo = 0;
+      let hi = keys.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (keys[mid] < childPrefix) lo = mid + 1;
+        else hi = mid;
+      }
+      return lo < keys.length && keys[lo].startsWith(childPrefix);
+    };
+    for (const item of results) {
+      item.fileName = this.contentItemToFileName(item, hasChildren(item.Key));
+    }
+    return results;
   }
 
   async dir(uri) {
@@ -256,11 +336,10 @@ class S3Ops {
             ...it,
             size: it.Size,
             relativeUri: this.getPath(it),
-            fileName: this.contentItemToFileName(it),
           });
         });
         if (!result.IsTruncated) {
-          return results;
+          return this.assignFileNames(results);
         }
         ContinuationToken = result.NextContinuationToken;
         if (!ContinuationToken) {
@@ -268,10 +347,10 @@ class S3Ops {
         }
       } catch (e) {
         console.log('Error sending', Bucket, remoteUri, e);
-        return results;
+        return this.assignFileNames(results);
       }
     }
-    return results;
+    return this.assignFileNames(results);
   }
 
   async upload(dir, file, hash, excludeExisting = {}) {
