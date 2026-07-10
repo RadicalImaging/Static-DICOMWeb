@@ -17,6 +17,7 @@ import {
 import { studyQueryController } from '../../controllers/server/indexOnDemandController.mjs';
 import { seriesQueryController } from '../../controllers/server/seriesQueryController.mjs';
 import { seriesMetadataQueryController } from '../../controllers/server/seriesMetadataQueryController.mjs';
+import { studyMetadataQueryController } from '../../controllers/server/studyMetadataQueryController.mjs';
 import { defaultNotFoundController as notFoundController } from '../../controllers/server/notFoundControllers.mjs';
 import { defaultGetProxyController } from '../../controllers/server/proxyControllers.mjs';
 import {
@@ -131,7 +132,11 @@ export default function setRoutes(routerExpress, params, dir, hashStudyUidPath) 
     multipartIndexMap
   );
 
-  routerExpress.get(['/studies/:studyUID/series/:seriesUID/instances'], qidoMap);
+  routerExpress.get(
+    ['/studies/:studyUID/series/:seriesUID/instances'],
+    qidoMap,
+    indexingStaticController(dir)
+  );
 
   // Part 10 controller: handles accept negotiation for application/dicom,
   // application/zip, and multipart/related; type="application/dicom".
@@ -146,6 +151,7 @@ export default function setRoutes(routerExpress, params, dir, hashStudyUidPath) 
     '/studies/:studyUID/series/:seriesUID/metadata',
     seriesMetadataQueryController(dir, params)
   );
+  routerExpress.get('/studies/:studyUID/metadata', studyMetadataQueryController(dir, params));
   routerExpress.get(
     [
       '/studies/:studyUID/series/metadata',
