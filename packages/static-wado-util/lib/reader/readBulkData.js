@@ -89,6 +89,8 @@ const readBulkData = async (dirSrc, baseName, frame) => {
       binaryData: data.buffer,
       contentType,
       transferSyntaxUid,
+      wasMultipart: false,
+      transferSyntaxFromInnerPart: false,
     };
   }
 
@@ -115,13 +117,19 @@ const readBulkData = async (dirSrc, baseName, frame) => {
         }
         transferSyntaxUid = tsValue.trim();
       }
-      console.noQuiet('Bulkdata content type', `"${contentType}"`, `"${transferSyntaxUid}"`);
+      console.verbose('Bulkdata content type', `"${contentType}"`, `"${transferSyntaxUid}"`);
     }
   }
 
   const binaryData = data.buffer.slice(startData, endData);
 
-  return { binaryData, contentType, transferSyntaxUid };
+  return {
+    binaryData,
+    contentType,
+    transferSyntaxUid,
+    wasMultipart: true,
+    transferSyntaxFromInnerPart: Boolean(transferSyntaxUid),
+  };
 };
 
 module.exports = readBulkData;

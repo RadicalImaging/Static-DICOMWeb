@@ -1,6 +1,7 @@
 export * from './commands/index.mjs';
 export { DicomWebReader } from './instance/DicomWebReader.mjs';
 export { FileDicomWebReader } from './instance/FileDicomWebReader.mjs';
+export { HttpDicomWebReader } from './instance/HttpDicomWebReader.mjs';
 export { DicomWebWriter } from './instance/DicomWebWriter.mjs';
 export { FileDicomWebWriter } from './instance/FileDicomWebWriter.mjs';
 export { DicomWebStream } from './instance/DicomWebStream.mjs';

@@ -56,3 +56,8 @@ export function dicomDirPathFromLocation(location) {
   }
   return s;
 }
+
+export function isHttpLocation(location) {
+  if (typeof location !== 'string') return false;
+  return /^https?:\/\//i.test(location.trim());
+}

@@ -150,13 +150,14 @@ class DeployGroup {
     const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
     const files = [];
     const directories = [];
+    const includePatterns = Array.isArray(this.options.include) ? this.options.include : [];
 
     // Separate files and directories for optimized processing
     for (const entry of entries) {
       const fullPath = path.join(dirPath, entry.name);
       const entryRelativePath = path.join(relativePath, entry.name).replace(/\\/g, '/');
 
-      // Early exclusion check
+      // Early exclusion check (applies to files and directories)
       const shouldExclude = Array.from(excludePatterns).some(
         pattern => entryRelativePath.indexOf(pattern) !== -1
       );
@@ -164,8 +165,16 @@ class DeployGroup {
       if (shouldExclude) continue;
 
       if (entry.isDirectory()) {
+        // Always recurse into non-excluded directories so include patterns can
+        // match nested paths (e.g. studies/<uid>/series/.../thumbnail).
         directories.push({ path: fullPath, relativePath: entryRelativePath });
       } else {
+        const shouldInclude =
+          includePatterns.length === 0 ||
+          includePatterns.some(pattern => entryRelativePath.indexOf(pattern) !== -1);
+
+        if (!shouldInclude) continue;
+
         const stat = await fs.promises.stat(fullPath);
         files.push({
           baseDir: this.baseDir,

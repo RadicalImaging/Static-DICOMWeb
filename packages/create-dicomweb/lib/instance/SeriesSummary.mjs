@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { FileDicomWebReader } from './FileDicomWebReader.mjs';
 import { writeMultipleWithRetry } from './writeWithRetry.mjs';
-import { Tags, TagLists } from '@radicalimaging/static-wado-util';
+import { Tags, TagLists, rewriteBulkDataUriForSeriesMetadata } from '@radicalimaging/static-wado-util';
 
 const { getValue, setValue } = Tags;
 
@@ -34,11 +34,7 @@ function updateLocation(instanceMetadata, instanceUID) {
 
       for (const [key, value] of Object.entries(obj)) {
         if (key === 'BulkDataURI' && typeof value === 'string') {
-          if (value === './frames' || value.startsWith('./frames')) {
-            result[key] = `./instances/${instanceUid}/frames`;
-          } else {
-            result[key] = value.replace(/^(\.\.\/){4}bulkdata\//, '../../bulkdata/');
-          }
+          result[key] = rewriteBulkDataUriForSeriesMetadata(value, instanceUid);
         } else {
           result[key] = processObject(value, instanceUid);
         }

@@ -3,6 +3,12 @@ export { bilinear, replicate } from './image/bilinear';
 import handleHomeRelative from './handleHomeRelative';
 import JSONReader from './reader/JSONReader';
 import readBulkData from './reader/readBulkData';
+import {
+  resolveBulkDataLocation,
+  bulkDataHttpPathUnderRoot,
+  rewriteBulkDataUriForSeriesMetadata,
+  bulkDataUriRelativeFromInstance,
+} from './reader/bulkDataUriResolve.js';
 import JSONWriter from './writer/JSONWriter';
 import dirScanner from './reader/dirScanner';
 import qidoFilter from './qidoFilter';
@@ -73,4 +79,8 @@ export {
   createProgressReporter,
   parseTimeoutToMs,
   parseSizeToBytes,
+  resolveBulkDataLocation,
+  bulkDataHttpPathUnderRoot,
+  rewriteBulkDataUriForSeriesMetadata,
+  bulkDataUriRelativeFromInstance,
 };

@@ -3,6 +3,7 @@ import path from 'path';
 import { createGunzip } from 'zlib';
 import { DicomWebReader } from './DicomWebReader.mjs';
 import { removeStaleMetadataDir } from './removeStaleMetadataDir.mjs';
+import { readBulkData as readBulkDataFromFile, resolveBulkDataLocation } from '@radicalimaging/static-wado-util';
 
 /**
  * File-based implementation of DicomWebReader
@@ -108,6 +109,20 @@ export class FileDicomWebReader extends DicomWebReader {
    */
   async openInputStream(relativePath, filename) {
     return this._openStream(relativePath, filename);
+  }
+
+  async readBulkData(studyUID, seriesUID, bulkDataURI, frameNumber = undefined, instanceUID = undefined) {
+    const spec = resolveBulkDataLocation(bulkDataURI, {
+      studyUID,
+      seriesUID,
+      instanceUID,
+      frameNumber,
+    });
+    if (spec.kind !== 'readBulkData') {
+      throw new Error(`FileDicomWebReader: unsupported bulk resolve kind ${spec.kind}`);
+    }
+    const dir = path.join(this.baseDir, spec.dirSuffix);
+    return readBulkDataFromFile(dir, spec.baseName, spec.frame);
   }
 
   /**
