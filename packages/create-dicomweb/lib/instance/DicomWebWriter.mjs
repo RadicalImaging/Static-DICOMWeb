@@ -4,6 +4,42 @@ import { uids } from '@radicalimaging/static-wado-util';
 import { MultipartStreamWriter } from './MultipartStreamWriter.mjs';
 import { StreamInfo, getStreamCounts } from './StreamInfo.mjs';
 
+/** Default maximum number of write streams (file handles) open at the same time */
+const DEFAULT_MAX_OPEN_STREAMS = 32;
+/**
+ * Lowest usable maxOpenStreams. The stream currently being written is itself open while the
+ * reader waits for room, so a limit below this could never be satisfied.
+ */
+const MIN_MAX_OPEN_STREAMS = 4;
+/** Default time to wait for open streams to close before continuing anyway */
+const DEFAULT_OPEN_STREAM_WAIT_MS = 30000;
+/** Default time to wait for in-flight closes at the end of an instance */
+const DEFAULT_DRAIN_TIMEOUT_MS = 60000;
+
+/**
+ * Creates a cancellable timeout promise. The timer must be cancelled once the caller is
+ * done with it, otherwise a pending timer keeps the process alive.
+ * @param {number} ms - Delay in milliseconds
+ * @returns {{ promise: Promise<void>, cancel: () => void }}
+ */
+function createTimeout(ms) {
+  let timeoutId;
+  const promise = new Promise(resolve => {
+    timeoutId = setTimeout(resolve, ms);
+  });
+  return { promise, cancel: () => clearTimeout(timeoutId) };
+}
+
+/**
+ * Yields to the event loop so stream 'finish'/'close' callbacks (which are macrotasks) get
+ * delivered. Awaiting only promises is not enough: a parse loop that never yields to the
+ * macrotask queue keeps opening files while none of them ever finish closing.
+ * @returns {Promise<void>}
+ */
+function yieldToEventLoop() {
+  return new Promise(resolve => setImmediate(resolve));
+}
+
 const EQUIVALENT_UNCOMPRESSED_TRANSFER_SYNTAX_UIDS = new Set([
   '1.2.840.10008.1.2',   // Implicit VR Little Endian
   '1.2.840.10008.1.2.1', // Explicit VR Little Endian
@@ -30,6 +66,8 @@ export class DicomWebWriter {
    * @param {Object} options - Configuration options (required)
    * @param {string} options.baseDir - Base directory for output
    * @param {{ add: (p: Promise) => Promise }|undefined} [options.streamWritePromiseTracker] - Optional tracker for stream write promises (e.g. for back pressure)
+   * @param {number} [options.maxOpenStreams=32] - Maximum number of streams (file handles) open at once; see awaitOpenStreamLimit
+   * @param {number} [options.openStreamWaitMs=30000] - Max time awaitOpenStreamLimit waits for room before continuing anyway
    */
   constructor(informationProvider, options) {
     if (!informationProvider || typeof informationProvider !== 'object') {
@@ -44,8 +82,15 @@ export class DicomWebWriter {
     this.informationProvider = informationProvider;
     this.options = options;
     this.streamWritePromiseTracker = options.streamWritePromiseTracker ?? null;
+    this.maxOpenStreams = Math.max(
+      MIN_MAX_OPEN_STREAMS,
+      options.maxOpenStreams ?? DEFAULT_MAX_OPEN_STREAMS
+    );
+    this.openStreamWaitMs = options.openStreamWaitMs ?? DEFAULT_OPEN_STREAM_WAIT_MS;
     this.openStreams = new Map(); // key -> stream info
     this.streamErrors = new Map(); // key -> error
+    /** Counter used to keep streamKey unique when a key is re-used while still open */
+    this._streamKeySequence = 0;
 
     // Log tracker ID for debugging
     if (this.streamWritePromiseTracker) {
@@ -182,7 +227,17 @@ export class DicomWebWriter {
     data.stream = targetStream;
     data.filename = actualFilename;
 
-    const streamKey = options.streamKey || `${path.replace(/\\/g, '/')}:${data.filename}`;
+    let streamKey = options.streamKey || `${path.replace(/\\/g, '/')}:${data.filename}`;
+    if (this.openStreams.has(streamKey)) {
+      // Re-using the key of a stream that is still open would orphan that stream: its entry
+      // would be replaced, so nothing would ever close it and its file handle would leak.
+      // Duplicate keys happen when the same tag/content hash is written twice in one instance.
+      const uniqueKey = `${streamKey}#${(this._streamKeySequence += 1)}`;
+      console.verbose(
+        `[DicomWebWriter] streamKey ${streamKey} is still open, opening as ${uniqueKey}`
+      );
+      streamKey = uniqueKey;
+    }
     data.streamKey = streamKey;
 
     const streamInfo = new StreamInfo(this, data);
@@ -438,6 +493,104 @@ export class DicomWebWriter {
    */
   getOpenStreams() {
     return this.openStreams;
+  }
+
+  /**
+   * Back pressure: waits until fewer than maxOpenStreams streams are open.
+   *
+   * Frames and bulkdata are closed asynchronously (closeStream is not awaited by the filters),
+   * so a fast parser - a whole slide image with tens of thousands of frames, for example - can
+   * open files far faster than they close and run the process out of file handles. Callers apply
+   * this before producing more data (see the listener drain in instanceFromStream).
+   *
+   * Never throws and never waits forever: after timeoutMs it logs and lets the caller continue.
+   *
+   * @param {number} [maxOpenStreams] - Limit to wait for; defaults to this.maxOpenStreams
+   * @param {number} [timeoutMs] - Max time to wait; defaults to this.openStreamWaitMs
+   * @returns {Promise<number>} - Number of open streams at the time it resolved
+   */
+  async awaitOpenStreamLimit(
+    maxOpenStreams = this.maxOpenStreams,
+    timeoutMs = this.openStreamWaitMs
+  ) {
+    if (this.openStreams.size < maxOpenStreams) {
+      return this.openStreams.size;
+    }
+
+    const timeout = createTimeout(timeoutMs);
+    let timedOut = false;
+    timeout.promise.then(() => {
+      timedOut = true;
+    });
+
+    try {
+      while (this.openStreams.size >= maxOpenStreams && !timedOut) {
+        // The oldest stream is the one most likely to finish first, and never the one being
+        // written right now (maxOpenStreams is at least MIN_MAX_OPEN_STREAMS), so waiting on
+        // it cannot deadlock against the caller that is waiting for room.
+        const oldest = this.openStreams.values().next().value;
+        if (!oldest?.promise) break;
+        await Promise.race([oldest.promise.catch(() => undefined), timeout.promise]);
+        await yieldToEventLoop();
+      }
+    } finally {
+      timeout.cancel();
+    }
+
+    const openCount = this.openStreams.size;
+    if (openCount >= maxOpenStreams) {
+      console.noQuiet(
+        `[DicomWebWriter] back pressure timed out after ${timeoutMs}ms with ${openCount} open streams; continuing`
+      );
+    }
+    return openCount;
+  }
+
+  /**
+   * Waits for every open stream to finish, then destroys any that never completed.
+   * Call this once an instance is fully parsed: the filters close frame and bulkdata streams
+   * without awaiting, so some closes are still in flight, and anything that was never closed
+   * would otherwise hold its file handle until the process exits.
+   *
+   * @param {number} [timeoutMs=60000] - Max time to wait for in-flight closes
+   * @returns {Promise<void>}
+   */
+  async drainOpenStreams(timeoutMs = DEFAULT_DRAIN_TIMEOUT_MS) {
+    if (this.openStreams.size === 0) {
+      return;
+    }
+
+    const timeout = createTimeout(timeoutMs);
+    try {
+      await Promise.race([this.awaitAllStreams(), timeout.promise]);
+    } finally {
+      timeout.cancel();
+    }
+
+    // closeStream removes its entry after the stream's promise settles, so give those
+    // continuations a chance to run before deciding a stream was left behind.
+    for (let i = 0; i < 10 && this.openStreams.size > 0; i++) {
+      await yieldToEventLoop();
+    }
+
+    // Streams that ended are mid-close: their handle is already released. Anything else
+    // never finished, so destroy it to release the handle.
+    const lingering = Array.from(this.openStreams.entries()).filter(
+      ([, streamInfo]) => !streamInfo._ended
+    );
+    if (lingering.length === 0) {
+      return;
+    }
+
+    console.warn(
+      `[DicomWebWriter] ${lingering.length} stream(s) were never closed; destroying them to release file handles: ${lingering
+        .map(([streamKey]) => streamKey)
+        .join(', ')}`
+    );
+    const error = new Error('Stream was not closed before writing completed');
+    for (const [streamKey] of lingering) {
+      this.recordStreamError(streamKey, error, true);
+    }
   }
 
   /**

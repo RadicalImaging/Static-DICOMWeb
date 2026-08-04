@@ -33,16 +33,38 @@ program
   .option('-v, --verbose', 'Enable verbose logging')
   .option('-q, --quiet', 'Disable noQuiet logging');
 
+/**
+ * Parses the --max-open-files option into a positive integer.
+ * @param {string|undefined} value - Raw option value
+ * @returns {number|undefined} - Parsed count, or undefined when not specified
+ */
+function parseMaxOpenFiles(value) {
+  if (value === undefined) {
+    return undefined;
+  }
+  const parsed = parseInt(value, 10);
+  if (Number.isNaN(parsed) || parsed < 1) {
+    console.error(`Invalid --max-open-files value: ${value}`);
+    process.exit(1);
+  }
+  return parsed;
+}
+
 program
   .command('instance')
   .description('Store instance data')
   .argument('<part10>', 'part 10 file(s)')
   .option('--dicomdir <path>', 'Base directory path where binary .mht files will be written in DICOMweb structure','~/dicomweb')
+  .option('--max-open-files <N>', 'Maximum number of output files written at the same time (default: 32)')
   .action(async (fileName, options) => {
     updateVerboseLog();
     const instanceOptions = {};
     if (options.dicomdir) {
       instanceOptions.dicomdir = handleHomeRelative(options.dicomdir);
+    }
+    const maxOpenFiles = parseMaxOpenFiles(options.maxOpenFiles);
+    if (maxOpenFiles !== undefined) {
+      instanceOptions.maxOpenStreams = maxOpenFiles;
     }
     await instanceMain([fileName], instanceOptions);
   });
@@ -87,6 +109,7 @@ program
   .option('--no-study-index', 'Skip creating/updating studies/index.json.gz file')
   .option('--bulkdata-size <size>', 'Size threshold in bytes for public bulkdata tags (default: 131074, i.e. 128k + 2)')
   .option('--private-bulkdata-size <size>', 'Size threshold in bytes for private bulkdata tags (default: 128)')
+  .option('--max-open-files <N>', 'Maximum number of output files written at the same time (default: 32). Lower this if the system runs out of file handles on very large multi-frame instances')
   .action(async (fileNames, options) => {
     updateVerboseLog();
     const createOptions = {};
@@ -100,6 +123,10 @@ program
     }
     if (options.privateBulkdataSize) {
       createOptions.sizePrivateBulkdataTags = parseSizeToBytes(options.privateBulkdataSize);
+    }
+    const maxOpenFiles = parseMaxOpenFiles(options.maxOpenFiles);
+    if (maxOpenFiles !== undefined) {
+      createOptions.maxOpenStreams = maxOpenFiles;
     }
     await createMain(fileNames, createOptions);
   });

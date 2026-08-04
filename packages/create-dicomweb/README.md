@@ -28,6 +28,11 @@ createdicomweb create <DICOM-FILES-DIR ...>
 
 Note there is no glob support on the input parameter, so either directories or files need to be fully specified.
 
+Very large multi-frame instances (whole slide imaging, for example) write one file per frame. At most
+32 of those files are written at a time, and the reader waits for room before producing more frames.
+Use `--max-open-files <N>` to raise that for faster storage, or lower it if the system still runs
+short of file handles.
+
 ## Converting Static DICOMweb to Part 10
 
 Static DICOMweb files can be converted back into Part 10, provided:

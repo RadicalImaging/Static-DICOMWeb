@@ -247,7 +247,7 @@ export function writeBulkdataFilter(options = {}) {
       return next(result);
     }
 
-    const streamKey = `bulkdata:${currentTag}@${level}:${hashPath}`;
+    let streamKey = `bulkdata:${currentTag}@${level}:${hashPath}`;
 
     try {
       const relativePath = `studies/${studyUID}/bulkdata/${hashPath.substring(0, hashPath.lastIndexOf('/'))}`;
@@ -263,6 +263,9 @@ export function writeBulkdataFilter(options = {}) {
         gzip: true,
         streamKey,
       });
+      // The writer de-duplicates keys that are still open, so close the key it assigned;
+      // closing the requested key could otherwise close (or miss) the wrong stream.
+      streamKey = streamInfo.streamKey;
 
       for (const v of valueArray) {
         const buf = v instanceof ArrayBuffer ? Buffer.from(v) : v;
@@ -270,7 +273,11 @@ export function writeBulkdataFilter(options = {}) {
         streamInfo.write(buf);
       }
 
-      bulkdataWriter.closeStream(streamKey);
+      // Not awaited: the parser is synchronous here, back pressure comes from the listener drain.
+      bulkdataWriter.closeStream(streamKey).catch(error => {
+        console.error(`Error closing bulkdata stream ${streamKey}:`, error);
+        bulkdataWriter.recordStreamError(streamKey, error, true);
+      });
     } catch (error) {
       console.error(`Error writing bulkdata for tag ${currentTag}:`, error);
       bulkdataWriter.recordStreamError(streamKey, error, true);

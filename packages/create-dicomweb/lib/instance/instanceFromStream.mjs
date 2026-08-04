@@ -94,9 +94,11 @@ function createProgressFilter(parentJob, parseJob, throttleMs) {
  * @param {string} options.dicomdir - Base directory for writing files (required if DicomWebWriter is not provided)
  * @param {Function} options.DicomWebWriter - Constructor for DicomWebWriter. Defaults to FileDicomWebWriter if dicomdir is provided
  * @param {Object} options.writerOptions - Additional options to pass to the DicomWebWriter constructor
- * @param {{ add: (p: Promise) => Promise, limitUnsettled: (max, timeoutMs) => Promise }|undefined} [options.streamWritePromiseTracker] - Optional tracker for stream write promises (e.g. for back pressure). When provided (or via options.writerOptions.streamWritePromiseTracker), the listener drain is set so the reader awaits limitUnsettled before emitting more frame data, preventing too many open streams.
- * @param {number} [options.drainMaxUnsettled=25] - Max unsettled stream writes allowed before reader waits (used when streamWritePromiseTracker is set).
- * @param {number} [options.drainTimeoutMs=5000] - Timeout in ms for drain wait (used when streamWritePromiseTracker is set).
+ * @param {{ add: (p: Promise) => Promise, limitUnsettled: (max, timeoutMs) => Promise }|undefined} [options.streamWritePromiseTracker] - Optional tracker for stream write promises (e.g. for back pressure). One is created when omitted. It is always passed to the writer, which registers every stream's completion promise with it, and the listener drain awaits limitUnsettled before emitting more frame data so we never open more streams than can be consumed.
+ * @param {number} [options.drainMaxUnsettled=25] - Max unsettled stream writes allowed before reader waits.
+ * @param {number} [options.drainTimeoutMs=5000] - Timeout in ms for drain wait.
+ * @param {number} [options.maxOpenStreams=32] - Max streams (file handles) the writer keeps open at once; the reader waits for room before emitting more frame/bulkdata values.
+ * @param {number} [options.drainOpenStreamsTimeoutMs=60000] - Max time to wait for in-flight closes once the instance is parsed.
  * @param {boolean} options.bulkdata - Enable bulkdata filter (default: true if writer exists). Set to false to use frames filter instead
  * @param {number} options.sizeBulkdataTags - Size threshold in bytes for public tags (default: 128k + 2 bytes)
  * @param {number} options.sizePrivateBulkdataTags - Size threshold in bytes for private tags (default: 128 bytes)
@@ -176,10 +178,23 @@ export async function instanceFromStream(stream, options = {}) {
   const DicomWebWriterClass =
     options.DicomWebWriter || (options.dicomdir ? FileDicomWebWriter : null);
 
+  // The tracker has to exist before the writer, because the writer is what registers each
+  // stream's completion promise with it. Back pressure below waits on those promises, so a
+  // tracker the writer does not know about would always look idle and never push back.
+  const streamWritePromiseTracker =
+    options.streamWritePromiseTracker ||
+    options.writerOptions?.streamWritePromiseTracker ||
+    createPromiseTracker('instanceFromStream');
+
   // Create writer using the listener's information object
   let writer = null;
   if (DicomWebWriterClass) {
-    const writerOptions = { baseDir: options.dicomdir, ...options.writerOptions };
+    const writerOptions = {
+      baseDir: options.dicomdir,
+      maxOpenStreams: options.maxOpenStreams,
+      ...options.writerOptions,
+      streamWritePromiseTracker,
+    };
     writer = new DicomWebWriterClass(information, writerOptions);
   }
 
@@ -222,16 +237,17 @@ export async function instanceFromStream(stream, options = {}) {
   // The listener will automatically create its own information filter and call init()
   const listener = new DicomMetadataListener({ information }, ...filters);
 
-  // Wire drain (backpressure) to the stream write promise tracker so we don't emit
-  // frame fragments faster than streams can be consumed (prevents too many open streams).
-  const streamWritePromiseTracker =
-    options.streamWritePromiseTracker || createPromiseTracker('instanceFromStream');
+  // Wire drain (backpressure) to the writer and the stream write promise tracker so we don't
+  // emit frame fragments faster than streams can be consumed (prevents too many open files).
   if (writer) {
     const drainMaxUnsettled = options.drainMaxUnsettled ?? 25;
     const drainTimeoutMs = options.drainTimeoutMs ?? 5000;
-    listener.setDrain(() =>
-      streamWritePromiseTracker.limitUnsettled(drainMaxUnsettled, drainTimeoutMs)
-    );
+    listener.setDrain(async () => {
+      // Open file handles first: they are the hard resource limit, and the writer knows
+      // exactly how many of its own streams are still open.
+      await writer.awaitOpenStreamLimit();
+      return streamWritePromiseTracker.limitUnsettled(drainMaxUnsettled, drainTimeoutMs);
+    });
   }
 
   // Final validation of stream state before reading (especially for ReadBufferStream)
@@ -325,8 +341,10 @@ export async function instanceFromStream(stream, options = {}) {
       await writer.closeStream(metadataStream.streamKey);
     }
 
-    // Wait for all frame writes to complete before returning
-    await writer?.awaitAllStreams();
+    // Wait for all frame/bulkdata writes to complete before returning. The filters close those
+    // streams without awaiting, so this both flushes the in-flight closes and releases the
+    // handle of anything that was never closed.
+    await writer?.drainOpenStreams(options.drainOpenStreamsTimeoutMs);
     console.verbose('Finished writing metadata to file', information.sopInstanceUid);
 
     const result = { fmi, dict, writer, information: listener.information };

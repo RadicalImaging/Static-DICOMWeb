@@ -16,6 +16,33 @@ const STREAM_OPEN_WARN_THRESHOLD = 500;
 const STREAM_OPEN_WARN_STEP = 100;
 /** Next count at which to log (500, 600, 700, …); reset when count drops below threshold */
 let _streamOpenNextLogAt = STREAM_OPEN_WARN_THRESHOLD;
+/** Max time to wait for a 'drain' event before writing more data */
+const DRAIN_WAIT_MS = 250;
+
+/**
+ * Waits until a stream drains, resolving early if it errors/closes, and after timeoutMs at the latest.
+ * Every listener added is removed again, so instances with thousands of frames don't accumulate
+ * 'drain' listeners on their streams (which leaks memory and triggers MaxListenersExceededWarning).
+ * @param {import('stream').Writable} stream - The stream that returned false from write()
+ * @param {number} timeoutMs - Max time to wait for the drain event
+ * @returns {Promise<void>}
+ */
+function waitForDrain(stream, timeoutMs) {
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      stream.removeListener('drain', finish);
+      stream.removeListener('close', finish);
+      resolve();
+    };
+    const timeoutId = setTimeout(finish, timeoutMs);
+    stream.once('drain', finish);
+    stream.once('close', finish);
+  });
+}
 
 /**
  * Normalizes a value to an array of Buffers. Supports ArrayBuffer, Buffer, TypedArray, or Array of same.
@@ -86,6 +113,30 @@ export class StreamInfo {
       this._reject = reject;
     });
     this.promise = completionPromise;
+
+    this._attachErrorHandlers();
+  }
+
+  /**
+   * Listens for errors on all of this stream's layers so a failure (disk full, EPIPE, …)
+   * records the failure and destroys the streams. Without this, an error emitted before
+   * end() attaches its handlers either crashes the process as an unhandled 'error' event
+   * or leaves the file handle open forever, since 'finish' never arrives after an error.
+   * @private
+   */
+  _attachErrorHandlers() {
+    const onError = error => {
+      if (this._ended || this.failed) return;
+      console.verbose(
+        `[StreamInfo] error on stream ${this.streamKey ?? 'unknown'}: ${error?.message ?? error}`
+      );
+      this.recordFailure(error);
+    };
+    for (const stream of [this.stream, this.gzipStream, this.fileStream]) {
+      if (stream && typeof stream.once === 'function') {
+        stream.once('error', onError);
+      }
+    }
   }
 
   /**
@@ -194,15 +245,10 @@ export class StreamInfo {
       const item = this._queue.shift();
       if (item.buffers) {
         for (const buf of item.buffers) {
+          if (this.failed || stream.destroyed) break;
           const ok = stream.write(buf);
           if (!ok) {
-            await new Promise(resolve => {
-              const timeout = setTimeout(() => resolve(), 250);
-              stream.once('drain', () => {
-                clearTimeout(timeout);
-                resolve();
-              });
-            });
+            await waitForDrain(stream, DRAIN_WAIT_MS);
           }
         }
       } else if (item.run !== undefined) {
