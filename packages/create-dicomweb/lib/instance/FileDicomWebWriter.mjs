@@ -250,6 +250,14 @@ export class FileDicomWebWriter extends DicomWebWriter {
   async _moveTempToFinal(streamInfo) {
     const { tempFilepath, filepath, finalDir, originalMtime, compareOnClose } = streamInfo;
 
+    // closeStream can run twice for one stream: the filters close without awaiting, and
+    // drainOpenStreams finishes any close whose bookkeeping had not run yet. The second rename
+    // would fail with ENOENT and report a write failure for a file that was written correctly.
+    if (streamInfo._moveStarted) {
+      return;
+    }
+    streamInfo._moveStarted = true;
+
     try {
       // Check the current state of the destination file
       let currentMtime = null;

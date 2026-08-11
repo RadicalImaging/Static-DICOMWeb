@@ -21,10 +21,17 @@ const TAGS = {
  * @returns {string} - Relative path to the written frame file (e.g. 'frames/1.mht')
  */
 function writeFullFrame(frameWriter, frameNumber, v) {
-  const streamKey = `frame:${frameNumber}`;
-  const streamInfo = frameWriter.openFrameStream(frameNumber, { streamKey });
+  const streamInfo = frameWriter.openFrameStream(frameNumber, {
+    streamKey: `frame:${frameNumber}`,
+  });
   streamInfo.write(v);
-  frameWriter.closeStream(streamKey);
+  // Closing is not awaited here (the parser is synchronous at this point); back pressure comes
+  // from the listener drain. Use the key the writer assigned, which may be de-duplicated.
+  const streamKey = streamInfo.streamKey;
+  frameWriter.closeStream(streamKey).catch(err => {
+    console.error(`Error closing frame stream ${streamKey}:`, err);
+    frameWriter.recordStreamError(streamKey, err, true);
+  });
   return `frames/${frameNumber}.mht`;
 }
 
@@ -130,8 +137,9 @@ export function writeMultipartFramesFilter(options = {}) {
       }
       currentFrameNumber++;
       const frameNumber = currentFrameNumber;
-      const streamKey = `frame:${frameNumber}`;
-      pixelDataStreamInfo = frameWriter.openFrameStream(frameNumber, { streamKey });
+      pixelDataStreamInfo = frameWriter.openFrameStream(frameNumber, {
+        streamKey: `frame:${frameNumber}`,
+      });
     }
 
     return next(dest);

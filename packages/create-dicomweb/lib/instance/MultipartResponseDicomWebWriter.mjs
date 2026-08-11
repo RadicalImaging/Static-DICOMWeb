@@ -60,6 +60,7 @@ export class MultipartResponseDicomWebWriter extends DicomWebWriter {
     this.response = options.response;
     this._boundary = null;
     this._headersSent = false;
+    this._responseFinalized = false;
   }
 
   _getBoundary() {
@@ -101,6 +102,64 @@ export class MultipartResponseDicomWebWriter extends DicomWebWriter {
   }
 
   /**
+   * Writes the closing boundary and ends the response. Only the first call does anything, so it
+   * is safe to call from every path that can be the last one.
+   * @returns {Promise<void>}
+   * @private
+   */
+  _finalizeResponse() {
+    if (this._responseFinalized || !this.response || this.response.writableEnded) {
+      return Promise.resolve();
+    }
+    this._responseFinalized = true;
+    const closing = `\r\n--${this._getBoundary()}--\r\n`;
+    return new Promise((resolve, reject) => {
+      try {
+        this.response.write(closing, 'utf8', err => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          this.response.end(() => resolve());
+        });
+      } catch (error) {
+        try {
+          this.response.end();
+        } catch (_) {
+          // Response is already unusable; nothing further to do
+        }
+        reject(error);
+      }
+    });
+  }
+
+  /**
+   * Finalizes the response when the last stream is drained rather than closed. drainOpenStreams
+   * can finish a stream without closeStream running, and the response has to be ended either
+   * way or the client waits forever.
+   * @returns {Promise<void>}
+   * @protected
+   */
+  async _onAllStreamsDrained() {
+    await this._finalizeResponseSafely();
+  }
+
+  /**
+   * _finalizeResponse without the rejection, for callers documented never to throw.
+   * @returns {Promise<void>}
+   * @private
+   */
+  async _finalizeResponseSafely() {
+    try {
+      await this._finalizeResponse();
+    } catch (error) {
+      console.warn(
+        `[MultipartResponseDicomWebWriter] Failed to finalize response: ${error?.message ?? error}`
+      );
+    }
+  }
+
+  /**
    * Closes the stream and, if this was the last open stream, finalizes the multipart response.
    * @param {string} streamKey - The key identifying the stream
    * @returns {Promise<string|undefined>}
@@ -119,19 +178,10 @@ export class MultipartResponseDicomWebWriter extends DicomWebWriter {
         streamInfo._resolve(relativePath);
       }
 
-      this.openStreams.delete(streamKey);
+      this._deleteOpenStream(streamKey);
 
-      if (this.openStreams.size === 0 && this.response && !this.response.writableEnded) {
-        const closing = `\r\n--${this._getBoundary()}--\r\n`;
-        return new Promise((resolve, reject) => {
-          this.response.write(closing, 'utf8', err => {
-            if (err) {
-              reject(err);
-              return;
-            }
-            this.response.end(() => resolve(relativePath));
-          });
-        });
+      if (this.openStreams.size === 0) {
+        await this._finalizeResponseSafely();
       }
 
       return relativePath;
@@ -146,16 +196,10 @@ export class MultipartResponseDicomWebWriter extends DicomWebWriter {
         streamInfo._resolve(undefined);
       }
 
-      this.openStreams.delete(streamKey);
+      this._deleteOpenStream(streamKey);
 
-      if (this.openStreams.size === 0 && this.response && !this.response.writableEnded) {
-        try {
-          this.response.write(`\r\n--${this._getBoundary()}--\r\n`, 'utf8', () => {
-            this.response.end();
-          });
-        } catch (_) {
-          this.response.end();
-        }
+      if (this.openStreams.size === 0) {
+        await this._finalizeResponseSafely();
       }
 
       return undefined;
