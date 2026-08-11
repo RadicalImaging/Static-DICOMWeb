@@ -29,6 +29,12 @@ function isReadBufferStreamLike(stream) {
 const PARSE_JOB_TYPE = 'stowInstanceParse';
 
 /**
+ * Floor for the unsettled write gate. The effective default is raised to the writer's
+ * maxOpenStreams, which is the gate that actually bounds file handles.
+ */
+const DEFAULT_DRAIN_MAX_UNSETTLED = 25;
+
+/**
  * Creates a filter that counts addTag/value calls and reports progress to StatusMonitor.
  * Uses a per-instance parse job so counts are not overwritten when multiple instances parse concurrently.
  * @param {{ typeId: string, jobId: string } | null} parentJob - Parent job (e.g. stowInstances) to update lastBytesReceivedAt for livelock; null to skip
@@ -95,7 +101,7 @@ function createProgressFilter(parentJob, parseJob, throttleMs) {
  * @param {Function} options.DicomWebWriter - Constructor for DicomWebWriter. Defaults to FileDicomWebWriter if dicomdir is provided
  * @param {Object} options.writerOptions - Additional options to pass to the DicomWebWriter constructor
  * @param {{ add: (p: Promise) => Promise, limitUnsettled: (max, timeoutMs) => Promise }|undefined} [options.streamWritePromiseTracker] - Optional tracker for stream write promises (e.g. for back pressure). One is created when omitted. It is always passed to the writer, which registers every stream's completion promise with it, and the listener drain awaits limitUnsettled before emitting more frame data so we never open more streams than can be consumed.
- * @param {number} [options.drainMaxUnsettled=25] - Max unsettled stream writes allowed before reader waits.
+ * @param {number} [options.drainMaxUnsettled] - Max unsettled stream writes allowed before the reader waits. Defaults to max(25, maxOpenStreams) so this gate never binds before the open file gate; pass a value explicitly only to cap a tracker shared across instances.
  * @param {number} [options.drainTimeoutMs=5000] - Timeout in ms for drain wait.
  * @param {number} [options.maxOpenStreams=32] - Max streams (file handles) the writer keeps open at once; the reader waits for room before emitting more frame/bulkdata values.
  * @param {number} [options.drainOpenStreamsTimeoutMs=60000] - Max time to wait for in-flight closes once the instance is parsed.
@@ -240,8 +246,19 @@ export async function instanceFromStream(stream, options = {}) {
   // Wire drain (backpressure) to the writer and the stream write promise tracker so we don't
   // emit frame fragments faster than streams can be consumed (prevents too many open files).
   if (writer) {
-    const drainMaxUnsettled = options.drainMaxUnsettled ?? 25;
+    // The writer registers every stream promise with this tracker, so unsettled writes and open
+    // streams are largely the same set. A gate narrower than maxOpenStreams would therefore bind
+    // before the open stream gate does, capping concurrency below --max-open-files (and costing a
+    // drainTimeoutMs wait for every attempt to exceed it), so the default widens to match it.
+    const drainMaxUnsettled =
+      options.drainMaxUnsettled ??
+      Math.max(DEFAULT_DRAIN_MAX_UNSETTLED, writer.maxOpenStreams ?? 0);
     const drainTimeoutMs = options.drainTimeoutMs ?? 5000;
+    if (drainMaxUnsettled < (writer.maxOpenStreams ?? 0)) {
+      console.verbose(
+        `[instanceFromStream] drainMaxUnsettled ${drainMaxUnsettled} is below maxOpenStreams ${writer.maxOpenStreams}; unsettled writes rather than open files will limit concurrency`
+      );
+    }
     listener.setDrain(async () => {
       // Open file handles first: they are the hard resource limit, and the writer knows
       // exactly how many of its own streams are still open.

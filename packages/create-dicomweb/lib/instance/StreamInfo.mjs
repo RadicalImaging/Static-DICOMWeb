@@ -113,6 +113,12 @@ export class StreamInfo {
       this._reject = reject;
     });
     this.promise = completionPromise;
+    // A write error rejects this promise, and nothing is guaranteed to be listening: writers
+    // created without a streamWritePromiseTracker (the part10 multipart output, for example)
+    // never attach a handler, so a mid-write I/O error would become an unhandledRejection and
+    // take the process down. Keeping a handler attached here is harmless for callers that do
+    // await the promise - they still see the rejection.
+    completionPromise.catch(() => undefined);
 
     this._attachErrorHandlers();
   }
