@@ -1,9 +1,7 @@
-import fs from 'fs';
-import path from 'path';
 import { FileDicomWebReader } from '../instance/FileDicomWebReader.mjs';
 import { FileDicomWebWriter } from '../instance/FileDicomWebWriter.mjs';
+import { readFramePixelData as readPixelData } from '../instance/readFramePixelData.mjs';
 import { Tags } from '@radicalimaging/static-wado-util';
-import { readBulkData } from '@radicalimaging/static-wado-util';
 import StaticWado from '@radicalimaging/static-wado-creator';
 
 const { getValue } = Tags;
@@ -167,66 +165,6 @@ async function generateSeriesThumbnails(studyUID, options = {}) {
     console.error(`Error generating series thumbnails: ${error.message}`);
     throw error;
   }
-}
-
-/**
- * Reads pixel data from instance metadata
- * @param {string} baseDir - Base directory for DICOMweb structure
- * @param {string} studyUID - Study Instance UID
- * @param {string} seriesUID - Series Instance UID
- * @param {Object} instanceMetadata - Instance metadata object
- * @param {number} frameNumber - Frame number (1-based, default: 1)
- * @returns {Promise<Object>} - Object with binaryData, transferSyntaxUid, and contentType
- */
-async function readPixelData(baseDir, studyUID, seriesUID, instanceMetadata, frameNumber = 1) {
-  const pixelDataTag = Tags.PixelData;
-  const pixelData = instanceMetadata[pixelDataTag];
-
-  if (!pixelData) {
-    throw new Error('No PixelData found in instance metadata');
-  }
-
-  const bulkDataURI = pixelData.BulkDataURI;
-  if (!bulkDataURI) {
-    throw new Error('No BulkDataURI found in PixelData');
-  }
-
-  const studyDir = path.join(baseDir, `studies/${studyUID}`);
-  const seriesDir = path.join(studyDir, `series/${seriesUID}`);
-
-  // Resolve bulk data path. SeriesSummary writes series-relative paths:
-  // - Frames: "instances/<sopUID>/frames" (resolve from seriesDir)
-  // - Bulkdata: "../../bulkdata/..." (resolve from seriesDir)
-  // Legacy instance-relative "./frames" is resolved from instance dir.
-  let bulkData;
-  if (bulkDataURI.indexOf('frames') !== -1) {
-    const isSeriesRelative = bulkDataURI.startsWith('./instances/');
-    if (!isSeriesRelative && !getValue(instanceMetadata, Tags.SOPInstanceUID)) {
-      throw new Error(
-        'No SOPInstanceUID in instance metadata; cannot resolve instance-relative frames path'
-      );
-    }
-    const frameBaseDir = isSeriesRelative
-      ? seriesDir
-      : path.join(seriesDir, 'instances', getValue(instanceMetadata, Tags.SOPInstanceUID));
-    const frameBaseName = isSeriesRelative ? bulkDataURI : './frames';
-    bulkData = await readBulkData(frameBaseDir, frameBaseName, frameNumber);
-  } else {
-    bulkData = await readBulkData(seriesDir, bulkDataURI);
-  }
-
-  if (!bulkData) {
-    throw new Error(`Failed to read bulk data for frame ${frameNumber}`);
-  }
-
-  return {
-    binaryData: bulkData.binaryData,
-    transferSyntaxUid:
-      bulkData.transferSyntaxUid ||
-      pixelData.transferSyntaxUid ||
-      getValue(instanceMetadata, Tags.TransferSyntaxUID),
-    contentType: bulkData.contentType,
-  };
 }
 
 /**
