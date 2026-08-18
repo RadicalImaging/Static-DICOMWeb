@@ -8,6 +8,8 @@ import { Upload } from '@aws-sdk/lib-storage';
 import fs from 'fs';
 import mime from 'mime-types';
 import { configGroup, endsWith } from '@radicalimaging/static-wado-util';
+import uids from '@radicalimaging/static-wado-util/uids.mjs';
+import { renameLegacyMultipart } from '@radicalimaging/static-wado-util/multipartFile.mjs';
 import ConfigPoint from 'config-point';
 import { createHash } from 'crypto';
 import { createReadStream } from 'fs';
@@ -31,6 +33,53 @@ const noCachePattern =
 
 // const prefixSlash = (str) => (str && str[0] !== "/" ? `/${str}` : str);
 const noPrefixSlash = str => (str && str[0] === '/' ? str.substring(1) : str);
+
+/** Extension to content type for the raw codestreams frames can be stored as */
+const codestreamContentTypes = Object.values(uids).reduce((acc, info) => {
+  if (info.extension && info.contentType) acc[info.extension] = info.contentType;
+  return acc;
+}, {});
+
+/** Last path segment of a file name or key, for either path separator */
+const lastSegment = name =>
+  name.substring(Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\')) + 1);
+
+const hasExtension = name => lastSegment(name).indexOf('.') !== -1;
+
+/**
+ * Content type for a frame stored as a raw codestream, from the transfer syntax
+ * table's extensions (.jls, .jll, .jxl, .jhc, ...). mime-types knows some of these
+ * and not others, so the table is the authority for the ones it misses.
+ * @param {string} src - File name without any compression extension
+ * @returns {string|undefined}
+ */
+function codestreamContentType(src) {
+  const segment = lastSegment(src);
+  const dot = segment.lastIndexOf('.');
+  return dot === -1 ? undefined : codestreamContentTypes[segment.substring(dot)];
+}
+
+/**
+ * The base name a guessed "<key>.gz" file would have if its content turns out to be
+ * multipart, or undefined when the name cannot be a stripped multipart name. Used both
+ * to rename a retrieved object and to list the local names it may already be under, so
+ * the two always agree.
+ *
+ * Two shapes qualify: an extension-less key (fileToKey strips ".mht"), and the
+ * "index.json" directory-index guess made for a key that also has children - e.g. the
+ * instance-level Part 10 rendition at .../instances/<sop>, whose content belongs at
+ * <dir>/index.mht rather than <dir>/index.json.
+ * @param {string} fileName - Local file name or path, either separator
+ * @returns {string|undefined}
+ */
+function multipartBase(fileName) {
+  if (!endsWith(fileName, '.gz')) return undefined;
+  const base = fileName.substring(0, fileName.length - 3);
+  const segment = lastSegment(base);
+  if (segment.indexOf('.') === -1) return base;
+  if (segment === 'index.json') return base.substring(0, base.length - '.json'.length);
+  return undefined;
+}
 
 const extensionsToRemove = ['.mht', '.jhc'];
 
@@ -100,11 +149,15 @@ class S3Ops {
     const src = (compressed && file.substring(0, file.length - 3)) || file;
     return (
       mime.lookup(src) ||
+      codestreamContentType(src) ||
       (src.indexOf('.dcm') !== -1 && applicationDicom) ||
       (src.indexOf('.mht') !== -1 && multipartRelatedDicom) ||
       (src.indexOf('bulkdata') !== -1 && octetStream) ||
       (src.indexOf('.raw') !== -1 && octetStream) ||
-      (src.indexOf('frames') !== -1 && multipartRelated) ||
+      // Only extension-less frame files are multipart wrappers. A frame stored as a raw
+      // codestream is a single-part binary, and labelling it multipart/related makes
+      // clients try to parse a boundary that is not there.
+      (src.indexOf('frames') !== -1 && !hasExtension(src) && multipartRelated) ||
       (src.indexOf('thumbnail') !== -1 && imagejpeg) ||
       (src.indexOf('.ion') !== -1 && ionType) ||
       (src.indexOf('rendered') !== -1 && pngType) ||
@@ -188,19 +241,8 @@ class S3Ops {
    */
   retrieveFileName(destFile, contentType, contentEncoding) {
     if (!contentType || !contentType.startsWith(multipartRelated)) return destFile;
-    if (!endsWith(destFile, '.gz')) return destFile;
-    let base = destFile.substring(0, destFile.length - 3);
-    const lastSegment = base.substring(
-      Math.max(base.lastIndexOf('/'), base.lastIndexOf('\\')) + 1
-    );
-    if (lastSegment === 'index.json') {
-      // Directory-index guess for a key with children (e.g. the instance-level
-      // Part 10 rendition at .../instances/<sop>): multipart content really
-      // lives at <dir>/index.mht rather than <dir>/index.json.
-      base = base.substring(0, base.length - '.json'.length);
-    } else if (lastSegment.indexOf('.') !== -1) {
-      return destFile;
-    }
+    const base = multipartBase(destFile);
+    if (!base) return destFile;
     return contentEncoding === 'gzip' ? `${base}.mht.gz` : `${base}.mht`;
   }
 
@@ -211,17 +253,9 @@ class S3Ops {
    */
   localCandidates(fileName) {
     const candidates = [fileName];
-    if (endsWith(fileName, '.gz')) {
-      const base = fileName.substring(0, fileName.length - 3);
-      const lastSegment = base.substring(base.lastIndexOf('/') + 1);
-      if (lastSegment.indexOf('.') === -1) {
-        candidates.push(`${base}.mht`, `${base}.mht.gz`);
-      } else if (lastSegment === 'index.json') {
-        // Directory-index guess may really be a multipart rendition at
-        // <dir>/index.mht(.gz) (e.g. instance-level Part 10 files).
-        const indexBase = base.substring(0, base.length - '.json'.length);
-        candidates.push(`${indexBase}.mht`, `${indexBase}.mht.gz`);
-      }
+    const base = multipartBase(fileName);
+    if (base) {
+      candidates.push(`${base}.mht`, `${base}.mht.gz`);
     }
     return candidates;
   }
@@ -240,9 +274,24 @@ class S3Ops {
       Bucket,
       Key,
     });
-    if (options?.force !== true && fs.existsSync(destFile)) {
-      console.info('Already exists', Key);
-      return destFile;
+    if (options?.force !== true) {
+      // Every name the object may be stored under locally, not just the guessed one: a
+      // multipart object's real name is only known from the response headers, so testing
+      // destFile alone re-downloads objects already stored under their corrected .mht name.
+      const candidates = this.localCandidates(destFile);
+      const existing = candidates.find(name => fs.existsSync(name));
+      if (existing) {
+        // A file sitting at the guessed name may be multipart content left there by an
+        // older retrieve. Correcting it locally is cheaper than re-downloading, and
+        // without it the object stays at a name nothing looks for - skipping the
+        // download that would have written the corrected one.
+        const corrected =
+          existing === destFile && candidates.length > 1 && !this.options.dryRun
+            ? renameLegacyMultipart(existing)
+            : undefined;
+        console.info('Already exists', Key, corrected ?? existing);
+        return corrected ?? existing;
+      }
     }
 
     if (this.options.dryRun) {

@@ -1,6 +1,6 @@
 import fs from 'fs';
-import zlib from 'zlib';
 import { configGroup, handleHomeRelative } from '@radicalimaging/static-wado-util';
+import { renameLegacyMultipart } from '@radicalimaging/static-wado-util/multipartFile.mjs';
 import path from 'path';
 import { plugins } from '@radicalimaging/static-wado-plugins';
 import joinUri from './joinUri.mjs';
@@ -359,42 +359,7 @@ class DeployGroup {
    * @returns {string|undefined} The corrected path, if renamed
    */
   renameLegacyMultipart(existingPath) {
-    const fd = fs.openSync(existingPath, 'r');
-    const header = Buffer.alloc(1024);
-    let bytesRead;
-    try {
-      bytesRead = fs.readSync(fd, header, 0, header.length, 0);
-    } finally {
-      fs.closeSync(fd);
-    }
-    if (bytesRead < 2) return undefined;
-    let base = existingPath.substring(0, existingPath.length - 3);
-    if (base.endsWith('.json')) {
-      // A directory-index guess (index.json.gz) holding multipart content
-      // belongs at index.mht(.gz)
-      base = base.substring(0, base.length - '.json'.length);
-    }
-    let corrected;
-    if (header[0] === 0x2d && header[1] === 0x2d) {
-      // Multipart boundary "--" - an uncompressed .mht stored as .gz
-      corrected = `${base}.mht`;
-    } else if (header[0] === 0x1f && header[1] === 0x8b) {
-      // Gzip data - only rename when the compressed content is multipart
-      try {
-        const inflated = zlib.gunzipSync(header.subarray(0, bytesRead), {
-          finishFlush: zlib.constants.Z_SYNC_FLUSH,
-        });
-        if (inflated[0] === 0x2d && inflated[1] === 0x2d) {
-          corrected = `${base}.mht.gz`;
-        }
-      } catch (e) {
-        console.verbose('Unable to inspect gzip content of', existingPath, e.message);
-      }
-    }
-    if (!corrected || fs.existsSync(corrected)) return undefined;
-    fs.renameSync(existingPath, corrected);
-    console.noQuiet('Renamed', existingPath, 'to', corrected);
-    return corrected;
+    return renameLegacyMultipart(existingPath);
   }
 
   async dir(uri) {
@@ -454,7 +419,9 @@ class DeployGroup {
       }
       if (!force) {
         const existingPath = this.findExistingLocal(item.fileName);
-        if (existingPath && this.ops.shouldSkip(item, existingPath)) {
+        // shouldSkip is async - an un-awaited Promise is always truthy, which skipped
+        // every existing file regardless of its size or ETag.
+        if (existingPath && (await this.ops.shouldSkip(item, existingPath))) {
           console.verbose('Skipping', existingPath);
           skippedItems += 1;
           continue;
