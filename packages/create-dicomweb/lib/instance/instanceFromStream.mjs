@@ -1,3 +1,4 @@
+import path from 'path';
 import { async, utilities, data } from 'dcmjs';
 import { v4 as uuid } from 'uuid';
 import { Tags, StatusMonitor, createPromiseTracker } from '@radicalimaging/static-wado-util';
@@ -5,6 +6,7 @@ import { writeMultipartFramesFilter } from './writeMultipartFramesFilter.mjs';
 import { writeBulkdataFilter } from './writeBulkdataFilter.mjs';
 import { inlineBinaryFilter } from './inlineBinaryFilter.mjs';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
+import { generatePart10ForInstance } from '../commands/part10Main.mjs';
 
 const { AsyncDicomReader } = async;
 const { setValue } = Tags;
@@ -29,13 +31,16 @@ function isReadBufferStreamLike(stream) {
 
 const PARSE_JOB_TYPE = 'stowInstanceParse';
 
-/** Modalities whose original Part 10 binary is stored as instances/<sop>/index.mht.gz */
+/** Modalities whose Part 10 rendition is stored as instances/<sop>/index.mht.gz */
 const RAW_PART10_MODALITIES = new Set(['SEG', 'SR']);
-/** SOP Classes whose original Part 10 binary is stored (Basic Structured Display) */
+/** SOP Classes whose Part 10 binary is stored (Parametric Map Storage) */
 const RAW_PART10_SOP_CLASSES = new Set(['1.2.840.10008.5.1.4.1.1.30']);
 
+/** Chunk size the generated Part 10 buffer is written in (1 MiB) */
+const RAW_PART10_CHUNK_SIZE = 1024 * 1024;
+
 /**
- * Returns true when the original Part 10 binary should be stored for this
+ * Returns true when a Part 10 rendition should be stored for this
  * instance (segmentations and structured reports), mirroring the
  * static-wado-creator RawDicomWriter selector.
  * @param {Object} dict - Parsed instance dataset (DICOM JSON model)
@@ -48,38 +53,65 @@ function shouldStoreRawPart10(dict) {
 }
 
 /**
- * Writes the original Part 10 bytes (as received) to the instance-level
- * rendition instances/<sop>/index.mht.gz - a gzipped multipart/related wrapper
- * with Content-Type: application/dicom, the same format RawDicomWriter used
- * and the format dicomwebserver serves for instance retrieval.
- * The source bytes are re-read from the parse stream, which retains its
- * buffers on the STOW path (clearBuffers is false there).
+ * Writes the Part 10 rendition instances/<sop>/index.mht.gz - a gzipped
+ * multipart/related wrapper with Content-Type: application/dicom, the same format
+ * RawDicomWriter used and the format dicomwebserver serves for instance retrieval.
+ *
+ * The Part 10 binary is re-created from the parsed dataset rather than copied from the
+ * source bytes: the parse stream releases its buffers as it consumes them, so the
+ * original bytes are gone by the time the dataset is complete. Bulkdata and frame data
+ * are therefore re-read from the files just written, which means this must run only
+ * once those files are at their final paths (that is, after commitPendingMoves), and it
+ * produces exactly what the part10 controller's generation fallback produces for the
+ * same instance.
+ *
+ * Memory: dcmjs' DicomDict.write() returns the whole instance as one buffer, so a full
+ * copy is resident here (plus the re-read bulkdata) for as long as the write takes. A
+ * streaming Part 10 writer in dcmjs will remove that; until then this only runs for the
+ * SEG/SR/parametric-map selector above.
+ *
  * @param {Object} writer - DicomWebWriter used for this instance
- * @param {Object} stream - The stream the instance was parsed from
+ * @param {Object} dict - Parsed instance dataset (DICOM JSON model)
  * @param {string} sopInstanceUID - For logging
  * @returns {Promise<void>}
  */
-async function writeRawPart10(writer, stream, sopInstanceUID) {
-  const rawSize = stream?.size;
-  const canReRead =
-    typeof stream?.getBuffer === 'function' &&
-    rawSize > 0 &&
-    (typeof stream.hasData !== 'function' || stream.hasData(0, rawSize));
-  if (!canReRead) {
-    console.verbose('Raw Part 10 not stored for', sopInstanceUID, '- source bytes unavailable');
+async function writeRawPart10(writer, dict, sopInstanceUID) {
+  const baseDir = writer.options?.baseDir;
+  if (!baseDir) {
+    console.verbose(
+      'Part 10 not stored for',
+      sopInstanceUID,
+      '- writer has no baseDir to read back'
+    );
     return;
   }
-  const raw = stream.getBuffer(0, rawSize);
-  const rawBuffer = ArrayBuffer.isView(raw)
-    ? Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength)
-    : Buffer.from(raw);
+  // BulkDataURIs written for this instance ('./frames' for pixel data,
+  // '../../../../bulkdata/<hash>.mht.gz' for other binary tags) are relative to the
+  // instance directory, so that is the base readBulkData has to resolve against.
+  const instanceDir = path.join(
+    baseDir,
+    'studies',
+    writer.getStudyUID(),
+    'series',
+    writer.getSeriesUID(),
+    'instances',
+    writer.getSOPInstanceUID()
+  );
+  const { buffer } = await generatePart10ForInstance(instanceDir, dict);
+
   const rawStream = await writer.openInstanceStream('index.mht', {
     gzip: true,
     multipart: true,
     contentType: 'application/dicom',
     boundary: `BOUNDARY_${uuid()}`,
   });
-  rawStream.stream.write(rawBuffer);
+  // Written as chunks (zero-copy views) rather than one buffer so the write honours the
+  // stream's highWaterMark instead of queueing the whole instance inside the stream.
+  const chunks = [];
+  for (let offset = 0; offset < buffer.length; offset += RAW_PART10_CHUNK_SIZE) {
+    chunks.push(buffer.subarray(offset, Math.min(offset + RAW_PART10_CHUNK_SIZE, buffer.length)));
+  }
+  rawStream.write(chunks);
   await writer.closeStream(rawStream.streamKey);
 }
 
@@ -413,20 +445,6 @@ export async function instanceFromStream(stream, options = {}) {
       await writer.closeStream(metadataStream.streamKey);
     }
 
-    // Store the original Part 10 binary for segmentations/structured reports so
-    // instance retrieval can serve it directly instead of re-creating it.
-    if (writer && options.writeRawPart10 !== false && shouldStoreRawPart10(dict)) {
-      try {
-        await writeRawPart10(writer, reader.stream, information.sopInstanceUid);
-      } catch (err) {
-        console.warn(
-          'Unable to store raw Part 10 for',
-          information.sopInstanceUid,
-          err?.message ?? err
-        );
-      }
-    }
-
     // Wait for all frame/bulkdata writes to complete before returning. The filters close those
     // streams without awaiting, so this both flushes the in-flight closes and releases the
     // handle of anything that was never closed.
@@ -442,6 +460,25 @@ export async function instanceFromStream(stream, options = {}) {
 
     // Commit deferred moves (rename temp → final). No-op on base class.
     await writer?.commitPendingMoves();
+
+    // Store a Part 10 rendition for segmentations/structured reports so instance retrieval
+    // can serve it directly instead of re-creating it. It is generated from the dataset and
+    // the files written above, so it has to come after the commit that puts those files at
+    // their final paths - which also means it is not covered by validateInstance, and a
+    // failure here leaves the instance itself stored.
+    if (writer && options.writeRawPart10 !== false && shouldStoreRawPart10(dict)) {
+      try {
+        await writeRawPart10(writer, dict, information.sopInstanceUid);
+        await writer.commitPendingMoves();
+      } catch (err) {
+        console.warn(
+          'Unable to store Part 10 rendition for',
+          information.sopInstanceUid,
+          err?.message ?? err
+        );
+        writer.rollbackPendingMoves();
+      }
+    }
 
     return result;
   } catch (err) {
