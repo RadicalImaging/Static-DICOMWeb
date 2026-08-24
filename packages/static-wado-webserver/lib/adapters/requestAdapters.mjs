@@ -67,10 +67,16 @@ export const thumbnailMap = (req, res, next) => {
 };
 
 /**
- * Handles returning multipart/related DICOM
+ * Handles returning multipart/related DICOM.
+ * An earlier handler (part10Controller) may already have set a fuller
+ * multipart/related type, including the boundary read from the stored file - without
+ * which the body cannot be parsed - so an existing multipart type is left alone.
  */
 export const dicomMap = (req, res, next) => {
-  res.setHeader('content-type', 'multipart/related');
+  const existing = res.getHeader('content-type');
+  if (!existing || !String(existing).startsWith('multipart/related')) {
+    res.setHeader('content-type', 'multipart/related');
+  }
   req.url = `${req.staticWadoPath}/index.mht.gz`;
   next();
 };

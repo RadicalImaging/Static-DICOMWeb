@@ -1,5 +1,6 @@
 import fs from 'fs';
 import { configGroup, handleHomeRelative } from '@radicalimaging/static-wado-util';
+import { renameLegacyMultipart } from '@radicalimaging/static-wado-util/multipartFile.mjs';
 import path from 'path';
 import { plugins } from '@radicalimaging/static-wado-plugins';
 import joinUri from './joinUri.mjs';
@@ -333,6 +334,34 @@ class DeployGroup {
     }
   }
 
+  /**
+   * Finds the local file a listed object is already stored under, checking
+   * the alternate .mht names a multipart object may have locally. A file
+   * left under the generic ".gz" name by an older retrieve is renamed to
+   * its correct multipart name, determined from its leading bytes.
+   * @returns {string|undefined} Full path of the existing local file
+   */
+  findExistingLocal(fileName) {
+    const candidates = this.ops.localCandidates ? this.ops.localCandidates(fileName) : [fileName];
+    const existing = candidates.find(name => fs.existsSync(path.join(this.baseDir, name)));
+    if (existing === undefined) return undefined;
+    const existingPath = path.join(this.baseDir, existing);
+    if (existing === fileName && candidates.length > 1 && !this.options.dryRun) {
+      return this.renameLegacyMultipart(existingPath) || existingPath;
+    }
+    return existingPath;
+  }
+
+  /**
+   * Renames a multipart file stored under a plain ".gz" name to
+   * <base>.mht or <base>.mht.gz according to its content. Files that are
+   * not multipart (e.g. gzipped JSON such as metadata.gz) are left alone.
+   * @returns {string|undefined} The corrected path, if renamed
+   */
+  renameLegacyMultipart(existingPath) {
+    return renameLegacyMultipart(existingPath);
+  }
+
   async dir(uri) {
     const list = await this.ops.dir(uri);
     return list.reduce((acc, value) => {
@@ -388,9 +417,12 @@ class DeployGroup {
       if (isExcluded) {
         continue;
       }
-      if (fs.existsSync(destName) && !force) {
-        if (this.ops.shouldSkip(item, destName)) {
-          console.verbose('Skipping', destName);
+      if (!force) {
+        const existingPath = this.findExistingLocal(item.fileName);
+        // shouldSkip is async - an un-awaited Promise is always truthy, which skipped
+        // every existing file regardless of its size or ETag.
+        if (existingPath && (await this.ops.shouldSkip(item, existingPath))) {
+          console.verbose('Skipping', existingPath);
           skippedItems += 1;
           continue;
         }

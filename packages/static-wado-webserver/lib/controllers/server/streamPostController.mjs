@@ -275,6 +275,11 @@ export function streamPostController(params) {
     createBufferStream: (req, fileInfo, headers) =>
       new TrackableReadBufferStream(null, true, {
         noCopy: true,
+        // Release each buffer as the parser consumes it. Without this the whole received
+        // instance stays resident for the life of the request (backpressure only bounds the
+        // bytes ahead of the parser, not the tail behind it), so a large study upload holds
+        // one full instance per concurrent part.
+        clearBuffers: true,
         backpressureMaxBytes,
         streamWritePromiseTracker: req.streamWritePromiseTracker ?? null,
         streamWriteLimit: maxUnsettledStreamWrites,

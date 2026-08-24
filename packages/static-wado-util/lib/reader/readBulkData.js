@@ -62,6 +62,20 @@ const getSeparator = data => {
   return separator;
 };
 
+/**
+ * Copies part of a Buffer into its own ArrayBuffer.
+ * Node Buffers under 4k are allocated out of a shared pool, so `buf.buffer` is the whole
+ * pool and `buf.buffer.slice(start, end)` reads whatever else happens to live at those
+ * offsets. Small bulkdata/frame files hit that case, so the byteOffset has to be added.
+ * @param {Buffer} buf - Source buffer
+ * @param {number} start - Start offset within buf
+ * @param {number} end - End offset within buf
+ * @returns {ArrayBuffer}
+ */
+function sliceToArrayBuffer(buf, start, end) {
+  return buf.buffer.slice(buf.byteOffset + start, buf.byteOffset + end);
+}
+
 const readBulkData = async (dirSrc, baseName, frame) => {
   let data;
   const dir = handleHomeRelative(dirSrc);
@@ -86,7 +100,7 @@ const readBulkData = async (dirSrc, baseName, frame) => {
   let transferSyntaxUid = null;
   if (!separator) {
     return {
-      binaryData: data.buffer,
+      binaryData: sliceToArrayBuffer(data, 0, data.length),
       contentType,
       transferSyntaxUid,
     };
@@ -96,7 +110,7 @@ const readBulkData = async (dirSrc, baseName, frame) => {
   // End boundary format: \r\n--BOUNDARY--\r\n
   // We need to subtract: \r\n (2) + separator.length + -- (2) + \r\n (2) = separator.length + 6
   const endData = data.length - separator.length - 6;
-  const header = data.buffer.slice(separator.length, startData);
+  const header = sliceToArrayBuffer(data, separator.length, startData);
   const headerStr = new TextDecoder('utf-8').decode(header).replaceAll('\r', '');
   const headerSplit = headerStr.split('\n');
 
@@ -119,7 +133,7 @@ const readBulkData = async (dirSrc, baseName, frame) => {
     }
   }
 
-  const binaryData = data.buffer.slice(startData, endData);
+  const binaryData = sliceToArrayBuffer(data, startData, endData);
 
   return { binaryData, contentType, transferSyntaxUid };
 };
