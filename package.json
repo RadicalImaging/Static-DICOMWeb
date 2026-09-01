@@ -35,15 +35,15 @@
     "webpack-cli": "5.1.4"
   },
   "dependencies": {
-    "@cornerstonejs/dicom-codec": "1.0.9",
+    "@cornerstonejs/dicom-codec": "1.0.12",
     "canvas": "3.1.0",
     "dcmjs": "0.50.1",
     "typescript": "5.9.3"
   },
   "overrides": {
     "@babel/plugin-transform-modules-systemjs": "7.29.4",
-    "@cornerstonejs/codec-openjph": "2.4.7",
-    "@cornerstonejs/dicom-codec": "1.0.9",
+    "@cornerstonejs/codec-openjph": "2.4.10",
+    "@cornerstonejs/dicom-codec": "1.0.12",
     "@isaacs/brace-expansion": "5.0.1",
     "axios": "1.16.1",
     "canvas": "3.1.0",

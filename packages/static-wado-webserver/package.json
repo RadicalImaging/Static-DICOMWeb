@@ -65,7 +65,7 @@
     "publishJS": "yarn publish"
   },
   "dependencies": {
-    "@cornerstonejs/dicom-codec": "1.0.9",
+    "@cornerstonejs/dicom-codec": "1.0.12",
     "@radicalimaging/create-dicomweb": ">=1.7.6",
     "@radicalimaging/static-wado-plugins": ">=1.7.6",
     "@radicalimaging/static-wado-util": ">=1.7.6",

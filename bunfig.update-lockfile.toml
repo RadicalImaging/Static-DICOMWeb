@@ -1,3 +1,17 @@
 # Used only by `bun run install:update-lockfile` — default `bunfig.toml` keeps frozen lockfile.
 [install]
 frozenLockfile = false
+# `--config` replaces bunfig.toml rather than merging with it, and the global
+# ~/.bunfig.toml still supplies minimumReleaseAge, so the exclude list from
+# bunfig.toml has to be repeated here or updating the lockfile cannot pick up
+# a codec release on the day it is cut. Keep this list in sync with bunfig.toml.
+minimumReleaseAgeExcludes = [
+  "@cornerstonejs/codec-big-endian",
+  "@cornerstonejs/codec-charls",
+  "@cornerstonejs/codec-libjpeg-turbo-8bit",
+  "@cornerstonejs/codec-libjpeg-turbo-12bit",
+  "@cornerstonejs/codec-little-endian",
+  "@cornerstonejs/codec-openjpeg",
+  "@cornerstonejs/codec-openjph",
+  "@cornerstonejs/dicom-codec",
+]
