@@ -33,6 +33,34 @@ Very large multi-frame instances (whole slide imaging, for example) write one fi
 Use `--max-open-files <N>` to raise that for faster storage, or lower it if the system still runs
 short of file handles.
 
+## Generating Alternate Renditions
+
+Additional renditions can be generated beside an existing `frames/` store, addressed by study UID.
+`frames/` itself is never written, so the primary rendition stays byte identical:
+
+```bash
+createdicomweb alternates <studyUID> --jls --jls-thumbnail --brick
+```
+
+Available renditions are `--jls`, `--jls-thumbnail`, `--htj2k`, `--htj2k-lossy` and `--brick`, and
+at least one is required. `--series-uid` restricts the run to one series, `--force` regenerates
+output that already exists, and `--json` emits the size and compression report as JSON on stdout.
+The brick store is tuned with `--brick-order`, `--brick-codec` and `--brick-size`.
+
+See [Alternate Renditions and Brick Stores](../../README.md#alternate-renditions-and-brick-stores)
+for the pyramid layout, the manifest and the eligibility rules.
+
+## Recompressing the Primary Frames
+
+Uncompressed grayscale frames can be rewritten in place as JPEG-LS lossless:
+
+```bash
+createdicomweb transcode <studyUID> --to jls
+```
+
+Colour and already compressed instances are skipped. Frames are staged and moved into place only
+once the whole instance has encoded, so a failure leaves the original frames intact.
+
 ## Converting Static DICOMweb to Part 10
 
 Static DICOMweb files can be converted back into Part 10, provided:

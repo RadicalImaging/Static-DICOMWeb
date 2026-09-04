@@ -1,6 +1,6 @@
 const { program, configureProgram, configureCommands, createVerboseLog } = require('./program');
 const { Stats } = require('./stats');
-const { bilinear, replicate } = require('./image/bilinear');
+const { bilinear, replicate, boxAverage } = require('./image/bilinear');
 module.exports.handleHomeRelative = require('./handleHomeRelative');
 module.exports.JSONReader = require('./reader/JSONReader');
 module.exports.readBulkData = require('./reader/readBulkData');
@@ -25,6 +25,9 @@ module.exports.extractMultipart = require('./extractMultipart').extractMultipart
 module.exports.uint8ArrayToString = require('./extractMultipart').uint8ArrayToString;
 module.exports.bilinear = bilinear;
 module.exports.replicate = replicate;
+module.exports.boxAverage = boxAverage;
+module.exports.createPixelValueModel = require('./image/pixelValueModel').createPixelValueModel;
+module.exports.isSegmentationLabelMap = require('./image/pixelValueModel').isSegmentationLabelMap;
 module.exports.configureProgram = configureProgram;
 module.exports.configureCommands = configureCommands;
 module.exports.program = program;

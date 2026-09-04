@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { createRequire } from 'module';
 import { Command } from 'commander';
-import { instanceMain, seriesMain, studyMain, createMain, stowMain, thumbnailMain, indexMain } from '../lib/index.mjs';
+import { instanceMain, seriesMain, studyMain, createMain, stowMain, thumbnailMain, indexMain, part10Main, alternatesMain, transcodeMain } from '../lib/index.mjs';
 import {
   handleHomeRelative,
   createVerboseLog,
@@ -294,6 +294,112 @@ program
     }
     
     await thumbnailMain(studyUID, thumbnailOptions);
+  });
+
+/**
+ * Parses the --brick-size option into a positive even integer.
+ *
+ * Even is required so a brick's z extent divides the way a halving reduction consumes planes;
+ * the pyramid handles an odd trailing slab, but there is no reason to ask it to for the pitch
+ * itself, and rejecting it here beats failing deep inside the sink chain.
+ *
+ * @param {string|undefined} value - Raw option value
+ * @returns {number|undefined} - Parsed brick size, or undefined when not specified
+ */
+function parseBrickSize(value) {
+  if (value === undefined) {
+    return undefined;
+  }
+  const parsed = parseInt(value, 10);
+  if (Number.isNaN(parsed) || parsed < 2 || parsed % 2 !== 0) {
+    console.error(`Invalid --brick-size value: ${value} (must be a positive even integer)`);
+    process.exit(1);
+  }
+  return parsed;
+}
+
+program
+  .command('alternates')
+  .description('Generate alternate renditions (jls, jlsThumbnail, htj2k, htj2kLossy, brick) beside an existing frames/ store')
+  .argument('<studyUID>', 'Study Instance UID')
+  .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
+  .option('--series-uid <seriesUID>', 'Specific Series Instance UID to process (if not provided, processes all series in the study)')
+  .option('--jls', 'Generate jls/ - a full resolution JPEG-LS lossless rendition of every frame')
+  .option('--jls-thumbnail', 'Generate jlsThumbnail/ - a quarter resolution JPEG-LS rendition of every frame')
+  .option('--htj2k', 'Generate htj2k/ - a full resolution lossless HTJ2K rendition of every frame')
+  .option('--htj2k-lossy', 'Generate htj2kLossy/ - a full resolution lossy HTJ2K rendition of every frame')
+  .option('--brick', 'Generate brick/ - a hierarchical brick pyramid for off-axis display, reduced per axis by voxel spacing so coarse levels stay physically isotropic')
+  .option('--brick-order <order>', 'Brick row packing: z-minor or plane-major', 'z-minor')
+  .option('--brick-codec <codec>', 'Brick encoding: jls (JPEG-LS lossless) or htj2k (HTJ2K lossless)', 'jls')
+  .option('--brick-size <N>', 'Brick edge length (default: 64)')
+  .option('--force', 'Regenerate output even when it already exists')
+  .option('--json', 'Emit the size/compression report as JSON on stdout (progress goes to stderr)')
+  .action(async (studyUID, options) => {
+    updateVerboseLog();
+    const alternatesOptions = {
+      dicomdir: handleHomeRelative(options.dicomdir),
+      jls: !!options.jls,
+      jlsThumbnail: !!options.jlsThumbnail,
+      htj2k: !!options.htj2k,
+      htj2kLossy: !!options.htj2kLossy,
+      brick: !!options.brick,
+      force: !!options.force,
+      json: !!options.json,
+      brickOrder: options.brickOrder,
+      brickCodec: options.brickCodec,
+    };
+    if (options.seriesUid) {
+      alternatesOptions.seriesUid = options.seriesUid;
+    }
+    const brickSize = parseBrickSize(options.brickSize);
+    if (brickSize !== undefined) {
+      alternatesOptions.brickSize = brickSize;
+    }
+    try {
+      const result = await alternatesMain(studyUID, alternatesOptions);
+      // Ineligible series are a normal outcome and exit 0; a series that errored is not.
+      if (result.failures.length > 0) {
+        process.exitCode = 1;
+      }
+    } catch (error) {
+      // Codec failures surface as numeric exception codes rather than Errors, so print the
+      // value itself when there is no message, and the stack only when it is worth reading -
+      // a rejected option does not need a trace.
+      console.error(`alternates failed: ${error?.message ?? error}`);
+      if (error?.stack && program.opts().verbose) {
+        console.error(error.stack);
+      }
+      process.exit(1);
+    }
+  });
+
+program
+  .command('transcode')
+  .description('Rewrite primary frames/ from uncompressed to JPEG-LS lossless (grayscale only)')
+  .argument('<studyUID>', 'Study Instance UID')
+  .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
+  .option('--series-uid <seriesUID>', 'Specific Series Instance UID to process (if not provided, processes all series in the study)')
+  .option('--to <target>', 'Target encoding; only jls is supported', 'jls')
+  .option('--force', 'Re-transcode instances already in the target syntax')
+  .action(async (studyUID, options) => {
+    updateVerboseLog();
+    const transcodeOptions = {
+      dicomdir: handleHomeRelative(options.dicomdir),
+      to: options.to,
+      force: !!options.force,
+    };
+    if (options.seriesUid) {
+      transcodeOptions.seriesUid = options.seriesUid;
+    }
+    try {
+      await transcodeMain(studyUID, transcodeOptions);
+    } catch (error) {
+      console.error(`transcode failed: ${error?.message ?? error}`);
+      if (error?.stack && program.opts().verbose) {
+        console.error(error.stack);
+      }
+      process.exit(1);
+    }
   });
 
 program
