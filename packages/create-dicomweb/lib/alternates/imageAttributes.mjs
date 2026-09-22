@@ -13,6 +13,17 @@ export const JLS_LOSSLESS_TRANSFER_SYNTAX_UID = '1.2.840.10008.1.2.4.80';
 export const HTJ2K_LOSSLESS_TRANSFER_SYNTAX_UID = '1.2.840.10008.1.2.4.201';
 
 /**
+ * High-Throughput JPEG 2000 with RPCL options, lossless only.
+ *
+ * OpenJPH writes RPCL progression order, which the COD marker of every frame this module
+ * encodes confirms, so `.202` describes the codestream and `.201` only understates it. The
+ * difference matters to a reader: a client streams a partial codestream only when the
+ * progression order puts the low resolution data first, and it knows that from the transfer
+ * syntax alone. Cornerstone3D, for one, decodes `.201` only once the whole frame has arrived.
+ */
+export const HTJ2K_LOSSLESS_RPCL_TRANSFER_SYNTAX_UID = '1.2.840.10008.1.2.4.202';
+
+/**
  * High-Throughput JPEG 2000, lossy allowed. `.202` is the RPCL *lossless* syntax despite what
  * `transcodeImage.js`'s `jhc-lossy` destination claims, so the lossy rendition uses `.203`,
  * which is also what `uids` marks lossy.

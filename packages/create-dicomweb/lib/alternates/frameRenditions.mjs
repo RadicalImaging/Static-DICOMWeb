@@ -3,7 +3,7 @@ import { Tags, uids, boxAverage } from '@radicalimaging/static-wado-util';
 import { FileDicomWebWriter } from '../instance/FileDicomWebWriter.mjs';
 import { readFrameBytes } from '../instance/readFramePixelData.mjs';
 import {
-  HTJ2K_LOSSLESS_TRANSFER_SYNTAX_UID,
+  HTJ2K_LOSSLESS_RPCL_TRANSFER_SYNTAX_UID,
   HTJ2K_LOSSY_TRANSFER_SYNTAX_UID,
   JLS_LOSSLESS_TRANSFER_SYNTAX_UID,
   canEncodeGrayscaleFrames,
@@ -53,7 +53,7 @@ export const FRAME_RENDITIONS = Object.freeze({
   },
   [HTJ2K_RENDITION]: {
     name: HTJ2K_RENDITION,
-    transferSyntaxUID: HTJ2K_LOSSLESS_TRANSFER_SYNTAX_UID,
+    transferSyntaxUID: HTJ2K_LOSSLESS_RPCL_TRANSFER_SYNTAX_UID,
     reduction: 1,
     lossy: false,
   },

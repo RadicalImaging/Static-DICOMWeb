@@ -9,6 +9,9 @@ const JLS_LOSSLESS_TRANSFER_SYNTAX_UID = '1.2.840.10008.1.2.4.80';
 /** High-Throughput JPEG 2000, lossless only */
 const HTJ2K_LOSSLESS_TRANSFER_SYNTAX_UID = '1.2.840.10008.1.2.4.201';
 
+/** High-Throughput JPEG 2000 with RPCL options, lossless only - what openjph writes */
+const HTJ2K_LOSSLESS_RPCL_TRANSFER_SYNTAX_UID = '1.2.840.10008.1.2.4.202';
+
 /** High-Throughput JPEG 2000, lossy allowed */
 const HTJ2K_LOSSY_TRANSFER_SYNTAX_UID = '1.2.840.10008.1.2.4.203';
 
@@ -164,6 +167,12 @@ async function decodeFrameToBytes(frameBytes, imageInfo, transferSyntaxUid) {
 const DEFAULT_ENCODE_OPTIONS = {
   [JLS_LOSSLESS_TRANSFER_SYNTAX_UID]: { beforeEncode: encoder => encoder.setNearLossless(0) },
   [HTJ2K_LOSSLESS_TRANSFER_SYNTAX_UID]: { beforeEncode: encoder => encoder.setQuality(true, -1) },
+  // Same reversible encode as `.201`. The two syntaxes differ in what they promise a reader
+  // about progression order, not in how openjph encodes, but each one needs its own entry:
+  // a transfer syntax that is missing here encodes with no `setQuality` call at all.
+  [HTJ2K_LOSSLESS_RPCL_TRANSFER_SYNTAX_UID]: {
+    beforeEncode: encoder => encoder.setQuality(true, -1),
+  },
   [HTJ2K_LOSSY_TRANSFER_SYNTAX_UID]: {
     beforeEncode: encoder => encoder.setQuality(false, HTJ2K_LOSSY_QUANTIZATION_STEP),
   },
@@ -219,6 +228,7 @@ async function encodeFrameFromPixelData(pixelData, imageInfo, transferSyntaxUid,
 module.exports = {
   JLS_LOSSLESS_TRANSFER_SYNTAX_UID,
   HTJ2K_LOSSLESS_TRANSFER_SYNTAX_UID,
+  HTJ2K_LOSSLESS_RPCL_TRANSFER_SYNTAX_UID,
   HTJ2K_LOSSY_TRANSFER_SYNTAX_UID,
   HTJ2K_LOSSY_QUANTIZATION_STEP,
   UNCOMPRESSED_TRANSFER_SYNTAX_UIDS,
