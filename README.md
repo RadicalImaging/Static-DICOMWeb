@@ -131,6 +131,145 @@ There are deployment scripts in src/s3-deploy which will create an S3 bucket for
 - ~~[Proxy DICOMweb to DICOM DIMSE](./packages/static-wado-webserver/dimse-proxy.md)~~
 - ~~[Proxy Static DICOMweb to DICOMweb](./packages/static-wado-webserver/dicomweb-proxy.md)~~
 
+# Alternate Renditions and Brick Stores
+
+`createdicomweb` has two secondary operations that act on an **already created** DICOMweb tree,
+addressed by study UID rather than by source directory:
+
+- `alternates` writes additional renditions of the pixel data beside the existing `frames/`,
+  including the hierarchical `brick/` store used for off-axis (MPR) display;
+- `transcode` rewrites the primary `frames/` themselves from uncompressed to JPEG-LS lossless.
+
+Neither one touches the `create` operation, and `alternates` never writes or deletes `frames/`,
+so the primary rendition stays byte identical whatever it generates. Both are single threaded,
+idempotent and resumable: output that already exists is skipped unless `--force` is passed, so a
+run interrupted part way through a study completes rather than repeating itself.
+
+## Generating alternate renditions
+
+```bash
+createdicomweb alternates <studyUID> \
+  [--dicomdir <path>]            # default ~/dicomweb
+  [--series-uid <seriesUID>]     # default: every series in the study
+  [--jls] [--jls-thumbnail] [--htj2k] [--htj2k-lossy] [--brick]
+  [--brick-order <z-minor|plane-major>]   # default z-minor
+  [--brick-codec <jls|htj2k>]             # default jls
+  [--brick-size <N>]                      # default 64, positive even integer
+  [--force] [--json]
+```
+
+At least one of `--jls`, `--jls-thumbnail`, `--htj2k`, `--htj2k-lossy` or `--brick` is required.
+They are independent and can all be asked for in one pass, which is what makes a comparison
+across them fair: every one is built from the same decode of the same frames.
+
+Per-frame renditions are written as `multipart/related`, the same shape `frames/` uses, so an
+existing image loader reads them by substituting the path:
+
+| Flag | Directory | Transfer syntax | Contents |
+| --- | --- | --- | --- |
+| `--jls` | `jls/` | `1.2.840.10008.1.2.4.80` | full resolution JPEG-LS lossless |
+| `--jls-thumbnail` | `jlsThumbnail/` | `1.2.840.10008.1.2.4.80` | quarter resolution JPEG-LS lossless |
+| `--htj2k` | `htj2k/` | `1.2.840.10008.1.2.4.201` | full resolution HTJ2K lossless |
+| `--htj2k-lossy` | `htj2kLossy/` | `1.2.840.10008.1.2.4.203` | full resolution HTJ2K lossy |
+| `--brick` | `brick/` | per `--brick-codec` | hierarchical brick pyramid, series level |
+
+Renditions are grayscale only; colour instances are skipped with a logged reason and the command
+still exits 0. A non-zero exit means a series errored, not that a series was ineligible.
+
+### Size and compression report
+
+`alternates` finishes with a per-series and per-study summary measured from bytes actually on
+disk. Each rendition's compression ratio is computed against the raw voxel count of **its own**
+dimensions, so a quarter resolution thumbnail is not credited with a 16x ratio it did not earn.
+The brick store additionally reports its size as a percentage of `frames/`, which is the number
+that decides whether the store is affordable.
+
+`--json` emits the same figures as a single JSON document on stdout, with the human readable
+progress and summary redirected to stderr, so results can be collected across a corpus without
+scraping.
+
+## The brick store
+
+A brick store is a resolution pyramid of small cuboids of voxels, generated so that a viewer can
+fetch an arbitrary oblique plane by reading a handful of objects rather than the whole series.
+
+**Levels.** Named by downsample factor: `d1`, `d2`, `d4`, and so on. Which axes each step reduces
+comes from the **voxel spacing** rather than from a single factor - an axis is halved when its
+samples are more than half an octave (sqrt(2)) closer together than the coarsest axis'. On
+isotropic data every step halves all three axes and the ladder is the familiar uniform one; on
+5 mm slice data the in-plane axes are brought in first, so coarse levels are physically rather
+than numerically cubic, and their names carry all three factors: `d8_8_2`. Levels are generated
+by 2x2x2 (or 2x2x1) **box averaging**, never decimation - decimation aliases, which fabricates
+structure rather than blurring it.
+
+**Bricks.** `--brick-size` cubed, 64 by default. Bricks are stored at their true extent rather
+than zero padded, and a level small enough to be worth a single request is stored as one brick
+shaped like the level. Each brick is one codestream, packed as a 2D image whose rows interleave
+the two slow axes:
+
+- `z-minor` (default): row `r = y * extentZ + z`, so the encoder's above-neighbour is
+  `(x, y, z-1)` - through-plane correlation, best on near-isotropic data;
+- `plane-major`: row `r = z * extentY + y`, so the above-neighbour is `(x, y-1, z)` - in-plane
+  correlation, better on thick slices where neighbouring slices are less alike than neighbouring
+  rows.
+
+The resolved order is recorded in the manifest, so the writer and the reader cannot disagree.
+
+**Paths and manifest.** The store lives at the series level:
+
+```
+studies/{study}/series/{series}/brick/
+  manifest.json
+  {level}/{t###}/{k###}/y{ky}x{kx}.jls      # .jhc with --brick-codec htj2k
+```
+
+`{k###}` is the brick index along z; `{t###}` is one component per **non-spatial** axis (time,
+channel, b-value) and is omitted entirely for a plain 3D series. Non-spatial axes are indexed,
+never subsampled - every time point is wanted at reduced spatial resolution, not half the time
+points. `manifest.json` carries the axes, the per-level sizes, factors, brick pitch and brick
+counts, the brick order, the spacing and the transfer syntax, and is written **last**, so its
+presence is what marks a store complete.
+
+**Private tag.** Each instance of a bricked series gets, under private creator `RadicalImaging`
+in the group `0009` block already used for Content-Location:
+
+```
+(0009,0010) LO  PrivateCreator     "RadicalImaging"
+(0009,10E0) UR  BrickManifestURI   "series/{seriesUID}/brick/manifest.json"
+```
+
+Levels, brick size and transfer syntax stay in the manifest rather than in DICOM, so the layout
+can change without a tag change.
+
+**Eligibility.** A series is skipped, with a reason, rather than failed when it is non-grayscale,
+a single frame, has fewer than 16 spatial slices, has all its frames at one `ImagePositionPatient`
+(a cine or dynamic 2D series, whose third index is time rather than space), or does not lie on a
+regular rectilinear grid - irregular slice spacing, gantry tilt, non-coplanar frames or ragged
+sampling. Resampling those onto a grid they do not lie on is future work.
+
+## Transcoding the primary frames
+
+```bash
+createdicomweb transcode <studyUID> [--dicomdir <path>] [--series-uid <uid>] [--to jls] [--force]
+```
+
+Rewrites `frames/` from uncompressed (`1.2.840.10008.1.2`, `.1.2.1`, `.1.2.2`, `.1.2.1.99`) to
+JPEG-LS lossless, and updates `AvailableTransferSyntaxUID` on the instance. Only grayscale
+(`SamplesPerPixel == 1`, `MONOCHROME1`/`MONOCHROME2`) instances are converted; colour and already
+compressed instances are left untouched. Frames are staged beside the instance and moved into
+place only once every frame of that instance has encoded, so a failure part way through leaves
+the original frames intact.
+
+## Note on thumbnail reduction
+
+Reduction for thumbnail-sized renditions is now a **box average** rather than the previous
+nearest-neighbour `replicate`. This changes existing `jlsThumbnail` and `alternateThumbnail`
+output: nearest-neighbour decimation aliases, folding high frequency content into the displayed
+band. Where the attributes are available, the average is taken over true pixel values rather than
+stored words, pixel padding is left out of the average, and segmentation label maps take the
+first occupied sample of each box instead of a mean - the mean of two labels is a third segment
+that is in neither place.
+
 # Configuration System for Static DICOMweb
 
 The configuration system is based on a combination of [config-point](http://github.com/OHIF/config-point) and commander for the command line settings. The config-point definitions allow mixing default configuration values, with custom settings files, and then over-riding values with command line settings. There is a custom command line setting to load a specific additional configuration file, which is the `-c` setting, applied like this:

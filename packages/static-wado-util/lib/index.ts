@@ -1,5 +1,6 @@
 export { Stats } from './stats';
-export { bilinear, replicate } from './image/bilinear';
+export { bilinear, replicate, boxAverage } from './image/bilinear';
+export { createPixelValueModel, isSegmentationLabelMap } from './image/pixelValueModel';
 import handleHomeRelative from './handleHomeRelative';
 import JSONReader from './reader/JSONReader';
 import readBulkData from './reader/readBulkData';

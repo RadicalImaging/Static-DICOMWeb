@@ -1,5 +1,5 @@
 const dicomCodec = require('@cornerstonejs/dicom-codec');
-const { Tags, replicate } = require('@radicalimaging/static-wado-util');
+const { Tags, boxAverage, createPixelValueModel } = require('@radicalimaging/static-wado-util');
 const getImageInfo = require('./getImageInfo');
 
 dicomCodec.setConfig('verbose: false');
@@ -236,7 +236,7 @@ function transcodeLog(options, msg, error = '') {
   }
 }
 
-function scale(imageFrame, imageInfo) {
+function scale(imageFrame, imageInfo, pixelValueModel) {
   const { rows, columns, bitsPerPixel, pixelRepresentation, samplesPerPixel } = imageInfo;
   let ArrayConstructor = Float32Array;
   if (bitsPerPixel === 8) {
@@ -249,6 +249,11 @@ function scale(imageFrame, imageInfo) {
     rows,
     columns,
     samplesPerPixel,
+    // Carries BitsStored/HighBit, the padding value and range, and whether the samples are
+    // segment labels. dicom-codec's adaptImageInfo drops all of that before the decoder sees
+    // it, so the model has to be built from the data set and handed down rather than read off
+    // the decode result.
+    pixelValueModel,
   };
   const dest = {
     rows: Math.round(rows / 4),
@@ -256,7 +261,10 @@ function scale(imageFrame, imageInfo) {
     samplesPerPixel,
   };
   dest.pixelData = new ArrayConstructor(dest.rows * dest.columns * samplesPerPixel);
-  replicate(src, dest);
+  // Box average rather than replicate: nearest-neighbour decimation aliases, folding high
+  // frequency content into the displayed band, which fabricates structure rather than
+  // blurring it. This changes existing jlsThumbnail/alternate-thumbnail output.
+  boxAverage(src, dest);
 
   return {
     imageFrame: dest.pixelData,
@@ -292,7 +300,7 @@ async function generateLossyImage(id, decoded, options) {
 
     let lossy = true;
     if (options.alternateThumbnail && imageInfo.rows >= 512) {
-      const scaled = scale(imageFrame, imageInfo);
+      const scaled = scale(imageFrame, imageInfo, decoded.pixelValueModel);
       if (!scaled) {
         console.log("Couldn't scale");
         return;
@@ -397,6 +405,9 @@ async function transcodeImageFrame(id, targetIdSrc, imageFrame, dataSet, options
         );
 
         decoded = await dicomCodec.decode(imageFrame, imageInfo, id.transferSyntaxUid);
+        // The decode result's imageInfo has been through adaptImageInfo, which keeps only what
+        // the codecs use, so carry the filtering attributes across on the result itself.
+        decoded.pixelValueModel = createPixelValueModel(imageInfo);
         result = await dicomCodec.encode(
           decoded.imageFrame,
           decoded.imageInfo,

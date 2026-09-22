@@ -6,3 +6,5 @@ export * from './stowMain.mjs';
 export * from './thumbnailMain.mjs';
 export * from './indexMain.mjs';
 export * from './part10Main.mjs';
+export * from './alternatesMain.mjs';
+export * from './transcodeMain.mjs';

@@ -30,9 +30,14 @@ The following paths are typically available:
       * `index.json.gz` contains a DICOMweb query at the series level for the study
       * `<seriesUID>` is the root of the series specific data
         * `metadata.gz` contains a compressed JSON representation of the metadata
+        * `brick/` may be present and contain a hierarchical brick pyramid for off-axis display
+          * `manifest.json` describes the axes, levels, brick size and ordering; written last, so its presence means the store is complete
+          * `<level>/<t###>/<k###>/y<ky>x<kx>.jls` is one brick, `.jhc` when the bricks are HTJ2K
         * `instances/<sopUID>` is the root of the instance specific data
           * `frames/<frameNo>` contains the image bulkdata for the given frame
           * `frames/<frameNo>.gz` contains an uncompressed image frame if the image was not recompressed
+          * `jls/<frameNo>.mht`, `htj2k/<frameNo>.mht`, `htj2kLossy/<frameNo>.mht` may be present and contain full resolution alternate renditions of the frame
+          * `jlsThumbnail/<frameNo>.mht` may be present and contain a quarter resolution JPEG-LS rendition of the frame
           * `thumbnail` contains a JPEG thumbnail for the image
           * `rendered/<frameNo>` may be present and contain a PNG image rendered using dcm2jpg
 * `deduplicated/` is the root of the eventual consistency data set, used for concurrent updates

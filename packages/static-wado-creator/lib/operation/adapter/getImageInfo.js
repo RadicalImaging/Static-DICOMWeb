@@ -17,6 +17,14 @@ function getImageInfo(dataSet, instance) {
       columns, // Number with the image columns/width,
       signed: pixelRepresentation === 1,
       pixelRepresentation,
+      // Not used by the codecs (adaptImageInfo drops them), but needed to interpret a stored
+      // sample and to keep padding out of a filtered reduction - see createPixelValueModel.
+      bitsStored: Tags.getValue(instance, Tags.BitsStored),
+      highBit: Tags.getValue(instance, Tags.HighBit),
+      pixelPaddingValue: Tags.getValue(instance, Tags.PixelPaddingValue),
+      pixelPaddingRangeLimit: Tags.getValue(instance, Tags.PixelPaddingRangeLimit),
+      sopClassUid: Tags.getValue(instance, Tags.SOPClassUID),
+      segmentationType: Tags.getValue(instance, Tags.SegmentationType),
     };
   }
   const rows = dataSet.uint16('x00280010');
@@ -32,6 +40,15 @@ function getImageInfo(dataSet, instance) {
     columns, // Number with the image columns/width,
     signed: pixelRepresentation === 1,
     pixelRepresentation,
+    bitsStored: dataSet.uint16('x00280101'),
+    highBit: dataSet.uint16('x00280102'),
+    // Padding is US or SS according to PixelRepresentation, so read it accordingly
+    pixelPaddingValue:
+      pixelRepresentation === 1 ? dataSet.int16('x00280120') : dataSet.uint16('x00280120'),
+    pixelPaddingRangeLimit:
+      pixelRepresentation === 1 ? dataSet.int16('x00280121') : dataSet.uint16('x00280121'),
+    sopClassUid: dataSet.string('x00080016'),
+    segmentationType: dataSet.string('x00620001'),
   };
 }
 

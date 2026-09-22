@@ -48,6 +48,35 @@ function findIndexOfString(data, str, offset = 0) {
   return -1;
 }
 
+/**
+ * Finds where the payload ends, by locating the closing boundary rather than assuming the
+ * footer's length.
+ *
+ * The two writers in this repository disagree about the footer: create-dicomweb's
+ * MultipartStreamWriter ends with `\r\n--BOUNDARY--\r\n`, while static-wado-creator's
+ * WriteMultipart omits the trailing CRLF. Assuming either one truncates or over-reads the
+ * other by two bytes, and for a JPEG family codestream those two bytes are the EOI marker, so
+ * the frame fails to decode rather than merely looking odd.
+ *
+ * @param {Buffer|Uint8Array} data - The whole multipart file
+ * @param {Buffer|Uint8Array} separator - The opening boundary line, `--BOUNDARY...`
+ * @param {number} from - Index the payload starts at
+ * @returns {number} - Index one past the last payload byte, or -1 when no closing boundary
+ */
+const findPayloadEnd = (data, separator, from) => {
+  for (let i = data.length - separator.length; i >= from; i--) {
+    if (!checkToken(separator, data, i)) {
+      continue;
+    }
+    // The boundary is introduced by a CRLF that is part of the delimiter, not the payload
+    if (i >= from + 2 && data[i - 2] === 0x0d && data[i - 1] === 0x0a) {
+      return i - 2;
+    }
+    return i;
+  }
+  return -1;
+};
+
 const getSeparator = data => {
   if (data[0] !== 0x2d || data[1] !== 0x2d) {
     console.log('data not multipart', data[0], data[1], typeof data);
@@ -93,9 +122,15 @@ const readBulkData = async (dirSrc, baseName, frame) => {
   }
 
   const startData = 4 + findIndexOfString(data, '\r\n\r\n');
-  // End boundary format: \r\n--BOUNDARY--\r\n
-  // We need to subtract: \r\n (2) + separator.length + -- (2) + \r\n (2) = separator.length + 6
-  const endData = data.length - separator.length - 6;
+  const foundEnd = findPayloadEnd(data, separator, startData);
+  if (foundEnd === -1) {
+    console.warn(
+      `Multipart file ${pathName} has no closing boundary; falling back to a fixed footer length`
+    );
+  }
+  // Fall back to the historical assumption - \r\n--BOUNDARY--\r\n, i.e. separator.length + 6 -
+  // only when the closing boundary cannot be found at all.
+  const endData = foundEnd === -1 ? data.length - separator.length - 6 : foundEnd;
   const header = data.buffer.slice(separator.length, startData);
   const headerStr = new TextDecoder('utf-8').decode(header).replaceAll('\r', '');
   const headerSplit = headerStr.split('\n');
