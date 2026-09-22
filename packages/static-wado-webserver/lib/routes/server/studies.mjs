@@ -119,11 +119,15 @@ export default function setRoutes(routerExpress, params, dir, hashStudyUidPath) 
     [
       '/:ae/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames/:frames',
       '/studies/:studyUID/series/:seriesUID/instances/:instanceUID/frames/:frames',
+      // `lossy` is the old name of the `htj2kLossy` rendition. Both are routed so a
+      // store written before the rename still serves.
       '/studies/:studyUID/series/:seriesUID/instances/:instanceUID/lossy/:frames',
       '/studies/:studyUID/series/:seriesUID/instances/:instanceUID/htj2k/:frames',
+      '/studies/:studyUID/series/:seriesUID/instances/:instanceUID/htj2kLossy/:frames',
       '/studies/:studyUID/series/:seriesUID/instances/:instanceUID/htj2kThumbnail/:frames',
       '/studies/:studyUID/series/:seriesUID/instances/:instanceUID/jls/:frames',
       '/studies/:studyUID/series/:seriesUID/instances/:instanceUID/jlsThumbnail/:frames',
+      '/studies/:studyUID/series/:seriesUID/instances/:instanceUID/brick/:frames',
     ],
     byteRangeRequest(params)
   );
