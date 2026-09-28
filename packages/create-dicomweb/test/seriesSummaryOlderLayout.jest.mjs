@@ -60,10 +60,11 @@ describe('seriesSummary with the older instance layout', () => {
     fs.rmSync(baseDir, { recursive: true, force: true });
   });
 
+  // InstanceDeduplicate writes the older instance metadata as a single object, not an array
   function writeOlderLayoutInstance(sopUID, instanceNumber) {
     writeGzJson(
       path.join(seriesDir, 'instances', sopUID, 'metadata', 'index.json.gz'),
-      [instanceJson(sopUID, instanceNumber)]
+      instanceJson(sopUID, instanceNumber)
     );
   }
 
@@ -74,7 +75,7 @@ describe('seriesSummary with the older instance layout', () => {
 
     const metadata = await reader.readJsonFile(instancePath, 'metadata');
 
-    expect(sopUIDs(metadata)).toEqual(['1.2.3.4.1']);
+    expect(sopUIDs([metadata])).toEqual(['1.2.3.4.1']);
   });
 
   it('rebuilds the series metadata from older-layout instances', async () => {
@@ -114,9 +115,25 @@ describe('seriesSummary with the older instance layout', () => {
       '7FE00010': { vr: 'OB', BulkDataURI: './instances/1.2.3.4.2/frames' },
     };
     writeGzJson(path.join(seriesDir, 'metadata.gz'), [instanceJson('1.2.3.4.1', 1), seriesEntry]);
+    const warnings = [];
+    const warnSpy = jest
+      .spyOn(console, 'warn')
+      .mockImplementation((...args) => warnings.push(args.join(' ')));
 
-    await seriesSummary(baseDir, STUDY_UID, SERIES_UID);
+    try {
+      await seriesSummary(baseDir, STUDY_UID, SERIES_UID);
+    } finally {
+      warnSpy.mockRestore();
+    }
 
+    expect(warnings).toEqual([
+      expect.stringContaining(
+        '1 of the 3 instances in 1.2.3/1.2.3.4 have no readable instance metadata, keeping'
+      ),
+      expect.stringContaining(
+        '1 of the 3 instances in 1.2.3/1.2.3.4 have no readable instance metadata and no series metadata entry'
+      ),
+    ]);
     const seriesMetadata = readGzJson(path.join(seriesDir, 'metadata.gz'));
     expect(sopUIDs(seriesMetadata)).toEqual(['1.2.3.4.1', '1.2.3.4.2']);
     expect(seriesMetadata[1]).toEqual(seriesEntry);
@@ -134,10 +151,48 @@ describe('seriesSummary with the older instance layout', () => {
     writeGzJson(path.join(seriesDir, 'metadata.gz'), existing);
 
     await seriesSummary(baseDir, STUDY_UID, SERIES_UID);
-    // Let any stream 'error' events or rejections from the skipped writes surface
+    // A skipped write destroys its stream with 'No data to write'. The 'error' event and the
+    // rejection of the completion promise come after the fs close callback, which has no hook
+    // that the test can wait on. So give the event loop time to deliver them before the check.
     await new Promise(resolve => setTimeout(resolve, 50));
 
     expect(readGzJson(path.join(seriesDir, 'metadata.gz'))).toEqual(existing);
     expect(processErrors).toEqual([]);
+  });
+
+  describe('when the series metadata uses the folder layout', () => {
+    // Opening the series metadata.gz stream removes series/<uid>/metadata/, so these cases
+    // check that the rebuild uses the copy read before the streams opened
+    function writeFolderLayoutSeries(metadata) {
+      writeGzJson(path.join(seriesDir, 'metadata', 'index.json.gz'), metadata);
+    }
+
+    it('keeps the series metadata entry of an instance that has no instance metadata', async () => {
+      writeOlderLayoutInstance('1.2.3.4.1', 1);
+      fs.mkdirSync(path.join(seriesDir, 'instances', '1.2.3.4.2', 'frames'), { recursive: true });
+      const seriesEntry = {
+        ...instanceJson('1.2.3.4.2', 2),
+        '7FE00010': { vr: 'OB', BulkDataURI: './instances/1.2.3.4.2/frames' },
+      };
+      writeFolderLayoutSeries([instanceJson('1.2.3.4.1', 1), seriesEntry]);
+
+      await seriesSummary(baseDir, STUDY_UID, SERIES_UID);
+
+      const seriesMetadata = readGzJson(path.join(seriesDir, 'metadata.gz'));
+      expect(sopUIDs(seriesMetadata)).toEqual(['1.2.3.4.1', '1.2.3.4.2']);
+      expect(seriesMetadata[1]).toEqual(seriesEntry);
+      expect(processErrors).toEqual([]);
+    });
+
+    it('keeps the series metadata when no instance metadata can be read', async () => {
+      fs.mkdirSync(path.join(seriesDir, 'instances', '1.2.3.4.1', 'frames'), { recursive: true });
+      const existing = [instanceJson('1.2.3.4.9', 9)];
+      writeFolderLayoutSeries(existing);
+
+      await seriesSummary(baseDir, STUDY_UID, SERIES_UID);
+
+      expect(readGzJson(path.join(seriesDir, 'metadata.gz'))).toEqual(existing);
+      expect(processErrors).toEqual([]);
+    });
   });
 });

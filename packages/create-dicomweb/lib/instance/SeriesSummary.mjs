@@ -54,27 +54,6 @@ function updateLocation(instanceMetadata, instanceUID) {
 }
 
 /**
- * Reads the current series metadata as a map of SOP Instance UID -> instance metadata.
- * The entries already have series-relative BulkDataURIs.
- * @param {FileDicomWebReader} reader
- * @param {string} seriesPath
- * @returns {Promise<Map<string, Object>>}
- */
-async function readSeriesMetadataBySop(reader, seriesPath) {
-  const bySop = new Map();
-  const seriesMetadata = await reader.readJsonFile(seriesPath, 'metadata');
-  if (Array.isArray(seriesMetadata)) {
-    for (const instance of seriesMetadata) {
-      const sopUID = getValue(instance, Tags.SOPInstanceUID);
-      if (sopUID) {
-        bySop.set(sopUID, instance);
-      }
-    }
-  }
-  return bySop;
-}
-
-/**
  * Reads all instance metadata and derives series query data for a series.
  * An instance whose own metadata is missing or unreadable keeps its entry from the
  * current series metadata, so a rebuild never drops an instance that is still on disk.
@@ -82,13 +61,35 @@ async function readSeriesMetadataBySop(reader, seriesPath) {
  * @param {string} studyUID
  * @param {string} seriesUID
  * @param {Set<string>} actualInstanceUIDs
- * @returns {Promise<{instanceMetadataArray: Object[], seriesQuery: Object|null, instancesQuery: Object[]}>}
+ * @param {Object[]|undefined} existingMetadata - Series metadata read before the output streams opened
+ * @returns {Promise<{instanceMetadataArray: Object[], seriesQuery: Object|null, instancesQuery: Object[],
+ *   fallbackCount: number, droppedCount: number, noneReadable: boolean, keptSeriesMetadata: Object[]}>}
  */
-async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
+async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs, existingMetadata) {
   const instanceMetadataArray = [];
+  let fallbackCount = 0;
+  let droppedCount = 0;
+
   // Read lazily: only needed when an instance has no readable metadata of its own
+  let currentSeriesMetadata;
   let seriesMetadataBySop;
-  const fallbackInstanceUIDs = [];
+  async function readCurrentSeriesMetadata() {
+    if (!currentSeriesMetadata) {
+      const current = await reader.readJsonFile(
+        reader.getSeriesPath(studyUID, seriesUID),
+        'metadata'
+      );
+      // Opening the output streams removes a series metadata/ folder (older layout), so fall
+      // back to the copy that was read before the streams opened
+      currentSeriesMetadata =
+        Array.isArray(current) && current.length > 0
+          ? current
+          : Array.isArray(existingMetadata)
+            ? existingMetadata
+            : [];
+    }
+    return currentSeriesMetadata;
+  }
 
   for (const instanceUID of actualInstanceUIDs) {
     const instancePath = reader.getInstancePath(studyUID, seriesUID, instanceUID);
@@ -104,27 +105,27 @@ async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
       continue;
     }
 
-    seriesMetadataBySop ??= await readSeriesMetadataBySop(
-      reader,
-      reader.getSeriesPath(studyUID, seriesUID)
-    );
+    if (!seriesMetadataBySop) {
+      seriesMetadataBySop = new Map();
+      for (const instance of await readCurrentSeriesMetadata()) {
+        const sopUID = getValue(instance, Tags.SOPInstanceUID);
+        if (sopUID) {
+          seriesMetadataBySop.set(sopUID, instance);
+        }
+      }
+    }
     const seriesInstanceMetadata = seriesMetadataBySop.get(instanceUID);
     if (seriesInstanceMetadata) {
       instanceMetadataArray.push(seriesInstanceMetadata);
-      fallbackInstanceUIDs.push(instanceUID);
+      fallbackCount++;
+    } else {
+      droppedCount++;
     }
   }
 
-  if (fallbackInstanceUIDs.length > 0) {
-    console.warn(
-      `seriesSummary: ${fallbackInstanceUIDs.length} of the ${actualInstanceUIDs.size} instances in ${studyUID}/${seriesUID} have no readable instance metadata, keeping their entries from the series metadata`
-    );
-  }
-  if (actualInstanceUIDs.size > 0 && instanceMetadataArray.length === 0) {
-    console.warn(
-      `seriesSummary: none of the ${actualInstanceUIDs.size} instances in ${studyUID}/${seriesUID} have readable metadata, leaving the series files unchanged`
-    );
-  }
+  // Instance directories exist but none could be read: keep the current series metadata
+  const noneReadable = actualInstanceUIDs.size > 0 && instanceMetadataArray.length === 0;
+  const keptSeriesMetadata = noneReadable ? await readCurrentSeriesMetadata() : [];
 
   // Sort by InstanceNumber
   instanceMetadataArray.sort((a, b) => {
@@ -155,7 +156,15 @@ async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
     }
   }
 
-  return { instanceMetadataArray, seriesQuery, instancesQuery };
+  return {
+    instanceMetadataArray,
+    seriesQuery,
+    instancesQuery,
+    fallbackCount,
+    droppedCount,
+    noneReadable,
+    keptSeriesMetadata,
+  };
 }
 
 /**
@@ -223,21 +232,33 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options) {
 
   // Write all series-level files in one retry loop so readSeriesData is called once per attempt
   console.verbose('seriesSummary: writing series metadata and index files');
+  let lastPayload;
   await writeMultipleWithRetry({
     ...options,
     informationProvider,
     baseDir,
-    generatePayload: () => readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs),
+    generatePayload: async () => {
+      lastPayload = await readSeriesData(
+        reader,
+        studyUID,
+        seriesUID,
+        actualInstanceUIDs,
+        existingMetadata
+      );
+      return lastPayload;
+    },
     writes: [
       {
         openStream: writer =>
           writer.openSeriesStream('metadata', { gzip: true, compareOnClose: true }),
-        // Instance directories exist but none could be read: keep the existing series
+        // Instance directories exist but none could be read: keep the current series
         // metadata rather than replacing it with []
-        getData: data =>
-          actualInstanceUIDs.size > 0 && data.instanceMetadataArray.length === 0
-            ? null
-            : JSON.stringify(data.instanceMetadataArray),
+        getData: data => {
+          if (!data.noneReadable) {
+            return JSON.stringify(data.instanceMetadataArray);
+          }
+          return data.keptSeriesMetadata.length ? JSON.stringify(data.keptSeriesMetadata) : null;
+        },
         label: `seriesSummary(${studyUID}/${seriesUID}) metadata`,
       },
       {
@@ -255,4 +276,36 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options) {
       },
     ],
   });
+
+  // Log once, from the last attempt, so a retry does not repeat the warnings
+  if (lastPayload) {
+    logSeriesDataWarnings(lastPayload, actualInstanceUIDs.size, `${studyUID}/${seriesUID}`);
+  }
+}
+
+/**
+ * Logs the instances that seriesSummary could not rebuild from their own metadata.
+ * @param {Object} payload - Result of readSeriesData
+ * @param {number} instanceCount - Number of instance directories in the series
+ * @param {string} seriesLabel - studyUID/seriesUID
+ */
+function logSeriesDataWarnings(payload, instanceCount, seriesLabel) {
+  const { fallbackCount, droppedCount, noneReadable, keptSeriesMetadata } = payload;
+  if (fallbackCount > 0) {
+    console.warn(
+      `seriesSummary: ${fallbackCount} of the ${instanceCount} instances in ${seriesLabel} have no readable instance metadata, keeping their entries from the series metadata`
+    );
+  }
+  if (droppedCount > 0) {
+    console.warn(
+      `seriesSummary: ${droppedCount} of the ${instanceCount} instances in ${seriesLabel} have no readable instance metadata and no series metadata entry, leaving them out of the series metadata`
+    );
+  }
+  if (noneReadable) {
+    console.warn(
+      keptSeriesMetadata.length
+        ? `seriesSummary: none of the ${instanceCount} instances in ${seriesLabel} have readable metadata, keeping the current series metadata`
+        : `seriesSummary: none of the ${instanceCount} instances in ${seriesLabel} have readable metadata, and there is no series metadata to keep`
+    );
+  }
 }
