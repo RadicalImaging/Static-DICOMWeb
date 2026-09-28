@@ -61,11 +61,10 @@ function updateLocation(instanceMetadata, instanceUID) {
  * @param {string} studyUID
  * @param {string} seriesUID
  * @param {Set<string>} actualInstanceUIDs
- * @param {Object[]|undefined} existingMetadata - Series metadata read before the output streams opened
  * @returns {Promise<{instanceMetadataArray: Object[], seriesQuery: Object|null, instancesQuery: Object[],
  *   fallbackCount: number, droppedCount: number, noneReadable: boolean, keptSeriesMetadata: Object[]}>}
  */
-async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs, existingMetadata) {
+async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
   const instanceMetadataArray = [];
   let fallbackCount = 0;
   let droppedCount = 0;
@@ -79,14 +78,7 @@ async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs, e
         reader.getSeriesPath(studyUID, seriesUID),
         'metadata'
       );
-      // Opening the output streams removes a series metadata/ folder (older layout), so fall
-      // back to the copy that was read before the streams opened
-      currentSeriesMetadata =
-        Array.isArray(current) && current.length > 0
-          ? current
-          : Array.isArray(existingMetadata)
-            ? existingMetadata
-            : [];
+      currentSeriesMetadata = Array.isArray(current) ? current : [];
     }
     return currentSeriesMetadata;
   }
@@ -238,13 +230,7 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options) {
     informationProvider,
     baseDir,
     generatePayload: async () => {
-      lastPayload = await readSeriesData(
-        reader,
-        studyUID,
-        seriesUID,
-        actualInstanceUIDs,
-        existingMetadata
-      );
+      lastPayload = await readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs);
       return lastPayload;
     },
     writes: [

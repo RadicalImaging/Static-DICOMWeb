@@ -4,6 +4,7 @@ import path from 'path';
 import zlib from 'zlib';
 import { seriesSummary } from '../lib/instance/SeriesSummary.mjs';
 import { FileDicomWebReader } from '../lib/instance/FileDicomWebReader.mjs';
+import { FileDicomWebWriter } from '../lib/instance/FileDicomWebWriter.mjs';
 
 /**
  * Studies imported by older static-wado versions store instance metadata as
@@ -160,9 +161,32 @@ describe('seriesSummary with the older instance layout', () => {
     expect(processErrors).toEqual([]);
   });
 
+  it('removes an older-layout metadata folder only when the write is committed', async () => {
+    const folder = path.join(seriesDir, 'metadata');
+    writeGzJson(path.join(folder, 'index.json.gz'), [instanceJson('1.2.3.4.1', 1)]);
+    const informationProvider = { studyInstanceUid: STUDY_UID, seriesInstanceUid: SERIES_UID };
+
+    // A skipped write leaves the folder in place
+    const skipped = new FileDicomWebWriter(informationProvider, { baseDir });
+    const skippedInfo = await skipped.openSeriesStream('metadata', { gzip: true });
+    expect(fs.existsSync(folder)).toBe(true);
+    skipped.recordStreamError(skippedInfo.streamKey, new Error('No data to write'), true);
+    await skipped.closeStream(skippedInfo.streamKey);
+    expect(fs.existsSync(folder)).toBe(true);
+
+    // A committed write replaces the folder with metadata.gz
+    const committed = new FileDicomWebWriter(informationProvider, { baseDir });
+    const committedInfo = await committed.openSeriesStream('metadata', { gzip: true });
+    committedInfo.write(Buffer.from(JSON.stringify([instanceJson('1.2.3.4.1', 1)])));
+    await committed.closeStream(committedInfo.streamKey);
+    expect(fs.existsSync(folder)).toBe(false);
+    expect(committedInfo.writeStatus).toBe('created');
+    expect(sopUIDs(readGzJson(path.join(seriesDir, 'metadata.gz')))).toEqual(['1.2.3.4.1']);
+  });
+
   describe('when the series metadata uses the folder layout', () => {
-    // Opening the series metadata.gz stream removes series/<uid>/metadata/, so these cases
-    // check that the rebuild uses the copy read before the streams opened
+    // The writer removes series/<uid>/metadata/ only when it commits the new metadata.gz,
+    // so the rebuild can still read the folder, and a skipped write leaves it in place
     function writeFolderLayoutSeries(metadata) {
       writeGzJson(path.join(seriesDir, 'metadata', 'index.json.gz'), metadata);
     }
