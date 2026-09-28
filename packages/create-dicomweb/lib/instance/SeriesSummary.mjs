@@ -78,6 +78,12 @@ async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
     }
   }
 
+  if (actualInstanceUIDs.size > 0 && instanceMetadataArray.length === 0) {
+    console.warn(
+      `seriesSummary: none of the ${actualInstanceUIDs.size} instances in ${studyUID}/${seriesUID} have readable metadata, leaving the series files unchanged`
+    );
+  }
+
   // Sort by InstanceNumber
   instanceMetadataArray.sort((a, b) => {
     const instanceNumberA = getValue(a, Tags.InstanceNumber);
@@ -184,7 +190,12 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options) {
       {
         openStream: writer =>
           writer.openSeriesStream('metadata', { gzip: true, compareOnClose: true }),
-        getData: data => JSON.stringify(data.instanceMetadataArray),
+        // Instance directories exist but none could be read: keep the existing series
+        // metadata rather than replacing it with []
+        getData: data =>
+          actualInstanceUIDs.size > 0 && data.instanceMetadataArray.length === 0
+            ? null
+            : JSON.stringify(data.instanceMetadataArray),
         label: `seriesSummary(${studyUID}/${seriesUID}) metadata`,
       },
       {
