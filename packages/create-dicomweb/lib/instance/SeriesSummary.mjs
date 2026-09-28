@@ -54,7 +54,30 @@ function updateLocation(instanceMetadata, instanceUID) {
 }
 
 /**
+ * Reads the current series metadata as a map of SOP Instance UID -> instance metadata.
+ * The entries already have series-relative BulkDataURIs.
+ * @param {FileDicomWebReader} reader
+ * @param {string} seriesPath
+ * @returns {Promise<Map<string, Object>>}
+ */
+async function readSeriesMetadataBySop(reader, seriesPath) {
+  const bySop = new Map();
+  const seriesMetadata = await reader.readJsonFile(seriesPath, 'metadata');
+  if (Array.isArray(seriesMetadata)) {
+    for (const instance of seriesMetadata) {
+      const sopUID = getValue(instance, Tags.SOPInstanceUID);
+      if (sopUID) {
+        bySop.set(sopUID, instance);
+      }
+    }
+  }
+  return bySop;
+}
+
+/**
  * Reads all instance metadata and derives series query data for a series.
+ * An instance whose own metadata is missing or unreadable keeps its entry from the
+ * current series metadata, so a rebuild never drops an instance that is still on disk.
  * @param {FileDicomWebReader} reader
  * @param {string} studyUID
  * @param {string} seriesUID
@@ -63,6 +86,9 @@ function updateLocation(instanceMetadata, instanceUID) {
  */
 async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
   const instanceMetadataArray = [];
+  // Read lazily: only needed when an instance has no readable metadata of its own
+  let seriesMetadataBySop;
+  const fallbackInstanceUIDs = [];
 
   for (const instanceUID of actualInstanceUIDs) {
     const instancePath = reader.getInstancePath(studyUID, seriesUID, instanceUID);
@@ -75,9 +101,25 @@ async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
       }
       instanceMetadata = updateLocation(instanceMetadata, instanceUID);
       instanceMetadataArray.push(instanceMetadata);
+      continue;
+    }
+
+    seriesMetadataBySop ??= await readSeriesMetadataBySop(
+      reader,
+      reader.getSeriesPath(studyUID, seriesUID)
+    );
+    const seriesInstanceMetadata = seriesMetadataBySop.get(instanceUID);
+    if (seriesInstanceMetadata) {
+      instanceMetadataArray.push(seriesInstanceMetadata);
+      fallbackInstanceUIDs.push(instanceUID);
     }
   }
 
+  if (fallbackInstanceUIDs.length > 0) {
+    console.warn(
+      `seriesSummary: ${fallbackInstanceUIDs.length} of the ${actualInstanceUIDs.size} instances in ${studyUID}/${seriesUID} have no readable instance metadata, keeping their entries from the series metadata`
+    );
+  }
   if (actualInstanceUIDs.size > 0 && instanceMetadataArray.length === 0) {
     console.warn(
       `seriesSummary: none of the ${actualInstanceUIDs.size} instances in ${studyUID}/${seriesUID} have readable metadata, leaving the series files unchanged`

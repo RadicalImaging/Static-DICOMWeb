@@ -102,9 +102,35 @@ describe('seriesSummary with the older instance layout', () => {
     expect(processErrors).toEqual([]);
   });
 
+  it('keeps the series metadata entry of an instance that has no instance metadata', async () => {
+    writeGzJson(path.join(seriesDir, 'instances', '1.2.3.4.1', 'metadata.gz'), [
+      instanceJson('1.2.3.4.1', 1),
+    ]);
+    // Instance 2 is on disk but has no instance metadata; instance 3 is not in the series metadata
+    fs.mkdirSync(path.join(seriesDir, 'instances', '1.2.3.4.2', 'frames'), { recursive: true });
+    fs.mkdirSync(path.join(seriesDir, 'instances', '1.2.3.4.3', 'frames'), { recursive: true });
+    const seriesEntry = {
+      ...instanceJson('1.2.3.4.2', 2),
+      '7FE00010': { vr: 'OB', BulkDataURI: './instances/1.2.3.4.2/frames' },
+    };
+    writeGzJson(path.join(seriesDir, 'metadata.gz'), [instanceJson('1.2.3.4.1', 1), seriesEntry]);
+
+    await seriesSummary(baseDir, STUDY_UID, SERIES_UID);
+
+    const seriesMetadata = readGzJson(path.join(seriesDir, 'metadata.gz'));
+    expect(sopUIDs(seriesMetadata)).toEqual(['1.2.3.4.1', '1.2.3.4.2']);
+    expect(seriesMetadata[1]).toEqual(seriesEntry);
+    expect(sopUIDs(readGzJson(path.join(seriesDir, 'instances', 'index.json.gz')))).toEqual([
+      '1.2.3.4.1',
+      '1.2.3.4.2',
+    ]);
+    expect(processErrors).toEqual([]);
+  });
+
   it('keeps the existing series metadata when no instance metadata can be read', async () => {
     fs.mkdirSync(path.join(seriesDir, 'instances', '1.2.3.4.1', 'frames'), { recursive: true });
-    const existing = [instanceJson('1.2.3.4.1', 1)];
+    // The series metadata has no entry for the instance on disk, so there is nothing to fall back to
+    const existing = [instanceJson('1.2.3.4.9', 9)];
     writeGzJson(path.join(seriesDir, 'metadata.gz'), existing);
 
     await seriesSummary(baseDir, STUDY_UID, SERIES_UID);
