@@ -47,22 +47,30 @@ export class FileDicomWebReader extends DicomWebReader {
     }
 
     // Check uncompressed file first (must be a regular file, not a directory)
+    let isDirectory = false;
     if (fs.existsSync(fullPath)) {
       try {
-        if (fs.lstatSync(fullPath).isFile()) {
+        const stat = fs.lstatSync(fullPath);
+        if (stat.isFile()) {
           return { exists: true, path: fullPath, isCompressed: false };
         }
+        isDirectory = stat.isDirectory();
       } catch {
         // stat failed, skip
       }
     }
-    
+
     // Check compressed version
     const compressedPath = `${fullPath}.gz`;
     if (fs.existsSync(compressedPath)) {
       return { exists: true, path: compressedPath, isCompressed: true };
     }
-    
+
+    // Older layout: <name>/index.json(.gz) instead of <name>(.gz), e.g. instances/<sop>/metadata/index.json.gz
+    if (isDirectory && filename !== 'index.json') {
+      return this.fileExists(`${relativePath}/${filename}`, 'index.json');
+    }
+
     return false;
   }
 
