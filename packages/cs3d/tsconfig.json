@@ -2,7 +2,9 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    // @cornerstonejs/core 5 resolves to ESM-only types; node20 allows require() of ESM.
+    "module": "node20"
   },
   "include": ["./src/**/*"]
 }
