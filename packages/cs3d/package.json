@@ -21,8 +21,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/radicalimaging/static-dicomweb",
-    "directory": "packages/static-cs-lite"
+    "url": "git+https://github.com/RadicalImaging/Static-DICOMWeb.git",
+    "directory": "packages/cs3d"
   },
   "bugs": {
     "url": "https://github.com/radicalimaging/static-dicomweb/issues"
@@ -62,7 +62,7 @@
   ],
   "scripts": {
     "test": "jest --config ./jest.config.js",
-    "build": "bun run build:esm",
+    "build": "pnpm run build:esm",
     "build:esm": "tsc --project ./tsconfig.json",
     "build:esm:watch": "tsc --project ./tsconfig.json --watch",
     "cs3d": "bun run src/cs3d.ts --",
@@ -70,8 +70,7 @@
     "link:exec": "bun link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "pack:js": "npm pack --",
-    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
-    "publishJS": "yarn publish  --no-git-tag-version"
+    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
   },
   "dependencies": {
     "@cornerstonejs/core": "5.11.5",

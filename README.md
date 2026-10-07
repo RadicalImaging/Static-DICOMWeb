@@ -30,9 +30,14 @@ There are two ways to install Static DICOMweb. First, the command line tools are
 A third option is to run the tools and deployment in a docker container.
 
 ## Prerequisite
-When you choose to install the pre-built version, or build the code yourself, you will need [bun](https://www.npmjs.com/package/bun) installed, e.g.
+The command line tools run on [bun](https://www.npmjs.com/package/bun), so install it for either the pre-built version or a source build:
 ```bash
 npm install -g bun
+```
+
+A source build also needs Node.js 22.13 or later and [pnpm](https://pnpm.io) 12, which manages the workspace:
+```bash
+npm install -g pnpm@12
 ```
 
 ## NPM Install
@@ -47,25 +52,25 @@ npm install -g @radicalimaging/static-wado-scp
 
 ## Source Install
 
-You can install locally using git, yarn, npm and node:
+You can install locally using git, pnpm and bun:
 
 ```bash
 git clone https://github.com/RadicalImaging/Static-DICOMWeb.git static-wado
 cd static-wado
-bun install
-bun run build
-bun link:exec
+pnpm install
+pnpm run build
+pnpm run link:exec
 ```
 
-The build runs packages one at a time (`--concurrency 1`) to avoid hangs with Bun 1.3.x when multiple `bun build` processes run in parallel. If you need a faster build and do not see hangs, use `bun run build:parallel`.
+The build runs packages one at a time (`--workspace-concurrency=1`). For a faster build, use `pnpm run build:parallel`.
 
 ## Docker Usage
 
 There are scripts in the root package to create a new docker deployment and to run it linking ports 25080 and 25104 to the DICOMweb and SCP endpoint. To create/start this, run:
 
 ```bash
-bun docker:build
-bun docker:run
+pnpm run docker:build
+pnpm run docker:run
 ```
 
 This will drop you into a bash shell and you can run mkdicomweb create or other
@@ -75,7 +80,7 @@ will have been mounted from `/a/dicom` as an available mount point.
 You can then run the dicom websererver using:
 
 ```bash
-bun docker:dicomwebserver
+pnpm run docker:dicomwebserver
 ```
 
 Another option is to use the [dcm4che](https://sourceforge.net/projects/dcm4che/files/dcm4che3/5.33.1/) stowrs command, like this:

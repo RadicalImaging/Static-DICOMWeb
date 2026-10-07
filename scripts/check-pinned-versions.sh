@@ -71,9 +71,36 @@ check_dep_block() {
   [[ "$block_failed" -eq 0 ]]
 }
 
+# pnpm-workspace.yaml overrides: a key may select a range (`pkg@<1.2.3`), but each value must be exact.
+check_workspace_overrides() {
+  local file="$REPO_ROOT/pnpm-workspace.yaml"
+  local entry name version
+  local block_failed=0
+  [[ -f "$file" ]] || return 0
+
+  while IFS=$'\t' read -r name version; do
+    [[ -z "$name" ]] && continue
+    if ! is_pinned "" "$version"; then
+      echo "Unpinned override in pnpm-workspace.yaml: ${name} -> ${version}" >&2
+      block_failed=1
+    fi
+  done < <(awk '
+    /^[^[:space:]#]/ { in_block = ($0 ~ /^overrides:/); next }
+    in_block && /^[[:space:]]+[^[:space:]#]/ {
+      line = $0; sub(/^[[:space:]]+/, "", line)
+      key = line; sub(/:[[:space:]][^:]*$/, "", key)
+      value = line; sub(/^.*:[[:space:]]+/, "", value)
+      gsub(/["\047]/, "", key); gsub(/["\047]/, "", value)
+      print key "\t" value
+    }' "$file")
+
+  [[ "$block_failed" -eq 0 ]]
+}
+
 load_workspace_versions
 
 failed=0
+check_workspace_overrides || failed=1
 while IFS= read -r -d '' pkg; do
   for block in dependencies devDependencies optionalDependencies peerDependencies overrides; do
     if ! check_dep_block "$pkg" "$block"; then

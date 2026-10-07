@@ -1,0 +1,60 @@
+packages:
+  - packages/*
+
+# Keep the hoisted node_modules layout that the jest configs and the Docker build expect.
+nodeLinker: hoisted
+strictPeerDependencies: false
+# The packages depend on each other by `>=` ranges, not `workspace:`, so pnpm must link them.
+linkWorkspacePackages: true
+preferWorkspacePackages: true
+frozenLockfile: true
+
+# https://pnpm.io/supply-chain-security - only install releases at least 2 days old (minutes).
+minimumReleaseAge: 2880
+# Cornerstone3D releases are trusted and taken as soon as they publish.
+minimumReleaseAgeExclude:
+  - '@cornerstonejs/*'
+
+allowBuilds:
+  canvas: true
+  core-js-pure: false
+  esbuild: true
+
+# Each value is an exact version; scripts/check-pinned-versions.sh enforces that.
+overrides:
+  '@babel/plugin-transform-modules-systemjs': 7.29.4
+  '@cornerstonejs/codec-openjph': 2.4.11
+  '@cornerstonejs/dicom-codec': 1.1.6
+  '@isaacs/brace-expansion': 5.0.1
+  adm-zip: 0.6.1
+  axios: 1.20.0
+  'brace-expansion@<1.1.20': 1.1.20
+  'brace-expansion@>=2.0.0 <2.1.6': 2.1.6
+  'brace-expansion@>=3.0.0 <3.0.6': 3.0.6
+  'brace-expansion@>=4.0.0 <5.0.11': 5.0.11
+  canvas: 3.1.0
+  dcmjs: 0.52.0
+  fast-uri: 3.1.8
+  fast-xml-builder: 1.2.0
+  fast-xml-parser: 5.7.2
+  flatted: 3.4.2
+  handlebars: 4.7.9
+  has-flag: 4.0.0
+  http-cache-semantics: 4.3.0
+  js-yaml: 4.3.2
+  lodash: 4.18.1
+  node-object-hash: 3.1.1
+  pacote: 21.5.1
+  path-to-regexp: 8.4.2
+  picomatch: 2.3.2
+  serialize-javascript: 7.0.5
+  smol-toml: 1.9.0
+  tar: 7.5.22
+  yallist: 4.0.0
+
+auditConfig:
+  ignoreGhsas:
+    # braces has no patched release (latest is 3.0.3). It only expands glob patterns that
+    # jest, micromatch and http-proxy-middleware get from repo config, never user input.
+    # Replace this ignore with an override once a patched braces ships.
+    - GHSA-vfj7-8cjw-p6xm

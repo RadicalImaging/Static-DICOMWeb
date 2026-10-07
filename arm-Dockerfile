@@ -16,23 +16,23 @@ RUN apt-get update && apt-get install -y \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install global tools
-RUN npm install -g lerna@9.0.7 bun@1.3.13
+RUN npm install -g pnpm@12.9.1
 
 # Setup workdir
 WORKDIR /app
 
 # Copy dependency files first to leverage Docker cache
-COPY --parents bun.lock *.tgz package.json packages/*/package.json ./
+COPY --parents pnpm-lock.yaml pnpm-workspace.yaml *.tgz package.json packages/*/package.json ./
 
 # Install dependencies
 ENV PATH=/app/node_modules/.bin:$PATH
-RUN bun install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
 # Copy remaining source code
 COPY --link --exclude=node_modules --exclude=**/dist . .
 
 # Build and pack
-RUN lerna run build --stream --concurrency 1 --ignore @radicalimaging/s3-deploy && bun run pack:js
+RUN pnpm -r --workspace-concurrency=1 --filter '!@radicalimaging/s3-deploy' run build && pnpm run pack:js
 
 
 FROM node:24 as installer
