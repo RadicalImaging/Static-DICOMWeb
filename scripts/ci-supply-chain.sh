@@ -50,7 +50,16 @@ fi
 
 if should_run_bun_audit; then
   echo 'bun.lock changed in this change set; running bun audit (high/critical)...'
-  bun audit --audit-level=high
+  # Accepted dev-only DoS advisories with no usable fix; bun has no config-file ignore list.
+  # Remove each ID once a patched release can be pinned with an override.
+  #   GHSA-vfj7-8cjw-p6xm: braces <=3.0.3 (jest, micromatch, http-proxy-middleware); no patched release exists.
+  #   GHSA-rgw5-rvv9-x895, GHSA-qhr7-859c-m2p7, GHSA-6j4f-fj2g-mc7p: brace-expansion 5.0.8 pinned
+  #     exactly by nx (via lerna); a global override would break the minimatch versions that need ^1.
+  bun audit --audit-level=high \
+    --ignore=GHSA-vfj7-8cjw-p6xm \
+    --ignore=GHSA-rgw5-rvv9-x895 \
+    --ignore=GHSA-qhr7-859c-m2p7 \
+    --ignore=GHSA-6j4f-fj2g-mc7p
 else
   echo 'bun.lock unchanged; skipping bun audit.'
 fi

@@ -8,6 +8,7 @@ linker = "hoisted"
 # Supply-chain knob: skip package versions published in the last 2 days (seconds).
 minimumReleaseAge = 172800
 # Cornerstone3D releases are trusted and taken as soon as they publish.
+# Keep in sync with bunfig.update-lockfile.toml (--config replaces this file, it does not merge).
 minimumReleaseAgeExcludes = [
   "@cornerstonejs/calculate-suv",
   "@cornerstonejs/codec-big-endian",
