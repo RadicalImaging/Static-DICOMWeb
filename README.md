@@ -66,14 +66,13 @@ The build runs packages one at a time (`--workspace-concurrency=1`). For a faste
 
 ## Docker Usage
 
-Released images are multi-arch (linux/amd64 and linux/arm64), and are on Docker Hub and on GHCR:
+Released images are on Docker Hub as `braveheartsoftware/static-dicomweb`, with a `X.Y.Z` tag per release and `latest`.
+Releases after 1.7.7 are multi-arch (linux/amd64 and linux/arm64), and are also on GHCR as `ghcr.io/radicalimaging/static-dicomweb`.
+Releases up to 1.7.7 are linux/amd64 only.
 
-```bash
-docker pull braveheartsoftware/static-dicomweb:latest
-docker pull ghcr.io/radicalimaging/static-dicomweb:latest
-```
+An npm release does not publish an image. A maintainer publishes the image of a release tag with the `Publish Docker images` workflow (Actions > Run workflow).
 
-A maintainer publishes the images of a release tag with the `Publish Docker images` workflow (Actions > Run workflow).
+`pnpm run docker:build:arm` builds a linux/arm64 image. On an amd64 host, that build needs QEMU emulation, which Docker Desktop includes, and it is slow.
 
 There are scripts in the root package to create a new docker deployment and to run it linking ports 25080 and 25104 to the DICOMweb and SCP endpoint. To create/start this, run:
 

@@ -4,6 +4,7 @@ import { bumpVersion, releaseTypeOf, releaseTypeOfAll } from './release-type.mjs
 import { sortByDependencies } from './workspace-packages.mjs';
 import { findProblems } from './verify-version-commit.mjs';
 import { findEntryProblems } from './publish-package.mjs';
+import { chooseRelease } from './docker-release.mjs';
 
 test('the bump follows the conventional commit rules', () => {
   assert.equal(bumpVersion('1.7.6', 'patch'), '1.7.7');
@@ -85,5 +86,15 @@ test('a tarball holds each path once, as a file or a directory under package/', 
     [...clean, file('package/node_modules/x/index.js')],
   ]) {
     assert.notDeepEqual(findEntryProblems(entries), [], entries.at(-1).name);
+  }
+});
+
+test('the Docker image builds a release tag, and only the newest one moves latest', () => {
+  const tags = ['v1.5.0', 'v1.10.0', 'v1.9.2', 'v2.0.0-beta.1', 'healthlake-v1.0.0'];
+
+  assert.deepEqual(chooseRelease(tags), { tag: 'v1.10.0', version: '1.10.0', latest: true });
+  assert.deepEqual(chooseRelease(tags, 'v1.9.2'), { tag: 'v1.9.2', version: '1.9.2', latest: false });
+  for (const requested of ['v2.0.0-beta.1', 'v1.9.3', '1.9.2', 'v1.9.2; rm -rf /']) {
+    assert.throws(() => chooseRelease(tags, requested), undefined, requested);
   }
 });

@@ -6,6 +6,8 @@ services:
   # refer to the Keycloak documentation for instruction on how to properly
   # secure Keycloak.
   static-dicomweb:
+    # Images up to 1.7.7 are amd64 only; arm64 hosts run them under emulation.
+    platform: linux/amd64
     image: braveheartsoftware/static-dicomweb:latest
     container_name: static-dicomweb
     ports:
