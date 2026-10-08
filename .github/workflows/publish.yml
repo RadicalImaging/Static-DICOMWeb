@@ -179,7 +179,7 @@ jobs:
           fi
 
           if [ "$(git rev-parse "${TAG}^{commit}")" != "$(git rev-parse HEAD)" ]; then
-            echo "::error::npm does not hold ${TAG}. Start a manual run of this workflow on the tag ${TAG}. Each run for master fails until npm holds ${TAG}."
+            echo "::error::npm does not hold ${TAG}. Start a manual run of this workflow on the tag ${TAG}. Each run for master fails until npm holds ${TAG}. After that, re-run the master runs that failed, or their changes wait for the next merge."
             exit 1
           fi
 
@@ -358,7 +358,32 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: refs/tags/${{ needs.prepare.outputs.tag }}
+          # The parent, for the check below.
+          fetch-depth: 2
           persist-credentials: false
+
+      # The tag comes from an output of the prepare job, which runs dependency
+      # code. This job runs none, so it checks the tag again: the tag must name
+      # the commit of this run (a tag run), or the version commit on top of it.
+      - name: Check the tag
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::The tag ${TAG} is not v<major.minor.patch>."; exit 1 ;;
+          esac
+          TAGGED="$(git rev-parse HEAD)"
+          if [ "$TAGGED" = "$GITHUB_SHA" ]; then
+            exit 0
+          fi
+          PARENTS="$(git rev-list --parents -n 1 HEAD | cut -d' ' -f2-)"
+          SUBJECT="$(git log -1 --format=%s HEAD)"
+          if [ "$PARENTS" = "$GITHUB_SHA" ] && [ "$SUBJECT" = "chore(release): publish ${TAG} [skip ci]" ]; then
+            exit 0
+          fi
+          echo "::error::The tag ${TAG} names ${TAGGED}, which is neither ${GITHUB_SHA} nor its version commit."
+          exit 1
 
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0

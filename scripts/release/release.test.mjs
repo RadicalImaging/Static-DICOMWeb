@@ -72,14 +72,18 @@ test('a tarball holds each path once, as a file or a directory under package/', 
   const file = (name) => ({ name, type: '-' });
   const clean = [{ name: 'package/', type: 'd' }, file('package/package.json'), file('package/lib/index.js')];
 
-  assert.deepEqual(findEntryProblems(clean, false), []);
+  assert.deepEqual(findEntryProblems(clean), []);
+  assert.deepEqual(findEntryProblems([...clean, file('package/binding.gyp')], ['binding.gyp']), []);
   for (const entries of [
     [...clean, file('zz/package.json')],
     [...clean, file('package/./package.json')],
     [...clean, file('package//package.json')],
+    [...clean, file('package/PACKAGE.JSON')],
     [...clean, { name: 'package/link', type: 'l' }],
     [...clean, file('package/binding.gyp')],
+    [...clean, file('package/npm-shrinkwrap.json')],
+    [...clean, file('package/node_modules/x/index.js')],
   ]) {
-    assert.notDeepEqual(findEntryProblems(entries, false), [], entries.at(-1).name);
+    assert.notDeepEqual(findEntryProblems(entries), [], entries.at(-1).name);
   }
 });

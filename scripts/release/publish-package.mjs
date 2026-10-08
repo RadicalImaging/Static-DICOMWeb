@@ -47,20 +47,27 @@ const INSTALL_FIELDS = [
   'bundledDependencies',
 ];
 
+// Files at the root of a package that change what an install does: npm runs
+// node-gyp for a binding.gyp, and installs the tree of an npm-shrinkwrap.json.
+// A tarball may hold one only when the tag holds it.
+const INSTALL_FILES = ['binding.gyp', 'npm-shrinkwrap.json'];
+
 /**
  * The problems of the entries of a tarball; an empty list accepts them.
  *
  * npm drops the first directory of each entry, and keeps the last entry for a
  * path, so a second top-level directory, or a second spelling of a path
- * (`package/./package.json`, `package//package.json`), could replace the
- * package.json that this check reads. So each entry must be a file or a
- * directory, in its normal spelling, under `package/`, and occur once. A
- * `binding.gyp` makes npm run node-gyp at install, so it must come from the tag.
+ * (`package/./package.json`, `package//package.json`, or another case on a
+ * file system that ignores case), could replace the package.json that this
+ * check reads. So each entry must be a file or a directory, in its normal
+ * spelling, under `package/`, and occur once in any case. No package of this
+ * repository bundles its dependencies, so no entry may be in `node_modules/`.
  *
  * - `entries`: `{ name, type }` for each entry, with the type character of
  *   `tar -tv` (`-` for a file, `d` for a directory).
+ * - `installFilesInTag`: the names of INSTALL_FILES that the tag holds.
  */
-export function findEntryProblems(entries, bindingGypInTag) {
+export function findEntryProblems(entries, installFilesInTag = []) {
   const problems = [];
   const names = entries.map(({ name }) => name);
 
@@ -71,12 +78,17 @@ export function findEntryProblems(entries, bindingGypInTag) {
     if (type !== '-' && type !== 'd') {
       problems.push(`the entry ${name} is not a file or a directory`);
     }
+    if (name.split('/').includes('node_modules')) {
+      problems.push(`the entry ${name} is in node_modules/`);
+    }
   }
-  if (new Set(names).size !== names.length) {
+  if (new Set(names.map((name) => name.toLowerCase())).size !== names.length) {
     problems.push('an entry occurs more than once');
   }
-  if (names.includes('package/binding.gyp') && !bindingGypInTag) {
-    problems.push('the tarball holds a binding.gyp that the tag does not hold');
+  for (const file of INSTALL_FILES) {
+    if (names.includes(`package/${file}`) && !installFilesInTag.includes(file)) {
+      problems.push(`the tarball holds a ${file} that the tag does not hold`);
+    }
   }
 
   return problems;
@@ -89,12 +101,15 @@ async function readTarballManifest(file, dir) {
     throw new Error(`${file}: the listing of the entries is not readable.`);
   }
 
-  const bindingGypInTag = await fs
-    .access(path.join(dir, 'binding.gyp'))
-    .then(() => true, () => false);
+  const installFilesInTag = [];
+  for (const name of INSTALL_FILES) {
+    if (await fs.access(path.join(dir, name)).then(() => true, () => false)) {
+      installFilesInTag.push(name);
+    }
+  }
   const problems = findEntryProblems(
     names.map((name, index) => ({ name, type: types[index] })),
-    bindingGypInTag
+    installFilesInTag
   );
   if (problems.length) {
     throw new Error(`${file}: ${problems.join('; ')}.`);
@@ -130,9 +145,11 @@ async function run() {
     );
   }
 
-  const published = [];
+  // Check every tarball before the first publish. A failed check after a
+  // partial publish would leave npm with part of a version that no run can
+  // finish, because each run builds from the same tag and fails the same way.
+  const pending = [];
   const skipped = [];
-
   for (const { name, dir: packageDir, manifest } of packages) {
     const { version } = manifest;
     const id = `${name}@${version}`;
@@ -150,10 +167,14 @@ async function run() {
     );
     if (changed.length) {
       throw new Error(
-        `The package.json of ${file} differs from ${id} of the tag in: ${changed.join(', ')}.`
+        `The package.json of ${file} differs from ${id} of the tag in: ${changed.join(', ')}. This run published nothing.`
       );
     }
+    pending.push({ id, file });
+  }
 
+  const published = [];
+  for (const { id, file } of pending) {
     console.log(`Publishing ${id}...`);
     try {
       await runInherit('npm', [
@@ -165,9 +186,10 @@ async function run() {
       console.log(`Published: ${published.join(', ') || 'none'}`);
       console.error(
         `::error::The publish stopped at ${id}, after ${published.length} of ` +
-          `${packages.length} packages. The packages after ${id} wait, because ` +
+          `${pending.length} packages. The packages after ${id} wait, because ` +
           `they can need it. Use "Re-run failed jobs", which keeps the version ` +
-          `of this run. After 30 days, start a manual run on the version tag.`
+          `of this run. After 30 days, start a manual run on the version tag. ` +
+          `Then re-run each master run that failed while npm lacked this version.`
       );
       throw new Error(`Failed to publish ${id}`);
     }

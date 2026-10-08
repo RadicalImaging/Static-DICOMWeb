@@ -17,10 +17,6 @@ import {
 const ALLOWED_FILE = /^(pnpm-lock\.yaml|packages\/[^/]+\/package\.json)$/;
 const VERSION = String.raw`\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?`;
 
-function escape(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 /**
  * The problems of a version commit; an empty list accepts it.
  *
@@ -114,7 +110,7 @@ export function findProblems({
   //   -     specifier: '>=1.7.6'
   //   +     specifier: '>=1.7.7'
   const removed = new RegExp(`^-\\s+specifier: '?(>=)?${VERSION}'?$`);
-  const added = new RegExp(`^\\+\\s+specifier: '?(>=)?${escape(nextVersion)}'?$`);
+  const added = new RegExp(`^\\+\\s+specifier: '?(>=)?${RegExp.escape(nextVersion)}'?$`);
   const dependencyName = /^ \s+'?([^':\s]+)'?:$/;
   // The file header ends at the first `@@`. After it, a `+++ ` line is a lockfile line.
   const lines = lockfileDiff.split('\n');
