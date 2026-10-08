@@ -1,0 +1,226 @@
+name: Publish Docker images
+
+# Builds the image of one release tag for linux/amd64 and linux/arm64, and
+# publishes one multi-arch tag to Docker Hub and to GHCR. A person starts it
+# from the Actions tab ("Run workflow"); no push or merge starts it.
+#
+# Each architecture builds on a native runner (no QEMU), and pushes an
+# untagged image by digest to GHCR with GITHUB_TOKEN. The `publish` job then
+# joins the digests into one tag in both registries.
+#
+# Only the `publish` job can read the Docker Hub token. The token lives in the
+# `docker-hub` environment, which requires a reviewer and allows only master.
+# Environment settings:
+#   secret   DOCKERHUB_TOKEN    - a Docker Hub access token with write access
+#                                 to braveheartsoftware/static-dicomweb
+#   variable DOCKERHUB_USERNAME - optional, the account that owns the token
+#                                 (default braveheartsoftware)
+# Without DOCKERHUB_TOKEN, the run publishes to GHCR only and warns.
+#
+# The build uses the Dockerfile of the release tag, so a tag older than the
+# merged amd64/arm64 Dockerfile cannot build for arm64.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, for example v1.7.6. Empty means the newest release tag.'
+        required: false
+        default: ''
+
+concurrency:
+  group: publish-docker
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  DOCKERHUB_IMAGE: braveheartsoftware/static-dicomweb
+  GHCR_IMAGE: ghcr.io/radicalimaging/static-dicomweb
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    # The workflow file and the environment rules come from the dispatch ref.
+    if: github.ref == 'refs/heads/master'
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+      latest: ${{ steps.tag.outputs.latest }}
+    steps:
+      - name: Choose the release tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          RELEASE='^v[0-9]+\.[0-9]+\.[0-9]+$'
+          NEWEST="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/v" \
+            --jq '.[].ref | ltrimstr("refs/tags/")' | grep -E "$RELEASE" | sort -V | tail -n 1)"
+          TAG="${INPUT_TAG:-$NEWEST}"
+
+          if ! printf '%s\n' "$TAG" | grep -qE "$RELEASE"; then
+            echo "::error::'${TAG}' is not a release tag of the form v1.2.3."
+            exit 1
+          fi
+          if ! gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" >/dev/null; then
+            echo "::error::The tag ${TAG} does not exist."
+            exit 1
+          fi
+          # master must contain the tag, so that only released code gets an image.
+          STATUS="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${TAG}...master" --jq .status)"
+          if [ "$STATUS" != 'ahead' ] && [ "$STATUS" != 'identical' ]; then
+            echo "::error::master does not contain ${TAG} (compare status: ${STATUS})."
+            exit 1
+          fi
+
+          LATEST=false
+          if [ "$TAG" = "$NEWEST" ]; then LATEST=true; fi
+          {
+            echo "tag=${TAG}"
+            echo "version=${TAG#v}"
+            echo "latest=${LATEST}"
+          } >> "$GITHUB_OUTPUT"
+          echo "::notice::Building ${TAG} (latest: ${LATEST})."
+
+  build:
+    needs: resolve
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write # push the untagged image to GHCR
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@v6.0.3
+        with:
+          ref: refs/tags/${{ needs.resolve.outputs.tag }}
+          persist-credentials: false
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v7.4.0
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          outputs: type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=docker-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=docker-${{ matrix.arch }}
+
+      - name: Export the digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "${RUNNER_TEMP}/digests"
+          touch "${RUNNER_TEMP}/digests/${DIGEST#sha256:}"
+
+      - name: Upload the digest
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: digests-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # The approval gate. The run waits here until a reviewer approves.
+    environment:
+      name: docker-hub
+      url: https://hub.docker.com/r/braveheartsoftware/static-dicomweb/tags
+    permissions:
+      contents: read
+      packages: write # tag the image in GHCR
+    env:
+      # An `if:` cannot read a secret directly.
+      HAS_DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+    steps:
+      - name: Check the Docker Hub token
+        if: env.HAS_DOCKERHUB_TOKEN != 'true'
+        run: |
+          echo "::warning::The docker-hub environment has no DOCKERHUB_TOKEN secret, so this run publishes to GHCR only. Add the secret in Settings > Environments > docker-hub."
+
+      - name: Download the digests
+        uses: actions/download-artifact@v8.0.2
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Log in to Docker Hub
+        if: env.HAS_DOCKERHUB_TOKEN == 'true'
+        uses: docker/login-action@v4.6.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME || 'braveheartsoftware' }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create the multi-arch tags
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          LATEST: ${{ needs.resolve.outputs.latest }}
+        run: |
+          IMAGES=("$GHCR_IMAGE")
+          if [ "$HAS_DOCKERHUB_TOKEN" = 'true' ]; then
+            IMAGES+=("$DOCKERHUB_IMAGE")
+          fi
+
+          SOURCES=()
+          for FILE in "${RUNNER_TEMP}"/digests/*; do
+            SOURCES+=("${GHCR_IMAGE}@sha256:$(basename "$FILE")")
+          done
+          if [ "${#SOURCES[@]}" -ne 2 ]; then
+            echo "::error::Expected 2 digests (amd64, arm64), found ${#SOURCES[@]}."
+            exit 1
+          fi
+
+          TAGS=()
+          for IMAGE in "${IMAGES[@]}"; do
+            TAGS+=(-t "${IMAGE}:${VERSION}")
+            if [ "$LATEST" = 'true' ]; then
+              TAGS+=(-t "${IMAGE}:latest")
+            fi
+          done
+          docker buildx imagetools create "${TAGS[@]}" "${SOURCES[@]}"
+
+      - name: Inspect the published images
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          docker buildx imagetools inspect "${GHCR_IMAGE}:${VERSION}"
+          if [ "$HAS_DOCKERHUB_TOKEN" = 'true' ]; then
+            docker buildx imagetools inspect "${DOCKERHUB_IMAGE}:${VERSION}"
+          fi

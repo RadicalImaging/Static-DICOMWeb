@@ -6,8 +6,7 @@ services:
   # refer to the Keycloak documentation for instruction on how to properly
   # secure Keycloak.
   static-dicomweb:
-    platform: linux/amd64
-    image: braveheartsoftware/static-dicomweb:v1
+    image: braveheartsoftware/static-dicomweb:latest
     container_name: static-dicomweb
     ports:
       - "5000:5000"

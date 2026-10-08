@@ -66,6 +66,15 @@ The build runs packages one at a time (`--workspace-concurrency=1`). For a faste
 
 ## Docker Usage
 
+Released images are multi-arch (linux/amd64 and linux/arm64), and are on Docker Hub and on GHCR:
+
+```bash
+docker pull braveheartsoftware/static-dicomweb:latest
+docker pull ghcr.io/radicalimaging/static-dicomweb:latest
+```
+
+A maintainer publishes the images of a release tag with the `Publish Docker images` workflow (Actions > Run workflow).
+
 There are scripts in the root package to create a new docker deployment and to run it linking ports 25080 and 25104 to the DICOMweb and SCP endpoint. To create/start this, run:
 
 ```bash
@@ -115,7 +124,7 @@ There are a number of shared directories and files used to configure various set
 
 ```bash
 // Deploy the default build image
-docker run  --mount type=bind,source=/dicomweb,target=/dicomweb -p 25080:5000 -p 25104:11112 -d braveheartsoftware/static-dicomweb:0.6
+docker run  --mount type=bind,source=/dicomweb,target=/dicomweb -p 25080:5000 -p 25104:11112 -d braveheartsoftware/static-dicomweb:latest
 ```
 
 That will result in an instance running on port 25080 for dicomweb, and DIMSE services on 25104.
