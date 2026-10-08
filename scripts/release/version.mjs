@@ -1,37 +1,51 @@
-import { execa } from 'execa';
-import semver from 'semver';
 import fs from 'fs/promises';
-import { VERSION_SOURCE } from './workspace-packages.mjs';
+import { computeNextVersion } from './release-type.mjs';
+import {
+  getPublishablePackages,
+  isPublished,
+  readCurrentVersion,
+  runText,
+} from './workspace-packages.mjs';
 
 // Computes the next version and writes it to version.txt.
-// A last commit message that starts with `feat` bumps the minor version; anything else bumps the patch.
+//
+// The run stops here, before the push, when the next version exists already:
+// as a tag, the atomic push fails; on npm, the publish would skip every package
+// and the run would end without an error and without a release.
 
 async function run() {
-  const { version: currentVersion } = JSON.parse(
-    await fs.readFile(VERSION_SOURCE, 'utf-8')
-  );
+  const currentVersion = await readCurrentVersion();
   console.log('Current version:', currentVersion);
 
-  const { stdout: lastCommitMessage } = await execa('git', [
-    'log',
-    '--format=%B',
-    '-n',
-    '1',
-  ]);
-  const releaseType = lastCommitMessage.trim().startsWith('feat')
-    ? 'minor'
-    : 'patch';
-  const nextVersion = semver.inc(currentVersion, releaseType);
+  const { nextVersion, releaseType, commitCount } = await computeNextVersion(
+    currentVersion,
+    'HEAD',
+    (message) => console.warn(message)
+  );
+  console.log(`Next version (${releaseType}, from ${commitCount} commits):`, nextVersion);
 
-  if (!nextVersion) {
-    throw new Error(`Could not determine the next version after ${currentVersion}`);
+  const tagExists = await runText('git', [
+    'rev-parse', '--verify', '--quiet', `refs/tags/v${nextVersion}`,
+  ]).then(() => true, () => false);
+  if (tagExists) {
+    throw new Error(`The tag v${nextVersion} exists already.`);
   }
 
-  console.log(`Next version (${releaseType}):`, nextVersion);
+  const packages = await getPublishablePackages();
+  const held = [];
+  for (const { name } of packages) {
+    if (await isPublished(name, nextVersion)) {
+      held.push(`${name}@${nextVersion}`);
+    }
+  }
+  if (held.length) {
+    throw new Error(`npm holds the next version already: ${held.join(', ')}.`);
+  }
+
   await fs.writeFile('./version.txt', nextVersion);
 }
 
 run().catch((err) => {
-  console.error('Error encountered while computing the next version:', err);
+  console.error('Error encountered while computing the next version:', err.message);
   process.exit(1);
 });

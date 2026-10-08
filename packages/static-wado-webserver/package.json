@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-webserver",
-  "version": "1.7.6",
+  "version": "1.7.7",
   "description": "Webserver to serve a static-wado repo",
   "publishConfig": {
     "access": "public"
@@ -65,9 +65,9 @@
   },
   "dependencies": {
     "@cornerstonejs/dicom-codec": "1.1.6",
-    "@radicalimaging/create-dicomweb": ">=1.7.6",
-    "@radicalimaging/static-wado-plugins": ">=1.7.6",
-    "@radicalimaging/static-wado-util": ">=1.7.6",
+    "@radicalimaging/create-dicomweb": ">=1.7.7",
+    "@radicalimaging/static-wado-plugins": ">=1.7.7",
+    "@radicalimaging/static-wado-util": ">=1.7.7",
     "@saga-bus/core": "0.2.2",
     "config-point": "0.8.0",
     "content-type": "1.0.5",

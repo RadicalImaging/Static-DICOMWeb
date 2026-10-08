@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/create-dicomweb",
-  "version": "1.7.6",
+  "version": "1.7.7",
   "description": "Library to convert part 10 to DICOMweb file format using the streaming dcmjs parser",
   "publishConfig": {
     "access": "public"
@@ -50,9 +50,9 @@
     "verbose": true
   },
   "dependencies": {
-    "@radicalimaging/cs3d": ">=1.7.6",
-    "@radicalimaging/static-wado-creator": ">=1.7.6",
-    "@radicalimaging/static-wado-util": ">=1.7.6",
+    "@radicalimaging/cs3d": ">=1.7.7",
+    "@radicalimaging/static-wado-creator": ">=1.7.7",
+    "@radicalimaging/static-wado-util": ">=1.7.7",
     "adm-zip": "0.6.1",
     "canvas": "3.1.0",
     "commander": "12.1.0",

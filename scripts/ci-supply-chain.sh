@@ -14,6 +14,11 @@ lockfile_changed_in_range() {
 }
 
 should_run_audit() {
+  # The publish workflow audits in its own step, and only for a new version.
+  if [[ "${SKIP_AUDIT:-}" == "1" ]]; then
+    return 1
+  fi
+
   if [[ "${FORCE_AUDIT:-}" == "1" ]]; then
     return 0
   fi
