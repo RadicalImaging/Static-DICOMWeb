@@ -10,12 +10,16 @@ name: Publish to npm
 #
 # The version commit and the tag go to master BEFORE npm sees the packages. git
 # can reject a push, and npm cannot take a version back, so the step that can
-# fail cheaply runs first. A tag that npm does not hold yet repairs itself: the
-# next run sees the gap and publishes that version (`recover` mode) instead of
-# taking a new one.
+# fail cheaply runs first. A tag that npm does not hold yet repairs itself: a
+# re-run, or the run of the next merge, sees the gap and publishes that version
+# (`recover` mode) from the tagged commit instead of taking a new one. The run
+# of the next merge takes no version for that merge; the merge after it, or a
+# manual run, does.
 #
-# GITHUB_TOKEN pushes the version commit and the tag. GitHub starts no workflow
-# for such a push, so this workflow does not re-trigger itself.
+# The RELEASE_DEPLOY_KEY deploy key pushes the version commit, and a push with a
+# deploy key DOES start workflows. Only the `[skip ci]` in the message of the
+# version commit (publish-version.mjs) stops a release loop. The check of the
+# `chore(release): publish` subject below is a fallback. Keep both.
 
 on:
   push:
@@ -44,8 +48,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6.0.3
         with:
-          # version.mjs reads the last commit message, and the new tag must not
-          # collide with an existing one.
+          # version.mjs reads the commits since the last tag, `recover` mode
+          # checks out a tag, and the new tag must not collide with an existing one.
           fetch-depth: 0
           submodules: true
           # The install runs dependency lifecycle scripts, and none of them
@@ -53,12 +57,18 @@ jobs:
           persist-credentials: false
 
       # When a second change lands first, the run that holds the tip releases
-      # both changes, and this one does nothing.
+      # both changes, and this one does nothing. A re-run of a run that pushed
+      # its version commit continues from that commit, in `recover` mode.
       - name: Check that this run holds the tip of master
         id: tip
         run: |
           git fetch --no-tags origin master
           if [ "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)" ]; then
+            echo 'proceed=true' >> "$GITHUB_OUTPUT"
+          elif git log -1 --pretty=%s FETCH_HEAD | grep -q '^chore(release): publish' &&
+               [ "$(git rev-parse FETCH_HEAD^)" = "$(git rev-parse HEAD)" ]; then
+            echo "::notice::master holds the version commit of this run, so this run continues from that commit."
+            git checkout --quiet --detach FETCH_HEAD
             echo 'proceed=true' >> "$GITHUB_OUTPUT"
           else
             echo 'proceed=false' >> "$GITHUB_OUTPUT"
@@ -109,6 +119,27 @@ jobs:
           fi
           echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
 
+      # npm must get the code of the tag, not the code of a later merge.
+      # The provenance attestation still names the commit of this run
+      # (GITHUB_SHA), because the OIDC token carries that commit.
+      - name: Check out the tagged commit
+        if: steps.mode.outputs.mode == 'recover'
+        run: |
+          TAG="v$(node -p "require('./packages/create-dicomweb/package.json').version")"
+          if ! git rev-parse --verify --quiet "refs/tags/${TAG}" >/dev/null; then
+            echo "::error::master carries ${TAG}, but the tag does not exist. Create the tag on the version commit, then re-run."
+            exit 1
+          fi
+
+          if [ "$(git rev-parse "${TAG}^{commit}")" = "$(git rev-parse HEAD)" ]; then
+            exit 0
+          fi
+
+          echo "::warning::This run builds ${TAG}, not ${GITHUB_SHA}. The provenance attestation names ${GITHUB_SHA}."
+          git checkout --quiet --detach "$TAG"
+          git submodule update --init --recursive
+          pnpm install --frozen-lockfile
+
       - name: Compute the next version
         if: steps.mode.outputs.mode == 'release'
         run: node ./scripts/release/version.mjs
@@ -150,8 +181,8 @@ jobs:
         env:
           DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
         run: |
-          TAG='${{ steps.release.outputs.tag }}'
           KEY_FILE="$(mktemp)"
           trap 'rm -f "$KEY_FILE"' EXIT
           printf '%s\n' "$DEPLOY_KEY" > "$KEY_FILE"
@@ -178,9 +209,8 @@ jobs:
         if: steps.tip.outputs.proceed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
         run: |
-          TAG='${{ steps.release.outputs.tag }}'
-
           # A `recover` run or a re-run can reach a release that exists.
           if gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             echo "The release $TAG exists already."

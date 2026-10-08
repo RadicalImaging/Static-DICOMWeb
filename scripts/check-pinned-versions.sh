@@ -71,6 +71,10 @@ check_dep_block() {
   [[ "$block_failed" -eq 0 ]]
 }
 
+is_exact_semver() {
+  [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[[:alnum:].-]+)?(\+[[:alnum:].-]+)?$ ]]
+}
+
 # pnpm-workspace.yaml overrides: a key may select a range (`pkg@<1.2.3`), but each value must be exact.
 check_workspace_overrides() {
   local file="$REPO_ROOT/pnpm-workspace.yaml"
@@ -80,7 +84,7 @@ check_workspace_overrides() {
 
   while IFS=$'\t' read -r name version; do
     [[ -z "$name" ]] && continue
-    if ! is_pinned "" "$version"; then
+    if ! is_exact_semver "$version"; then
       echo "Unpinned override in pnpm-workspace.yaml: ${name} -> ${version}" >&2
       block_failed=1
     fi

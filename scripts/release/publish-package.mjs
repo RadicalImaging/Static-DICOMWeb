@@ -44,12 +44,12 @@ async function run() {
   console.log(`Skipped: ${skipped.length ? skipped.join(', ') : 'none'}`);
 
   if (failures.length) {
-    // A re-run skips the packages above and publishes the rest at the same
-    // version, as long as no new change lands on master first.
+    // A re-run, or the run of the next merge, runs in `recover` mode: it builds
+    // the tagged commit and publishes the packages that npm still lacks.
     console.error(
       `::error::The publish stopped after ${published.length} of ` +
-        `${packages.length} packages. Re-run this workflow before another ` +
-        `change lands on master.`
+        `${packages.length} packages. Re-run this workflow to publish the rest ` +
+        `from the tagged commit.`
     );
     throw new Error(`Failed to publish: ${failures.join(', ')}`);
   }

@@ -1,5 +1,6 @@
 import { execa } from 'execa';
 import fs from 'fs/promises';
+import semver from 'semver';
 import { getAllPackages, isPublishable } from './workspace-packages.mjs';
 
 // Sets every package to the version in version.txt, then commits and tags that
@@ -31,7 +32,9 @@ async function run() {
   }
 
   // Each dependency on a package of this release moves with the release, and
-  // keeps its `>=` prefix so consumers still accept later releases.
+  // keeps its `>=` prefix so consumers still accept later releases. Any other
+  // range (`^`, `workspace:`) stops the release, because the rewrite to an
+  // exact version would change what consumers accept.
   for (const entry of allPackages) {
     for (const dependencyType of [
       'peerDependencies',
@@ -47,6 +50,14 @@ async function run() {
       for (const [dependency, range] of Object.entries(dependencies)) {
         if (publishableNames.has(dependency)) {
           const prefix = range.startsWith('>=') ? '>=' : '';
+
+          if (!semver.valid(range.slice(prefix.length))) {
+            throw new Error(
+              `${entry.name}: ${dependencyType} ${dependency} has the range ` +
+                `"${range}". Use ">=<version>" or an exact version.`
+            );
+          }
+
           dependencies[dependency] = `${prefix}${nextVersion}`;
           console.log(
             `${entry.name}: ${dependencyType} ${dependency} -> ${dependencies[dependency]}`
@@ -72,7 +83,14 @@ async function run() {
     '--no-frozen-lockfile',
   ]);
 
-  await runCommand('git', ['add', '-A', 'packages', 'pnpm-lock.yaml']);
+  // Only the files that this script changed. The build and the test ran
+  // before, and their output must not reach master without a review.
+  await runCommand('git', [
+    'add',
+    '--',
+    'pnpm-lock.yaml',
+    ...allPackages.map((entry) => entry.manifestPath),
+  ]);
   await runCommand('git', [
     'commit',
     '-m',

@@ -78,13 +78,11 @@ export async function isPublished(name, version) {
 
 /** The packages of the given set that npm does not hold at their version. */
 export async function findUnpublished(packages) {
-  const missing = [];
+  const published = await Promise.all(
+    packages.map((entry) => isPublished(entry.name, entry.manifest.version))
+  );
 
-  for (const entry of packages) {
-    if (!(await isPublished(entry.name, entry.manifest.version))) {
-      missing.push(`${entry.name}@${entry.manifest.version}`);
-    }
-  }
-
-  return missing;
+  return packages
+    .filter((_, index) => !published[index])
+    .map((entry) => `${entry.name}@${entry.manifest.version}`);
 }
