@@ -1,79 +1,48 @@
 import { execa } from 'execa';
 import semver from 'semver';
 import fs from 'fs/promises';
+import { releaseTypeOfAll } from './release-type.mjs';
 import { VERSION_SOURCE } from './workspace-packages.mjs';
 
 // Computes the next version and writes it to version.txt.
 
-const RELEASE_TYPES = ['patch', 'minor', 'major'];
-
 /**
- * The bump that one commit message asks for, by the conventional commit rules:
- * `type!:` or a `BREAKING CHANGE:` footer gives a major, `feat` gives a minor,
- * and every other message (a merge commit, a non-conventional title) gives a patch.
+ * The commit messages since the current version: the commits that HEAD holds
+ * and the tag of the current version does not.
+ *
+ * The tag must exist. A tag that is not on the history of HEAD still works,
+ * because `tag..HEAD` then starts at the merge base (v1.7.6 is a publish commit
+ * next to master), but the run says so.
  */
-function releaseTypeOf(message) {
-  const subject = message.trim().split('\n', 1)[0];
-
-  if (
-    /^\w+(\([^)]*\))?!:/.test(subject) ||
-    /^BREAKING[ -]CHANGE:/m.test(message)
-  ) {
-    return 'major';
-  }
-
-  return /^feat\b/.test(subject) ? 'minor' : 'patch';
-}
-
-/**
- * The commit that the current version starts from: its tag, or, for a version
- * that no tag names (lerna made per-package tags up to 1.7.6), the last commit
- * that wrote the version to VERSION_SOURCE.
- */
-async function baseOf(currentVersion) {
+async function messagesSince(currentVersion) {
   const tag = `v${currentVersion}`;
   const { exitCode } = await execa(
     'git',
-    ['rev-parse', '--verify', '--quiet', `refs/tags/${tag}`],
+    ['rev-parse', '--verify', '--quiet', `refs/tags/${tag}^{commit}`],
     { reject: false }
   );
 
-  if (exitCode === 0) {
-    return tag;
-  }
-
-  const { stdout: commit } = await execa('git', [
-    'log',
-    '-1',
-    '--format=%H',
-    `-S"version": "${currentVersion}"`,
-    '--',
-    VERSION_SOURCE,
-  ]);
-
-  if (!commit) {
+  if (exitCode !== 0) {
     throw new Error(
-      `Neither the tag ${tag} nor a commit that sets ${currentVersion} in ${VERSION_SOURCE} exists.`
+      `The tag ${tag} of the current version does not exist. Create it on the commit that npm published as ${currentVersion}.`
     );
   }
 
-  console.warn(
-    `The tag ${tag} does not exist. The commits after ${commit}, which set ${currentVersion}, count.`
+  const { exitCode: ancestorExitCode } = await execa(
+    'git',
+    ['merge-base', '--is-ancestor', tag, 'HEAD'],
+    { reject: false }
   );
-  return commit;
-}
+  if (ancestorExitCode !== 0) {
+    console.warn(
+      `The tag ${tag} is not on the history of HEAD. The commits after the merge base count.`
+    );
+  }
 
-/**
- * The commit messages since the current version. Every change that no release
- * holds yet counts, not only the tip, so a `feat` followed by a `fix` still
- * gives a minor.
- */
-async function messagesSince(currentVersion) {
-  const base = await baseOf(currentVersion);
   const { stdout } = await execa('git', [
     'log',
     '--format=%B%x00',
-    `${base}..HEAD`,
+    `${tag}..HEAD`,
   ]);
 
   return stdout.split('\0').filter((message) => message.trim());
@@ -86,15 +55,7 @@ async function run() {
   console.log('Current version:', currentVersion);
 
   const messages = await messagesSince(currentVersion);
-  const releaseType = messages
-    .map(releaseTypeOf)
-    .reduce(
-      (highest, type) =>
-        RELEASE_TYPES.indexOf(type) > RELEASE_TYPES.indexOf(highest)
-          ? type
-          : highest,
-      'patch'
-    );
+  const releaseType = releaseTypeOfAll(messages);
   const nextVersion = semver.inc(currentVersion, releaseType);
 
   if (!nextVersion) {

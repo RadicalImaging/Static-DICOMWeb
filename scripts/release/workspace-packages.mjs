@@ -1,11 +1,33 @@
 import fs from 'fs/promises';
-import { execa } from 'execa';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 
 // Adapted from the Cornerstone3D release scripts. The release covers `packages/*`.
+//
+// Only Node built-ins here: the push and publish jobs run this module without
+// installing the dependencies of the repository.
 const PACKAGES_ROOT = 'packages';
 
 // Every published package carries one version; this package names it.
 export const VERSION_SOURCE = `${PACKAGES_ROOT}/create-dicomweb/package.json`;
+
+// The dependency types that a consumer installs, so the types that set the order of the publish.
+const RUNTIME_DEPENDENCY_TYPES = [
+  'dependencies',
+  'peerDependencies',
+  'optionalDependencies',
+];
+
+const execFileAsync = promisify(execFile);
+
+/** Runs a command and answers its stdout. A failure rejects with `stdout` and `stderr` on the error. */
+export async function runText(file, args, options = {}) {
+  const { stdout } = await execFileAsync(file, args, {
+    maxBuffer: 64 * 1024 * 1024,
+    ...options,
+  });
+  return stdout.trim();
+}
 
 async function readPackage(name) {
   const dir = `${PACKAGES_ROOT}/${name}`;
@@ -51,6 +73,45 @@ export async function getPublishablePackages() {
 }
 
 /**
+ * The packages in the order of the publish: each package after the packages of
+ * the set that it needs at run time, so that npm never holds a package whose
+ * dependency is not there yet. The order is alphabetical where no dependency
+ * decides it. A cycle throws, because no order satisfies it.
+ */
+export function sortByDependencies(packages) {
+  const byName = new Map(packages.map((entry) => [entry.name, entry]));
+  const sorted = [];
+  const state = new Map();
+
+  const visit = (entry, path) => {
+    if (state.get(entry.name) === 'done') {
+      return;
+    }
+    if (state.get(entry.name) === 'visiting') {
+      throw new Error(`Dependency cycle: ${[...path, entry.name].join(' -> ')}`);
+    }
+
+    state.set(entry.name, 'visiting');
+    const dependencies = RUNTIME_DEPENDENCY_TYPES.flatMap((type) =>
+      Object.keys(entry.manifest[type] ?? {})
+    ).sort();
+    for (const dependency of dependencies) {
+      if (byName.has(dependency)) {
+        visit(byName.get(dependency), [...path, entry.name]);
+      }
+    }
+    state.set(entry.name, 'done');
+    sorted.push(entry);
+  };
+
+  [...packages]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .forEach((entry) => visit(entry, []));
+
+  return sorted;
+}
+
+/**
  * True when the registry already holds this exact version.
  *
  * npm answers `E404` for a version or a name that it does not hold. Every other
@@ -60,7 +121,7 @@ export async function getPublishablePackages() {
  */
 export async function isPublished(name, version) {
   try {
-    await execa('npm', ['view', `${name}@${version}`, 'version']);
+    await runText('npm', ['view', `${name}@${version}`, 'version']);
     return true;
   } catch (error) {
     const output = `${error.stderr ?? ''}\n${error.stdout ?? ''}`;
@@ -70,8 +131,7 @@ export async function isPublished(name, version) {
     }
 
     throw new Error(
-      `Cannot read the registry for ${name}@${version}: ` +
-        `${error.shortMessage ?? error.message}`
+      `Cannot read the registry for ${name}@${version}: ${error.message}`
     );
   }
 }

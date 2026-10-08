@@ -3,10 +3,22 @@ name: Publish to npm
 # Publishes the workspace packages when a change lands on master, and creates
 # the GitHub Release for the tag. Adapted from the Cornerstone3D publish workflow.
 #
+# Four jobs, so that each credential reaches only the code that needs it:
+#   - prepare: install, supply-chain checks, build, test, version commit, pack.
+#     It runs the scripts of every dependency, so it holds no credential.
+#   - push: checks the version commit (verify-version-commit.mjs) and pushes it
+#     with the RELEASE_DEPLOY_KEY deploy key of the `release` environment.
+#   - publish: publishes the packed tarballs. Only this job gets an OIDC token,
+#     and it installs no dependency of the repository.
+#   - github-release: creates the GitHub release.
+#
 # npm trusted publishing (OIDC) authenticates the publish, so the repository
-# holds no npm token. Each package names this repository and this workflow file
-# as its trusted publisher on npmjs.com, so a rename of this file stops the
-# publish until the name is changed there as well.
+# holds no npm token. Each package names this repository, this workflow file
+# and the `npm-publish` environment as its trusted publisher on npmjs.com, so a
+# rename of this file or of the environment stops the publish until the name is
+# changed there as well. The environment allows only master and `v*` tags, and
+# a ruleset limits who can create a `v*` tag, so a run on another branch gets no
+# token that npm accepts.
 #
 # The version commit and the tag go to master BEFORE npm sees the packages. git
 # can reject a push, and npm cannot take a version back, so the step that can
@@ -17,10 +29,12 @@ name: Publish to npm
 # The provenance attestation names the commit of the run (GITHUB_SHA), so a run
 # for a later merge does not publish the tag: it fails and names the tag.
 #
-# The RELEASE_DEPLOY_KEY deploy key pushes the version commit, and a push with a
-# deploy key DOES start workflows. Only the `[skip ci]` in the message of the
-# version commit (publish-version.mjs) stops a release loop. The check of the
-# `chore(release): publish` subject below is a fallback. Keep both.
+# A push with a deploy key DOES start workflows. Only the `[skip ci]` in the
+# message of the version commit (publish-version.mjs) stops a release loop. The
+# check of the `chore(release): publish` subject below is a fallback. Keep both.
+#
+# Actions are pinned by commit, and no job restores a cache: a cache that
+# another workflow wrote must not reach the release.
 
 on:
   push:
@@ -33,31 +47,33 @@ concurrency:
   group: publish-to-npm
   cancel-in-progress: false
 
-permissions:
-  contents: write # push the version commit and the tag, and create the release
-  id-token: write # the OIDC token that npm trusted publishing reads
+permissions: {}
 
 jobs:
-  publish:
+  prepare:
     runs-on: ubuntu-latest
-    # A manual run can name any ref, and npm trusted publishing does not limit
-    # the branch. Only master publishes, and a manual run on a `v*` tag of
-    # master recovers that version.
+    # A manual run can name any ref. Only master publishes, and a manual run on
+    # a `v*` tag of master recovers that version. The environments below
+    # enforce the same rule for the credentials.
     if: >-
       github.ref == 'refs/heads/master' ||
       (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))
     timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      proceed: ${{ steps.tip.outputs.proceed }}
+      mode: ${{ steps.mode.outputs.mode }}
+      tag: ${{ steps.release.outputs.tag }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6.0.3
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           # version.mjs reads the commits since the last tag, and the new tag
           # must not collide with an existing one.
           fetch-depth: 0
           submodules: true
-          # The install runs dependency lifecycle scripts, and none of them
-          # needs the push credential. The push step supplies it itself.
           persist-credentials: false
 
       # When a second change lands first, the run that holds the tip releases
@@ -88,31 +104,33 @@ jobs:
 
       - name: Setup pnpm
         if: steps.tip.outputs.proceed == 'true'
-        uses: pnpm/action-setup@v6.1.0
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       - name: Setup Node.js
         if: steps.tip.outputs.proceed == 'true'
-        uses: actions/setup-node@v6.4.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: '24.15.0'
-          cache: 'pnpm'
 
-      # This npm exchanges the OIDC token for npm credentials, so it is pinned.
-      # Trusted publishing needs 11.5.1 or later. Never let it float.
+      # npm packs the tarballs here, and the same npm publishes them.
       - name: Update npm
         if: steps.tip.outputs.proceed == 'true'
         run: |
-          npm install --global npm@11.19.0
+          npm install --global --ignore-scripts npm@11.19.0
           npm --version
 
-      - name: Install dependencies
+      # The CI checks, with the audit on every release: pinned versions, a
+      # frozen install, no lockfile drift, and `pnpm audit --audit-level=high`.
+      - name: Install dependencies and check the supply chain
         if: steps.tip.outputs.proceed == 'true'
-        run: pnpm install --frozen-lockfile
+        env:
+          FORCE_AUDIT: '1'
+        run: pnpm run supply-chain:ci
 
       # `release` takes a new version. `recover` publishes the version that
       # HEAD already carries: on a tag run, when the tip is a version commit
-      # (only a manual run or a re-run reaches one), or when npm lacks the
-      # version that master carries.
+      # (only a manual run or a re-run reaches one), or when npm lacks a package
+      # of the last release.
       - name: Choose the mode for this run
         id: mode
         if: steps.tip.outputs.proceed == 'true'
@@ -179,6 +197,12 @@ jobs:
         if: steps.mode.outputs.mode == 'release'
         run: node ./scripts/release/publish-version.mjs
 
+      # The push job runs the same check before the push. Here it stops a bad
+      # lockfile update before the pack.
+      - name: Check the version commit
+        if: steps.mode.outputs.mode == 'release'
+        run: node ./scripts/release/verify-version-commit.mjs HEAD HEAD^
+
       - name: Read the version of this release
         id: release
         if: steps.tip.outputs.proceed == 'true'
@@ -187,19 +211,77 @@ jobs:
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Releasing v${VERSION}"
 
-      # Before npm, on purpose. git rejects this push when a change lands on
-      # master during the run, and npm holds nothing at that point.
-      #
-      # The push uses the RELEASE_DEPLOY_KEY deploy key, not GITHUB_TOKEN: the
-      # master ruleset requires a review, and only a deploy key can bypass it
-      # (a repository ruleset cannot name the GitHub Actions app as a bypass actor).
-      - name: Push the version commit and the tag
+      - name: Pack the packages
+        if: steps.tip.outputs.proceed == 'true'
+        run: node ./scripts/release/pack-packages.mjs
+
+      # The push job has no copy of the version commit, so a bundle carries it.
+      - name: Bundle the version commit
         if: steps.mode.outputs.mode == 'release'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: git bundle create release/version.bundle "refs/tags/${TAG}" --not HEAD^
+
+      - name: Upload the release
+        if: steps.tip.outputs.proceed == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: release/
+          if-no-files-found: error
+          retention-days: 7
+
+  # Before npm, on purpose. git rejects this push when a change lands on master
+  # during the run, and npm holds nothing at that point.
+  #
+  # The push uses the RELEASE_DEPLOY_KEY deploy key, not GITHUB_TOKEN: the
+  # master ruleset requires a review, and only a deploy key can bypass it (a
+  # repository ruleset cannot name the GitHub Actions app as a bypass actor).
+  # The key is a secret of the `release` environment, which allows only master.
+  push:
+    needs: prepare
+    if: needs.prepare.outputs.mode == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '24.15.0'
+
+      - name: Download the release
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: release
+
+      - name: Check the version commit
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          git fetch --no-tags release/version.bundle "refs/tags/${TAG}:refs/tags/${TAG}"
+          node ./scripts/release/verify-version-commit.mjs "refs/tags/${TAG}" "${GITHUB_SHA}"
+
+      - name: Push the version commit and the tag
         env:
           DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.release.outputs.tag }}
+          TAG: ${{ needs.prepare.outputs.tag }}
         run: |
+          if [ -z "$DEPLOY_KEY" ]; then
+            echo "::error::The secret RELEASE_DEPLOY_KEY of the release environment is empty. npm holds nothing for ${TAG}."
+            exit 1
+          fi
+
           KEY_FILE="$(mktemp)"
           trap 'rm -f "$KEY_FILE"' EXIT
           printf '%s\n' "$DEPLOY_KEY" > "$KEY_FILE"
@@ -211,22 +293,76 @@ jobs:
           export GIT_SSH_COMMAND="ssh -i $KEY_FILE -o IdentitiesOnly=yes -o UserKnownHostsFile=$KNOWN_HOSTS -o StrictHostKeyChecking=yes"
 
           # One atomic push, so master never carries a release commit that no tag names.
-          if git push --atomic "git@github.com:${GITHUB_REPOSITORY}.git" HEAD:master "$TAG"; then
+          COMMIT="$(git rev-parse "refs/tags/${TAG}^{commit}")"
+          if git push --atomic "git@github.com:${GITHUB_REPOSITORY}.git" \
+              "${COMMIT}:refs/heads/master" "refs/tags/${TAG}:refs/tags/${TAG}"; then
             exit 0
           fi
 
-          echo "::error::A change landed on master during this run, so git rejected the push of ${TAG}. npm holds nothing for this version. The run for the next merge releases these changes."
+          MASTER="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/master | cut -f1)"
+          if [ -n "$MASTER" ] && [ "$MASTER" != "$GITHUB_SHA" ]; then
+            echo "::error::master moved to ${MASTER} during this run, so git rejected the push of ${TAG}. npm holds nothing for this version. The run for the next merge releases these changes."
+          else
+            echo "::error::git rejected the push of ${TAG}, and master did not move. Check the RELEASE_DEPLOY_KEY secret of the release environment, the deploy key of the repository, and the bypass lists of the master and release-tags rulesets. npm holds nothing for this version."
+          fi
           exit 1
 
-      - name: Publish to npm
-        if: steps.tip.outputs.proceed == 'true'
-        run: node ./scripts/release/publish-package.mjs
+  publish:
+    needs: [prepare, push]
+    if: >-
+      always() &&
+      needs.prepare.result == 'success' &&
+      needs.prepare.outputs.proceed == 'true' &&
+      (needs.push.result == 'success' || needs.push.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write # the OIDC token that npm trusted publishing reads
 
+    steps:
+      # The tag decides which packages go to npm, and the scripts that publish
+      # them. Nothing here installs a dependency of the repository.
+      - name: Checkout the tag
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: refs/tags/${{ needs.prepare.outputs.tag }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '24.15.0'
+
+      # This npm exchanges the OIDC token for npm credentials, so it is pinned.
+      # Trusted publishing needs 11.5.1 or later. Never let it float.
+      - name: Update npm
+        run: |
+          npm install --global --ignore-scripts npm@11.19.0
+          npm --version
+
+      - name: Download the release
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: release
+
+      - name: Publish to npm
+        run: node ./scripts/release/publish-package.mjs release
+
+  github-release:
+    needs: [prepare, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # create the release
+
+    steps:
       - name: Create the GitHub release
-        if: steps.tip.outputs.proceed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.release.outputs.tag }}
+          TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           # A `recover` run or a re-run can reach a release that exists.
           if gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
