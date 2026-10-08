@@ -141,16 +141,29 @@ jobs:
 
       # Before npm, on purpose. git rejects this push when a change lands on
       # master during the run, and npm holds nothing at that point.
+      #
+      # The push uses the RELEASE_DEPLOY_KEY deploy key, not GITHUB_TOKEN: the
+      # master ruleset requires a review, and only a deploy key can bypass it
+      # (a repository ruleset cannot name the GitHub Actions app as a bypass actor).
       - name: Push the version commit and the tag
         if: steps.mode.outputs.mode == 'release'
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           TAG='${{ steps.release.outputs.tag }}'
-          REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          KEY_FILE="$(mktemp)"
+          trap 'rm -f "$KEY_FILE"' EXIT
+          printf '%s\n' "$DEPLOY_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+
+          # GitHub's SSH host keys, read over authenticated HTTPS rather than trusted on first use.
+          KNOWN_HOSTS="$(mktemp)"
+          gh api meta --jq '.ssh_keys[] | "github.com " + .' > "$KNOWN_HOSTS"
+          export GIT_SSH_COMMAND="ssh -i $KEY_FILE -o IdentitiesOnly=yes -o UserKnownHostsFile=$KNOWN_HOSTS -o StrictHostKeyChecking=yes"
 
           # One atomic push, so master never carries a release commit that no tag names.
-          if git push --atomic "$REMOTE" HEAD:master "$TAG"; then
+          if git push --atomic "git@github.com:${GITHUB_REPOSITORY}.git" HEAD:master "$TAG"; then
             exit 0
           fi
 
