@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-plugins",
-  "version": "1.7.6",
+  "version": "1.7.7",
   "description": "Plugins to support the static-wado project",
   "publishConfig": {
     "access": "public"
@@ -68,7 +68,7 @@
     "verbose": true
   },
   "dependencies": {
-    "@radicalimaging/static-wado-util": ">=1.7.6",
+    "@radicalimaging/static-wado-util": ">=1.7.7",
     "config-point": "0.8.0",
     "dcmjs-dimse": "0.1.31",
     "http-proxy-middleware": "2.0.9"
