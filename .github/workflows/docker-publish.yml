@@ -19,6 +19,12 @@ name: Publish Docker images
 #   variable DOCKERHUB_USERNAME - optional, the account that owns the token
 #                                 (default braveheartsoftware)
 # Without DOCKERHUB_TOKEN the run fails, unless the `ghcr_only` input is set.
+# Only a job of the environment can see its secrets, so that check runs after
+# the approval.
+#
+# A version tag that a registry already holds stops the run, unless the
+# `overwrite` input is set: a rebuild gives a new digest, and can give other
+# apt packages. `latest` always moves to the newest release.
 #
 # The environment gates Docker Hub only. GHCR takes GITHUB_TOKEN, so any
 # workflow of this repository with `packages: write` can write to the GHCR
@@ -45,9 +51,13 @@ on:
         description: 'Publish to GHCR only, and skip Docker Hub.'
         type: boolean
         default: false
+      overwrite:
+        description: 'Replace a version tag that a registry already holds.'
+        type: boolean
+        default: false
 
-# One run at a time, including the wait for the approval. GitHub keeps only
-# one pending run: a third dispatch cancels the run that waits.
+# One run at a time, including the wait for the approval. GitHub queues at most
+# one more run: a newer dispatch cancels the queued run, not the running one.
 concurrency:
   group: publish-docker
   cancel-in-progress: false
@@ -175,6 +185,7 @@ jobs:
           touch "${RUNNER_TEMP}/digests/${DIGEST#sha256:}"
 
       # An approval can wait up to 30 days, so the digests must last as long.
+      # The repository setting allows 90 days.
       - name: Upload the digest
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -193,12 +204,12 @@ jobs:
       name: docker-hub
       url: https://hub.docker.com/r/braveheartsoftware/static-dicomweb/tags
     permissions:
-      contents: read
       packages: write # tag the image in GHCR
     env:
       # An `if:` cannot read a secret directly.
       HAS_DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN != '' }}
       GHCR_ONLY: ${{ inputs.ghcr_only }}
+      OVERWRITE: ${{ inputs.overwrite }}
     steps:
       - name: Choose the registries
         run: |
@@ -251,6 +262,20 @@ jobs:
             echo "::error::Expected 2 digests (amd64, arm64), found ${#SOURCES[@]}."
             exit 1
           fi
+
+          # Only "not found" means a free tag; any other failure stops the run.
+          for IMAGE in "${IMAGES[@]}"; do
+            if ERROR="$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" 2>&1 >/dev/null)"; then
+              if [ "$OVERWRITE" != 'true' ]; then
+                echo "::error::${IMAGE}:${VERSION} exists. Start the run with overwrite to replace it."
+                exit 1
+              fi
+              echo "::warning::This run replaces ${IMAGE}:${VERSION}."
+            elif ! printf '%s' "$ERROR" | grep -q ': not found'; then
+              echo "::error::Cannot read ${IMAGE}:${VERSION}: $(printf '%s' "$ERROR" | tail -n 1)"
+              exit 1
+            fi
+          done
 
           TAGS=()
           for IMAGE in "${IMAGES[@]}"; do

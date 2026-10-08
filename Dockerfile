@@ -1,11 +1,14 @@
-# syntax=docker/dockerfile:1.7-labs
+# syntax=docker/dockerfile:1.7-labs@sha256:b99fecfe00268a8b556fad7d9c37ee25d716ae08a5d7320e6d51c4dd83246894
 # One Dockerfile for linux/amd64 and linux/arm64:
 #   docker buildx build --platform linux/arm64 .
 #
-# The base images are pinned by digest, and both are Debian trixie, so the
-# canvas that arm64 compiles here finds the same libraries at run time.
-# To update one, pick the new tag and take its digest from
+# The Dockerfile frontend and the base images are pinned by digest. Both base
+# images are Debian trixie, so the canvas that arm64 compiles here finds the
+# same libraries at run time. To update one, pick the new tag and take its
+# digest from
 #   docker buildx imagetools inspect <image>:<tag>
+# The apt packages are not pinned: Debian replaces old versions in trixie, so
+# a pinned version stops installing. They come from the trixie security updates.
 
 FROM node:24-trixie@sha256:1278a37eb510ec1606fba0e80f554bcc941ae0b44f35ae373c4822ae7717c64d AS builder
 ARG TARGETARCH
@@ -14,7 +17,7 @@ ARG TARGETARCH
 # amd64 gets no -dev packages on purpose: a failed prebuilt download then fails
 # the build, instead of compiling a canvas that needs libraries the final stage lacks.
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
-      apt-get update && apt-get install -y \
+      apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         python3 \
         libpixman-1-dev \
@@ -27,7 +30,8 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
       && apt-get clean && rm -rf /var/lib/apt/lists/*; \
     fi
 
-# Install global tools
+# Install global tools. pnpm needs its install script: without it, pnpm runs
+# its Node launcher, which gives no node-gyp to the arm64 canvas build.
 RUN npm install -g pnpm@12.9.1
 
 # Setup workdir
@@ -43,12 +47,9 @@ RUN pnpm install --frozen-lockfile
 # Copy remaining source code
 COPY --link --exclude=node_modules --exclude=**/dist . .
 
-# Build. The deploy packages are not part of the image.
-RUN pnpm -r --workspace-concurrency=1 \
-      --filter '!@radicalimaging/s3-deploy' \
-      --filter '!@radicalimaging/static-wado-deploy' \
-      --filter '!@radicalimaging/healthlakestore' \
-      run build
+# Build the server and the workspace packages that it needs, which are the
+# packages that `pnpm deploy` copies.
+RUN pnpm --filter '@radicalimaging/static-wado-webserver...' --workspace-concurrency=1 run build
 
 # The server and the production dependencies of it, from pnpm-lock.yaml, so
 # the image gets the locked versions and the overrides of pnpm-workspace.yaml.
@@ -62,17 +63,16 @@ ARG TARGETARCH
 # curl for health checks. On arm64, also the runtime libraries of the canvas
 # build; the amd64 prebuilt binary bundles them.
 RUN apt-get update && \
-    apt-get install -y curl && \
+    apt-get install -y --no-install-recommends curl ca-certificates && \
     if [ "$TARGETARCH" = "arm64" ]; then \
-      apt-get install -y \
+      apt-get install -y --no-install-recommends \
         libpixman-1-0 \
         libcairo2 \
         libpango-1.0-0 \
         libpangocairo-1.0-0 \
         libjpeg62-turbo \
         libgif7 \
-        librsvg2-2 \
-        ca-certificates; \
+        librsvg2-2; \
     fi && \
     rm -rf /var/lib/apt/lists/*
 

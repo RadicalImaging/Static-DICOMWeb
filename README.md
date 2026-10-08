@@ -71,6 +71,7 @@ From 1.7.7, the images are multi-arch (linux/amd64 and linux/arm64); earlier ima
 Releases after 1.7.7 are also on GHCR as `ghcr.io/radicalimaging/static-dicomweb`.
 
 An npm release does not publish an image. A maintainer publishes the image of a release tag with the `Publish Docker images` workflow (Actions > Run workflow).
+A reviewer must approve each push to Docker Hub. GHCR has no such approval: any workflow of this repository with `packages: write` can write to the GHCR image.
 
 `pnpm run docker:build:arm` builds a linux/arm64 image. On an amd64 host, that build needs QEMU emulation, which Docker Desktop includes, and it is slow.
 
