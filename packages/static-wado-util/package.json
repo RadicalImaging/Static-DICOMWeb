@@ -20,7 +20,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/radicalimaging/static-dicomweb",
+    "url": "git+https://github.com/RadicalImaging/Static-DICOMWeb.git",
     "directory": "packages/static-wado-util"
   },
   "bugs": {
@@ -71,14 +71,13 @@
   },
   "scripts": {
     "test": "jest --config ./jest.config.cjs",
-    "build": "bun run build:esm",
+    "build": "pnpm run build:esm",
     "build:esm": "tsc --project ./tsconfig.json",
     "clean": "rimraf dist",
     "link:exec": "npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
-    "pack:js": "npm pack --",
-    "publishJS": "yarn publish  --no-git-tag-version"
+    "pack:js": "npm pack --"
   },
   "devDependencies": {
     "must": "0.13.4"

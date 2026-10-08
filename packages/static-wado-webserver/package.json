@@ -21,8 +21,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/radicalimaging/static-dicomweb",
-    "directory": "packages/static-wado-scp"
+    "url": "git+https://github.com/RadicalImaging/Static-DICOMWeb.git",
+    "directory": "packages/static-wado-webserver"
   },
   "bugs": {
     "url": "https://github.com/radicalimaging/static-dicomweb/issues"
@@ -52,17 +52,16 @@
     "monitordicomwebserver": "bin/monitordicomwebserver.mjs"
   },
   "scripts": {
-    "pretest": "bun run build:esm",
+    "pretest": "pnpm run build:esm",
     "test": "jest --config ./jest.config.js",
     "unlink:exec": "bun unlink || echo Already unlinked",
-    "link:exec": "bun run unlink:exec && bun link",
-    "build": "bun run build:esm",
+    "link:exec": "pnpm run unlink:exec && bun link",
+    "build": "pnpm run build:esm",
     "build:esm": "tsc --project ./tsconfig.json",
     "clean": "rimraf dist",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs,ts}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs,ts}\"",
-    "pack:js": "npm pack --",
-    "publishJS": "yarn publish"
+    "pack:js": "npm pack --"
   },
   "dependencies": {
     "@cornerstonejs/dicom-codec": "1.1.6",

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# CI supply-chain checks: pinned versions, frozen lockfile sync, audit only when bun.lock changed.
+# CI supply-chain checks: pinned versions, frozen lockfile sync, audit only when the lockfile changed.
+# Accepted advisories live in pnpm-workspace.yaml `auditConfig.ignoreGhsas`, so `pnpm audit` agrees everywhere.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,11 +10,16 @@ cd "$REPO_ROOT"
 lockfile_changed_in_range() {
   local range="$1"
   [[ -z "$range" ]] && return 1
-  git diff --name-only "$range" -- bun.lock | grep -q .
+  git diff --name-only "$range" -- pnpm-lock.yaml pnpm-workspace.yaml | grep -q .
 }
 
-should_run_bun_audit() {
-  if [[ "${FORCE_BUN_AUDIT:-}" == "1" ]]; then
+should_run_audit() {
+  # The publish workflow audits in its own step, and only for a new version.
+  if [[ "${SKIP_AUDIT:-}" == "1" ]]; then
+    return 1
+  fi
+
+  if [[ "${FORCE_AUDIT:-}" == "1" ]]; then
     return 0
   fi
 
@@ -40,28 +46,17 @@ echo 'Checking pinned dependency versions...'
 bash "$SCRIPT_DIR/check-pinned-versions.sh"
 
 echo 'Installing with frozen lockfile...'
-bun install --frozen-lockfile
+pnpm install --frozen-lockfile
 
-echo 'Verifying bun.lock matches package.json (no drift after install)...'
-if ! git diff --exit-code bun.lock; then
-  echo 'bun.lock is out of sync. Run: bun run install:update-lockfile' >&2
+echo 'Verifying pnpm-lock.yaml matches package.json (no drift after install)...'
+if ! git diff --exit-code pnpm-lock.yaml; then
+  echo 'pnpm-lock.yaml is out of sync. Run: pnpm run install:update-lockfile' >&2
   exit 1
 fi
 
-if should_run_bun_audit; then
-  echo 'bun.lock changed in this change set; running bun audit (high/critical)...'
-  # Accepted DoS advisories that are not reachable and have no usable fix; bun has no config-file ignore list.
-  # These ignores never expire on their own: check for fixes and remove each ID once an override can pin one.
-  #   GHSA-vfj7-8cjw-p6xm: braces <=3.0.3; no patched release exists. Not dev-only: http-proxy-middleware
-  #     is a runtime dependency of static-wado-plugins. Not reachable: the attack needs a malicious match
-  #     pattern, and web-proxy passes none. jest and micromatch get patterns only from repo config.
-  #   GHSA-rgw5-rvv9-x895, GHSA-qhr7-859c-m2p7, GHSA-6j4f-fj2g-mc7p: brace-expansion 5.0.8 pinned
-  #     exactly by nx (via lerna, dev-only); a global override would break the minimatch versions that need ^1.
-  bun audit --audit-level=high \
-    --ignore=GHSA-vfj7-8cjw-p6xm \
-    --ignore=GHSA-rgw5-rvv9-x895 \
-    --ignore=GHSA-qhr7-859c-m2p7 \
-    --ignore=GHSA-6j4f-fj2g-mc7p
+if should_run_audit; then
+  echo 'The lockfile changed in this change set; running pnpm audit (high/critical)...'
+  pnpm audit --audit-level=high
 else
-  echo 'bun.lock unchanged; skipping bun audit.'
+  echo 'The lockfile is unchanged; skipping pnpm audit.'
 fi

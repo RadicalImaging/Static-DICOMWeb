@@ -2,22 +2,22 @@
 FROM node:24 as builder
 ENV PATH /app/node_modules/.bin:$PATH
 # Install global tools
-RUN npm install -g lerna@9.0.7 bun@1.3.13
+RUN npm install -g pnpm@12.9.1
 
 # Setup workdir
 WORKDIR /app
 
 # Copy dependency files first to leverage Docker cache
-COPY --parents bun.lock *.tgz package.json packages/*/package.json ./
+COPY --parents pnpm-lock.yaml pnpm-workspace.yaml *.tgz package.json packages/*/package.json ./
 
 # Install dependencies
 ENV PATH=/app/node_modules/.bin:$PATH
-RUN bun install
+RUN pnpm install --frozen-lockfile
 # Copy remaining source code
 COPY --link --exclude=node_modules --exclude=**/dist . .
 
 # Build and pack
-RUN bun run build && bun run pack:js
+RUN pnpm run build && pnpm run pack:js
 
 
 FROM node:24 as installer

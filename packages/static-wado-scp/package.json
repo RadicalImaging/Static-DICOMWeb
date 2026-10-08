@@ -24,7 +24,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/radicalimaging/static-dicomweb",
+    "url": "git+https://github.com/RadicalImaging/Static-DICOMWeb.git",
     "directory": "packages/static-wado-scp"
   },
   "bugs": {
@@ -54,13 +54,12 @@
   "scripts": {
     "test": "jest --config ./jest.config.js",
     "link:exec": "bun link",
-    "build": "bun run build:esm",
-    "build:esm": "bun -e \"import { mkdirSync, cpSync } from 'node:fs'; mkdirSync('dist', { recursive: true }); cpSync('lib', 'dist', { recursive: true });\"",
+    "build": "pnpm run build:esm",
+    "build:esm": "node -e \"const fs=require('fs'); fs.mkdirSync('dist',{recursive:true}); fs.cpSync('lib','dist',{recursive:true});\"",
     "clean": "rimraf dist",
     "dicomwebscp": "bun bin/dicomwebscpDev.mjs --",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
-    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
-    "publishJS": "yarn publish  --no-git-tag-version"
+    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
   },
   "dependencies": {
     "@radicalimaging/static-wado-creator": ">=1.7.6",
