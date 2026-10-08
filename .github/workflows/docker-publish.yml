@@ -17,6 +17,10 @@ name: Publish Docker images
 #                                 (default braveheartsoftware)
 # Without DOCKERHUB_TOKEN, the run publishes to GHCR only and warns.
 #
+# A later move to Docker Hub OIDC: because the job names an environment, the
+# OIDC subject is repo:RadicalImaging/Static-DICOMWeb:environment:docker-hub,
+# not a ref:refs/heads/... value. The Docker Hub ruleset must match that subject.
+#
 # The build uses the Dockerfile of the release tag, so a tag older than the
 # merged amd64/arm64 Dockerfile cannot build for arm64.
 
@@ -128,6 +132,16 @@ jobs:
           sbom: true
           cache-from: type=gha,scope=docker-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=docker-${{ matrix.arch }}
+
+      # Before any tag exists, so a broken image never gets one.
+      - name: Smoke test the image
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          docker run --rm "${GHCR_IMAGE}@${DIGEST}" sh -ec '
+            bun -e "const c = require(\"canvas\"); c.createCanvas(4, 4).toBuffer(\"image/png\"); console.log(\"canvas\", c.version)"
+            for CMD in dicomwebserver mkdicomweb monitordicomwebserver curl; do command -v "$CMD"; done
+          '
 
       - name: Export the digest
         env:

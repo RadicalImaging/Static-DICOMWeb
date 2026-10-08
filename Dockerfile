@@ -6,6 +6,8 @@ FROM node:24 AS node-base
 ARG TARGETARCH
 
 # canvas has no linux-arm64 prebuilt binary, so arm64 compiles it from source.
+# amd64 gets no -dev packages on purpose: a failed prebuilt download then fails
+# the build, instead of compiling a canvas that needs libraries the final stage lacks.
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
       apt-get update && apt-get install -y \
         build-essential \
