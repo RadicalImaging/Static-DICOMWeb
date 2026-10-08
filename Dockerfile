@@ -13,9 +13,11 @@
 FROM node:24-trixie@sha256:1278a37eb510ec1606fba0e80f554bcc941ae0b44f35ae373c4822ae7717c64d AS builder
 ARG TARGETARCH
 
-# canvas has no linux-arm64 prebuilt binary, so arm64 compiles it from source.
-# amd64 gets no -dev packages on purpose: a failed prebuilt download then fails
-# the build, instead of compiling a canvas that needs libraries the final stage lacks.
+# canvas has no linux-arm64 prebuilt binary, so arm64 compiles it from source
+# (node:24-trixie lacks only libgif-dev; the list names every need anyway).
+# On amd64 canvas uses the prebuilt binary, which bundles its libraries. If
+# that download fails, canvas compiles against libraries the final stage
+# lacks; the canvas check in the final stage then fails the build.
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
       apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
@@ -87,6 +89,9 @@ COPY --from=builder /deploy ./
 # commands of the server itself.
 RUN ln -s ../../bin/dicomwebserver.mjs node_modules/.bin/dicomwebserver && \
     ln -s ../../bin/monitordicomwebserver.mjs node_modules/.bin/monitordicomwebserver
+
+# Fail the build, also a local one, when canvas cannot load its libraries.
+RUN bun -e "require('canvas').createCanvas(1, 1)"
 
 # Set up runtime directories
 RUN echo 'stty erase ^H' >> /etc/profile && \

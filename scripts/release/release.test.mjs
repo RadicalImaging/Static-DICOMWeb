@@ -4,7 +4,7 @@ import { bumpVersion, releaseTypeOf, releaseTypeOfAll } from './release-type.mjs
 import { sortByDependencies } from './workspace-packages.mjs';
 import { findProblems } from './verify-version-commit.mjs';
 import { findEntryProblems } from './publish-package.mjs';
-import { chooseRelease } from './docker-release.mjs';
+import { chooseRelease, findTagProblems } from './docker-release.mjs';
 
 test('the bump follows the conventional commit rules', () => {
   assert.equal(bumpVersion('1.7.6', 'patch'), '1.7.7');
@@ -97,4 +97,14 @@ test('the Docker image builds a release tag, and only the newest one moves lates
   for (const requested of ['v2.0.0-beta.1', 'v1.9.3', '1.9.2']) {
     assert.throws(() => chooseRelease(tags, requested), undefined, requested);
   }
+});
+
+test('the Docker image builds only a tag that carries its version and the lockfile install', () => {
+  const tag = { tag: 'v1.8.0', version: '1.8.0', manifest: { version: '1.8.0' } };
+  const dockerfile = 'RUN pnpm --filter @x/server deploy --prod /deploy';
+
+  assert.deepEqual(findTagProblems({ ...tag, dockerfile }), []);
+  assert.equal(findTagProblems({ ...tag, manifest: { version: '1.7.9' }, dockerfile }).length, 1);
+  assert.equal(findTagProblems({ ...tag, manifest: undefined, dockerfile }).length, 1);
+  assert.equal(findTagProblems({ ...tag, dockerfile: 'RUN npm install ./x.tgz' }).length, 1);
 });

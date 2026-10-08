@@ -43,8 +43,8 @@
   },
   "scripts": {
     "cleanTgz": "rimraf ./packages/*/*.tgz || echo No tgz",
-    "docker:build": "pnpm run cleanTgz && docker build . -t braveheartsoftware/static-dicomweb:latest",
-    "docker:build:arm": "pnpm run cleanTgz && docker buildx build --platform linux/arm64 --load -t braveheartsoftware/static-dicomweb:arm .",
+    "docker:build": "docker build . -t braveheartsoftware/static-dicomweb:latest",
+    "docker:build:arm": "docker buildx build --platform linux/arm64 --load -t braveheartsoftware/static-dicomweb:arm .",
     "docker:run": "docker run -it --mount type=bind,source=/c/dicomweb,target=/dicomweb --mount type=bind,source=/a/dicom,target=/dicom -p 25080:5000  --rm --entrypoint /bin/bash braveheartsoftware/static-dicomweb:latest",
     "docker:dicomwebserver": "docker run -it --mount type=bind,source=/c/dicomweb,target=/dicomweb -p 25080:5000  --rm braveheartsoftware/static-dicomweb:latest",
     "test": "pnpm run test:release && pnpm -r --parallel --reporter-hide-prefix=false run test",

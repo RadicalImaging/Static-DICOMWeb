@@ -22,9 +22,12 @@ name: Publish Docker images
 # Only a job of the environment can see its secrets, so that check runs after
 # the approval.
 #
-# A version tag that a registry already holds stops the run, unless the
-# `overwrite` input is set: a rebuild gives a new digest, and can give other
-# apt packages. `latest` always moves to the newest release.
+# A version keeps one image. When GHCR holds the version already (a run that
+# stopped before Docker Hub, or a ghcr_only run), the run publishes that image,
+# not its new build. A tag that holds the same image counts as done, so a
+# re-run continues. A tag that holds a different image stops the run, unless
+# the `overwrite` input is set; then the new build replaces it everywhere.
+# `latest` always moves to the newest release.
 #
 # The environment gates Docker Hub only. GHCR takes GITHUB_TOKEN, so any
 # workflow of this repository with `packages: write` can write to the GHCR
@@ -52,7 +55,7 @@ on:
         type: boolean
         default: false
       overwrite:
-        description: 'Replace a version tag that a registry already holds.'
+        description: 'Replace the image of a version that a registry already holds.'
         type: boolean
         default: false
 
@@ -131,8 +134,12 @@ jobs:
           ref: ${{ needs.resolve.outputs.sha }}
           persist-credentials: false
 
+      # The BuildKit daemon runs the build and holds the push credential, so it
+      # is pinned like the actions.
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: image=moby/buildkit:v0.34.0@sha256:b059f8d7226d0b326bc871af489a5dddf65e36af4d20d14251b072974d9ee87c
 
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -151,31 +158,16 @@ jobs:
           provenance: mode=max
           sbom: true
           no-cache: true
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.resolve.outputs.sha }}
+            org.opencontainers.image.version=${{ needs.resolve.outputs.version }}
 
       # Before any tag exists, so a broken image never gets one.
       - name: Smoke test the image
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
-        run: |
-          IMAGE="${GHCR_IMAGE}@${DIGEST}"
-          docker run --rm "$IMAGE" sh -ec '
-            bun -e "const c = require(\"canvas\"); c.createCanvas(4, 4).toBuffer(\"image/png\"); console.log(\"canvas\", c.version)"
-            for CMD in createdicomweb mkdicomweb dicomwebserver monitordicomwebserver curl; do command -v "$CMD"; done
-          '
-
-          # The default command must serve DICOMweb.
-          docker run -d --name smoke -p 5000:5000 "$IMAGE"
-          for _ in $(seq 1 30); do
-            if curl -fsS -o /dev/null http://localhost:5000/dicomweb/studies; then
-              echo 'The server answers /dicomweb/studies.'
-              docker rm -f smoke >/dev/null
-              exit 0
-            fi
-            sleep 2
-          done
-          docker logs smoke
-          echo '::error::The server did not answer /dicomweb/studies within 60 seconds.'
-          exit 1
+        run: bash scripts/docker-smoke-test.sh "${GHCR_IMAGE}@${DIGEST}"
 
       - name: Export the digest
         env:
@@ -227,9 +219,8 @@ jobs:
           pattern: digests-*
           merge-multiple: true
 
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
+      # No Buildx setup: `imagetools` talks to the registries only, so the
+      # preinstalled docker builder is enough, and no BuildKit daemon runs here.
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -249,6 +240,26 @@ jobs:
           VERSION: ${{ needs.resolve.outputs.version }}
           LATEST: ${{ needs.resolve.outputs.latest }}
         run: |
+          set -o pipefail
+
+          # The digests of the manifests in an image index, sorted.
+          manifests() {
+            docker buildx imagetools inspect --raw "$1" | jq -r '.manifests[].digest' | sort
+          }
+          # True when the tag exists. Only "not found" means a free tag; any
+          # other failure of the registry stops the run.
+          exists() {
+            local ERROR
+            if ERROR="$(docker buildx imagetools inspect "$1" 2>&1 >/dev/null)"; then
+              return 0
+            fi
+            if printf '%s' "$ERROR" | grep -q ': not found'; then
+              return 1
+            fi
+            echo "::error::Cannot read $1: $(printf '%s' "$ERROR" | tail -n 1)"
+            exit 1
+          }
+
           IMAGES=("$GHCR_IMAGE")
           if [ "$GHCR_ONLY" != 'true' ]; then
             IMAGES+=("$DOCKERHUB_IMAGE")
@@ -263,29 +274,47 @@ jobs:
             exit 1
           fi
 
-          # Only "not found" means a free tag; any other failure stops the run.
+          # GHCR holds the version already, from a run that stopped before
+          # Docker Hub or a ghcr_only run: publish that image, not this build,
+          # so that both registries give the same image for the version.
+          if [ "$OVERWRITE" != 'true' ] && exists "${GHCR_IMAGE}:${VERSION}"; then
+            echo "::notice::GHCR holds ${VERSION}, so this run publishes that image and not the new build."
+            SOURCES=("${GHCR_IMAGE}:${VERSION}")
+          fi
+          WANT="$(for SOURCE in "${SOURCES[@]}"; do manifests "$SOURCE"; done | sort)"
+
+          # A tag with the same manifests is done already, so a re-run continues.
           for IMAGE in "${IMAGES[@]}"; do
-            if ERROR="$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" 2>&1 >/dev/null)"; then
-              if [ "$OVERWRITE" != 'true' ]; then
-                echo "::error::${IMAGE}:${VERSION} exists. Start the run with overwrite to replace it."
+            if exists "${IMAGE}:${VERSION}"; then
+              HAVE="$(manifests "${IMAGE}:${VERSION}")"
+              if [ "$HAVE" = "$WANT" ]; then
+                echo "${IMAGE}:${VERSION} holds this image already."
+              elif [ "$OVERWRITE" = 'true' ]; then
+                echo "::warning::This run replaces ${IMAGE}:${VERSION}."
+              else
+                echo "::error::${IMAGE}:${VERSION} holds a different image. Start the run with overwrite to replace it."
                 exit 1
               fi
-              echo "::warning::This run replaces ${IMAGE}:${VERSION}."
-            elif ! printf '%s' "$ERROR" | grep -q ': not found'; then
-              echo "::error::Cannot read ${IMAGE}:${VERSION}: $(printf '%s' "$ERROR" | tail -n 1)"
-              exit 1
             fi
           done
 
           TAGS=()
+          CHECK=()
           for IMAGE in "${IMAGES[@]}"; do
             TAGS+=(-t "${IMAGE}:${VERSION}")
+            CHECK+=("${IMAGE}:${VERSION}")
             if [ "$LATEST" = 'true' ]; then
               TAGS+=(-t "${IMAGE}:latest")
+              CHECK+=("${IMAGE}:latest")
             fi
           done
           docker buildx imagetools create "${TAGS[@]}" "${SOURCES[@]}"
 
-          for IMAGE in "${IMAGES[@]}"; do
-            docker buildx imagetools inspect "${IMAGE}:${VERSION}"
+          for REF in "${CHECK[@]}"; do
+            HAVE="$(manifests "$REF")"
+            if [ "$HAVE" != "$WANT" ]; then
+              echo "::error::${REF} does not hold the published manifests."
+              exit 1
+            fi
+            echo "${REF} holds the published manifests."
           done

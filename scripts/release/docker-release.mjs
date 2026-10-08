@@ -37,11 +37,11 @@ export function chooseRelease(tags, requested = '') {
   const newest = releases.at(-1);
   const tag = requested || newest;
 
-  // JSON quotes the input, so a newline in it cannot start a workflow command.
   if (!tag) {
     throw new Error('master contains no release tag of the form v1.2.3.');
   }
   if (!RELEASE_TAG.test(tag)) {
+    // JSON quotes the input, so a newline in it cannot start a workflow command.
     throw new Error(`${JSON.stringify(tag)} is not a release tag of the form v1.2.3.`);
   }
   if (!releases.includes(tag)) {
@@ -51,19 +51,55 @@ export function chooseRelease(tags, requested = '') {
   return { tag, version: tag.slice(1), latest: tag === newest };
 }
 
+// The Dockerfile step that installs the image from pnpm-lock.yaml. The
+// Dockerfile of 1.7.7 and earlier has an npm install stage instead.
+const LOCKFILE_INSTALL = /\bpnpm\b.*\bdeploy\b.*--prod\b/;
+
+/**
+ * The problems of the tagged commit for an image build; an empty list accepts it.
+ *
+ * - `manifest`: VERSION_SOURCE at the tag, parsed, or undefined when it is missing.
+ * - `dockerfile`: the Dockerfile at the tag, or undefined when it is missing.
+ */
+export function findTagProblems({ tag, version, manifest, dockerfile }) {
+  const problems = [];
+
+  if (!manifest) {
+    problems.push(`${tag} has no ${VERSION_SOURCE}.`);
+  } else if (manifest.version !== version) {
+    problems.push(`${tag} carries version ${manifest.version} in ${VERSION_SOURCE}.`);
+  }
+  if (!LOCKFILE_INSTALL.test(dockerfile ?? '')) {
+    problems.push(
+      `The Dockerfile of ${tag} does not install from pnpm-lock.yaml, so this workflow does not build it. Build a release after 1.7.7.`
+    );
+  }
+
+  return problems;
+}
+
+async function readAt(sha, path) {
+  try {
+    return await runText('git', ['show', `${sha}:${path}`]);
+  } catch {
+    return undefined;
+  }
+}
+
 async function run() {
   const tags = (await runText('git', ['tag', '--list', '--merged', 'origin/master', 'v*'])).split('\n');
   const { tag, version, latest } = chooseRelease(tags, process.argv[2] ?? '');
-  const sha = await runText('git', ['rev-parse', `${tag}^{commit}`]);
+  const sha = await runText('git', ['rev-parse', `refs/tags/${tag}^{commit}`]);
 
-  let tagged;
-  try {
-    tagged = JSON.parse(await runText('git', ['show', `${sha}:${VERSION_SOURCE}`]));
-  } catch {
-    throw new Error(`${tag} has no ${VERSION_SOURCE}, so it is older than the image build.`);
-  }
-  if (tagged.version !== version) {
-    throw new Error(`${tag} carries version ${tagged.version} in ${VERSION_SOURCE}.`);
+  const manifestText = await readAt(sha, VERSION_SOURCE);
+  const problems = findTagProblems({
+    tag,
+    version,
+    manifest: manifestText === undefined ? undefined : JSON.parse(manifestText),
+    dockerfile: await readAt(sha, 'Dockerfile'),
+  });
+  if (problems.length) {
+    throw new Error(problems.join(' '));
   }
 
   console.log(`tag=${tag}\nsha=${sha}\nversion=${version}\nlatest=${latest}`);
