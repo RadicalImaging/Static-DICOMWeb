@@ -26,11 +26,11 @@ function releaseTypeOf(message) {
 }
 
 /**
- * The commit messages since the tag of the current version. Every change that
- * no release holds yet counts, not only the tip, so a `feat` followed by a
- * `fix` still gives a minor.
+ * The commit that the current version starts from: its tag, or, for a version
+ * that no tag names (lerna made per-package tags up to 1.7.6), the last commit
+ * that wrote the version to VERSION_SOURCE.
  */
-async function messagesSince(currentVersion) {
+async function baseOf(currentVersion) {
   const tag = `v${currentVersion}`;
   const { exitCode } = await execa(
     'git',
@@ -38,16 +38,42 @@ async function messagesSince(currentVersion) {
     { reject: false }
   );
 
-  if (exitCode !== 0) {
+  if (exitCode === 0) {
+    return tag;
+  }
+
+  const { stdout: commit } = await execa('git', [
+    'log',
+    '-1',
+    '--format=%H',
+    `-S"version": "${currentVersion}"`,
+    '--',
+    VERSION_SOURCE,
+  ]);
+
+  if (!commit) {
     throw new Error(
-      `The tag ${tag} of the current version does not exist, so the commits of this release are unknown.`
+      `Neither the tag ${tag} nor a commit that sets ${currentVersion} in ${VERSION_SOURCE} exists.`
     );
   }
 
+  console.warn(
+    `The tag ${tag} does not exist. The commits after ${commit}, which set ${currentVersion}, count.`
+  );
+  return commit;
+}
+
+/**
+ * The commit messages since the current version. Every change that no release
+ * holds yet counts, not only the tip, so a `feat` followed by a `fix` still
+ * gives a minor.
+ */
+async function messagesSince(currentVersion) {
+  const base = await baseOf(currentVersion);
   const { stdout } = await execa('git', [
     'log',
     '--format=%B%x00',
-    `${tag}..HEAD`,
+    `${base}..HEAD`,
   ]);
 
   return stdout.split('\0').filter((message) => message.trim());

@@ -10,11 +10,12 @@ name: Publish to npm
 #
 # The version commit and the tag go to master BEFORE npm sees the packages. git
 # can reject a push, and npm cannot take a version back, so the step that can
-# fail cheaply runs first. A tag that npm does not hold yet repairs itself: a
-# re-run, or the run of the next merge, sees the gap and publishes that version
-# (`recover` mode) from the tagged commit instead of taking a new one. The run
-# of the next merge takes no version for that merge; the merge after it, or a
-# manual run, does.
+# fail cheaply runs first. A tag that npm does not hold yet needs a `recover`
+# run, which publishes the version of the tag and takes no new one:
+#   - a re-run of the failed run, while master holds its version commit;
+#   - otherwise, a manual run on the tag (Run workflow > Use workflow from > Tags).
+# The provenance attestation names the commit of the run (GITHUB_SHA), so a run
+# for a later merge does not publish the tag: it fails and names the tag.
 #
 # The RELEASE_DEPLOY_KEY deploy key pushes the version commit, and a push with a
 # deploy key DOES start workflows. Only the `[skip ci]` in the message of the
@@ -40,16 +41,19 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     # A manual run can name any ref, and npm trusted publishing does not limit
-    # the branch. Only master publishes.
-    if: github.ref == 'refs/heads/master'
+    # the branch. Only master publishes, and a manual run on a `v*` tag of
+    # master recovers that version.
+    if: >-
+      github.ref == 'refs/heads/master' ||
+      (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))
     timeout-minutes: 30
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6.0.3
         with:
-          # version.mjs reads the commits since the last tag, `recover` mode
-          # checks out a tag, and the new tag must not collide with an existing one.
+          # version.mjs reads the commits since the last tag, and the new tag
+          # must not collide with an existing one.
           fetch-depth: 0
           submodules: true
           # The install runs dependency lifecycle scripts, and none of them
@@ -63,7 +67,14 @@ jobs:
         id: tip
         run: |
           git fetch --no-tags origin master
-          if [ "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)" ]; then
+          if [ "${GITHUB_REF_TYPE}" = 'tag' ]; then
+            # Only reviewed code goes to npm.
+            if ! git merge-base --is-ancestor HEAD FETCH_HEAD; then
+              echo "::error::master does not hold ${GITHUB_REF_NAME}."
+              exit 1
+            fi
+            echo 'proceed=true' >> "$GITHUB_OUTPUT"
+          elif [ "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)" ]; then
             echo 'proceed=true' >> "$GITHUB_OUTPUT"
           elif git log -1 --pretty=%s FETCH_HEAD | grep -q '^chore(release): publish' &&
                [ "$(git rev-parse FETCH_HEAD^)" = "$(git rev-parse HEAD)" ]; then
@@ -99,12 +110,23 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # `release` takes a new version. `recover` publishes the version that
-      # master already carries: when the tip is a version commit (only a manual
-      # run reaches one), or when npm lacks the version that master carries.
+      # HEAD already carries: on a tag run, when the tip is a version commit
+      # (only a manual run or a re-run reaches one), or when npm lacks the
+      # version that master carries.
       - name: Choose the mode for this run
         id: mode
         if: steps.tip.outputs.proceed == 'true'
         run: |
+          if [ "${GITHUB_REF_TYPE}" = 'tag' ]; then
+            VERSION="$(node -p "require('./packages/create-dicomweb/package.json').version")"
+            if [ "${GITHUB_REF_NAME}" != "v${VERSION}" ]; then
+              echo "::error::The tag ${GITHUB_REF_NAME} names a commit that carries ${VERSION}."
+              exit 1
+            fi
+            echo 'mode=recover' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           case "$(git log -1 --pretty=%s)" in
             'chore(release): publish'*)
               echo "::notice::The tip is a version commit, so this run takes no new version."
@@ -119,26 +141,21 @@ jobs:
           fi
           echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
 
-      # npm must get the code of the tag, not the code of a later merge.
-      # The provenance attestation still names the commit of this run
-      # (GITHUB_SHA), because the OIDC token carries that commit.
-      - name: Check out the tagged commit
+      # npm must get the code of the tag, and the provenance attestation names
+      # GITHUB_SHA, so a run for a later merge cannot publish the tag.
+      - name: Check that this run holds the tagged commit
         if: steps.mode.outputs.mode == 'recover'
         run: |
           TAG="v$(node -p "require('./packages/create-dicomweb/package.json').version")"
           if ! git rev-parse --verify --quiet "refs/tags/${TAG}" >/dev/null; then
-            echo "::error::master carries ${TAG}, but the tag does not exist. Create the tag on the version commit, then re-run."
+            echo "::error::master carries ${TAG}, but the tag does not exist. Create the tag on the version commit, then start a manual run on the tag."
             exit 1
           fi
 
-          if [ "$(git rev-parse "${TAG}^{commit}")" = "$(git rev-parse HEAD)" ]; then
-            exit 0
+          if [ "$(git rev-parse "${TAG}^{commit}")" != "$(git rev-parse HEAD)" ]; then
+            echo "::error::npm does not hold ${TAG}. Start a manual run of this workflow on the tag ${TAG}. Each run for master fails until npm holds ${TAG}."
+            exit 1
           fi
-
-          echo "::warning::This run builds ${TAG}, not ${GITHUB_SHA}. The provenance attestation names ${GITHUB_SHA}."
-          git checkout --quiet --detach "$TAG"
-          git submodule update --init --recursive
-          pnpm install --frozen-lockfile
 
       - name: Compute the next version
         if: steps.mode.outputs.mode == 'release'
