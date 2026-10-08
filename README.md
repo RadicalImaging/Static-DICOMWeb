@@ -66,9 +66,9 @@ The build runs packages one at a time (`--workspace-concurrency=1`). For a faste
 
 ## Docker Usage
 
-Released images are on Docker Hub as `braveheartsoftware/static-dicomweb`, with a `X.Y.Z` tag per release and `latest`.
-Releases after 1.7.7 are multi-arch (linux/amd64 and linux/arm64), and are also on GHCR as `ghcr.io/radicalimaging/static-dicomweb`.
-Releases up to 1.7.7 are linux/amd64 only.
+Released images are on Docker Hub as `braveheartsoftware/static-dicomweb`, with an `X.Y.Z` tag and `latest`.
+From 1.7.7, the images are multi-arch (linux/amd64 and linux/arm64); earlier images are linux/amd64 only.
+Releases after 1.7.7 are also on GHCR as `ghcr.io/radicalimaging/static-dicomweb`.
 
 An npm release does not publish an image. A maintainer publishes the image of a release tag with the `Publish Docker images` workflow (Actions > Run workflow).
 
