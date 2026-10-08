@@ -15,10 +15,11 @@ import {
 //
 // The checkout of the tag decides the set and the order: the package.json of
 // each tarball must agree with one publishable package of the tag in each field
-// that changes what an install does. The packages go to npm in dependency order,
-// and the first failure stops the publish, so npm never holds a package without
-// the packages that it needs. The check cannot see the other files of a tarball,
-// for example a build output that a dependency script of the build job changed.
+// that changes what an install or a publish does. The packages go to npm in
+// dependency order, and the first failure stops the publish, so npm never holds
+// a package without the packages that it needs. The check cannot see the other
+// files of a tarball, for example a build output that a dependency script of
+// the build job changed.
 //
 // The npm CLI does the publish, because the CLI exchanges the GitHub Actions
 // OIDC token for npm credentials. npm trusted publishing needs npm 11.5.1 or later.
@@ -31,9 +32,13 @@ const INSTALL_FIELDS = [
   'module',
   'types',
   'exports',
+  'imports',
   'bin',
+  'directories',
   'files',
   'scripts',
+  'gypfile',
+  'publishConfig',
   'dependencies',
   'peerDependencies',
   'optionalDependencies',
@@ -41,7 +46,42 @@ const INSTALL_FIELDS = [
   'bundledDependencies',
 ];
 
-async function readTarballManifest(file) {
+/**
+ * The package.json of a tarball, after a check of its entries. npm drops the
+ * first directory of each entry and keeps the last copy of a path, so a second
+ * top-level directory could replace the package.json that this check reads.
+ * Each entry must be a file or a directory under `package/`, once. A
+ * `binding.gyp` makes npm run node-gyp at install, so it must come from the tag.
+ */
+async function readTarballManifest(file, dir) {
+  const names = (await runText('tar', ['-tzf', file])).split('\n');
+  const types = (await runText('tar', ['-tvzf', file])).split('\n').map((line) => line[0]);
+  const problems = [];
+
+  if (names.length !== types.length) {
+    problems.push('the listing of the entries is not readable');
+  }
+  names.forEach((name, index) => {
+    if (!name.startsWith('package/') || name.split('/').includes('..')) {
+      problems.push(`the entry ${name} is outside package/`);
+    }
+    if (!['-', 'd'].includes(types[index])) {
+      problems.push(`the entry ${name} is not a file or a directory`);
+    }
+  });
+  if (new Set(names).size !== names.length) {
+    problems.push('an entry occurs more than once');
+  }
+  if (names.includes('package/binding.gyp')) {
+    const inTag = await fs.access(path.join(dir, 'binding.gyp')).then(() => true, () => false);
+    if (!inTag) {
+      problems.push('the tarball holds a binding.gyp that the tag does not hold');
+    }
+  }
+  if (problems.length) {
+    throw new Error(`${file}: ${problems.join('; ')}.`);
+  }
+
   return JSON.parse(await runText('tar', ['-xOzf', file, 'package/package.json']));
 }
 
@@ -75,7 +115,7 @@ async function run() {
   const published = [];
   const skipped = [];
 
-  for (const { name, manifest } of packages) {
+  for (const { name, dir: packageDir, manifest } of packages) {
     const { version } = manifest;
     const id = `${name}@${version}`;
 
@@ -86,7 +126,7 @@ async function run() {
     }
 
     const file = path.join(dir, path.basename(fileOf.get(id)));
-    const inside = await readTarballManifest(file);
+    const inside = await readTarballManifest(file, packageDir);
     const changed = INSTALL_FIELDS.filter(
       (field) => !isDeepStrictEqual(inside[field], manifest[field])
     );
@@ -108,8 +148,8 @@ async function run() {
       console.error(
         `::error::The publish stopped at ${id}, after ${published.length} of ` +
           `${packages.length} packages. The packages after ${id} wait, because ` +
-          `they can need it. Re-run this workflow. If a change landed on master ` +
-          `since, start a manual run on the version tag.`
+          `they can need it. Use "Re-run failed jobs", which keeps the version ` +
+          `of this run. After 30 days, start a manual run on the version tag.`
       );
       throw new Error(`Failed to publish ${id}`);
     }

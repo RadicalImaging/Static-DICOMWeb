@@ -24,7 +24,9 @@ name: Publish to npm
 # can reject a push, and npm cannot take a version back, so the step that can
 # fail cheaply runs first. A tag that npm does not hold yet needs a `recover`
 # run, which publishes the version of the tag and takes no new one:
-#   - a re-run of the failed run, while master holds its version commit;
+#   - "Re-run failed jobs" on the failed run, which keeps the outputs and the
+#     artifact of its prepare job (for 30 days). "Re-run all jobs" works only
+#     while master holds its version commit: after a later merge it does nothing;
 #   - otherwise, a manual run on the tag (Run workflow > Use workflow from > Tags).
 # The provenance attestation names the commit of the run (GITHUB_SHA), so a run
 # for a later merge does not publish the tag: it fails and names the tag.
@@ -97,6 +99,11 @@ jobs:
             echo "::notice::master holds the version commit of this run, so this run continues from that commit."
             git checkout --quiet --detach FETCH_HEAD
             echo 'proceed=true' >> "$GITHUB_OUTPUT"
+          elif git log --format='%P %s' "${GITHUB_SHA}..FETCH_HEAD" |
+               grep -q "^${GITHUB_SHA} chore(release): publish"; then
+            # "Re-run all jobs" of a run that pushed its version commit.
+            echo "::error::master moved past the version commit of this run. Use \"Re-run failed jobs\", or start a manual run on the version tag."
+            exit 1
           else
             echo 'proceed=false' >> "$GITHUB_OUTPUT"
             echo "::notice::master moved past ${GITHUB_SHA}. The run that holds the tip releases."
@@ -119,12 +126,12 @@ jobs:
           npm install --global --ignore-scripts npm@11.19.0
           npm --version
 
-      # The CI checks, with the audit on every release: pinned versions, a
-      # frozen install, no lockfile drift, and `pnpm audit --audit-level=high`.
+      # The CI checks: pinned versions, a frozen install, and no lockfile drift.
+      # The audit runs below, after the choice of the mode.
       - name: Install dependencies and check the supply chain
         if: steps.tip.outputs.proceed == 'true'
         env:
-          FORCE_AUDIT: '1'
+          SKIP_AUDIT: '1'
         run: pnpm run supply-chain:ci
 
       # `release` takes a new version. `recover` publishes the version that
@@ -136,7 +143,7 @@ jobs:
         if: steps.tip.outputs.proceed == 'true'
         run: |
           if [ "${GITHUB_REF_TYPE}" = 'tag' ]; then
-            VERSION="$(node -p "require('./packages/create-dicomweb/package.json').version")"
+            VERSION="$(node ./scripts/release/current-version.mjs)"
             if [ "${GITHUB_REF_NAME}" != "v${VERSION}" ]; then
               echo "::error::The tag ${GITHUB_REF_NAME} names a commit that carries ${VERSION}."
               exit 1
@@ -164,7 +171,7 @@ jobs:
       - name: Check that this run holds the tagged commit
         if: steps.mode.outputs.mode == 'recover'
         run: |
-          TAG="v$(node -p "require('./packages/create-dicomweb/package.json').version")"
+          TAG="v$(node ./scripts/release/current-version.mjs)"
           if ! git rev-parse --verify --quiet "refs/tags/${TAG}" >/dev/null; then
             echo "::error::master carries ${TAG}, but the tag does not exist. Create the tag on the version commit, then start a manual run on the tag."
             exit 1
@@ -174,6 +181,13 @@ jobs:
             echo "::error::npm does not hold ${TAG}. Start a manual run of this workflow on the tag ${TAG}. Each run for master fails until npm holds ${TAG}."
             exit 1
           fi
+
+      # Every new version passes the audit. A `recover` run skips it: the tag is
+      # reviewed code that no commit can change, so a later advisory would
+      # block the recover, and every master run waits for the recover.
+      - name: Audit the dependencies
+        if: steps.mode.outputs.mode == 'release'
+        run: pnpm audit --audit-level=high
 
       - name: Compute the next version
         if: steps.mode.outputs.mode == 'release'
@@ -207,7 +221,7 @@ jobs:
         id: release
         if: steps.tip.outputs.proceed == 'true'
         run: |
-          VERSION="$(node -p "require('./packages/create-dicomweb/package.json').version")"
+          VERSION="$(node ./scripts/release/current-version.mjs)"
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Releasing v${VERSION}"
 

@@ -121,10 +121,12 @@ export function findProblems({
   const removed = new RegExp(`^-\\s+specifier: '?(>=)?${VERSION}'?$`);
   const added = new RegExp(`^\\+\\s+specifier: '?(>=)?${escape(nextVersion)}'?$`);
   const dependencyName = /^ \s+'?([^':\s]+)'?:$/;
+  // The file header ends at the first `@@`. After it, a `+++ ` line is a lockfile line.
   const lines = lockfileDiff.split('\n');
-  for (let i = 0; i < lines.length; i++) {
+  const firstHunk = lines.findIndex((line) => line.startsWith('@@'));
+  for (let i = Math.max(firstHunk, 0); i < lines.length; i++) {
     const line = lines[i];
-    if (/^(diff |index |--- |\+\+\+ |@@| )/.test(line) || line === '') {
+    if (/^(@@| )/.test(line) || line === '') {
       continue;
     }
     const name = lines[i - 1]?.match(dependencyName)?.[1];
@@ -192,7 +194,7 @@ async function run() {
   console.log(`The version commit ${commit} (v${nextVersion}) changes only the release.`);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   run().catch((err) => {
     console.error('Error encountered while checking the version commit:', err.message);
     process.exit(1);
