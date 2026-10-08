@@ -54,7 +54,8 @@ overrides:
 
 auditConfig:
   ignoreGhsas:
-    # braces has no patched release (latest is 3.0.3). It only expands glob patterns that
-    # jest, micromatch and http-proxy-middleware get from repo config, never user input.
-    # Replace this ignore with an override once a patched braces ships.
+    # braces has no patched release (latest is 3.0.3). Not dev-only: http-proxy-middleware is a
+    # runtime dependency of static-wado-plugins. Not reachable: the attack needs a malicious match
+    # pattern, web-proxy passes none, and jest and micromatch get patterns only from repo config.
+    # This ignore never expires on its own: replace it with an override once a patched braces ships.
     - GHSA-vfj7-8cjw-p6xm
