@@ -1,5 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { spawn } from 'child_process';
+import { isDeepStrictEqual } from 'util';
 import {
   getPublishablePackages,
   isPublished,
@@ -11,17 +13,47 @@ import {
 //
 //   node publish-package.mjs <directory of the tarballs>
 //
-// The checkout of the tag decides the set and the order: each tarball must
-// carry the name and the version of one publishable package of the tag. The
-// packages go to npm in dependency order, and the first failure stops the
-// publish, so npm never holds a package without the packages that it needs.
+// The checkout of the tag decides the set and the order: the package.json of
+// each tarball must agree with one publishable package of the tag in each field
+// that changes what an install does. The packages go to npm in dependency order,
+// and the first failure stops the publish, so npm never holds a package without
+// the packages that it needs. The check cannot see the other files of a tarball,
+// for example a build output that a dependency script of the build job changed.
 //
 // The npm CLI does the publish, because the CLI exchanges the GitHub Actions
 // OIDC token for npm credentials. npm trusted publishing needs npm 11.5.1 or later.
 // Only Node built-ins here: this job does not install the dependencies.
 
+const INSTALL_FIELDS = [
+  'name',
+  'version',
+  'main',
+  'module',
+  'types',
+  'exports',
+  'bin',
+  'files',
+  'scripts',
+  'dependencies',
+  'peerDependencies',
+  'optionalDependencies',
+  'bundleDependencies',
+  'bundledDependencies',
+];
+
 async function readTarballManifest(file) {
   return JSON.parse(await runText('tar', ['-xOzf', file, 'package/package.json']));
+}
+
+/** Runs a command with its output in the job log, and rejects on a non-zero exit. */
+function runInherit(file, args) {
+  return new Promise((resolve, reject) => {
+    spawn(file, args, { stdio: 'inherit' })
+      .on('error', reject)
+      .on('exit', (code) =>
+        code === 0 ? resolve() : reject(new Error(`${file} exited with ${code}`))
+      );
+  });
 }
 
 async function run() {
@@ -43,7 +75,8 @@ async function run() {
   const published = [];
   const skipped = [];
 
-  for (const { name, manifest: { version } } of packages) {
+  for (const { name, manifest } of packages) {
+    const { version } = manifest;
     const id = `${name}@${version}`;
 
     if (await isPublished(name, version)) {
@@ -54,18 +87,23 @@ async function run() {
 
     const file = path.join(dir, path.basename(fileOf.get(id)));
     const inside = await readTarballManifest(file);
-    if (inside.name !== name || inside.version !== version) {
-      throw new Error(`${file} holds ${inside.name}@${inside.version}, not ${id}.`);
+    const changed = INSTALL_FIELDS.filter(
+      (field) => !isDeepStrictEqual(inside[field], manifest[field])
+    );
+    if (changed.length) {
+      throw new Error(
+        `The package.json of ${file} differs from ${id} of the tag in: ${changed.join(', ')}.`
+      );
     }
 
     console.log(`Publishing ${id}...`);
     try {
-      await runText('npm', [
+      await runInherit('npm', [
         'publish', file, '--provenance', '--access', 'public', '--tag', 'latest',
       ]);
     } catch (error) {
       // A `recover` run publishes the packages that npm still lacks.
-      console.error(`Failed to publish ${id}:`, error.stderr || error.message);
+      console.error(`Failed to publish ${id}:`, error.message);
       console.log(`Published: ${published.join(', ') || 'none'}`);
       console.error(
         `::error::The publish stopped at ${id}, after ${published.length} of ` +

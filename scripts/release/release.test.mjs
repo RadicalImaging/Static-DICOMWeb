@@ -32,11 +32,15 @@ const manifest = (version, utilRange, extra = {}) => ({
 });
 const util = (version) => ({ name: '@x/util', version });
 const lockfileDiff = [
-  '@@ -298 +298 @@ importers:',
+  '@@ -297,3 +297,3 @@ importers:',
+  "       '@x/util':",
   "-        specifier: '>=1.7.6'",
   "+        specifier: '>=1.7.7'",
+  '         version: link:../util',
 ].join('\n');
 const commit = (createAfter, diff = lockfileDiff) => ({
+  tag: 'v1.7.7',
+  currentVersion: '1.7.6',
   subject: 'chore(release): publish v1.7.7 [skip ci]',
   files: ['packages/create/package.json', 'packages/util/package.json', 'pnpm-lock.yaml'],
   manifests: [
@@ -55,7 +59,7 @@ test('the version commit check accepts only the changes of a release', () => {
     []
   );
   assert.notDeepEqual(
-    findProblems(commit(manifest('1.7.7', '>=1.7.7'), `${lockfileDiff}\n-    version: 0.52.0\n+    version: 0.53.0`)),
+    findProblems(commit(manifest('1.7.7', '>=1.7.7'), `${lockfileDiff}\n       dcmjs:\n-        specifier: 0.52.0\n+        specifier: 1.7.7`)),
     []
   );
 });

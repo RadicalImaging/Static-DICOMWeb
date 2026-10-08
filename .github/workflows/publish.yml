@@ -201,7 +201,7 @@ jobs:
       # lockfile update before the pack.
       - name: Check the version commit
         if: steps.mode.outputs.mode == 'release'
-        run: node ./scripts/release/verify-version-commit.mjs HEAD HEAD^
+        run: node ./scripts/release/verify-version-commit.mjs "v$(cat version.txt)" HEAD^
 
       - name: Read the version of this release
         id: release
@@ -229,7 +229,10 @@ jobs:
           name: release
           path: release/
           if-no-files-found: error
-          retention-days: 7
+          # "Re-run all jobs" uploads the artifact again in the same run.
+          overwrite: true
+          # A re-run of the publish after this time fails. Start a manual run on the tag.
+          retention-days: 30
 
   # Before npm, on purpose. git rejects this push when a change lands on master
   # during the run, and npm holds nothing at that point.
@@ -269,7 +272,7 @@ jobs:
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           git fetch --no-tags release/version.bundle "refs/tags/${TAG}:refs/tags/${TAG}"
-          node ./scripts/release/verify-version-commit.mjs "refs/tags/${TAG}" "${GITHUB_SHA}"
+          node ./scripts/release/verify-version-commit.mjs "${TAG}" "${GITHUB_SHA}"
 
       - name: Push the version commit and the tag
         env:
@@ -309,8 +312,9 @@ jobs:
 
   publish:
     needs: [prepare, push]
+    # `!cancelled()`, not `always()`: the publish must not start after a cancel.
     if: >-
-      always() &&
+      !cancelled() &&
       needs.prepare.result == 'success' &&
       needs.prepare.outputs.proceed == 'true' &&
       (needs.push.result == 'success' || needs.push.result == 'skipped')
@@ -353,6 +357,8 @@ jobs:
 
   github-release:
     needs: [prepare, publish]
+    # The implicit success() fails when `push` is skipped, as in a `recover` run.
+    if: ${{ !cancelled() && needs.publish.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

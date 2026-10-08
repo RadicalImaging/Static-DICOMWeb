@@ -11,12 +11,18 @@ const PACKAGES_ROOT = 'packages';
 // Every published package carries one version; this package names it.
 export const VERSION_SOURCE = `${PACKAGES_ROOT}/create-dicomweb/package.json`;
 
-// The dependency types that a consumer installs, so the types that set the order of the publish.
-const RUNTIME_DEPENDENCY_TYPES = [
-  'dependencies',
+// The dependency types whose ranges on a package of the release move with the release.
+export const DEPENDENCY_TYPES = [
   'peerDependencies',
+  'dependencies',
   'optionalDependencies',
+  'devDependencies',
 ];
+
+// The dependency types that a consumer installs, so the types that set the order of the publish.
+const RUNTIME_DEPENDENCY_TYPES = DEPENDENCY_TYPES.filter(
+  (type) => type !== 'devDependencies'
+);
 
 const execFileAsync = promisify(execFile);
 

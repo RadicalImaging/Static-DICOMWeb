@@ -1,7 +1,11 @@
 import { execa } from 'execa';
 import fs from 'fs/promises';
 import semver from 'semver';
-import { getAllPackages, isPublishable } from './workspace-packages.mjs';
+import {
+  DEPENDENCY_TYPES,
+  getAllPackages,
+  isPublishable,
+} from './workspace-packages.mjs';
 
 // Sets every package to the version in version.txt, then commits and tags that
 // change locally. The publish workflow pushes the commit and the tag.
@@ -36,11 +40,7 @@ async function run() {
   // range (`^`, `workspace:`) stops the release, because the rewrite to an
   // exact version would change what consumers accept.
   for (const entry of allPackages) {
-    for (const dependencyType of [
-      'peerDependencies',
-      'dependencies',
-      'devDependencies',
-    ]) {
+    for (const dependencyType of DEPENDENCY_TYPES) {
       const dependencies = entry.manifest[dependencyType];
 
       if (!dependencies) {
