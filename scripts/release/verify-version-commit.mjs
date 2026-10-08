@@ -1,4 +1,5 @@
 import { pathToFileURL } from 'url';
+import { computeNextVersion } from './release-type.mjs';
 import {
   DEPENDENCY_TYPES,
   VERSION_SOURCE,
@@ -20,22 +21,16 @@ function escape(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** True when `next` is above `current`, by major, minor and patch. */
-function isAbove(next, current) {
-  const parts = (version) => version.split('-')[0].split('.').map(Number);
-  const [a, b] = [parts(next), parts(current)];
-  const index = a.findIndex((value, i) => value !== b[i]);
-  return index !== -1 && a[index] > b[index];
-}
-
 /**
  * The problems of a version commit; an empty list accepts it.
  *
  * - `manifests`: `{ path, before, after }` for each changed package.json, parsed.
  * - `lockfileDiff`: the output of `git diff -U1` for pnpm-lock.yaml.
- * - `currentVersion`: the version of VERSION_SOURCE in the parent.
+ * - `expectedVersion`: the version that the commits of the parent give, by
+ *   the same rules as version.mjs.
  *
- * The tag must be `v<nextVersion>`, above `currentVersion`. Each manifest may
+ * The tag must be `v<nextVersion>`, and `nextVersion` must be `expectedVersion`.
+ * Each manifest may
  * change only its `version`, to `nextVersion`, and the range of a dependency on
  * a package that moves to `nextVersion`, to `[>=]nextVersion` with the same
  * prefix. The lockfile may change only the `specifier:` lines of those
@@ -49,7 +44,7 @@ export function findProblems({
   manifests,
   lockfileDiff,
   nextVersion,
-  currentVersion,
+  expectedVersion,
 }) {
   const problems = [];
   const expectedSubject = `chore(release): publish v${nextVersion} [skip ci]`;
@@ -60,8 +55,8 @@ export function findProblems({
   if (tag !== `v${nextVersion}`) {
     problems.push(`The tag ${tag} does not name the version ${nextVersion} of the commit.`);
   }
-  if (!new RegExp(`^${VERSION}$`).test(nextVersion) || !isAbove(nextVersion, currentVersion)) {
-    problems.push(`The version ${nextVersion} is not above ${currentVersion}.`);
+  if (nextVersion !== expectedVersion) {
+    problems.push(`The version is ${nextVersion}, but the commits give ${expectedVersion}.`);
   }
 
   for (const file of files) {
@@ -130,7 +125,10 @@ export function findProblems({
       continue;
     }
     const name = lines[i - 1]?.match(dependencyName)?.[1];
-    if (removed.test(line) && added.test(lines[i + 1] ?? '') && moved.has(name)) {
+    const before = line.match(removed);
+    const after = (lines[i + 1] ?? '').match(added);
+    // The `>=` prefix stays, as publish-version.mjs keeps it in the manifest.
+    if (before && after && before[1] === after[1] && moved.has(name)) {
       i += 1;
       continue;
     }
@@ -181,10 +179,17 @@ async function run() {
   const lockfileDiff = await runText('git', [
     'diff', '-U1', '--no-color', parent, commit, '--', 'pnpm-lock.yaml',
   ]);
+  // The push job does not trust the version that the build job chose: it
+  // computes the version again from the commits of the parent.
   const currentVersion = (await readJsonAt(parent, VERSION_SOURCE))?.version ?? '';
+  const { nextVersion: expectedVersion } = await computeNextVersion(
+    currentVersion,
+    parent,
+    (message) => console.warn(message)
+  );
 
   const problems = findProblems({
-    tag, subject, files, manifests, lockfileDiff, nextVersion, currentVersion,
+    tag, subject, files, manifests, lockfileDiff, nextVersion, expectedVersion,
   });
   if (problems.length) {
     problems.forEach((problem) => console.error(`::error::${problem}`));

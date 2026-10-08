@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { spawn } from 'child_process';
+import { pathToFileURL } from 'url';
 import { isDeepStrictEqual } from 'util';
 import {
   getPublishablePackages,
@@ -47,37 +48,54 @@ const INSTALL_FIELDS = [
 ];
 
 /**
- * The package.json of a tarball, after a check of its entries. npm drops the
- * first directory of each entry and keeps the last copy of a path, so a second
- * top-level directory could replace the package.json that this check reads.
- * Each entry must be a file or a directory under `package/`, once. A
+ * The problems of the entries of a tarball; an empty list accepts them.
+ *
+ * npm drops the first directory of each entry, and keeps the last entry for a
+ * path, so a second top-level directory, or a second spelling of a path
+ * (`package/./package.json`, `package//package.json`), could replace the
+ * package.json that this check reads. So each entry must be a file or a
+ * directory, in its normal spelling, under `package/`, and occur once. A
  * `binding.gyp` makes npm run node-gyp at install, so it must come from the tag.
+ *
+ * - `entries`: `{ name, type }` for each entry, with the type character of
+ *   `tar -tv` (`-` for a file, `d` for a directory).
  */
-async function readTarballManifest(file, dir) {
-  const names = (await runText('tar', ['-tzf', file])).split('\n');
-  const types = (await runText('tar', ['-tvzf', file])).split('\n').map((line) => line[0]);
+export function findEntryProblems(entries, bindingGypInTag) {
   const problems = [];
+  const names = entries.map(({ name }) => name);
 
-  if (names.length !== types.length) {
-    problems.push('the listing of the entries is not readable');
-  }
-  names.forEach((name, index) => {
-    if (!name.startsWith('package/') || name.split('/').includes('..')) {
-      problems.push(`the entry ${name} is outside package/`);
+  for (const { name, type } of entries) {
+    if (!name.startsWith('package/') || path.posix.normalize(name) !== name) {
+      problems.push(`the entry ${name} is not a normal path under package/`);
     }
-    if (!['-', 'd'].includes(types[index])) {
+    if (type !== '-' && type !== 'd') {
       problems.push(`the entry ${name} is not a file or a directory`);
     }
-  });
+  }
   if (new Set(names).size !== names.length) {
     problems.push('an entry occurs more than once');
   }
-  if (names.includes('package/binding.gyp')) {
-    const inTag = await fs.access(path.join(dir, 'binding.gyp')).then(() => true, () => false);
-    if (!inTag) {
-      problems.push('the tarball holds a binding.gyp that the tag does not hold');
-    }
+  if (names.includes('package/binding.gyp') && !bindingGypInTag) {
+    problems.push('the tarball holds a binding.gyp that the tag does not hold');
   }
+
+  return problems;
+}
+
+async function readTarballManifest(file, dir) {
+  const names = (await runText('tar', ['-tzf', file])).split('\n');
+  const types = (await runText('tar', ['-tvzf', file])).split('\n').map((line) => line[0]);
+  if (names.length !== types.length) {
+    throw new Error(`${file}: the listing of the entries is not readable.`);
+  }
+
+  const bindingGypInTag = await fs
+    .access(path.join(dir, 'binding.gyp'))
+    .then(() => true, () => false);
+  const problems = findEntryProblems(
+    names.map((name, index) => ({ name, type: types[index] })),
+    bindingGypInTag
+  );
   if (problems.length) {
     throw new Error(`${file}: ${problems.join('; ')}.`);
   }
@@ -161,7 +179,9 @@ async function run() {
   console.log('Finished');
 }
 
-run().catch((err) => {
-  console.error('Error encountered during package publish:', err.message);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  run().catch((err) => {
+    console.error('Error encountered during package publish:', err.message);
+    process.exit(1);
+  });
+}

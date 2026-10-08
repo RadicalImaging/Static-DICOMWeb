@@ -35,6 +35,11 @@ export async function runText(file, args, options = {}) {
   return stdout.trim();
 }
 
+/** The version that the checkout carries, from VERSION_SOURCE. */
+export async function readCurrentVersion() {
+  return JSON.parse(await fs.readFile(VERSION_SOURCE, 'utf-8')).version;
+}
+
 async function readPackage(name) {
   const dir = `${PACKAGES_ROOT}/${name}`;
   const manifestPath = `${dir}/package.json`;

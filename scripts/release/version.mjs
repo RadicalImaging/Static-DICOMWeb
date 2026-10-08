@@ -1,75 +1,51 @@
-import { execa } from 'execa';
-import semver from 'semver';
 import fs from 'fs/promises';
-import { releaseTypeOfAll } from './release-type.mjs';
-import { VERSION_SOURCE } from './workspace-packages.mjs';
+import { computeNextVersion } from './release-type.mjs';
+import {
+  getPublishablePackages,
+  isPublished,
+  readCurrentVersion,
+  runText,
+} from './workspace-packages.mjs';
 
 // Computes the next version and writes it to version.txt.
-
-/**
- * The commit messages since the current version: the commits that HEAD holds
- * and the tag of the current version does not.
- *
- * The tag must exist. A tag that is not on the history of HEAD still works,
- * because `tag..HEAD` then starts at the merge base (v1.7.6 is a publish commit
- * next to master), but the run says so.
- */
-async function messagesSince(currentVersion) {
-  const tag = `v${currentVersion}`;
-  const { exitCode } = await execa(
-    'git',
-    ['rev-parse', '--verify', '--quiet', `refs/tags/${tag}^{commit}`],
-    { reject: false }
-  );
-
-  if (exitCode !== 0) {
-    throw new Error(
-      `The tag ${tag} of the current version does not exist. Create it on the commit that npm published as ${currentVersion}.`
-    );
-  }
-
-  const { exitCode: ancestorExitCode } = await execa(
-    'git',
-    ['merge-base', '--is-ancestor', tag, 'HEAD'],
-    { reject: false }
-  );
-  if (ancestorExitCode !== 0) {
-    console.warn(
-      `The tag ${tag} is not on the history of HEAD. The commits after the merge base count.`
-    );
-  }
-
-  const { stdout } = await execa('git', [
-    'log',
-    '--format=%B%x00',
-    `${tag}..HEAD`,
-  ]);
-
-  return stdout.split('\0').filter((message) => message.trim());
-}
+//
+// The run stops here, before the push, when the next version exists already:
+// as a tag, the atomic push fails; on npm, the publish would skip every package
+// and the run would end without an error and without a release.
 
 async function run() {
-  const { version: currentVersion } = JSON.parse(
-    await fs.readFile(VERSION_SOURCE, 'utf-8')
-  );
+  const currentVersion = await readCurrentVersion();
   console.log('Current version:', currentVersion);
 
-  const messages = await messagesSince(currentVersion);
-  const releaseType = releaseTypeOfAll(messages);
-  const nextVersion = semver.inc(currentVersion, releaseType);
+  const { nextVersion, releaseType, commitCount } = await computeNextVersion(
+    currentVersion,
+    'HEAD',
+    (message) => console.warn(message)
+  );
+  console.log(`Next version (${releaseType}, from ${commitCount} commits):`, nextVersion);
 
-  if (!nextVersion) {
-    throw new Error(`Could not determine the next version after ${currentVersion}`);
+  const tagExists = await runText('git', [
+    'rev-parse', '--verify', '--quiet', `refs/tags/v${nextVersion}`,
+  ]).then(() => true, () => false);
+  if (tagExists) {
+    throw new Error(`The tag v${nextVersion} exists already.`);
   }
 
-  console.log(
-    `Next version (${releaseType}, from ${messages.length} commits):`,
-    nextVersion
-  );
+  const packages = await getPublishablePackages();
+  const held = [];
+  for (const { name } of packages) {
+    if (await isPublished(name, nextVersion)) {
+      held.push(`${name}@${nextVersion}`);
+    }
+  }
+  if (held.length) {
+    throw new Error(`npm holds the next version already: ${held.join(', ')}.`);
+  }
+
   await fs.writeFile('./version.txt', nextVersion);
 }
 
 run().catch((err) => {
-  console.error('Error encountered while computing the next version:', err);
+  console.error('Error encountered while computing the next version:', err.message);
   process.exit(1);
 });

@@ -1,10 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { releaseTypeOf, releaseTypeOfAll } from './release-type.mjs';
+import { bumpVersion, releaseTypeOf, releaseTypeOfAll } from './release-type.mjs';
 import { sortByDependencies } from './workspace-packages.mjs';
 import { findProblems } from './verify-version-commit.mjs';
+import { findEntryProblems } from './publish-package.mjs';
 
 test('the bump follows the conventional commit rules', () => {
+  assert.equal(bumpVersion('1.7.6', 'patch'), '1.7.7');
+  assert.equal(bumpVersion('1.7.6', 'minor'), '1.8.0');
+  assert.equal(bumpVersion('1.7.6', 'major'), '2.0.0');
   assert.equal(releaseTypeOf('fix(series)!: drop the old layout'), 'major');
   assert.equal(releaseTypeOf('fix: a\n\nBREAKING CHANGE: the API moved'), 'major');
   assert.equal(releaseTypeOf('feat(scp): add C-GET'), 'minor');
@@ -40,7 +44,7 @@ const lockfileDiff = [
 ].join('\n');
 const commit = (createAfter, diff = lockfileDiff) => ({
   tag: 'v1.7.7',
-  currentVersion: '1.7.6',
+  expectedVersion: '1.7.7',
   subject: 'chore(release): publish v1.7.7 [skip ci]',
   files: ['packages/create/package.json', 'packages/util/package.json', 'pnpm-lock.yaml'],
   manifests: [
@@ -62,4 +66,20 @@ test('the version commit check accepts only the changes of a release', () => {
     findProblems(commit(manifest('1.7.7', '>=1.7.7'), `${lockfileDiff}\n       dcmjs:\n-        specifier: 0.52.0\n+        specifier: 1.7.7`)),
     []
   );
+});
+
+test('a tarball holds each path once, as a file or a directory under package/', () => {
+  const file = (name) => ({ name, type: '-' });
+  const clean = [{ name: 'package/', type: 'd' }, file('package/package.json'), file('package/lib/index.js')];
+
+  assert.deepEqual(findEntryProblems(clean, false), []);
+  for (const entries of [
+    [...clean, file('zz/package.json')],
+    [...clean, file('package/./package.json')],
+    [...clean, file('package//package.json')],
+    [...clean, { name: 'package/link', type: 'l' }],
+    [...clean, file('package/binding.gyp')],
+  ]) {
+    assert.notDeepEqual(findEntryProblems(entries, false), [], entries.at(-1).name);
+  }
 });

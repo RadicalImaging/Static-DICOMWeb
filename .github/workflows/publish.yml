@@ -28,8 +28,9 @@ name: Publish to npm
 #     artifact of its prepare job (for 30 days). "Re-run all jobs" works only
 #     while master holds its version commit: after a later merge it does nothing;
 #   - otherwise, a manual run on the tag (Run workflow > Use workflow from > Tags).
-# The provenance attestation names the commit of the run (GITHUB_SHA), so a run
-# for a later merge does not publish the tag: it fails and names the tag.
+# A run for a later merge does not publish the tag: the step "Check that this
+# run holds the tagged commit" stops it and names the tag. npm does not check
+# the commit of the provenance attestation, so that step is the only guard.
 #
 # A push with a deploy key DOES start workflows. Only the `[skip ci]` in the
 # message of the version commit (publish-version.mjs) stops a release loop. The
@@ -166,8 +167,8 @@ jobs:
           fi
           echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
 
-      # npm must get the code of the tag, and the provenance attestation names
-      # GITHUB_SHA, so a run for a later merge cannot publish the tag.
+      # npm must get the code of the tag, so a run for a later merge must not
+      # publish the tag. npm does not check this; only this step does.
       - name: Check that this run holds the tagged commit
         if: steps.mode.outputs.mode == 'recover'
         run: |
@@ -268,6 +269,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
+          # The check computes the version again from the commits since the last tag.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Node.js
@@ -316,8 +319,17 @@ jobs:
             exit 0
           fi
 
-          MASTER="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/master | cut -f1)"
-          if [ -n "$MASTER" ] && [ "$MASTER" != "$GITHUB_SHA" ]; then
+          # git can report a failure for a push that GitHub took, for example
+          # when the connection drops after the update. Read what GitHub holds.
+          REMOTE="https://github.com/${GITHUB_REPOSITORY}.git"
+          MASTER="$(git ls-remote "$REMOTE" refs/heads/master | cut -f1)"
+          REMOTE_TAG="$(git ls-remote "$REMOTE" "refs/tags/${TAG}" | cut -f1)"
+          if [ "$MASTER" = "$COMMIT" ] && [ "$REMOTE_TAG" = "$COMMIT" ]; then
+            echo "::warning::git reported a failure, but GitHub holds the version commit and the tag ${TAG}. The publish continues."
+            exit 0
+          elif [ -n "$REMOTE_TAG" ]; then
+            echo "::error::GitHub holds the tag ${TAG} already, at ${REMOTE_TAG}, and master is at ${MASTER}. Find out who made the tag before the next run."
+          elif [ -n "$MASTER" ] && [ "$MASTER" != "$GITHUB_SHA" ]; then
             echo "::error::master moved to ${MASTER} during this run, so git rejected the push of ${TAG}. npm holds nothing for this version. The run for the next merge releases these changes."
           else
             echo "::error::git rejected the push of ${TAG}, and master did not move. Check the RELEASE_DEPLOY_KEY secret of the release environment, the deploy key of the repository, and the bypass lists of the master and release-tags rulesets. npm holds nothing for this version."
