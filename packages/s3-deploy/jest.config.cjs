@@ -5,7 +5,7 @@ module.exports = {
   moduleFileExtensions: ['js', 'jsx', 'ts', 'tsx', 'mjs'],
   transformIgnorePatterns: [
     // Transform all ESM modules in node_modules
-    '/node_modules/(?!(@cornerstonejs|@kitware|d3-scale|d3-array|d3-color|d3-format|d3-interpolate|d3-time|d3-time-format|internmap))',
+    '/node_modules/(?!(@cornerstonejs|@kitware|gl-matrix|d3-scale|d3-array|d3-color|d3-format|d3-interpolate|d3-time|d3-time-format|internmap))',
   ],
   testEnvironment: 'node',
   transform: {

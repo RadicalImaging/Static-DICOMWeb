@@ -86,12 +86,12 @@
     "@aws-sdk/lib-storage": "3.975.0",
     "@radicalimaging/static-wado-plugins": ">=1.7.6",
     "@radicalimaging/static-wado-util": ">=1.7.6",
-    "aws-cdk-lib": "2.251.0",
+    "aws-cdk-lib": "2.272.0",
     "config-point": "0.8.0",
-    "constructs": "10.4.5",
+    "constructs": "10.8.1",
     "mime-types": "2.1.35"
   },
   "devDependencies": {
-    "aws-cdk": "2.1103.0"
+    "aws-cdk": "2.1144.0"
   }
 }

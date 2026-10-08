@@ -65,7 +65,7 @@
     "publishJS": "yarn publish"
   },
   "dependencies": {
-    "@cornerstonejs/dicom-codec": "1.0.9",
+    "@cornerstonejs/dicom-codec": "1.1.6",
     "@radicalimaging/create-dicomweb": ">=1.7.6",
     "@radicalimaging/static-wado-plugins": ">=1.7.6",
     "@radicalimaging/static-wado-util": ">=1.7.6",
@@ -73,7 +73,7 @@
     "config-point": "0.8.0",
     "content-type": "1.0.5",
     "cors": "2.8.6",
-    "dcmjs": "0.50.1",
+    "dcmjs": "0.52.0",
     "dcmjs-dimse": "0.1.31",
     "express": "5.2.1",
     "formidable": "3.5.4",
@@ -81,7 +81,7 @@
     "regenerator-runtime": "0.14.1",
     "rxjs": "7.8.2",
     "streamsearch": "1.1.0",
-    "ws": "8.19.0"
+    "ws": "8.22.0"
   },
   "devDependencies": {
     "@babel/plugin-transform-runtime": "7.28.5",
