@@ -38,12 +38,12 @@ build() { # platform revision version mark
 }
 
 # Runs the script for a version with two digests; prints its output, keeps its exit code.
-publish() { # version revision latest ghcr_only overwrite digest digest
+publish() { # version revision ghcr_only overwrite digest digest
   local dir="$WORK/digests-$RANDOM"
   mkdir -p "$dir"
-  touch "$dir/$6" "$dir/$7"
+  touch "$dir/$5" "$dir/$6"
   GHCR_IMAGE="${REG}/ghcr" DOCKERHUB_IMAGE="${REG}/hub" VERSION="$1" REVISION="$2" \
-    LATEST="$3" GHCR_ONLY="$4" OVERWRITE="$5" DIGEST_DIR="$dir" bash "$SCRIPT" 2>&1
+    GHCR_ONLY="$3" OVERWRITE="$4" DIGEST_DIR="$dir" bash "$SCRIPT" 2>&1
 }
 
 manifests() {
@@ -86,37 +86,37 @@ N1=$(build linux/amd64 rev-n 1.9.0 n1); N2=$(build linux/arm64 rev-n 1.9.0 n2)
 D1=$(build linux/amd64 unknown dev d1); D2=$(build linux/arm64 unknown dev d2)
 P1=$(build linux/amd64 rev-p 1.9.1 p1); P2=$(build linux/arm64 rev-p 1.9.1 p2)
 
-check 'a ghcr_only run publishes GHCR only' publish 1.8.0 rev-a true true false "$A1" "$A2"
+check 'a ghcr_only run publishes GHCR only' publish 1.8.0 rev-a true false "$A1" "$A2"
 check '... and leaves Docker Hub alone' absent "${REG}/hub:1.8.0"
 check 'ghcr_only with overwrite is refused' \
-  fails_with 'two images for one version' publish 1.8.0 rev-a true true true "$A1" "$A2"
+  fails_with 'two images for one version' publish 1.8.0 rev-a true true "$A1" "$A2"
 check 'a digest file that is not a digest is refused' \
-  fails_with 'is not a sha256 digest' publish 1.8.0 rev-a true false false "$A1" not-a-digest
+  fails_with 'is not a sha256 digest' publish 1.8.0 rev-a false false "$A1" not-a-digest
 check 'a later full run publishes the GHCR image, not its new build' \
-  publish 1.8.0 rev-a true false false "$B1" "$B2"
+  publish 1.8.0 rev-a false false "$B1" "$B2"
 check '... so both registries hold one image' same "${REG}/ghcr:1.8.0" "${REG}/hub:1.8.0"
 check '... and latest follows' same "${REG}/hub:latest" "${REG}/hub:1.8.0"
-check 'a re-run of the same continues' publish 1.8.0 rev-a true false false "$B1" "$B2"
+check 'a re-run of the same continues' publish 1.8.0 rev-a false false "$B1" "$B2"
 
 tag "${REG}/ghcr:1.8.1" "$S1" "$S2"
 check 'a GHCR version from another commit is refused' \
-  fails_with 'does not come from' publish 1.8.1 rev-other true false false "$S1" "$S2"
+  fails_with 'does not come from' publish 1.8.1 rev-other false false "$S1" "$S2"
 
 tag "${REG}/hub:1.8.2" "$S1" "$S2"
 check 'Docker Hub with another image is refused' \
-  fails_with 'holds another image' publish 1.8.2 rev-m true false false "$M1" "$M2"
-check '... and overwrite replaces it' publish 1.8.2 rev-m true false true "$M1" "$M2"
+  fails_with 'holds another image' publish 1.8.2 rev-m false false "$M1" "$M2"
+check '... and overwrite replaces it' publish 1.8.2 rev-m false true "$M1" "$M2"
 check '... in both registries' same "${REG}/ghcr:1.8.2" "${REG}/hub:1.8.2"
 
-check 'a newer release moves latest' publish 1.9.0 rev-n true false false "$N1" "$N2"
+check 'a newer release moves latest' publish 1.9.0 rev-n false false "$N1" "$N2"
 check '... to that release' same "${REG}/hub:latest" "${REG}/hub:1.9.0"
 check 'a re-run of an older release leaves latest alone' \
-  publish 1.8.0 rev-a true false false "$B1" "$B2"
+  publish 1.8.0 rev-a false false "$B1" "$B2"
 check '... so latest still holds 1.9.0' same "${REG}/hub:latest" "${REG}/hub:1.9.0"
 
 tag "${REG}/hub:latest" "$D1" "$D2"
 check 'a local build with the label dev on latest does not hold latest' \
-  publish 1.9.1 rev-p true false false "$P1" "$P2"
+  publish 1.9.1 rev-p false false "$P1" "$P2"
 check '... so latest moves to the release' same "${REG}/hub:latest" "${REG}/hub:1.9.1"
 
 exit "$FAILED"

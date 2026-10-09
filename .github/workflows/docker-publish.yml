@@ -78,7 +78,6 @@ jobs:
       tag: ${{ steps.release.outputs.tag }}
       sha: ${{ steps.release.outputs.sha }}
       version: ${{ steps.release.outputs.version }}
-      latest: ${{ steps.release.outputs.latest }}
     steps:
       # A skip would show a green run that published nothing.
       - name: Check that the run is on master
@@ -258,5 +257,4 @@ jobs:
         env:
           VERSION: ${{ needs.resolve.outputs.version }}
           REVISION: ${{ needs.resolve.outputs.sha }}
-          LATEST: ${{ needs.resolve.outputs.latest }}
         run: DIGEST_DIR="${RUNNER_TEMP}/digests" bash scripts/docker-publish-tags.sh

@@ -6,8 +6,7 @@
 #   GHCR_IMAGE, DOCKERHUB_IMAGE  the image names, without a tag
 #   VERSION                      the release version, for example 1.8.0
 #   REVISION                     the commit of the release tag
-#   LATEST                       true when the release is the newest on master
-#   GHCR_ONLY                    true to skip Docker Hub
+#   GHCR_ONLY                   true to skip Docker Hub
 #   OVERWRITE                    true to replace a version that holds another image
 #   DIGEST_DIR                   one empty file per built digest (hex only)
 #
@@ -18,8 +17,9 @@
 # - A tag that holds the same manifests counts as done, so a re-run continues.
 # - A tag that holds another image stops the run, unless OVERWRITE is set;
 #   then the new build replaces the version in each registry.
-# `latest` moves only forward: a re-run of an old release leaves a newer
-# `latest` alone. Only "not found" counts as a free tag; any other registry
+# `latest` moves only forward, from the version label of the current `latest`:
+# each release moves it unless that label is a newer X.Y.Z, so an older release
+# can move it forward and never back. Only "not found" counts as a free tag; any other registry
 # error stops the run. A manual push between the checks and the write is not
 # detected, so do not push these tags by hand.
 set -euo pipefail
@@ -27,7 +27,6 @@ set -euo pipefail
 shopt -s inherit_errexit
 
 : "${GHCR_IMAGE:?}" "${DOCKERHUB_IMAGE:?}" "${VERSION:?}" "${REVISION:?}" "${DIGEST_DIR:?}"
-LATEST="${LATEST:-false}"
 GHCR_ONLY="${GHCR_ONLY:-false}"
 OVERWRITE="${OVERWRITE:-false}"
 
@@ -110,9 +109,6 @@ CHECK=()
 for IMAGE in "${IMAGES[@]}"; do
   TAGS+=(-t "${IMAGE}:${VERSION}")
   CHECK+=("${IMAGE}:${VERSION}")
-  if [ "$LATEST" != 'true' ]; then
-    continue
-  fi
   if exists "${IMAGE}:latest"; then
     # Only an X.Y.Z label counts: sort -V puts `dev` above every number. The
     # `|| true` covers grep without a match; a registry error stops before it.

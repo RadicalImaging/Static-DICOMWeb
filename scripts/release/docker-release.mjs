@@ -5,10 +5,10 @@ import { VERSION_SOURCE, runText } from './workspace-packages.mjs';
 //
 //   node docker-release.mjs [tag]
 //
-// Writes `tag=`, `sha=`, `version=` and `latest=` lines for $GITHUB_OUTPUT.
+// Writes `tag=`, `sha=` and `version=` lines for $GITHUB_OUTPUT.
 // Needs a checkout that holds the tags and origin/master. Node built-ins only.
 // Only the tags that master contains count, so that only released code gets an
-// image, and a stray tag cannot take `latest`.
+// image. docker-publish-tags.sh decides whether `latest` moves.
 
 const RELEASE_TAG = /^v(\d+)\.(\d+)\.(\d+)$/;
 
@@ -25,12 +25,10 @@ function compareReleases(a, b) {
 }
 
 /**
- * The release to build: `{ tag, version, latest }`.
+ * The release to build: `{ tag, version }`.
  *
  * Only `vX.Y.Z` tags of `tags` count. An empty `requested` picks the newest
- * one. Only the newest release moves `latest`, so a rebuild of an older
- * release never moves `latest` back. A requested tag that is not a release
- * tag of the list throws.
+ * one. A requested tag that is not a release tag of the list throws.
  */
 export function chooseRelease(tags, requested = '') {
   const releases = tags.filter((tag) => RELEASE_TAG.test(tag)).sort(compareReleases);
@@ -48,7 +46,7 @@ export function chooseRelease(tags, requested = '') {
     throw new Error(`master contains no tag ${tag}.`);
   }
 
-  return { tag, version: tag.slice(1), latest: tag === newest };
+  return { tag, version: tag.slice(1) };
 }
 
 // The Dockerfile step that installs the image from pnpm-lock.yaml. The
@@ -88,7 +86,7 @@ async function readAt(sha, path) {
 
 async function run() {
   const tags = (await runText('git', ['tag', '--list', '--merged', 'origin/master', 'v*'])).split('\n');
-  const { tag, version, latest } = chooseRelease(tags, process.argv[2] ?? '');
+  const { tag, version } = chooseRelease(tags, process.argv[2] ?? '');
   const sha = await runText('git', ['rev-parse', `refs/tags/${tag}^{commit}`]);
 
   const manifestText = await readAt(sha, VERSION_SOURCE);
@@ -102,7 +100,7 @@ async function run() {
     throw new Error(problems.join(' '));
   }
 
-  console.log(`tag=${tag}\nsha=${sha}\nversion=${version}\nlatest=${latest}`);
+  console.log(`tag=${tag}\nsha=${sha}\nversion=${version}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
