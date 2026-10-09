@@ -32,8 +32,9 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
       && apt-get clean && rm -rf /var/lib/apt/lists/*; \
     fi
 
-# Install global tools. pnpm needs its install script: without it, pnpm runs
-# its Node launcher, which gives no node-gyp to the arm64 canvas build.
+# Install global tools. Keep pnpm at the packageManager version of package.json
+# (corepack leaves Node after 24). pnpm needs its install script: without it,
+# pnpm runs its Node launcher, which gives no node-gyp to the arm64 canvas build.
 RUN npm install -g pnpm@12.9.1
 
 # Setup workdir
@@ -62,9 +63,25 @@ RUN pnpm --filter @radicalimaging/static-wado-webserver deploy --prod /deploy
 FROM oven/bun:1.3.13@sha256:87416c977a612a204eb54ab9f3927023c2a3c971f4f345a01da08ea6262ae30e AS dicomwebserver
 ARG TARGETARCH
 
+# Replace the labels of oven/bun. docker-publish.yml passes the release values.
+ARG IMAGE_VERSION=dev
+ARG IMAGE_REVISION=unknown
+ARG IMAGE_CREATED=unknown
+LABEL org.opencontainers.image.title="Static DICOMweb" \
+      org.opencontainers.image.description="DICOMweb server and DICOM to DICOMweb conversion tools" \
+      org.opencontainers.image.url="https://github.com/RadicalImaging/Static-DICOMWeb" \
+      org.opencontainers.image.source="https://github.com/RadicalImaging/Static-DICOMWeb" \
+      org.opencontainers.image.documentation="https://github.com/RadicalImaging/Static-DICOMWeb#readme" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${IMAGE_VERSION}" \
+      org.opencontainers.image.revision="${IMAGE_REVISION}" \
+      org.opencontainers.image.created="${IMAGE_CREATED}"
+
+# The security updates of trixie, which the pinned base image predates. Then
 # curl for health checks. On arm64, also the runtime libraries of the canvas
 # build; the amd64 prebuilt binary bundles them.
 RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends curl ca-certificates && \
     if [ "$TARGETARCH" = "arm64" ]; then \
       apt-get install -y --no-install-recommends \

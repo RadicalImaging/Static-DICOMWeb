@@ -107,4 +107,5 @@ test('the Docker image builds only a tag that carries its version and the lockfi
   assert.equal(findTagProblems({ ...tag, manifest: { version: '1.7.9' }, dockerfile }).length, 1);
   assert.equal(findTagProblems({ ...tag, manifest: undefined, dockerfile }).length, 1);
   assert.equal(findTagProblems({ ...tag, dockerfile: 'RUN npm install ./x.tgz' }).length, 1);
+  assert.equal(findTagProblems({ ...tag, dockerfile: '# RUN pnpm deploy --prod /deploy' }).length, 1);
 });

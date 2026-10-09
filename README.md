@@ -75,7 +75,7 @@ A reviewer of the `docker-hub` environment must approve each push to Docker Hub;
 
 `pnpm run docker:build:arm` builds a linux/arm64 image. On an amd64 host, that build needs QEMU emulation, which Docker Desktop includes, and it is slow.
 
-There are scripts in the root package to create a new docker deployment and to run it linking ports 25080 and 25104 to the DICOMweb and SCP endpoint. To create/start this, run:
+There are scripts in the root package to create a new docker deployment and to run it, with port 25080 linked to the DICOMweb endpoint. The image has no DIMSE SCP (`dicomwebscp`). To create/start this, run:
 
 ```bash
 pnpm run docker:build
@@ -124,10 +124,10 @@ There are a number of shared directories and files used to configure various set
 
 ```bash
 // Deploy the default build image
-docker run  --mount type=bind,source=/dicomweb,target=/dicomweb -p 25080:5000 -p 25104:11112 -d braveheartsoftware/static-dicomweb:latest
+docker run  --mount type=bind,source=/dicomweb,target=/dicomweb -p 25080:5000 -d braveheartsoftware/static-dicomweb:latest
 ```
 
-That will result in an instance running on port 25080 for dicomweb, and DIMSE services on 25104.
+That will result in an instance running on port 25080 for dicomweb.
 
 ## Deployment to AWS
 

@@ -1,9 +1,11 @@
 name: Docker CI
 
-# Builds the amd64 image of a pull request and runs the smoke test of
-# docker-publish.yml, so a broken Dockerfile shows up before a release, not
-# after npm holds the version. Only a change to the files that shape the image
-# starts it. Nothing is pushed.
+# Builds the image of a pull request for amd64 and arm64 and runs the smoke
+# test of docker-publish.yml, so a broken image shows up before a release, not
+# after npm holds the version. Also tests scripts/docker-publish-tags.sh
+# against a local registry. A pull request that changes the files the image is
+# made of starts it: the Docker files, the lockfile, and the packages. Nothing
+# is pushed.
 
 on:
   pull_request:
@@ -11,9 +13,11 @@ on:
       - Dockerfile
       - .dockerignore
       - docker/**
+      - package.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
-      - scripts/docker-smoke-test.sh
+      - packages/**
+      - scripts/docker-*.sh
       - .github/workflows/docker-ci.yml
       - .github/workflows/docker-publish.yml
   workflow_dispatch:
@@ -26,7 +30,16 @@ permissions: {}
 
 jobs:
   image:
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          # arm64 compiles canvas from source, the riskiest part of the build.
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -45,10 +58,27 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/${{ matrix.arch }}
           load: true
           tags: static-dicomweb:ci
           no-cache: true
 
       - name: Smoke test the image
         run: bash scripts/docker-smoke-test.sh static-dicomweb:ci
+
+  publish-tags:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Check the Docker scripts
+        run: shellcheck scripts/docker-*.sh
+
+      - name: Test the tag script against a local registry
+        run: bash scripts/docker-publish-tags.test.sh

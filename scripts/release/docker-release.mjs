@@ -53,7 +53,7 @@ export function chooseRelease(tags, requested = '') {
 
 // The Dockerfile step that installs the image from pnpm-lock.yaml. The
 // Dockerfile of 1.7.7 and earlier has an npm install stage instead.
-const LOCKFILE_INSTALL = /\bpnpm\b.*\bdeploy\b.*--prod\b/;
+const LOCKFILE_INSTALL = /^\s*RUN\b.*\bpnpm\b.*\bdeploy\b.*--prod\b/m;
 
 /**
  * The problems of the tagged commit for an image build; an empty list accepts it.

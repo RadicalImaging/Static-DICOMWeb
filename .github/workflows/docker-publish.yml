@@ -22,12 +22,9 @@ name: Publish Docker images
 # Only a job of the environment can see its secrets, so that check runs after
 # the approval.
 #
-# A version keeps one image. When GHCR holds the version already (a run that
-# stopped before Docker Hub, or a ghcr_only run), the run publishes that image,
-# not its new build. A tag that holds the same image counts as done, so a
-# re-run continues. A tag that holds a different image stops the run, unless
-# the `overwrite` input is set; then the new build replaces it everywhere.
-# `latest` always moves to the newest release.
+# A version keeps one image, and `latest` moves only forward. The `publish`
+# job runs scripts/docker-publish-tags.sh from master; its header gives the
+# rules, and scripts/docker-publish-tags.test.sh (in docker-ci.yml) tests them.
 #
 # The environment gates Docker Hub only. GHCR takes GITHUB_TOKEN, so any
 # workflow of this repository with `packages: write` can write to the GHCR
@@ -40,8 +37,8 @@ name: Publish Docker images
 # OIDC subject is repo:RadicalImaging/Static-DICOMWeb:environment:docker-hub,
 # not a ref:refs/heads/... value. The Docker Hub ruleset must match that subject.
 #
-# The build uses the Dockerfile of the release tag, so a tag older than the
-# multi-arch Dockerfile cannot build for arm64.
+# The build uses the Dockerfile of the release tag. docker-release.mjs refuses
+# a tag whose Dockerfile does not install from pnpm-lock.yaml (1.7.7 and older).
 
 on:
   workflow_dispatch:
@@ -55,7 +52,7 @@ on:
         type: boolean
         default: false
       overwrite:
-        description: 'Replace the image of a version that a registry already holds.'
+        description: 'Replace the image of a version in both registries. Not with ghcr_only.'
         type: boolean
         default: false
 
@@ -88,6 +85,13 @@ jobs:
         if: github.ref != 'refs/heads/master'
         run: |
           echo "::error::Start this workflow on master, not on ${GITHUB_REF}."
+          exit 1
+
+      # docker-publish-tags.sh refuses this too, but only after the builds.
+      - name: Check the inputs
+        if: inputs.ghcr_only && inputs.overwrite
+        run: |
+          echo '::error::ghcr_only with overwrite would give GHCR and Docker Hub two images for one version.'
           exit 1
 
       - name: Checkout code
@@ -148,6 +152,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
+      # The commit time, not the build time, so a rebuild gives the same label.
+      - name: Read the commit time
+        id: commit
+        run: echo "time=$(git log -1 --format=%cI)" >> "$GITHUB_OUTPUT"
+
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -158,10 +167,10 @@ jobs:
           provenance: mode=max
           sbom: true
           no-cache: true
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ needs.resolve.outputs.sha }}
-            org.opencontainers.image.version=${{ needs.resolve.outputs.version }}
+          build-args: |
+            IMAGE_VERSION=${{ needs.resolve.outputs.version }}
+            IMAGE_REVISION=${{ needs.resolve.outputs.sha }}
+            IMAGE_CREATED=${{ steps.commit.outputs.time }}
 
       # Before any tag exists, so a broken image never gets one.
       - name: Smoke test the image
@@ -189,7 +198,8 @@ jobs:
 
   publish:
     needs: [resolve, build]
-    runs-on: ubuntu-latest
+    # Pinned like the build jobs: the docker CLI of the runner holds both tokens.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     # The approval gate. The run waits here until a reviewer approves.
     environment:
@@ -211,6 +221,14 @@ jobs:
             echo '::error::The docker-hub environment has no DOCKERHUB_TOKEN secret. Add the secret in Settings > Environments > docker-hub, or start the run with ghcr_only.'
             exit 1
           fi
+
+      # The tag script of master, the dispatch ref, which a review approved.
+      - name: Checkout the tag script
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          sparse-checkout: scripts/docker-publish-tags.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
 
       - name: Download the digests
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -238,83 +256,6 @@ jobs:
       - name: Create the multi-arch tags
         env:
           VERSION: ${{ needs.resolve.outputs.version }}
+          REVISION: ${{ needs.resolve.outputs.sha }}
           LATEST: ${{ needs.resolve.outputs.latest }}
-        run: |
-          set -o pipefail
-
-          # The digests of the manifests in an image index, sorted.
-          manifests() {
-            docker buildx imagetools inspect --raw "$1" | jq -r '.manifests[].digest' | sort
-          }
-          # True when the tag exists. Only "not found" means a free tag; any
-          # other failure of the registry stops the run.
-          exists() {
-            local ERROR
-            if ERROR="$(docker buildx imagetools inspect "$1" 2>&1 >/dev/null)"; then
-              return 0
-            fi
-            if printf '%s' "$ERROR" | grep -q ': not found'; then
-              return 1
-            fi
-            echo "::error::Cannot read $1: $(printf '%s' "$ERROR" | tail -n 1)"
-            exit 1
-          }
-
-          IMAGES=("$GHCR_IMAGE")
-          if [ "$GHCR_ONLY" != 'true' ]; then
-            IMAGES+=("$DOCKERHUB_IMAGE")
-          fi
-
-          SOURCES=()
-          for FILE in "${RUNNER_TEMP}"/digests/*; do
-            SOURCES+=("${GHCR_IMAGE}@sha256:$(basename "$FILE")")
-          done
-          if [ "${#SOURCES[@]}" -ne 2 ]; then
-            echo "::error::Expected 2 digests (amd64, arm64), found ${#SOURCES[@]}."
-            exit 1
-          fi
-
-          # GHCR holds the version already, from a run that stopped before
-          # Docker Hub or a ghcr_only run: publish that image, not this build,
-          # so that both registries give the same image for the version.
-          if [ "$OVERWRITE" != 'true' ] && exists "${GHCR_IMAGE}:${VERSION}"; then
-            echo "::notice::GHCR holds ${VERSION}, so this run publishes that image and not the new build."
-            SOURCES=("${GHCR_IMAGE}:${VERSION}")
-          fi
-          WANT="$(for SOURCE in "${SOURCES[@]}"; do manifests "$SOURCE"; done | sort)"
-
-          # A tag with the same manifests is done already, so a re-run continues.
-          for IMAGE in "${IMAGES[@]}"; do
-            if exists "${IMAGE}:${VERSION}"; then
-              HAVE="$(manifests "${IMAGE}:${VERSION}")"
-              if [ "$HAVE" = "$WANT" ]; then
-                echo "${IMAGE}:${VERSION} holds this image already."
-              elif [ "$OVERWRITE" = 'true' ]; then
-                echo "::warning::This run replaces ${IMAGE}:${VERSION}."
-              else
-                echo "::error::${IMAGE}:${VERSION} holds a different image. Start the run with overwrite to replace it."
-                exit 1
-              fi
-            fi
-          done
-
-          TAGS=()
-          CHECK=()
-          for IMAGE in "${IMAGES[@]}"; do
-            TAGS+=(-t "${IMAGE}:${VERSION}")
-            CHECK+=("${IMAGE}:${VERSION}")
-            if [ "$LATEST" = 'true' ]; then
-              TAGS+=(-t "${IMAGE}:latest")
-              CHECK+=("${IMAGE}:latest")
-            fi
-          done
-          docker buildx imagetools create "${TAGS[@]}" "${SOURCES[@]}"
-
-          for REF in "${CHECK[@]}"; do
-            HAVE="$(manifests "$REF")"
-            if [ "$HAVE" != "$WANT" ]; then
-              echo "::error::${REF} does not hold the published manifests."
-              exit 1
-            fi
-            echo "${REF} holds the published manifests."
-          done
+        run: DIGEST_DIR="${RUNNER_TEMP}/digests" bash scripts/docker-publish-tags.sh

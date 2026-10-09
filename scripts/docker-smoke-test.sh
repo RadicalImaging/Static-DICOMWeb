@@ -16,13 +16,16 @@ docker run --rm "$IMAGE" sh -ec '
 '
 
 # A free host port, so that the test does not collide with another server.
-docker run -d --name "$NAME" -p 127.0.0.1::5000 "$IMAGE" >/dev/null
 trap 'docker rm -f "$NAME" >/dev/null 2>&1 || true' EXIT
+docker run -d --name "$NAME" -p 127.0.0.1::5000 "$IMAGE" >/dev/null
 PORT="$(docker port "$NAME" 5000/tcp | head -n 1 | sed 's/.*://')"
 
-# A native start takes seconds; an arm64 image under QEMU takes minutes.
-for _ in $(seq 1 90); do
-  if curl -fsS "http://127.0.0.1:${PORT}/dicomweb/studies" >/dev/null; then
+# A native start takes seconds. An arm64 image under QEMU takes minutes, and
+# the monitor can restart it first; raise SMOKE_TIMEOUT_SECONDS for that case.
+TIMEOUT="${SMOKE_TIMEOUT_SECONDS:-180}"
+DEADLINE=$((SECONDS + TIMEOUT))
+while [ "$SECONDS" -lt "$DEADLINE" ]; do
+  if curl -fsS --max-time 5 "http://127.0.0.1:${PORT}/dicomweb/studies" >/dev/null; then
     echo 'The server answers /dicomweb/studies.'
     exit 0
   fi
@@ -30,5 +33,5 @@ for _ in $(seq 1 90); do
 done
 
 docker logs "$NAME"
-echo '::error::The server did not answer /dicomweb/studies within 180 seconds.'
+echo "::error::The server did not answer /dicomweb/studies within ${TIMEOUT} seconds."
 exit 1
