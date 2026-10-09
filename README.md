@@ -66,7 +66,17 @@ The build runs packages one at a time (`--workspace-concurrency=1`). For a faste
 
 ## Docker Usage
 
-There are scripts in the root package to create a new docker deployment and to run it linking ports 25080 and 25104 to the DICOMweb and SCP endpoint. To create/start this, run:
+Released images are on Docker Hub as `braveheartsoftware/static-dicomweb`, with an `X.Y.Z` tag and `latest`.
+From 1.7.7, the images are multi-arch (linux/amd64 and linux/arm64); earlier images are linux/amd64 only.
+Releases after 1.7.7 are also on GHCR as `ghcr.io/radicalimaging/static-dicomweb`.
+
+An npm release does not publish an image. A maintainer publishes the image of a release tag with the `Publish Docker images` workflow (Actions > Run workflow).
+A reviewer of the `docker-hub` environment must approve each push to Docker Hub; the reviewer can be the maintainer who started the run. GHCR has no such approval: any workflow of this repository with `packages: write` can write to the GHCR image.
+
+A local build gets the tag `static-dicomweb:dev` (`static-dicomweb:dev-arm64` for arm64), never the Docker Hub name, so that a local build cannot replace a release by accident.
+`pnpm run docker:build:arm` builds a linux/arm64 image. On an amd64 host, that build needs QEMU emulation, which Docker Desktop includes, and it is slow.
+
+There are scripts in the root package to create a new docker deployment and to run it, with port 25080 linked to the DICOMweb endpoint. The image has no DIMSE SCP (`dicomwebscp`). To create/start this, run:
 
 ```bash
 pnpm run docker:build
@@ -115,10 +125,10 @@ There are a number of shared directories and files used to configure various set
 
 ```bash
 // Deploy the default build image
-docker run  --mount type=bind,source=/dicomweb,target=/dicomweb -p 25080:5000 -p 25104:11112 -d braveheartsoftware/static-dicomweb:0.6
+docker run  --mount type=bind,source=/dicomweb,target=/dicomweb -p 25080:5000 -d braveheartsoftware/static-dicomweb:latest
 ```
 
-That will result in an instance running on port 25080 for dicomweb, and DIMSE services on 25104.
+That will result in an instance running on port 25080 for dicomweb.
 
 ## Deployment to AWS
 
