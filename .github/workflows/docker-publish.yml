@@ -206,6 +206,7 @@ jobs:
       name: docker-hub
       url: https://hub.docker.com/r/braveheartsoftware/static-dicomweb/tags
     permissions:
+      contents: read # check out the tag script
       packages: write # tag the image in GHCR
     env:
       # An `if:` cannot read a secret directly.

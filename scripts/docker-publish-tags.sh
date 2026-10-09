@@ -23,6 +23,8 @@
 # error stops the run. A manual push between the checks and the write is not
 # detected, so do not push these tags by hand.
 set -euo pipefail
+# Without this, a failed command inside $(...) does not stop the script.
+shopt -s inherit_errexit
 
 : "${GHCR_IMAGE:?}" "${DOCKERHUB_IMAGE:?}" "${VERSION:?}" "${REVISION:?}" "${DIGEST_DIR:?}"
 LATEST="${LATEST:-false}"
@@ -65,7 +67,12 @@ fi
 
 SOURCES=()
 for FILE in "$DIGEST_DIR"/*; do
-  SOURCES+=("${GHCR_IMAGE}@sha256:$(basename "$FILE")")
+  DIGEST="$(basename "$FILE")"
+  if ! [[ "$DIGEST" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "::error::${DIGEST} in ${DIGEST_DIR} is not a sha256 digest."
+    exit 1
+  fi
+  SOURCES+=("${GHCR_IMAGE}@sha256:${DIGEST}")
 done
 if [ "${#SOURCES[@]}" -ne 2 ]; then
   echo "::error::Expected 2 digests (amd64, arm64), found ${#SOURCES[@]}."
@@ -107,7 +114,10 @@ for IMAGE in "${IMAGES[@]}"; do
     continue
   fi
   if exists "${IMAGE}:latest"; then
-    CURRENT="$(labels "${IMAGE}:latest" org.opencontainers.image.version | sort -V | tail -n 1)"
+    # Only an X.Y.Z label counts: sort -V puts `dev` above every number. The
+    # `|| true` covers grep without a match; a registry error stops before it.
+    VERSIONS="$(labels "${IMAGE}:latest" org.opencontainers.image.version)"
+    CURRENT="$(printf '%s\n' "$VERSIONS" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
     NEWEST="$(printf '%s\n%s\n' "$CURRENT" "$VERSION" | sort -V | tail -n 1)"
     if [ -n "$CURRENT" ] && [ "$CURRENT" != "$VERSION" ] && [ "$NEWEST" = "$CURRENT" ]; then
       echo "::notice::${IMAGE}:latest holds ${CURRENT}, which is newer than ${VERSION}, so latest stays."

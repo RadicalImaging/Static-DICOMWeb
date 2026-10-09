@@ -4,8 +4,8 @@ name: Docker CI
 # test of docker-publish.yml, so a broken image shows up before a release, not
 # after npm holds the version. Also tests scripts/docker-publish-tags.sh
 # against a local registry. A pull request that changes the files the image is
-# made of starts it: the Docker files, the lockfile, and the packages. Nothing
-# is pushed.
+# made of starts it: the Docker files, the lockfile, the build configuration,
+# and the packages. Nothing is pushed.
 
 on:
   pull_request:
@@ -14,6 +14,9 @@ on:
       - .dockerignore
       - docker/**
       - package.json
+      - tsconfig.json
+      - tsconfig.base.json
+      - babel.config.js
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
       - packages/**

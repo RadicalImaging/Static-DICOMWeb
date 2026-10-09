@@ -63,7 +63,9 @@ RUN pnpm --filter @radicalimaging/static-wado-webserver deploy --prod /deploy
 FROM oven/bun:1.3.13@sha256:87416c977a612a204eb54ab9f3927023c2a3c971f4f345a01da08ea6262ae30e AS dicomwebserver
 ARG TARGETARCH
 
-# Replace the labels of oven/bun. docker-publish.yml passes the release values.
+# Replace the labels of oven/bun. docker-publish.yml passes the release values;
+# `created` is the commit time, so after apt-get upgrade a rebuild can hold
+# newer packages under the same label.
 ARG IMAGE_VERSION=dev
 ARG IMAGE_REVISION=unknown
 ARG IMAGE_CREATED=unknown
