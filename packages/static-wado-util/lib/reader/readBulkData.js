@@ -107,9 +107,11 @@ const readBulkData = async (dirSrc, baseName, frame) => {
   }
 
   const startData = 4 + findIndexOfString(data, '\r\n\r\n');
-  // End boundary format: \r\n--BOUNDARY--\r\n
-  // We need to subtract: \r\n (2) + separator.length + -- (2) + \r\n (2) = separator.length + 6
-  const endData = data.length - separator.length - 6;
+  // The closing "\r\n--BOUNDARY--" may or may not end in "\r\n", depending on the writer
+  const trailerAt = data.lastIndexOf(
+    Buffer.concat([Buffer.from('\r\n'), separator, Buffer.from('--')])
+  );
+  const endData = trailerAt >= startData ? trailerAt : data.length;
   const header = sliceToArrayBuffer(data, separator.length, startData);
   const headerStr = new TextDecoder('utf-8').decode(header).replaceAll('\r', '');
   const headerSplit = headerStr.split('\n');
