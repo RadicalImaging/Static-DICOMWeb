@@ -3,10 +3,7 @@ import path from 'path';
 import { Transform } from 'stream';
 import { pipeline } from 'stream/promises';
 import zlib from 'zlib';
-import util from 'util';
-import { handleHomeRelative } from '@radicalimaging/static-wado-util';
-
-const gunzip = util.promisify(zlib.gunzip);
+import { handleHomeRelative, readBulkData } from '@radicalimaging/static-wado-util';
 
 const MULTIPART_BOUNDARY = '----DICOMwebBoundary';
 const HEADER_END = Buffer.from('\r\n\r\n');
@@ -143,26 +140,38 @@ function createPayloadTransform(boundary) {
 }
 
 /**
- * Reads a stored rendition fully and returns the Part 10 payload from its
- * multipart/related wrapper. Used only where the whole buffer is needed anyway
- * (zip), since it holds the compressed file, the decompressed body and the zip
- * output at once; streaming callers use createPayloadTransform instead.
- * @param {string} filePath - Path to the stored file
- * @param {string} boundary - Boundary of the wrapper
- * @returns {Promise<Buffer|null>} - Raw Part 10 bytes, or null if not multipart
+ * Resolves when res can take more data, or when it closes.
+ * @param {import('http').ServerResponse} res
+ * @returns {Promise<void>}
  */
-async function readStoredPart10(filePath, boundary) {
-  let data = await fsp.readFile(filePath);
-  if (filePath.endsWith('.gz')) {
-    data = await gunzip(data);
-  }
-  const headerEnd = data.indexOf(HEADER_END);
-  if (headerEnd === -1) return null;
-  const payloadStart = headerEnd + HEADER_END.length;
-  const trailer = Buffer.from(`\r\n--${boundary}--`);
-  let payloadEnd = data.lastIndexOf(trailer);
-  if (payloadEnd < payloadStart) payloadEnd = data.length;
-  return data.subarray(payloadStart, payloadEnd);
+function drainedOrClosed(res) {
+  return new Promise(resolve => {
+    const done = () => {
+      res.off('drain', done);
+      res.off('close', done);
+      resolve();
+    };
+    res.on('drain', done);
+    res.on('close', done);
+  });
+}
+
+/**
+ * Streams the stages into res and ends it. Unlike pipeline(..., res), a failure does
+ * not destroy res: while no headers are sent, the caller can still send a different
+ * response, such as the generated Part 10 data.
+ * @param {import('http').ServerResponse} res - Response to write to
+ * @param {import('stream').Duplex[]} stages - Source first, response bytes last
+ * @returns {Promise<void>}
+ */
+async function streamToResponse(res, stages) {
+  await pipeline(...stages, async source => {
+    for await (const chunk of source) {
+      if (res.destroyed) return;
+      if (!res.write(chunk)) await drainedOrClosed(res);
+    }
+  });
+  res.end();
 }
 
 /**
@@ -223,11 +232,13 @@ function getAcceptType(req) {
  * - multipart/related: multipart/related wrapping Part 10 binary (default for Part 10 requests)
  *
  * Serves the already-stored rendition (instances/<sopUID>/index.mht.gz) when it
- * exists - for multipart/related by setting the stored wrapper's boundary and falling
- * through to dicomMap/static serving, otherwise by streaming the payload out of the
- * stored multipart wrapper. Only when no stored file exists (or it is not a usable
- * multipart wrapper) is the Part 10 data re-created from metadata and bulkdata as a
- * backup.
+ * exists. The response always carries the boundary of the stored wrapper, because a
+ * multipart/related body cannot be parsed without it. For multipart/related, a client
+ * that accepts gzip gets the stored file through dicomMap and the static controllers,
+ * and any other client gets the decompressed wrapper. The other accept types stream
+ * the payload out of the wrapper. Only when no stored file exists, or it is not a
+ * usable multipart wrapper, or reading it fails before any byte is sent, is the Part 10
+ * data re-created from metadata and bulkdata.
  *
  * If no Part 10-specific accept type is detected, calls next() to fall through
  * to the existing dicomMap handler.
@@ -248,48 +259,38 @@ export default function part10Controller(options) {
 
     const { studyUID, seriesUID, instanceUID } = req.params;
 
-    // Prefer the already-stored (compressed) rendition; only re-create as a backup.
     const storedPath = await findStoredRendition(baseDir, req.staticWadoPath ?? req.path);
-    // The boundary of the stored wrapper is needed for every accept type: to advertise it
-    // in the response header, and to find the closing delimiter when unwrapping. Reading it
-    // decompresses only the first line, and a null means the file is not a usable wrapper.
     const boundary = storedPath ? await readStoredBoundary(storedPath) : null;
     if (storedPath && !boundary) {
       console.warn(`Stored Part 10 file ${storedPath} is not a multipart wrapper`);
     }
     if (storedPath && boundary) {
-      // A multipart/related body is unparseable without its boundary, so it is always sent.
-      const multipartType = `multipart/related; type="application/dicom"; boundary="${boundary}"`;
-      if (acceptType === 'multipart/related') {
-        res.setHeader('Content-Type', multipartType);
-        if (storedPath.endsWith('.gz')) {
-          // Fall through to dicomMap + the static controllers, which serve the stored
-          // index.mht.gz directly (gzip-encoded multipart/related). dicomMap keeps the
-          // Content-Type set here rather than replacing it with its boundary-less default.
-          return next();
-        }
-        // Plain index.mht - dicomMap only maps to index.mht.gz, so send directly
-        res.sendFile(path.resolve(storedPath));
-        return;
-      }
       try {
+        if (acceptType === 'multipart/related') {
+          res.setHeader(
+            'Content-Type',
+            `multipart/related; type="application/dicom"; boundary="${boundary}"`
+          );
+          // dicomMap keeps this Content-Type, and the static controllers send the .gz as is
+          if (storedPath.endsWith('.gz') && req.acceptsEncodings?.('gzip')) return next();
+          await streamToResponse(res, storedRenditionStages(storedPath));
+          return;
+        }
         if (acceptType === 'application/dicom') {
-          // Streamed rather than buffered: a stored SEG can be hundreds of megabytes.
           res.setHeader('Content-Type', 'application/dicom');
           res.setHeader('Content-Disposition', `attachment; filename="${instanceUID}.dcm"`);
-          await pipeline(
+          await streamToResponse(res, [
             ...storedRenditionStages(storedPath),
             createPayloadTransform(boundary),
-            res
-          );
+          ]);
           return;
         }
         if (acceptType === 'application/zip') {
-          const dcmBuffer = await readStoredPart10(storedPath, boundary);
-          if (dcmBuffer) {
+          const stored = await readBulkData(path.dirname(storedPath), 'index.mht');
+          if (stored) {
             const AdmZip = (await import('adm-zip')).default;
             const zip = new AdmZip();
-            zip.addFile(`${instanceUID}.dcm`, dcmBuffer);
+            zip.addFile(`${instanceUID}.dcm`, Buffer.from(stored.binaryData));
             res.setHeader('Content-Type', 'application/zip');
             res.setHeader('Content-Disposition', `attachment; filename="${studyUID}.zip"`);
             res.send(zip.toBuffer());
@@ -298,9 +299,8 @@ export default function part10Controller(options) {
         }
       } catch (error) {
         console.warn(`Unable to serve stored Part 10 file ${storedPath}: ${error.message}`);
-        // Response already started - the client sees a truncated body either way, and
-        // falling through would append generated data to it.
-        if (res.headersSent) {
+        // Generated data cannot follow a partial body
+        if (res.headersSent || res.destroyed) {
           res.destroy(error);
           return;
         }

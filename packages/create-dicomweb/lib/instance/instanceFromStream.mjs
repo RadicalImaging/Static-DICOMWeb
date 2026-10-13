@@ -63,7 +63,12 @@ function shouldStoreRawPart10(dict) {
  * are therefore re-read from the files just written, which means this must run only
  * once those files are at their final paths (that is, after commitPendingMoves), and it
  * produces exactly what the part10 controller's generation fallback produces for the
- * same instance.
+ * same instance. It is therefore not covered by validateInstance, and a failure here
+ * leaves the instance itself stored.
+ *
+ * The rendition reads bulkdata and frames through their BulkDataURIs ('./frames',
+ * '../../../../bulkdata/<hash>.mht.gz'), which are relative to the instance directory.
+ * It is written in 1 MiB zero-copy chunks so the stream's highWaterMark applies.
  *
  * Memory: dcmjs' DicomDict.write() returns the whole instance as one buffer, so a full
  * copy is resident here (plus the re-read bulkdata) for as long as the write takes. A
@@ -74,6 +79,7 @@ function shouldStoreRawPart10(dict) {
  * @param {Object} dict - Parsed instance dataset (DICOM JSON model)
  * @param {string} sopInstanceUID - For logging
  * @returns {Promise<void>}
+ * @throws When the rendition cannot be generated or its stream fails to close
  */
 async function writeRawPart10(writer, dict, sopInstanceUID) {
   const baseDir = writer.options?.baseDir;
@@ -85,9 +91,6 @@ async function writeRawPart10(writer, dict, sopInstanceUID) {
     );
     return;
   }
-  // BulkDataURIs written for this instance ('./frames' for pixel data,
-  // '../../../../bulkdata/<hash>.mht.gz' for other binary tags) are relative to the
-  // instance directory, so that is the base readBulkData has to resolve against.
   const instanceDir = path.join(
     baseDir,
     'studies',
@@ -105,14 +108,15 @@ async function writeRawPart10(writer, dict, sopInstanceUID) {
     contentType: 'application/dicom',
     boundary: `BOUNDARY_${uuid()}`,
   });
-  // Written as chunks (zero-copy views) rather than one buffer so the write honours the
-  // stream's highWaterMark instead of queueing the whole instance inside the stream.
   const chunks = [];
   for (let offset = 0; offset < buffer.length; offset += RAW_PART10_CHUNK_SIZE) {
     chunks.push(buffer.subarray(offset, Math.min(offset + RAW_PART10_CHUNK_SIZE, buffer.length)));
   }
   rawStream.write(chunks);
-  await writer.closeStream(rawStream.streamKey);
+  // closeStream records a failure and resolves undefined rather than rejecting
+  if ((await writer.closeStream(rawStream.streamKey)) === undefined) {
+    throw new Error('Part 10 rendition stream failed to close');
+  }
 }
 
 /**
@@ -461,11 +465,7 @@ export async function instanceFromStream(stream, options = {}) {
     // Commit deferred moves (rename temp → final). No-op on base class.
     await writer?.commitPendingMoves();
 
-    // Store a Part 10 rendition for segmentations/structured reports so instance retrieval
-    // can serve it directly instead of re-creating it. It is generated from the dataset and
-    // the files written above, so it has to come after the commit that puts those files at
-    // their final paths - which also means it is not covered by validateInstance, and a
-    // failure here leaves the instance itself stored.
+    // After the commit above, because the rendition reads back the committed files
     if (writer && options.writeRawPart10 !== false && shouldStoreRawPart10(dict)) {
       try {
         await writeRawPart10(writer, dict, information.sopInstanceUid);

@@ -6,9 +6,9 @@ import {
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import fs from 'fs';
+import path from 'path';
 import mime from 'mime-types';
-import { configGroup, endsWith } from '@radicalimaging/static-wado-util';
-import uids from '@radicalimaging/static-wado-util/uids.mjs';
+import { configGroup, endsWith, uids } from '@radicalimaging/static-wado-util';
 import { renameLegacyMultipart } from '@radicalimaging/static-wado-util/multipartFile.mjs';
 import ConfigPoint from 'config-point';
 import { createHash } from 'crypto';
@@ -18,6 +18,8 @@ import copyTo from './copyTo.mjs';
 
 const compressedRe = /((\.br)|(\.gz))$/;
 const indexRe = /\/index\.(json|mht)$/;
+/** A path inside a bulkdata directory, for either separator */
+const bulkdataRe = /(^|[\\/])bulkdata[\\/]/;
 
 const octetStream = 'application/octet-stream';
 const multipartRelated = 'multipart/related';
@@ -40,9 +42,8 @@ const codestreamContentTypes = Object.values(uids).reduce((acc, info) => {
   return acc;
 }, {});
 
-/** Last path segment of a file name or key, for either path separator */
-const lastSegment = name =>
-  name.substring(Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\')) + 1);
+/** Last path segment of a file name or key; win32 accepts both separators */
+const lastSegment = name => path.win32.basename(name);
 
 const hasExtension = name => lastSegment(name).indexOf('.') !== -1;
 
@@ -154,9 +155,7 @@ class S3Ops {
       (src.indexOf('.mht') !== -1 && multipartRelatedDicom) ||
       (src.indexOf('bulkdata') !== -1 && octetStream) ||
       (src.indexOf('.raw') !== -1 && octetStream) ||
-      // Only extension-less frame files are multipart wrappers. A frame stored as a raw
-      // codestream is a single-part binary, and labelling it multipart/related makes
-      // clients try to parse a boundary that is not there.
+      // A raw codestream frame (with an extension) is single-part
       (src.indexOf('frames') !== -1 && !hasExtension(src) && multipartRelated) ||
       (src.indexOf('thumbnail') !== -1 && imagejpeg) ||
       (src.indexOf('.ion') !== -1 && ionType) ||
@@ -260,6 +259,29 @@ class S3Ops {
     return candidates;
   }
 
+  /**
+   * Finds the local file a listed object is already stored under, from every name in
+   * localCandidates: a multipart object's real name is only known from the response
+   * headers, so testing the guessed name alone would download it again.
+   *
+   * A file at the guessed name may be multipart content that an older retrieve left
+   * there. It is renamed to its .mht name by content, since nothing reads it at the
+   * guessed name. Bulkdata is never renamed (see renameLegacyMultipart).
+   * @param {string} destFile - Full path the listing guessed for the object
+   * @returns {Promise<string|undefined>} Full path of the existing file
+   */
+  async findExistingLocal(destFile) {
+    const candidates = this.localCandidates(destFile);
+    const existing = candidates.find(name => fs.existsSync(name));
+    const mayRename =
+      existing === destFile &&
+      candidates.length > 1 &&
+      !this.options.dryRun &&
+      !bulkdataRe.test(destFile);
+    if (!mayRename) return existing;
+    return (await renameLegacyMultipart(existing, multipartBase(existing))) ?? existing;
+  }
+
   /** Retrieves the given s3 URI to the specified destination path */
   async retrieve(uri, destFile, options = { force: false }) {
     const remoteUri = this.remoteRelativeToUri(uri);
@@ -275,22 +297,10 @@ class S3Ops {
       Key,
     });
     if (options?.force !== true) {
-      // Every name the object may be stored under locally, not just the guessed one: a
-      // multipart object's real name is only known from the response headers, so testing
-      // destFile alone re-downloads objects already stored under their corrected .mht name.
-      const candidates = this.localCandidates(destFile);
-      const existing = candidates.find(name => fs.existsSync(name));
+      const existing = await this.findExistingLocal(destFile);
       if (existing) {
-        // A file sitting at the guessed name may be multipart content left there by an
-        // older retrieve. Correcting it locally is cheaper than re-downloading, and
-        // without it the object stays at a name nothing looks for - skipping the
-        // download that would have written the corrected one.
-        const corrected =
-          existing === destFile && candidates.length > 1 && !this.options.dryRun
-            ? renameLegacyMultipart(existing)
-            : undefined;
-        console.info('Already exists', Key, corrected ?? existing);
-        return corrected ?? existing;
+        console.info('Already exists', Key, existing);
+        return existing;
       }
     }
 

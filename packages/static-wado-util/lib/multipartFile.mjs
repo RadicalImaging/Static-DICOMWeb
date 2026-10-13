@@ -30,51 +30,42 @@ export function looksMultipart(bytes) {
  * Reads the leading bytes of a file, returning an empty buffer if it cannot be read.
  * @param {string} filePath - File to read
  * @param {number} [length] - Bytes to read
- * @returns {Buffer}
+ * @returns {Promise<Buffer>}
  */
-function readLeadingBytes(filePath, length = SNIFF_BYTES) {
-  const header = Buffer.alloc(length);
-  let bytesRead = 0;
-  let fd;
+async function readLeadingBytes(filePath, length = SNIFF_BYTES) {
+  let handle;
   try {
-    fd = fs.openSync(filePath, 'r');
-    bytesRead = fs.readSync(fd, header, 0, length, 0);
+    handle = await fs.promises.open(filePath, 'r');
+    const header = Buffer.alloc(length);
+    const { bytesRead } = await handle.read(header, 0, length, 0);
+    return header.subarray(0, bytesRead);
   } catch {
     return Buffer.alloc(0);
   } finally {
-    if (fd !== undefined) fs.closeSync(fd);
+    await handle?.close();
   }
-  return header.subarray(0, bytesRead);
 }
 
 /**
- * Renames a multipart file stored under a plain ".gz" name to <base>.mht or
- * <base>.mht.gz according to its content. Files that are not multipart (gzipped JSON
- * such as metadata.gz, raw bulkdata) are left alone.
+ * Renames a multipart file to <base>.mht or <base>.mht.gz according to its content.
+ * Files that are not multipart (gzipped JSON such as metadata.gz) are left alone.
  *
- * The stripped ".mht" extension cannot be recovered from an object listing, so a
- * retrieve has to guess "<key>.gz"; this puts a file left under that guess at the name
- * the rest of the system looks for.
+ * The caller decides the base name and whether a rename is safe. Content alone cannot
+ * tell the two bulkdata layouts apart: both static-wado-creator (<hash>.gz) and
+ * create-dicomweb (<hash>.mht.gz) write gzipped multipart bulkdata, and the BulkDataURI
+ * in the metadata fixes the name, so bulkdata must never be passed here.
  * @param {string} existingPath - Full path of the file stored under the guessed name
- * @returns {string|undefined} The corrected path, if renamed
+ * @param {string} base - Path without extension that the corrected name is built on
+ * @returns {Promise<string|undefined>} The corrected path, if renamed
  */
-export function renameLegacyMultipart(existingPath) {
-  const header = readLeadingBytes(existingPath);
+export async function renameLegacyMultipart(existingPath, base) {
+  const header = await readLeadingBytes(existingPath);
   if (header.length < 2) return undefined;
-
-  let base = existingPath.substring(0, existingPath.length - 3);
-  if (base.endsWith('.json')) {
-    // A directory-index guess (index.json.gz) holding multipart content
-    // belongs at index.mht(.gz)
-    base = base.substring(0, base.length - '.json'.length);
-  }
 
   let corrected;
   if (looksMultipart(header)) {
-    // An uncompressed .mht stored as .gz
     corrected = `${base}.mht`;
   } else if (header[0] === 0x1f && header[1] === 0x8b) {
-    // Gzip data - only rename when the compressed content is multipart
     try {
       const inflated = zlib.gunzipSync(header, {
         finishFlush: zlib.constants.Z_SYNC_FLUSH,
@@ -88,7 +79,7 @@ export function renameLegacyMultipart(existingPath) {
   }
 
   if (!corrected || fs.existsSync(corrected)) return undefined;
-  fs.renameSync(existingPath, corrected);
+  await fs.promises.rename(existingPath, corrected);
   console.noQuiet?.('Renamed', existingPath, 'to', corrected);
   return corrected;
 }

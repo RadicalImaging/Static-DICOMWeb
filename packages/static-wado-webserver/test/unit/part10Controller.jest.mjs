@@ -31,7 +31,11 @@ class MockResponse extends Writable {
     this.chunks = [];
     this.statusCode = 200;
     this.sent = null;
-    this.sentFile = null;
+  }
+
+  /** Express sends the headers with the first body byte */
+  get headersSent() {
+    return this.chunks.length > 0;
   }
 
   _write(chunk, encoding, callback) {
@@ -57,11 +61,6 @@ class MockResponse extends Writable {
     return this;
   }
 
-  sendFile(filePath) {
-    this.sentFile = filePath;
-    return this;
-  }
-
   get streamed() {
     return Buffer.concat(this.chunks);
   }
@@ -69,13 +68,15 @@ class MockResponse extends Writable {
 
 /**
  * @param {string} accept - Accept header value
+ * @param {boolean} [acceptsGzip] - Whether Accept-Encoding allows gzip
  * @returns {object} Express request double
  */
-function createRequest(accept) {
+function createRequest(accept, acceptsGzip = true) {
   return {
     params: { studyUID: STUDY, seriesUID: SERIES, instanceUID: SOP },
     query: {},
     header: name => (name.toLowerCase() === 'accept' ? accept : undefined),
+    acceptsEncodings: encoding => acceptsGzip && encoding === 'gzip' && 'gzip',
     path: REQUEST_PATH,
     staticWadoPath: REQUEST_PATH,
   };
@@ -153,17 +154,18 @@ describe('part10Controller stored rendition', () => {
     expect(req.url).toBe(`${REQUEST_PATH}/index.mht.gz`);
   });
 
-  it('sends an uncompressed rendition directly, with the boundary', async () => {
-    const filePath = storeRendition(payloadOf(1024), false);
-    const req = createRequest('multipart/related; type="application/dicom"');
+  it('sends the decompressed wrapper to a client that does not accept gzip', async () => {
+    const payload = payloadOf(4096);
+    storeRendition(payload);
+    const req = createRequest('multipart/related; type="application/dicom"', false);
     const res = new MockResponse();
     const next = jest.fn();
 
     await controller(req, res, next);
 
     expect(next).not.toHaveBeenCalled();
-    expect(res.sentFile).toBe(path.resolve(filePath));
     expect(res.getHeader('content-type')).toContain(`boundary="${BOUNDARY}"`);
+    expect(res.streamed.equals(multipartBody(payload))).toBe(true);
   });
 
   it('streams the exact payload for application/dicom', async () => {
@@ -216,6 +218,20 @@ describe('part10Controller stored rendition', () => {
     await controller(req, res, jest.fn());
 
     expect(res.streamed.equals(payload)).toBe(true);
+  });
+
+  it('falls back to generation when the stored file fails before any byte is sent', async () => {
+    // Drop the gzip trailer: the read fails at the end, while the payload is still held back
+    const gzipped = zlib.gzipSync(multipartBody(payloadOf(7)));
+    fs.writeFileSync(path.join(instanceDir, 'index.mht.gz'), gzipped.subarray(0, -4));
+    const req = createRequest('application/dicom');
+    const res = new MockResponse();
+
+    await controller(req, res, jest.fn());
+
+    expect(res.destroyed).toBe(false);
+    expect(res.streamed.length).toBe(0);
+    expect(res.statusCode).toBe(404);
   });
 
   it('falls through to generation when the stored file is not a multipart wrapper', async () => {

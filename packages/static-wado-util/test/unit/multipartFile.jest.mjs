@@ -69,43 +69,29 @@ describe('renameLegacyMultipart', () => {
     return full;
   }
 
-  it('renames uncompressed multipart content to .mht', () => {
+  it('renames uncompressed multipart content to .mht', async () => {
     const src = write('sop.gz', multipartBody());
-    expect(renameLegacyMultipart(src)).toBe(path.join(dir, 'sop.mht'));
+    expect(await renameLegacyMultipart(src, path.join(dir, 'sop'))).toBe(path.join(dir, 'sop.mht'));
     expect(fs.existsSync(src)).toBe(false);
   });
 
-  it('renames gzipped multipart content to .mht.gz', () => {
+  it('renames gzipped multipart content to .mht.gz', async () => {
     const src = write('sop.gz', zlib.gzipSync(multipartBody()));
-    expect(renameLegacyMultipart(src)).toBe(path.join(dir, 'sop.mht.gz'));
+    expect(await renameLegacyMultipart(src, path.join(dir, 'sop'))).toBe(
+      path.join(dir, 'sop.mht.gz')
+    );
   });
 
-  it('renames a directory-index guess to index.mht.gz', () => {
-    const src = write('index.json.gz', zlib.gzipSync(multipartBody()));
-    expect(renameLegacyMultipart(src)).toBe(path.join(dir, 'index.mht.gz'));
-  });
-
-  it('leaves gzipped JSON alone', () => {
+  it('leaves gzipped JSON alone', async () => {
     const src = write('metadata.gz', zlib.gzipSync(Buffer.from('[{"00080018":{}}]')));
-    expect(renameLegacyMultipart(src)).toBeUndefined();
+    expect(await renameLegacyMultipart(src, path.join(dir, 'metadata'))).toBeUndefined();
     expect(fs.existsSync(src)).toBe(true);
   });
 
-  it('leaves bulkdata starting with "--" alone', () => {
-    const blob = Buffer.concat([Buffer.from([0x2d, 0x2d]), Buffer.alloc(4096, 0x3c)]);
-    const src = write('bulkdata/ab/cd/hash.gz', zlib.gzipSync(blob));
-    expect(renameLegacyMultipart(src)).toBeUndefined();
-    expect(fs.existsSync(src)).toBe(true);
-  });
-
-  it('does not overwrite an existing corrected file', () => {
+  it('does not overwrite an existing corrected file', async () => {
     const src = write('sop.gz', multipartBody());
     write('sop.mht', multipartBody('other'));
-    expect(renameLegacyMultipart(src)).toBeUndefined();
+    expect(await renameLegacyMultipart(src, path.join(dir, 'sop'))).toBeUndefined();
     expect(fs.existsSync(src)).toBe(true);
-  });
-
-  it('returns undefined for an unreadable path', () => {
-    expect(renameLegacyMultipart(path.join(dir, 'missing.gz'))).toBeUndefined();
   });
 });

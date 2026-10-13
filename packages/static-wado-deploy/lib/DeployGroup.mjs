@@ -1,6 +1,5 @@
 import fs from 'fs';
 import { configGroup, handleHomeRelative } from '@radicalimaging/static-wado-util';
-import { renameLegacyMultipart } from '@radicalimaging/static-wado-util/multipartFile.mjs';
 import path from 'path';
 import { plugins } from '@radicalimaging/static-wado-plugins';
 import joinUri from './joinUri.mjs';
@@ -335,31 +334,15 @@ class DeployGroup {
   }
 
   /**
-   * Finds the local file a listed object is already stored under, checking
-   * the alternate .mht names a multipart object may have locally. A file
-   * left under the generic ".gz" name by an older retrieve is renamed to
-   * its correct multipart name, determined from its leading bytes.
-   * @returns {string|undefined} Full path of the existing local file
+   * Finds the local file a listed object is already stored under. The ops decide
+   * which local names an object may have; without findExistingLocal only the
+   * listed name is checked.
+   * @param {string} destName - Full path the listing gives for the object
+   * @returns {Promise<string|undefined>}
    */
-  findExistingLocal(fileName) {
-    const candidates = this.ops.localCandidates ? this.ops.localCandidates(fileName) : [fileName];
-    const existing = candidates.find(name => fs.existsSync(path.join(this.baseDir, name)));
-    if (existing === undefined) return undefined;
-    const existingPath = path.join(this.baseDir, existing);
-    if (existing === fileName && candidates.length > 1 && !this.options.dryRun) {
-      return this.renameLegacyMultipart(existingPath) || existingPath;
-    }
-    return existingPath;
-  }
-
-  /**
-   * Renames a multipart file stored under a plain ".gz" name to
-   * <base>.mht or <base>.mht.gz according to its content. Files that are
-   * not multipart (e.g. gzipped JSON such as metadata.gz) are left alone.
-   * @returns {string|undefined} The corrected path, if renamed
-   */
-  renameLegacyMultipart(existingPath) {
-    return renameLegacyMultipart(existingPath);
+  async findExistingLocal(destName) {
+    if (this.ops.findExistingLocal) return this.ops.findExistingLocal(destName);
+    return fs.existsSync(destName) ? destName : undefined;
   }
 
   async dir(uri) {
@@ -418,16 +401,15 @@ class DeployGroup {
         continue;
       }
       if (!force) {
-        const existingPath = this.findExistingLocal(item.fileName);
-        // shouldSkip is async - an un-awaited Promise is always truthy, which skipped
-        // every existing file regardless of its size or ETag.
+        const existingPath = await this.findExistingLocal(destName);
         if (existingPath && (await this.ops.shouldSkip(item, existingPath))) {
           console.verbose('Skipping', existingPath);
           skippedItems += 1;
           continue;
         }
       }
-      await this.ops.retrieve(item.relativeUri, destName);
+      // Any local copy failed shouldSkip, so it is stale and must be replaced
+      await this.ops.retrieve(item.relativeUri, destName, { force: true });
       retrieved += 1;
     }
     console.log('Retrieved', retrieved, 'items to', this.baseDir, 'and skipped', skippedItems);

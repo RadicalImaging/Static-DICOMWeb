@@ -171,6 +171,19 @@ describe('retrieve skips work that is already local', () => {
     expect(fs.existsSync(stale)).toBe(false);
   });
 
+  it('leaves multipart bulkdata at the name its BulkDataURI uses', async () => {
+    // static-wado-creator writes gzipped multipart bulkdata as <hash>.gz
+    const ops = createOps();
+    const bulkdata = path.join(dir, 'studies', '1', 'bulkdata', 'abc', 'de', 'hash.gz');
+    fs.mkdirSync(path.dirname(bulkdata), { recursive: true });
+    fs.writeFileSync(bulkdata, zlib.gzipSync(multipartBody()));
+
+    const result = await ops.retrieve('deploy/studies/1/bulkdata/abc/de/hash', bulkdata);
+
+    expect(result).toBe(bulkdata);
+    expect(fs.existsSync(bulkdata)).toBe(true);
+  });
+
   it('leaves a genuine json index where it is', async () => {
     const ops = createOps();
     const studyDir = path.join(dir, 'studies');
