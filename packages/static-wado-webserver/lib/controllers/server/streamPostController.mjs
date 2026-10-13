@@ -275,6 +275,8 @@ export function streamPostController(params) {
     createBufferStream: (req, fileInfo, headers) =>
       new TrackableReadBufferStream(null, true, {
         noCopy: true,
+        // Backpressure bounds only the unparsed bytes; this frees the parsed ones
+        clearBuffers: true,
         backpressureMaxBytes,
         streamWritePromiseTracker: req.streamWritePromiseTracker ?? null,
         streamWriteLimit: maxUnsettledStreamWrites,

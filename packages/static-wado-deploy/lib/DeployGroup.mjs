@@ -333,6 +333,18 @@ class DeployGroup {
     }
   }
 
+  /**
+   * Finds the local file a listed object is already stored under. The ops decide
+   * which local names an object may have; without findExistingLocal only the
+   * listed name is checked.
+   * @param {string} destName - Full path the listing gives for the object
+   * @returns {Promise<string|undefined>}
+   */
+  async findExistingLocal(destName) {
+    if (this.ops.findExistingLocal) return this.ops.findExistingLocal(destName);
+    return fs.existsSync(destName) ? destName : undefined;
+  }
+
   async dir(uri) {
     const list = await this.ops.dir(uri);
     return list.reduce((acc, value) => {
@@ -388,14 +400,16 @@ class DeployGroup {
       if (isExcluded) {
         continue;
       }
-      if (fs.existsSync(destName) && !force) {
-        if (this.ops.shouldSkip(item, destName)) {
-          console.verbose('Skipping', destName);
+      if (!force) {
+        const existingPath = await this.findExistingLocal(destName);
+        if (existingPath && (await this.ops.shouldSkip(item, existingPath))) {
+          console.verbose('Skipping', existingPath);
           skippedItems += 1;
           continue;
         }
       }
-      await this.ops.retrieve(item.relativeUri, destName);
+      // Any local copy failed shouldSkip, so it is stale and must be replaced
+      await this.ops.retrieve(item.relativeUri, destName, { force: true });
       retrieved += 1;
     }
     console.log('Retrieved', retrieved, 'items to', this.baseDir, 'and skipped', skippedItems);
