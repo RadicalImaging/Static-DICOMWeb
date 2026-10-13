@@ -8,6 +8,7 @@ const CR_IMAGE_STORAGE = '1.2.840.10008.5.1.4.1.1.1';
 const CT_IMAGE_STORAGE = '1.2.840.10008.5.1.4.1.1.2';
 const MR_IMAGE_STORAGE = '1.2.840.10008.5.1.4.1.1.4';
 const ENHANCED_CT_IMAGE_STORAGE = '1.2.840.10008.5.1.4.1.1.2.1';
+const XA_IMAGE_STORAGE = '1.2.840.10008.5.1.4.1.1.12.1';
 
 const base64 = typedArray => Buffer.from(typedArray.buffer).toString('base64');
 
@@ -139,6 +140,39 @@ describe('Modality and VOI LUT Sequences', () => {
       'an empty Modality LUT Sequence on signed pixels',
       { pixelRepresentation: 1, extra: modalityLUTSequence([]) },
       SIGNED,
+    ],
+    [
+      'a Modality LUT Sequence that XA does not apply, on signed pixels',
+      {
+        sopClassUID: XA_IMAGE_STORAGE,
+        pixelRepresentation: 1,
+        extra: modalityLUTSequence([lutItem({ descriptor: [4, 0, 16] })]),
+      },
+      SIGNED,
+    ],
+    [
+      'a Modality LUT that cannot be read, on signed pixels',
+      { pixelRepresentation: 1, extra: modalityLUTSequence([lutItem({ descriptor: [4, 0] })]) },
+      SIGNED,
+    ],
+    [
+      'an applied Modality LUT on CT',
+      {
+        sopClassUID: CT_IMAGE_STORAGE,
+        extra: modalityLUTSequence([lutItem({ descriptor: [4, 0, 16] })]),
+      },
+      UNSIGNED,
+    ],
+    [
+      'an applied Modality LUT ahead of a negative rescale',
+      {
+        sopClassUID: MR,
+        extra: {
+          ...rescale(-1000),
+          ...modalityLUTSequence([lutItem({ descriptor: [4, 0, 16] })]),
+        },
+      },
+      UNSIGNED,
     ],
     ['signed pixels and no rescale', { pixelRepresentation: 1 }, SIGNED],
     ['unsigned pixels and no rescale', {}, UNSIGNED],

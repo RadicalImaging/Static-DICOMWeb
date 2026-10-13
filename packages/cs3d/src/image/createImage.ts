@@ -4,9 +4,14 @@ import { VOILUTFunctionType } from '@cornerstonejs/core/enums';
 import * as dcmjs from 'dcmjs';
 import { imageFrameUtils } from '../util';
 
-// The metadata has been through a JSON round trip, so a binary value is either base64
-// InlineBinary (including values whose VR the creator could not resolve, e.g. implicit VR
-// 'US|SS') or decoded numbers. A BulkDataURI cannot be resolved here.
+/**
+ * Reads a binary LUT attribute as bytes. After the JSON round trip of the metadata, the
+ * value is base64 InlineBinary (also for a VR the creator could not resolve, such as
+ * implicit VR 'US|SS') or decoded numbers.
+ *
+ * @param value naturalized LUT Descriptor or LUT Data value
+ * @returns the little endian bytes, or undefined for a BulkDataURI or another shape
+ */
 function getLUTBytes(value) {
   if (typeof value?.InlineBinary === 'string') {
     return Buffer.from(value.InlineBinary, 'base64');
@@ -28,13 +33,17 @@ function readUint16Words(bytes) {
   return words;
 }
 
-// The cornerstone renderer reads a LUT as { firstValueMapped, lut } and spreads `lut`, so
-// passing the raw sequence item through fails the whole thumbnail. An item that cannot be
-// read returns undefined, which leaves the window center/width (or, for a Modality LUT,
-// the rescale) in charge.
-// LUT Data entries are always unsigned (US/OW); only the first value mapped follows the
-// signedness of the values the LUT is indexed by. 8 bit entries may be stored one per
-// byte instead of one per word, which only the data length tells apart.
+/**
+ * Converts a naturalized Modality or VOI LUT Sequence item into the LUT shape of the
+ * cornerstone renderer, which spreads `lut` and so fails on the raw item.
+ * LUT entries are unsigned (US/OW); only the first value mapped can be signed.
+ * 8 bit entries are stored one per byte or one per word; the data length tells which.
+ *
+ * @param item naturalized sequence item
+ * @param signedInput whether the values that index the LUT are signed
+ * @returns the LUT, or undefined when the item cannot be read, so that the window
+ *   center/width (or, for a Modality LUT, the rescale) applies
+ */
 function toCornerstoneLUT(item, signedInput) {
   const descriptorBytes = getLUTBytes(item?.LUTDescriptor);
   const dataBytes = getLUTBytes(item?.LUTData);
@@ -61,9 +70,14 @@ function toCornerstoneLUT(item, signedInput) {
   };
 }
 
-// The renderer clamps a Modality LUT at firstValueMapped but then reads lut[storedValue]
-// without subtracting it. Padding the front with the first entry makes that read right.
-// A negative firstValueMapped cannot be padded and is left as is.
+/**
+ * Moves a Modality LUT to start at 0. The renderer clamps at firstValueMapped but then
+ * reads lut[storedValue] without subtracting it, so the front is padded with the first
+ * entry. A negative firstValueMapped cannot be padded and is left as is.
+ *
+ * @param lut converted Modality LUT, or undefined
+ * @returns the LUT starting at 0, or the input unchanged
+ */
 function startModalityLUTAtZero(lut) {
   if (!lut || lut.firstValueMapped <= 0) {
     return lut;
@@ -75,10 +89,33 @@ function startModalityLUTAtZero(lut) {
   };
 }
 
-// The VOI LUT is indexed by the modality LUT output, which can be signed even when the
-// stored pixels are not (CT, or a rescale that goes negative). Same rule as
-// dicom-image-loader's getModalityLUTOutputPixelRepresentation.
-function isModalityOutputSigned(dataSet) {
+/**
+ * Reads a DS value as a number. dcmjs naturalizes an element with no value to null or
+ * [], which Number() would read as 0; the loader treats those as absent.
+ *
+ * @returns the number, or undefined when the element has no value
+ */
+function decimal(value) {
+  return value === null || value === undefined || value === '' || Array.isArray(value)
+    ? undefined
+    : Number(value);
+}
+
+/**
+ * Tells whether the values that index the VOI LUT, the output of the modality
+ * transform, are signed. They can be signed when the stored pixels are not (CT, or a
+ * rescale that goes negative). An applied Modality LUT decides first, because the
+ * renderer uses it in place of the rescale and its entries are unsigned. The other rules
+ * are those of dicom-image-loader's getModalityLUTOutputPixelRepresentation.
+ *
+ * @param dataSet naturalized metadata of the image
+ * @param modalityLUT the Modality LUT that the image applies, if any
+ * @returns true when the modality output is signed
+ */
+function isModalityOutputSigned(dataSet, modalityLUT) {
+  if (modalityLUT) {
+    return false;
+  }
   const { SOPClassUID, PixelRepresentation, BitsStored } = dataSet;
   if (
     SOPClassUID === '1.2.840.10008.5.1.4.1.1.2' ||
@@ -86,22 +123,27 @@ function isModalityOutputSigned(dataSet) {
   ) {
     return true;
   }
-  // dcmjs naturalizes an element with no value to null or [], which Number() reads as 0;
-  // the loader treats those as absent.
-  const decimal = value =>
-    value === null || value === undefined || value === '' || Array.isArray(value)
-      ? undefined
-      : Number(value);
   const intercept = decimal(dataSet.RescaleIntercept);
   const slope = decimal(dataSet.RescaleSlope);
   if (intercept !== undefined && slope !== undefined) {
     const minStoredPixelValue = PixelRepresentation === 1 ? -1 << (BitsStored - 1) : 0;
     return minStoredPixelValue * slope + intercept < 0;
   }
-  if (dataSet.ModalityLUTSequence?.length) {
-    return false;
-  }
   return PixelRepresentation === 1;
+}
+
+/**
+ * Tells whether the modality output is always an integer. The renderer looks the VOI LUT
+ * up by that output without rounding, so a fractional rescale would read between
+ * entries and render those pixels as the bottom of the range.
+ *
+ * @param modalityLUT the Modality LUT that the image applies, if any
+ * @param slope rescale slope of the image
+ * @param intercept rescale intercept of the image
+ * @returns true when the VOI LUT can be applied
+ */
+function isModalityOutputInteger(modalityLUT, slope, intercept) {
+  return !!modalityLUT || (Number.isInteger(Number(slope)) && Number.isInteger(Number(intercept)));
 }
 
 /**
@@ -265,13 +307,16 @@ export function createImage(
     );
   }
 
-  // VOI LUT. The renderer looks it up by the modality output without rounding, so a
-  // fractional rescale would read between entries and render those pixels as the bottom
-  // of the range; the window renders such an image instead.
-  const modalityOutputIsInteger =
-    image.modalityLUT || (Number.isInteger(Number(slope)) && Number.isInteger(Number(intercept)));
-  if (voiLUTSequence && voiLUTSequence.length > 0 && modalityOutputIsInteger) {
-    image.voiLUT = toCornerstoneLUT(voiLUTSequence[0], isModalityOutputSigned(dataSet));
+  // VOI LUT; skipped for a fractional rescale, see isModalityOutputInteger
+  if (
+    voiLUTSequence &&
+    voiLUTSequence.length > 0 &&
+    isModalityOutputInteger(image.modalityLUT, slope, intercept)
+  ) {
+    image.voiLUT = toCornerstoneLUT(
+      voiLUTSequence[0],
+      isModalityOutputSigned(dataSet, image.modalityLUT)
+    );
   }
 
   if (image.color) {
