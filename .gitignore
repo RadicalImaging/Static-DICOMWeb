@@ -59,3 +59,7 @@ node_modules/
 .cursor/
 .test
 .claude 
+
+# Release outputs of the publish workflow
+/version.txt
+/release/

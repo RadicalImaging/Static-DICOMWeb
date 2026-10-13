@@ -1,10 +1,7 @@
 #!/bin/bash
 
-cd /app
+cd /app || exit 1
 
-# Start the first process
-dicomwebserver &
-
-# Start the second process
-dicomwebscp scp -p 11115
-
+# The image has no DIMSE SCP (dicomwebscp), so this starts the DICOMweb server
+# only, the same as the default command of the image.
+exec monitordicomwebserver

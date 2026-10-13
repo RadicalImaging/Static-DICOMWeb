@@ -1,6 +1,6 @@
 {
   "name": "@radicalimaging/static-wado-util",
-  "version": "1.7.6",
+  "version": "1.7.8",
   "description": "Utils for other packages.",
   "publishConfig": {
     "access": "public"
@@ -20,7 +20,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/radicalimaging/static-dicomweb",
+    "url": "git+https://github.com/RadicalImaging/Static-DICOMWeb.git",
     "directory": "packages/static-wado-util"
   },
   "bugs": {
@@ -56,12 +56,12 @@
     "bin"
   ],
   "dependencies": {
-    "@cornerstonejs/codec-openjpeg": "1.3.0",
-    "@cornerstonejs/codec-openjph": "2.4.7",
-    "@cornerstonejs/dicom-codec": "1.0.9",
+    "@cornerstonejs/codec-openjpeg": "1.3.6",
+    "@cornerstonejs/codec-openjph": "2.4.11",
+    "@cornerstonejs/dicom-codec": "1.1.6",
     "commander": "10.0.1",
     "config-point": "0.8.0",
-    "dcmjs": "0.50.1",
+    "dcmjs": "0.52.0",
     "imurmurhash": "0.1.4",
     "jpeg-lossless-decoder-js": "2.1.2",
     "json5": "2.2.3",
@@ -71,14 +71,13 @@
   },
   "scripts": {
     "test": "jest --config ./jest.config.cjs",
-    "build": "bun run build:esm",
+    "build": "pnpm run build:esm",
     "build:esm": "tsc --project ./tsconfig.json",
     "clean": "rimraf dist",
     "link:exec": "npm link",
     "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
     "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\"",
-    "pack:js": "npm pack --",
-    "publishJS": "yarn publish  --no-git-tag-version"
+    "pack:js": "npm pack --"
   },
   "devDependencies": {
     "must": "0.13.4"

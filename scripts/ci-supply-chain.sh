@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# CI supply-chain checks: pinned versions, frozen lockfile sync, audit only when bun.lock changed.
+# CI supply-chain checks: pinned versions, frozen lockfile sync, audit only when the lockfile changed.
+# Accepted advisories live in pnpm-workspace.yaml `auditConfig.ignoreGhsas`, so `pnpm audit` agrees everywhere.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,11 +10,16 @@ cd "$REPO_ROOT"
 lockfile_changed_in_range() {
   local range="$1"
   [[ -z "$range" ]] && return 1
-  git diff --name-only "$range" -- bun.lock | grep -q .
+  git diff --name-only "$range" -- pnpm-lock.yaml pnpm-workspace.yaml | grep -q .
 }
 
-should_run_bun_audit() {
-  if [[ "${FORCE_BUN_AUDIT:-}" == "1" ]]; then
+should_run_audit() {
+  # The publish workflow audits in its own step, and only for a new version.
+  if [[ "${SKIP_AUDIT:-}" == "1" ]]; then
+    return 1
+  fi
+
+  if [[ "${FORCE_AUDIT:-}" == "1" ]]; then
     return 0
   fi
 
@@ -40,17 +46,17 @@ echo 'Checking pinned dependency versions...'
 bash "$SCRIPT_DIR/check-pinned-versions.sh"
 
 echo 'Installing with frozen lockfile...'
-bun install --frozen-lockfile
+pnpm install --frozen-lockfile
 
-echo 'Verifying bun.lock matches package.json (no drift after install)...'
-if ! git diff --exit-code bun.lock; then
-  echo 'bun.lock is out of sync. Run: bun run install:update-lockfile' >&2
+echo 'Verifying pnpm-lock.yaml matches package.json (no drift after install)...'
+if ! git diff --exit-code pnpm-lock.yaml; then
+  echo 'pnpm-lock.yaml is out of sync. Run: pnpm run install:update-lockfile' >&2
   exit 1
 fi
 
-if should_run_bun_audit; then
-  echo 'bun.lock changed in this change set; running bun audit (high/critical)...'
-  bun audit --audit-level=high
+if should_run_audit; then
+  echo 'The lockfile changed in this change set; running pnpm audit (high/critical)...'
+  pnpm audit --audit-level=high
 else
-  echo 'bun.lock unchanged; skipping bun audit.'
+  echo 'The lockfile is unchanged; skipping pnpm audit.'
 fi

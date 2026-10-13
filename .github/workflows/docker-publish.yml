@@ -1,0 +1,260 @@
+name: Publish Docker images
+
+# Builds the image of one release tag for linux/amd64 and linux/arm64, and
+# publishes one multi-arch tag to Docker Hub and to GHCR. A person starts it
+# from the Actions tab ("Run workflow") on master; no push or merge starts it.
+#
+# Each architecture builds on a native runner (no QEMU), smoke tests the image,
+# and pushes it untagged, by digest, to GHCR with GITHUB_TOKEN. The `publish`
+# job then joins the digests into one tag in each registry. A failed or
+# rejected run leaves those untagged digests in GHCR.
+#
+# Only the `publish` job can read the Docker Hub token. The token lives in the
+# `docker-hub` environment, which requires a reviewer and allows only master.
+# Environment settings:
+#   secret   DOCKERHUB_TOKEN    - a Docker Hub personal access token, "Read &
+#                                 Write". Docker Hub cannot limit such a token
+#                                 to one repository: it can write to every
+#                                 repository of the account.
+#   variable DOCKERHUB_USERNAME - optional, the account that owns the token
+#                                 (default braveheartsoftware)
+# Without DOCKERHUB_TOKEN the run fails, unless the `ghcr_only` input is set.
+# Only a job of the environment can see its secrets, so that check runs after
+# the approval.
+#
+# A version keeps one image, and `latest` moves only forward. The `publish`
+# job runs scripts/docker-publish-tags.sh from master; its header gives the
+# rules, and scripts/docker-publish-tags.test.sh (in docker-ci.yml) tests them.
+#
+# The environment gates Docker Hub only. GHCR takes GITHUB_TOKEN, so any
+# workflow of this repository with `packages: write` can write to the GHCR
+# package, from any branch.
+#
+# Actions are pinned by commit, and no job restores a cache: a cache that
+# another workflow wrote must not reach a release image (see publish.yml).
+#
+# A later move to Docker Hub OIDC: because the job names an environment, the
+# OIDC subject is repo:RadicalImaging/Static-DICOMWeb:environment:docker-hub,
+# not a ref:refs/heads/... value. The Docker Hub ruleset must match that subject.
+#
+# The build uses the Dockerfile of the release tag. docker-release.mjs refuses
+# a tag whose Dockerfile does not install from pnpm-lock.yaml (1.7.7 and older).
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, for example v1.7.7. Empty means the newest release tag.'
+        required: false
+        default: ''
+      ghcr_only:
+        description: 'Publish to GHCR only, and skip Docker Hub.'
+        type: boolean
+        default: false
+      overwrite:
+        description: 'Replace the image of a version in both registries. Not with ghcr_only.'
+        type: boolean
+        default: false
+
+# One run at a time, including the wait for the approval. GitHub queues at most
+# one more run: a newer dispatch cancels the queued run, not the running one.
+concurrency:
+  group: publish-docker
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  DOCKERHUB_IMAGE: braveheartsoftware/static-dicomweb
+  GHCR_IMAGE: ghcr.io/radicalimaging/static-dicomweb
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      sha: ${{ steps.release.outputs.sha }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      # A skip would show a green run that published nothing.
+      - name: Check that the run is on master
+        if: github.ref != 'refs/heads/master'
+        run: |
+          echo "::error::Start this workflow on master, not on ${GITHUB_REF}."
+          exit 1
+
+      # docker-publish-tags.sh refuses this too, but only after the builds.
+      - name: Check the inputs
+        if: inputs.ghcr_only && inputs.overwrite
+        run: |
+          echo '::error::ghcr_only with overwrite would give GHCR and Docker Hub two images for one version.'
+          exit 1
+
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # docker-release.mjs reads the tags and origin/master.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '24.15.0'
+
+      - name: Choose the release tag
+        id: release
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          RELEASE="$(node ./scripts/release/docker-release.mjs "$INPUT_TAG")"
+          echo "$RELEASE"
+          echo "$RELEASE" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: resolve
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write # push the untagged image to GHCR
+    steps:
+      # By commit, so both builds and the checks of `resolve` see the same code.
+      - name: Checkout the release commit
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+
+      # The BuildKit daemon runs the build and holds the push credential, so it
+      # is pinned like the actions.
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: image=moby/buildkit:v0.34.0@sha256:b059f8d7226d0b326bc871af489a5dddf65e36af4d20d14251b072974d9ee87c
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      # The commit time, not the build time, so a rebuild gives the same label.
+      - name: Read the commit time
+        id: commit
+        run: echo "time=$(git log -1 --format=%cI)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          outputs: type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          provenance: mode=max
+          sbom: true
+          no-cache: true
+          build-args: |
+            IMAGE_VERSION=${{ needs.resolve.outputs.version }}
+            IMAGE_REVISION=${{ needs.resolve.outputs.sha }}
+            IMAGE_CREATED=${{ steps.commit.outputs.time }}
+
+      # Before any tag exists, so a broken image never gets one.
+      - name: Smoke test the image
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: bash scripts/docker-smoke-test.sh "${GHCR_IMAGE}@${DIGEST}"
+
+      - name: Export the digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "${RUNNER_TEMP}/digests"
+          touch "${RUNNER_TEMP}/digests/${DIGEST#sha256:}"
+
+      # An approval can wait up to 30 days, so the digests must last as long.
+      # The repository setting allows 90 days.
+      - name: Upload the digest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: digests-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true
+
+  publish:
+    needs: [resolve, build]
+    # Pinned like the build jobs: the docker CLI of the runner holds both tokens.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # The approval gate. The run waits here until a reviewer approves.
+    environment:
+      name: docker-hub
+      url: https://hub.docker.com/r/braveheartsoftware/static-dicomweb/tags
+    permissions:
+      contents: read # check out the tag script
+      packages: write # tag the image in GHCR
+    env:
+      # An `if:` cannot read a secret directly.
+      HAS_DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+      GHCR_ONLY: ${{ inputs.ghcr_only }}
+      OVERWRITE: ${{ inputs.overwrite }}
+    steps:
+      - name: Choose the registries
+        run: |
+          if [ "$GHCR_ONLY" = 'true' ]; then
+            echo '::notice::ghcr_only is set, so this run skips Docker Hub.'
+          elif [ "$HAS_DOCKERHUB_TOKEN" != 'true' ]; then
+            echo '::error::The docker-hub environment has no DOCKERHUB_TOKEN secret. Add the secret in Settings > Environments > docker-hub, or start the run with ghcr_only.'
+            exit 1
+          fi
+
+      # The tag script of master, the dispatch ref, which a review approved.
+      - name: Checkout the tag script
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          sparse-checkout: scripts/docker-publish-tags.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Download the digests
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      # No Buildx setup: `imagetools` talks to the registries only, so the
+      # preinstalled docker builder is enough, and no BuildKit daemon runs here.
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Log in to Docker Hub
+        if: inputs.ghcr_only != true
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME || 'braveheartsoftware' }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create the multi-arch tags
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          REVISION: ${{ needs.resolve.outputs.sha }}
+        run: DIGEST_DIR="${RUNNER_TEMP}/digests" bash scripts/docker-publish-tags.sh

@@ -8,17 +8,25 @@ import fs from 'fs';
 const METADATA_PATH_RE = /[/\\]metadata(\.gz)?$/;
 
 /**
+ * Returns true if the given path is a stale metadata directory (sync).
+ * Safe: returns false for non-metadata paths.
+ */
+export function isStaleMetadataDirSync(filePath) {
+  if (!METADATA_PATH_RE.test(filePath)) return false;
+  try {
+    return fs.statSync(filePath).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Removes a stale metadata directory at the given path (sync).
  * Returns true if a directory was found and removed, false otherwise.
  * Safe: refuses to operate on non-metadata paths.
  */
 export function removeStaleMetadataDirSync(filePath) {
-  if (!METADATA_PATH_RE.test(filePath)) return false;
-  try {
-    if (!fs.statSync(filePath).isDirectory()) return false;
-  } catch {
-    return false;
-  }
+  if (!isStaleMetadataDirSync(filePath)) return false;
   fs.rmSync(filePath, { recursive: true, force: true });
   return true;
 }

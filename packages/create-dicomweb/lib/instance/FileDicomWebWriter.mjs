@@ -2,7 +2,7 @@ import fs from 'fs';
 import { open } from 'fs/promises';
 import path from 'path';
 import { DicomWebWriter } from './DicomWebWriter.mjs';
-import { removeStaleMetadataDirSync } from './removeStaleMetadataDir.mjs';
+import { isStaleMetadataDirSync, removeStaleMetadataDirSync } from './removeStaleMetadataDir.mjs';
 
 /**
  * Derives the temp directory path for a given relativePath.
@@ -137,16 +137,20 @@ export class FileDicomWebWriter extends DicomWebWriter {
     const finalDir = path.join(this.options.baseDir, relativePath);
     const finalFilepath = path.join(finalDir, filename);
 
-    // Record original file's mtime if replacing an existing file
+    // Record original file's mtime if replacing an existing file.
+    // Old-format metadata directories are only recorded here; they are removed when the
+    // write is committed, so a skipped or failed write leaves the existing metadata readable.
     let originalMtime = null;
+    const staleMetadataDirs = [];
     try {
       const stat = fs.statSync(finalFilepath);
       if (stat.isDirectory()) {
-        if (removeStaleMetadataDirSync(finalFilepath)) {
-          console.noQuiet(`[FileDicomWebWriter] Cleaned up old metadata directory at ${finalFilepath}`);
-        } else {
-          throw new Error(`Destination is a directory (not metadata), refusing to delete: ${finalFilepath}`);
+        if (!isStaleMetadataDirSync(finalFilepath)) {
+          throw new Error(
+            `Destination is a directory (not metadata), refusing to delete: ${finalFilepath}`
+          );
         }
+        staleMetadataDirs.push(finalFilepath);
       } else {
         originalMtime = stat.mtimeMs;
       }
@@ -158,8 +162,8 @@ export class FileDicomWebWriter extends DicomWebWriter {
     // If writing a .gz file, also clean up any stale metadata directory at the non-.gz path (old format)
     if (filename.endsWith('.gz')) {
       const nonGzPath = finalFilepath.slice(0, -3);
-      if (removeStaleMetadataDirSync(nonGzPath)) {
-        console.noQuiet(`[FileDicomWebWriter] Cleaned up old metadata directory format at ${nonGzPath}`);
+      if (isStaleMetadataDirSync(nonGzPath)) {
+        staleMetadataDirs.push(nonGzPath);
       }
     }
 
@@ -188,6 +192,7 @@ export class FileDicomWebWriter extends DicomWebWriter {
       filename,
       relativePath,
       originalMtime,
+      staleMetadataDirs,
       compareOnClose: options.compareOnClose ?? false,
       contentType: options.contentType || 'application/octet-stream',
       ...options,
@@ -248,7 +253,8 @@ export class FileDicomWebWriter extends DicomWebWriter {
    * @private
    */
   async _moveTempToFinal(streamInfo) {
-    const { tempFilepath, filepath, finalDir, originalMtime, compareOnClose } = streamInfo;
+    const { tempFilepath, filepath, finalDir, originalMtime, compareOnClose, staleMetadataDirs } =
+      streamInfo;
 
     // closeStream can run twice for one stream: the filters close without awaiting, and
     // drainOpenStreams finishes any close whose bookkeeping had not run yet. The second rename
@@ -262,7 +268,11 @@ export class FileDicomWebWriter extends DicomWebWriter {
       // Check the current state of the destination file
       let currentMtime = null;
       try {
-        currentMtime = fs.statSync(filepath).mtimeMs;
+        const stat = fs.statSync(filepath);
+        // A stale metadata directory at the destination is not a file that another writer made
+        if (!stat.isDirectory()) {
+          currentMtime = stat.mtimeMs;
+        }
       } catch (err) {
         if (err?.code !== 'ENOENT') {
           console.warn(`[FileDicomWebWriter] Could not stat ${filepath}:`, err?.message || err);
@@ -281,6 +291,7 @@ export class FileDicomWebWriter extends DicomWebWriter {
         if (await filesAreIdentical(tempFilepath, filepath)) {
           streamInfo.writeStatus = 'identical';
           this._cleanupTempFile(tempFilepath);
+          this._removeStaleMetadataDirs(staleMetadataDirs);
           return;
         }
       }
@@ -315,6 +326,9 @@ export class FileDicomWebWriter extends DicomWebWriter {
         fs.mkdirSync(targetDir, { recursive: true });
       }
 
+      // The write is committed: replace the old-format metadata directories
+      this._removeStaleMetadataDirs(staleMetadataDirs);
+
       // Move temp file to final destination
       fs.renameSync(tempFilepath, filepath);
     } catch (err) {
@@ -325,6 +339,19 @@ export class FileDicomWebWriter extends DicomWebWriter {
       // Attempt cleanup of temp file
       this._cleanupTempFile(tempFilepath);
       throw err;
+    }
+  }
+
+  /**
+   * Removes the old-format metadata directories that were found when the stream opened.
+   * @param {string[]|undefined} staleMetadataDirs
+   * @private
+   */
+  _removeStaleMetadataDirs(staleMetadataDirs) {
+    for (const dirPath of staleMetadataDirs || []) {
+      if (removeStaleMetadataDirSync(dirPath)) {
+        console.noQuiet(`[FileDicomWebWriter] Cleaned up old metadata directory at ${dirPath}`);
+      }
     }
   }
 

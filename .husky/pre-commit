@@ -1,4 +1,4 @@
 #!/bin/sh
 
-yarn run lint:fix
+pnpm run lint:fix
 git add $(git diff --name-only --cached --diff-filter=d)
