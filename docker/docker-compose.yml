@@ -6,9 +6,9 @@ services:
   # refer to the Keycloak documentation for instruction on how to properly
   # secure Keycloak.
   static-dicomweb:
-    platform: linux/amd64
-    image: braveheartsoftware/static-dicomweb:v1
+    image: braveheartsoftware/static-dicomweb:latest
     container_name: static-dicomweb
+    # The image serves DICOMweb only. The DIMSE SCP (dicomwebscp, port 11115)
+    # of the old v1 image is not in the images, at least since 1.7.6.
     ports:
       - "5000:5000"
-      - "11115:11115"
