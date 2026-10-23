@@ -5,6 +5,7 @@ import { getBuildJobManager } from '../../util/buildJobManager.mjs';
 import {
   ensureSeriesLevel,
   sendBuildPayload,
+  seriesMetadataOf,
   handleBuildError,
 } from './indexOnDemandController.mjs';
 
@@ -35,10 +36,7 @@ export function seriesMetadataQueryController(dir, params = {}) {
         const result = await ensureSeriesLevel(root, studyUID, seriesUID, {
           jobs: getBuildJobManager(params),
         });
-        const payload = result?.payload;
-        const data = payload?.noneReadable
-          ? payload.keptSeriesMetadata
-          : payload?.instanceMetadataArray;
+        const data = seriesMetadataOf(result);
         if (data?.length && !fs.existsSync(metadataPath)) {
           return sendBuildPayload(res, data);
         }

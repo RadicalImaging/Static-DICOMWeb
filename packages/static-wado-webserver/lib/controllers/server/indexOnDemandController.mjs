@@ -174,6 +174,17 @@ export async function ensureStudiesLevel(root, options = {}) {
 }
 
 /**
+ * Returns the series metadata of a series build result: the metadata of the build, or the
+ * kept series metadata when no instance metadata was readable.
+ * @param {{payload?: Object}|undefined} result - Result of ensureSeriesLevel
+ * @returns {Object[]|undefined}
+ */
+export function seriesMetadataOf(result) {
+  const payload = result?.payload;
+  return payload?.noneReadable ? payload.keptSeriesMetadata : payload?.instanceMetadataArray;
+}
+
+/**
  * Sends the result of a build round that did not commit. The response file does not
  * exist in that case, so the data of the round (from memory) is the response.
  * @param {Object} res - Express response

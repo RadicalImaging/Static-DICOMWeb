@@ -129,6 +129,10 @@ The controllers use these functions:
   `ensureStudiesLevel` (best effort).
 - `seriesMetadataQueryController` and the new `instancesQueryController` call
   `ensureSeriesLevel` when their file is missing.
+- `studyMetadataQueryController` runs one top-level job, `study-metadata:<studyUID>`, when the
+  metadata of a series is missing. The job runs `ensureSeriesLevel` as a nested job for each
+  series with missing metadata, and returns the metadata of each build. The controller uses
+  that data for a series whose build did not commit.
 - The `updateSeries` handler calls `ensureSeriesLevel`. The `updateStudy` handler calls
   `ensureStudyLevel`, which also adds a missing study to the studies list. Both use
   `background: true`.
@@ -408,9 +412,8 @@ This section is not a requirement of the code.
 - **Q3.** The builds use the paths of `FileDicomWebReader`, which do not use the
   `hashStudyUidPath` layout. This limit was in the code before this change. Does a deployment
   with `hashStudyUidPath` need the builds on demand?
-- **Q4.** `studyMetadataQueryController` (`GET /studies/<studyUID>/metadata`) still calls
-  `seriesMain` directly for a missing series metadata, outside the job manager. Must it use
-  `ensureSeriesLevel`?
+- **Q4 (closed).** `studyMetadataQueryController` (`GET /studies/<studyUID>/metadata`) called
+  `seriesMain` directly, outside the job manager. It now uses the job manager (SQR-I1).
 
 ## Tests
 
