@@ -1,16 +1,25 @@
 import fs from 'fs';
 import { handleHomeRelative } from '@radicalimaging/static-wado-util';
-import { seriesMain } from '@radicalimaging/create-dicomweb';
-import { seriesSingleMap, getDicomKey } from '../../adapters/requestAdapters.mjs';
+import { FileDicomWebReader } from '@radicalimaging/create-dicomweb';
+import { seriesSingleMap, qidoMap, getDicomKey } from '../../adapters/requestAdapters.mjs';
+import { getBuildJobManager } from '../../util/buildJobManager.mjs';
+import {
+  ensureSeriesLevel,
+  ensureStudyLevel,
+  sendBuildPayload,
+  handleBuildError,
+} from './indexOnDemandController.mjs';
 
 /**
- * seriesQueryController: for GET /studies/:studyUID/series. If SeriesInstanceUID
- * is in the query, calls seriesMain for that series when its index is missing;
- * otherwise ensures the study-level series index exists via seriesMain, then
- * invokes seriesSingleMap.
+ * seriesQueryController: for GET /studies/:studyUID/series. Serves the stored file when it
+ * exists, with no other check. Otherwise builds the missing level in the build job manager:
+ * with SeriesInstanceUID in the query, the series level of that series (ensureSeriesLevel);
+ * without it, the study level (ensureStudyLevel), which writes series/index.json.
+ * When the build did not commit, sends the data of the first round. When the build
+ * queue is full, answers 503 with Retry-After.
  *
  * @param {string} dir - Static files directory path (DICOMweb root)
- * @param {object} params - Server params (rootDir, createIndexOnDemand)
+ * @param {object} params - Server params (rootDir, createIndexOnDemand, maxRunningJobs, maxQueuedJobs)
  * @returns {function} Express middleware (req, res, next)
  */
 export function seriesQueryController(dir, params = {}) {
@@ -22,26 +31,57 @@ export function seriesQueryController(dir, params = {}) {
     const createOnDemand = params.createIndexOnDemand !== false;
     const studyUID = req.params.studyUID;
     const seriesUIDFromQuery = getDicomKey('0020000e', 'seriesinstanceuid', req.query);
+    const responsePath = seriesUIDFromQuery
+      ? `${root}${req.staticWadoPath}/${seriesUIDFromQuery}/series-singleton.json.gz`
+      : `${root}${req.staticWadoPath}/index.json.gz`;
 
-    try {
-      if (seriesUIDFromQuery) {
-        const singleSeriesPath = `${root}${req.staticWadoPath}/${seriesUIDFromQuery}/series-singleton.json.gz`;
-        if (createOnDemand && !fs.existsSync(singleSeriesPath)) {
-          await seriesMain(studyUID, { dicomdir: root, seriesUid: seriesUIDFromQuery });
+    if (createOnDemand && !fs.existsSync(responsePath)) {
+      try {
+        const options = { reader: new FileDicomWebReader(root), jobs: getBuildJobManager(params) };
+        const result = seriesUIDFromQuery
+          ? await ensureSeriesLevel(root, studyUID, seriesUIDFromQuery, options)
+          : await ensureStudyLevel(root, studyUID, options);
+        const data = seriesUIDFromQuery
+          ? result?.payload?.seriesQuery && [result.payload.seriesQuery]
+          : result?.payload?.seriesQueryArray;
+        if (data?.length && !fs.existsSync(responsePath)) {
+          return sendBuildPayload(res, data);
         }
-      } else {
-        const studySeriesIndexPath = `${root}${req.staticWadoPath}/index.json.gz`;
-        if (createOnDemand && !fs.existsSync(studySeriesIndexPath)) {
-          await seriesMain(studyUID, { dicomdir: root });
-        }
+      } catch (err) {
+        return handleBuildError(err, res, next, 'indexOnDemand: failed to create series index');
       }
-    } catch (err) {
-      console.error(
-        'indexOnDemand: failed to create series index:',
-        err?.message || err
-      );
-      return next(err);
     }
     seriesSingleMap(req, res, next);
+  };
+}
+
+/**
+ * instancesQueryController: for GET /studies/:studyUID/series/:seriesUID/instances. When
+ * instances/index.json is missing, builds the series level (ensureSeriesLevel), then
+ * invokes qidoMap. When the build did not commit, sends the data of the first round.
+ *
+ * @param {string} dir - Static files directory path (DICOMweb root)
+ * @param {object} params - Server params (rootDir, createIndexOnDemand)
+ * @returns {function} Express middleware (req, res, next)
+ */
+export function instancesQueryController(dir, params = {}) {
+  return async function instancesQueryControllerHandler(req, res, next) {
+    const root = handleHomeRelative(dir ?? params.rootDir);
+    const responsePath = `${root}${req.staticWadoPath}/index.json.gz`;
+    if (root && params.createIndexOnDemand !== false && !fs.existsSync(responsePath)) {
+      try {
+        const { studyUID, seriesUID } = req.params;
+        const result = await ensureSeriesLevel(root, studyUID, seriesUID, {
+          jobs: getBuildJobManager(params),
+        });
+        const data = result?.payload?.instancesQuery;
+        if (data?.length && !fs.existsSync(responsePath)) {
+          return sendBuildPayload(res, data);
+        }
+      } catch (err) {
+        return handleBuildError(err, res, next, 'indexOnDemand: failed to create instances index');
+      }
+    }
+    qidoMap(req, res, next);
   };
 }

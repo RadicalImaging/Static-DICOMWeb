@@ -74,7 +74,8 @@ function deleteMovedFiles(filepaths) {
  *   Called AFTER openStream so mtime is already captured. Return null to abort (temp is cleaned up).
  * @param {string} params.label - Human-readable label for log messages
  * @param {Object} [params.generation] - Commit only when the generation did not change; see writeMultipleWithRetry
- * @returns {Promise<{writeStatus: string, path: string|undefined, committed: boolean}>}
+ * @returns {Promise<{writeStatus: string, path: string|undefined, committed: boolean, payload: *}>}
+ *   payload is the data of the last attempt
  */
 export async function writeWithRetry({
   informationProvider,
@@ -96,7 +97,7 @@ export async function writeWithRetry({
     if (data === null) {
       // Nothing to write — abort the stream and clean up
       writer.recordStreamError(streamInfo.streamKey, new Error('No data to write'), true);
-      return { writeStatus: 'skipped', path: undefined, committed: true };
+      return { writeStatus: 'skipped', path: undefined, committed: true, payload: data };
     }
 
     // 3. Write and close
@@ -109,10 +110,15 @@ export async function writeWithRetry({
       if (MOVED_STATUSES.has(status)) {
         deleteMovedFiles([streamInfo.filepath]);
       }
-      return { writeStatus: 'generation-changed', path: undefined, committed: false };
+      return {
+        writeStatus: 'generation-changed',
+        path: undefined,
+        committed: false,
+        payload: data,
+      };
     }
     if (status !== 'updated-stale') {
-      return { writeStatus: status, path: resultPath, committed: true };
+      return { writeStatus: status, path: resultPath, committed: true, payload: data };
     }
 
     if (attempt < MAX_RETRIES) {
@@ -124,7 +130,7 @@ export async function writeWithRetry({
     console.warn(
       `[writeWithRetry] ${label}: file was modified by another writer, giving up after ${MAX_RETRIES} attempts`
     );
-    return { writeStatus: status, path: resultPath, committed: true };
+    return { writeStatus: status, path: resultPath, committed: true, payload: data };
   }
   return { writeStatus: 'retries-exhausted', path: undefined, committed: true };
 }

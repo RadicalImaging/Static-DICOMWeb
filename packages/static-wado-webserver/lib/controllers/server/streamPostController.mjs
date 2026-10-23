@@ -7,10 +7,13 @@ import {
   StatusMonitor,
 } from '@radicalimaging/static-wado-util';
 import { instanceFromStream } from '@radicalimaging/create-dicomweb';
-import { seriesMain } from '@radicalimaging/create-dicomweb';
-import { studyMain } from '@radicalimaging/create-dicomweb';
 import { SagaBusMessaging } from './SagaBusMessaging.mjs';
-import { ensureStudiesIndex } from './indexOnDemandController.mjs';
+import {
+  ensureSeriesLevel,
+  ensureStudyLevel,
+  ensureStudiesLevel,
+} from './indexOnDemandController.mjs';
+import { getBuildJobManager } from '../../util/buildJobManager.mjs';
 
 import { multipartStream } from './multipartStream.mjs';
 import { TrackableReadBufferStream } from './TrackableReadBufferStream.mjs';
@@ -347,9 +350,13 @@ export function streamPostController(params) {
 }
 
 /**
- * Set up message handlers for updateSeries and updateStudy
+ * Set up message handlers for updateSeries and updateStudy. Each handler runs its build
+ * as a background job of the build job manager, so a full queue never rejects it, and a
+ * build that a query already runs for the same key is not done again.
  */
 function setupMessageHandlers(messaging, dicomdir, params = {}) {
+  const jobOptions = { jobs: getBuildJobManager(params), background: true };
+
   // Register handler for updateSeries
   messaging.registerHandler('updateSeries', async msg => {
     const { id, data } = msg;
@@ -362,11 +369,7 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
 
     try {
       console.verbose(`[streamPostController] Processing updateSeries for study ${studyUid}, series ${seriesUID}`);
-      // Call seriesMain to update the series
-      await seriesMain(studyUid, {
-        dicomdir,
-        seriesUid: seriesUID,
-      });
+      await ensureSeriesLevel(dicomdir, studyUid, seriesUID, jobOptions);
 
       // After series update completes, send updateStudy message
       await messaging.sendMessage('updateStudy', studyUid, data);
@@ -389,17 +392,14 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
 
     try {
       console.verbose(`[streamPostController] Processing updateStudy for study ${studyUid}`);
-      // Call studyMain to update the study
-      await studyMain(studyUid, {
-        dicomdir,
-      });
+      await ensureStudyLevel(dicomdir, studyUid, jobOptions);
 
-      // Create studies/index.json.gz unless disabled. The upload deleted it, so build the
-      // full list: a merge into a missing file would list this study only.
+      // Create studies/index.json.gz unless disabled. The upload deleted it, so the job
+      // builds the full list: a merge into a missing file would list this study only.
       const studyIndex = params.studyIndex !== false; // Default to true unless explicitly disabled
       if (studyIndex) {
         console.verbose(`[streamPostController] Creating/updating studies index for study ${studyUid}`);
-        await ensureStudiesIndex(dicomdir, { ...params, createIndexOnDemand: true });
+        await ensureStudiesLevel(dicomdir, jobOptions);
       }
 
       console.verbose(`[streamPostController] Completed updateStudy for study ${studyUid}`);
@@ -532,6 +532,10 @@ export const completePostController = async (req, res, next) => {
  * Returns the module-level SagaBusMessaging instance initialized by streamPostController.
  * Plugins can use this to send updateSeries/updateStudy messages without duplicating
  * the handler registration logic.
+ *
+ * The handlers build only the derived files that are missing. A plugin that changes
+ * stored data must first call deleteStaleSummaries for the changed series, and then
+ * send the messages.
  *
  * Returns null if streamPostController has not been called yet.
  */

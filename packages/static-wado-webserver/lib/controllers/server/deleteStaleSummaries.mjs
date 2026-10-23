@@ -18,6 +18,7 @@ import {
  * Per series (for each studyUID + seriesUID):
  * - Series metadata: studies/{studyUID}/series/{seriesUID}/metadata[.gz]
  * - Single series information: studies/{studyUID}/series/{seriesUID}/series-singleton.json[.gz]
+ * - Instances index: studies/{studyUID}/series/{seriesUID}/instances/index.json[.gz]
  *
  * Per study (once per studyUID):
  * - Study-level series index: studies/{studyUID}/series/index.json[.gz]
@@ -69,6 +70,7 @@ export function deleteStaleSummaries(dicomdir, seriesMap, options = {}) {
       const seriesRelativePath = reader.getSeriesPath(studyUID, seriesUID);
       writer.delete(seriesRelativePath, 'metadata');
       writer.delete(seriesRelativePath, 'series-singleton.json');
+      writer.delete(seriesRelativePath, 'instances/index.json');
     }
   }
 

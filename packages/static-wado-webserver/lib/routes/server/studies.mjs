@@ -4,7 +4,6 @@ import {
   createStudyDirectories,
 } from '@radicalimaging/static-wado-util';
 import {
-  qidoMap,
   dicomMap,
   otherJsonMap,
   thumbnailMap,
@@ -15,7 +14,10 @@ import {
   completePostController,
 } from '../../controllers/server/streamPostController.mjs';
 import { studyQueryController } from '../../controllers/server/indexOnDemandController.mjs';
-import { seriesQueryController } from '../../controllers/server/seriesQueryController.mjs';
+import {
+  seriesQueryController,
+  instancesQueryController,
+} from '../../controllers/server/seriesQueryController.mjs';
 import { seriesMetadataQueryController } from '../../controllers/server/seriesMetadataQueryController.mjs';
 import { studyMetadataQueryController } from '../../controllers/server/studyMetadataQueryController.mjs';
 import { defaultNotFoundController as notFoundController } from '../../controllers/server/notFoundControllers.mjs';
@@ -134,7 +136,7 @@ export default function setRoutes(routerExpress, params, dir, hashStudyUidPath) 
 
   routerExpress.get(
     ['/studies/:studyUID/series/:seriesUID/instances'],
-    qidoMap,
+    instancesQueryController(dir, params),
     indexingStaticController(dir)
   );
 

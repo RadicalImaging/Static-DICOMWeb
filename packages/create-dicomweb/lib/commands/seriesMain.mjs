@@ -9,6 +9,7 @@ import { FileDicomWebReader } from '../instance/FileDicomWebReader.mjs';
  * @param {Object} options - Options object
  * @param {string} [options.dicomdir] - Base directory path where DICOMweb structure is located
  * @param {string} [options.seriesUid] - Specific Series Instance UID to process (if not provided, processes all series in the study)
+ * @returns {Promise<{committed: boolean}>} - committed false when a series build did not commit
  */
 export async function seriesMain(studyUID, options = {}) {
   const { dicomdir, seriesUid } = options;
@@ -53,18 +54,21 @@ export async function seriesMain(studyUID, options = {}) {
 
   if (seriesUIDs.length === 0) {
     console.warn(`No series found for study ${studyUID}`);
-    return;
+    return { committed: true };
   }
 
   // Process each series
+  let committed = true;
   for (const seriesUID of seriesUIDs) {
     try {
       console.verbose(`Processing series ${seriesUID}...`);
-      await seriesSummary(dicomdir, studyUID, seriesUID);
+      const result = await seriesSummary(dicomdir, studyUID, seriesUID);
+      committed &&= result.committed !== false;
       console.noQuiet(`Completed series ${seriesUID}`);
     } catch (error) {
       console.error(`Error processing series ${seriesUID}: ${error.message}`);
       throw error;
     }
   }
+  return { committed };
 }

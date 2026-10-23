@@ -82,7 +82,8 @@ async function buildStudiesIndex(reader, studiesToProcess) {
  * @param {Object} [options]
  * @param {number} [options.generation] - Generation of the studies list that the build read when
  *   it started (defaults to the current generation). The file commits only if it did not change.
- * @returns {Promise<{committed: boolean}>} - committed false when the generation changed
+ * @returns {Promise<{committed: boolean, payload?: string}>} - committed false when the generation
+ *   changed; payload is the JSON of the studies list of the build
  */
 export async function indexSummary(baseDir, studyUIDs = [], options = {}) {
   if (!baseDir) {
@@ -133,7 +134,7 @@ export async function indexSummary(baseDir, studyUIDs = [], options = {}) {
   console.noQuiet('indexSummary: writing updated studies index');
 
   // Use an empty informationProvider since we're writing at the root studies level
-  const { committed } = await writeWithRetry({
+  const { committed, payload } = await writeWithRetry({
     generation: { tracker: generationTracker, studyUID: null, value: generation },
     informationProvider: {},
     baseDir,
@@ -141,5 +142,5 @@ export async function indexSummary(baseDir, studyUIDs = [], options = {}) {
     generateData: () => buildStudiesIndex(reader, studiesToProcess),
     label: 'indexSummary studies/index.json',
   });
-  return { committed };
+  return { committed, payload };
 }
