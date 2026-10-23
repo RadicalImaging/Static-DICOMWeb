@@ -139,6 +139,7 @@ async function readStudyData(reader, studyUID) {
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @param {string} studyUID - Study Instance UID
  * @param {Object} [options]
+ * @param {boolean} [options.force] - Build the study files also when the series index is up to date
  * @param {number} [options.generation] - Generation of the study that the build read when it
  *   started (defaults to the current generation). The files commit only if it did not change.
  * @returns {Promise<{committed: boolean, payload?: Object}>} - committed false when the
@@ -193,6 +194,7 @@ export async function studySummary(baseDir, studyUID, options = {}) {
   }
 
   if (
+    !options.force &&
     existingSeriesUIDs.size === actualSeriesUIDs.size &&
     [...existingSeriesUIDs].every(uid => actualSeriesUIDs.has(uid))
   ) {

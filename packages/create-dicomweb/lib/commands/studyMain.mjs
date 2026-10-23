@@ -1,15 +1,21 @@
 import { studySummary } from '../instance/StudySummary.mjs';
+import { seriesSummary, seriesFilesExist } from '../instance/SeriesSummary.mjs';
+import { FileDicomWebReader } from '../instance/FileDicomWebReader.mjs';
 
 /**
- * Main function for processing study metadata
+ * Main function for processing study metadata. First builds each series that has a
+ * missing file (without force), and uses the stored files of the other series. Then
+ * builds the study files.
  * @param {string} studyUID - Study Instance UID
  * @param {Object} options - Options object
  * @param {string} [options.dicomdir] - Base directory path where DICOMweb structure is located
+ * @param {boolean} [options.force] - Build the study files also when they are up to date. Does
+ *   not build a series whose files exist.
  * @param {number} [options.generation] - Generation of the study that the build read when it started
  * @returns {Promise<{committed: boolean, payload?: Object}>} - Result of studySummary
  */
 export async function studyMain(studyUID, options = {}) {
-  const { dicomdir, generation } = options;
+  const { dicomdir, force, generation } = options;
 
   if (!dicomdir) {
     throw new Error('dicomdir option is required');
@@ -21,7 +27,17 @@ export async function studyMain(studyUID, options = {}) {
 
   try {
     console.verbose(`Processing study ${studyUID}...`);
-    const result = await studySummary(dicomdir, studyUID, { generation });
+    const reader = new FileDicomWebReader(dicomdir);
+    const seriesEntries = await reader.scanDirectory(
+      reader.getStudyPath(studyUID, { path: 'series' }),
+      { withFileTypes: true }
+    );
+    for (const entry of seriesEntries) {
+      if (entry?.isDirectory?.() && !seriesFilesExist(reader, studyUID, entry.name)) {
+        await seriesSummary(dicomdir, studyUID, entry.name, { generation });
+      }
+    }
+    const result = await studySummary(dicomdir, studyUID, { force, generation });
     console.noQuiet(`Completed study ${studyUID}`);
     return result;
   } catch (error) {

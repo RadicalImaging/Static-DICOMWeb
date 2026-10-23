@@ -266,4 +266,24 @@ describe('builds of missing derived files', () => {
     release({ committed: true });
     await Promise.all(blockers);
   });
+
+  // The API must do this (SQR-D10): `createdicomweb study --force` writes the study files
+  // again, and does not build a series whose files exist
+  it('builds the study files again with force, and no series', async () => {
+    const singletonPath = path.join(studyDir(), 'series', SERIES[0], 'series-singleton.json.gz');
+    const singleton = readGzJson(singletonPath);
+    singleton[0]['00080060'] = { vr: 'CS', Value: ['MR'] };
+    fs.writeFileSync(singletonPath, zlib.gzipSync(JSON.stringify(singleton)));
+
+    await studyMain(STUDY, { dicomdir: root });
+    expect(readGzJson(path.join(studyDir(), 'index.json.gz'))[0]['00080061'].Value).toEqual(['CT']);
+
+    await studyMain(STUDY, { dicomdir: root, force: true });
+    expect(readGzJson(path.join(studyDir(), 'index.json.gz'))[0]['00080061'].Value.sort()).toEqual([
+      'CT',
+      'MR',
+    ]);
+    // A series build would write the modality of the instance metadata again
+    expect(readGzJson(singletonPath)[0]['00080060'].Value).toEqual(['MR']);
+  });
 });

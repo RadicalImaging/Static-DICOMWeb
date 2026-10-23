@@ -161,12 +161,33 @@ async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
 }
 
 /**
- * Creates or updates series metadata/index.json.gz file
+ * Returns true when all files of the series level exist: the series metadata,
+ * series-singleton.json and instances/index.json. A build of a higher level uses the
+ * stored files of a series when this is true, and builds the series otherwise.
+ * @param {FileDicomWebReader} reader
+ * @param {string} studyUID
+ * @param {string} seriesUID
+ * @returns {boolean}
+ */
+export function seriesFilesExist(reader, studyUID, seriesUID) {
+  return Boolean(
+    reader.seriesFileExists(studyUID, seriesUID, 'series-singleton.json') &&
+    reader.seriesFileExists(studyUID, seriesUID, 'metadata') &&
+    reader.seriesFileExists(studyUID, seriesUID, 'instances/index.json')
+  );
+}
+
+/**
+ * Creates or updates the series metadata, series-singleton.json and instances/index.json.
+ * Returns early, with no write, when the instance UIDs in the series metadata are the
+ * same as the instance directories, and series-singleton.json and instances/index.json
+ * exist. `force` skips that early return.
  *
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @param {string} studyUID - Study Instance UID
  * @param {string} seriesUID - Series Instance UID
  * @param {Object} [options]
+ * @param {boolean} [options.force] - Build the series also when its files are up to date
  * @param {number} [options.generation] - Generation of the study that the build read when it
  *   started (defaults to the current generation). The files commit only if it did not change.
  * @returns {Promise<{committed: boolean, payload?: Object}>} - committed false when the
@@ -218,13 +239,16 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options = {}) 
     }
   }
 
-  // Compare sets - if they match exactly, return early
+  // Return early when the metadata lists the stored instances and the other files exist
   if (
+    !options.force &&
     existingInstanceUIDs.size === actualInstanceUIDs.size &&
-    [...existingInstanceUIDs].every(uid => actualInstanceUIDs.has(uid))
+    [...existingInstanceUIDs].every(uid => actualInstanceUIDs.has(uid)) &&
+    reader.fileExists(seriesPath, 'series-singleton.json') &&
+    reader.fileExists(seriesPath, 'instances/index.json')
   ) {
     console.verbose('seriesSummary: instance index is up to date');
-    // return; // Metadata is up to date
+    return { committed: true };
   }
 
   const informationProvider = { studyInstanceUid: studyUID, seriesInstanceUid: seriesUID };

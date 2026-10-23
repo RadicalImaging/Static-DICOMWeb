@@ -7,6 +7,7 @@ import {
   indexSummary,
   studyMain,
   seriesSummary,
+  seriesFilesExist,
   FileDicomWebReader,
   generationTracker,
 } from '@radicalimaging/create-dicomweb';
@@ -51,18 +52,6 @@ function runJob(options, key, needsBuild, fn) {
   }
   const jobs = options.jobs ?? getBuildJobManager();
   return jobs.run(key, needsBuild, fn, { background: options.background === true });
-}
-
-/**
- * Returns true when all files of the series level exist: the series metadata,
- * series-singleton.json and instances/index.json.
- */
-function seriesFilesExist(reader, studyUID, seriesUID) {
-  return Boolean(
-    reader.seriesFileExists(studyUID, seriesUID, 'series-singleton.json') &&
-    reader.seriesFileExists(studyUID, seriesUID, 'metadata') &&
-    reader.seriesFileExists(studyUID, seriesUID, 'instances/index.json')
-  );
 }
 
 /** Returns true when both files of the study level exist: series/index.json and index.json */

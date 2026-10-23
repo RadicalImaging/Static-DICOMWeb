@@ -9,10 +9,11 @@ import { FileDicomWebReader } from '../instance/FileDicomWebReader.mjs';
  * @param {Object} options - Options object
  * @param {string} [options.dicomdir] - Base directory path where DICOMweb structure is located
  * @param {string} [options.seriesUid] - Specific Series Instance UID to process (if not provided, processes all series in the study)
+ * @param {boolean} [options.force] - Build each series also when its files are up to date
  * @returns {Promise<{committed: boolean}>} - committed false when a series build did not commit
  */
 export async function seriesMain(studyUID, options = {}) {
-  const { dicomdir, seriesUid } = options;
+  const { dicomdir, seriesUid, force } = options;
 
   if (!dicomdir) {
     throw new Error('dicomdir option is required');
@@ -62,7 +63,7 @@ export async function seriesMain(studyUID, options = {}) {
   for (const seriesUID of seriesUIDs) {
     try {
       console.verbose(`Processing series ${seriesUID}...`);
-      const result = await seriesSummary(dicomdir, studyUID, seriesUID);
+      const result = await seriesSummary(dicomdir, studyUID, seriesUID, { force });
       committed &&= result.committed !== false;
       console.noQuiet(`Completed series ${seriesUID}`);
     } catch (error) {
