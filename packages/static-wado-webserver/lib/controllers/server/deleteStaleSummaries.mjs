@@ -1,11 +1,19 @@
 import path from 'path';
-import { FileDicomWebReader, FileDicomWebWriter } from '@radicalimaging/create-dicomweb';
+import {
+  FileDicomWebReader,
+  FileDicomWebWriter,
+  generationTracker,
+} from '@radicalimaging/create-dicomweb';
 
 /**
- * Deletes series-level and study-level summary/index files for the given
- * studies and series so they can be regenerated (e.g. by updateSeries/updateStudy
- * or on-demand). Uses DicomWebReader for path construction and DicomWebWriter.delete
- * for removal (FileDicomWebWriter). Supports multiple study UIDs in a single call.
+ * Deletes the derived files that new data makes stale, so that the next build
+ * (an updateSeries/updateStudy message, or a request) makes them again. Call it after
+ * the upload stores all of its instances. Supports multiple study UIDs in a single call.
+ *
+ * First changes the generation of each study and of the studies list, then deletes the
+ * files. All calls are synchronous, with no `await` between the generation change and
+ * the deletions: a build on this node thus cannot check the generation and move a stale
+ * file between the two steps.
  *
  * Per series (for each studyUID + seriesUID):
  * - Series metadata: studies/{studyUID}/series/{seriesUID}/metadata[.gz]
@@ -15,13 +23,18 @@ import { FileDicomWebReader, FileDicomWebWriter } from '@radicalimaging/create-d
  * - Study-level series index: studies/{studyUID}/series/index.json[.gz]
  * - Study-level information: studies/{studyUID}/index.json[.gz]
  *
+ * Once per call: the studies list, studies/index.json[.gz]
+ *
  * @param {string} dicomdir - DICOMweb root directory (absolute or relative)
  * @param {Map<string, unknown>} seriesMap - Map of seriesId -> info, where seriesId is "studyUID&seriesUID"
+ * @param {Object} [options]
+ * @param {Object} [options.generations] - Generation tracker (defaults to the shared tracker of create-dicomweb)
  */
-export function deleteStaleSummaries(dicomdir, seriesMap) {
+export function deleteStaleSummaries(dicomdir, seriesMap, options = {}) {
   if (!dicomdir || !seriesMap || seriesMap.size === 0) {
     return;
   }
+  const generations = options.generations ?? generationTracker;
 
   const baseDir = path.resolve(dicomdir);
   const reader = new FileDicomWebReader(baseDir);
@@ -41,6 +54,14 @@ export function deleteStaleSummaries(dicomdir, seriesMap) {
     }
     seriesByStudy.get(studyUID).add(seriesUID);
   }
+  if (studyUIDs.size === 0) {
+    return;
+  }
+
+  for (const studyUID of studyUIDs) {
+    generations.advance(studyUID);
+  }
+  generations.advance(null);
 
   // Delete per-series files for each (studyUID, seriesUID) using reader paths and writer.delete
   for (const [studyUID, seriesUIDSet] of seriesByStudy) {
@@ -58,4 +79,6 @@ export function deleteStaleSummaries(dicomdir, seriesMap) {
     const studyRelativePath = reader.getStudyPath(studyUID);
     writer.delete(studyRelativePath, 'index.json');
   }
+
+  writer.delete('studies', 'index.json');
 }

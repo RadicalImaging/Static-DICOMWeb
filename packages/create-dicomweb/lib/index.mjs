@@ -8,3 +8,4 @@ export { StreamInfo } from './instance/StreamInfo.mjs';
 export { seriesSummary } from './instance/SeriesSummary.mjs';
 export { indexSummary } from './instance/IndexSummary.mjs';
 export { instanceFromStream } from './instance/instanceFromStream.mjs';
+export { generationTracker, createGenerationTracker } from './instance/generationTracker.mjs';

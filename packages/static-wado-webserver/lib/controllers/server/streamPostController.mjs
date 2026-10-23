@@ -9,8 +9,8 @@ import {
 import { instanceFromStream } from '@radicalimaging/create-dicomweb';
 import { seriesMain } from '@radicalimaging/create-dicomweb';
 import { studyMain } from '@radicalimaging/create-dicomweb';
-import { indexSummary } from '@radicalimaging/create-dicomweb';
 import { SagaBusMessaging } from './SagaBusMessaging.mjs';
+import { ensureStudiesIndex } from './indexOnDemandController.mjs';
 
 import { multipartStream } from './multipartStream.mjs';
 import { TrackableReadBufferStream } from './TrackableReadBufferStream.mjs';
@@ -394,11 +394,12 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
         dicomdir,
       });
 
-      // Create/update studies/index.json.gz file unless disabled
+      // Create studies/index.json.gz unless disabled. The upload deleted it, so build the
+      // full list: a merge into a missing file would list this study only.
       const studyIndex = params.studyIndex !== false; // Default to true unless explicitly disabled
       if (studyIndex) {
         console.verbose(`[streamPostController] Creating/updating studies index for study ${studyUid}`);
-        await indexSummary(dicomdir, [studyUid]);
+        await ensureStudiesIndex(dicomdir, { ...params, createIndexOnDemand: true });
       }
 
       console.verbose(`[streamPostController] Completed updateStudy for study ${studyUid}`);
@@ -476,7 +477,7 @@ export const completePostController = async (req, res, next) => {
       }
     }
 
-    // Delete series and study summary/index files so they can be regenerated (always, even if messaging disabled)
+    // Change the generations, then delete the series, study and studies list files (always, even if messaging disabled)
     if (stowRootDir && seriesMap.size > 0) {
       deleteStaleSummaries(stowRootDir, seriesMap);
     }
