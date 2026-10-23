@@ -169,6 +169,17 @@ export class FileDicomWebReader extends DicomWebReader {
   }
 
   /**
+   * Returns the names of the subdirectories of a directory (for example the series UIDs of
+   * a study), or [] when the directory does not exist.
+   * @param {string} relativePath - Relative path to scan
+   * @returns {Promise<string[]>}
+   */
+  async listDirectories(relativePath) {
+    const entries = await this.scanDirectory(relativePath, { withFileTypes: true });
+    return entries.filter(entry => entry.isDirectory()).map(entry => entry.name);
+  }
+
+  /**
    * Scans a directory and returns its contents
    * @param {string} relativePath - Relative path to scan
    * @param {Object} [options] - Scan options

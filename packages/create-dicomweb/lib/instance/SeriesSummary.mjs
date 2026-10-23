@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { FileDicomWebReader } from './FileDicomWebReader.mjs';
 import { writeMultipleWithRetry } from './writeWithRetry.mjs';
 import { generationTracker } from './generationTracker.mjs';
@@ -219,25 +217,7 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options = {}) 
   }
 
   // Scan the instances directory to get actual instance UIDs
-  const instanceDirectories = await reader.scanDirectory(instancesPath, { withFileTypes: true });
-  const actualInstanceUIDs = new Set();
-
-  for (const entry of instanceDirectories) {
-    if (entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory()) {
-      actualInstanceUIDs.add(entry.name);
-    } else if (typeof entry === 'string') {
-      const instanceDirPath = `${instancesPath}/${entry}`;
-      const fullInstancePath = path.join(reader.baseDir, instanceDirPath);
-      try {
-        const stats = fs.lstatSync(fullInstancePath);
-        if (stats.isDirectory()) {
-          actualInstanceUIDs.add(entry);
-        }
-      } catch (error) {
-        console.warn(`Could not stat ${instanceDirPath}: ${error.message}`);
-      }
-    }
-  }
+  const actualInstanceUIDs = new Set(await reader.listDirectories(instancesPath));
 
   // Return early when the metadata lists the stored instances and the other files exist
   if (

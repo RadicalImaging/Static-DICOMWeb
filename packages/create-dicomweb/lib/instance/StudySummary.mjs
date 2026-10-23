@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { FileDicomWebReader } from './FileDicomWebReader.mjs';
 import { writeMultipleWithRetry } from './writeWithRetry.mjs';
 import { generationTracker } from './generationTracker.mjs';
@@ -44,24 +42,7 @@ async function readStudyData(reader, studyUID) {
   const seriesPath = `${studyPath}/series`;
 
   // Scan the series directory to get actual series UIDs
-  const seriesDirectories = await reader.scanDirectory(seriesPath, { withFileTypes: true });
-  const actualSeriesUIDs = new Set();
-  for (const entry of seriesDirectories) {
-    if (entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory()) {
-      actualSeriesUIDs.add(entry.name);
-    } else if (typeof entry === 'string') {
-      const seriesDirPath = `${seriesPath}/${entry}`;
-      const fullSeriesPath = path.join(reader.baseDir, seriesDirPath);
-      try {
-        const stats = fs.lstatSync(fullSeriesPath);
-        if (stats.isDirectory()) {
-          actualSeriesUIDs.add(entry);
-        }
-      } catch (error) {
-        console.verbose(`Could not stat ${seriesDirPath}: ${error.message}`);
-      }
-    }
-  }
+  const actualSeriesUIDs = new Set(await reader.listDirectories(seriesPath));
 
   // Read all series singleton files
   const seriesQueryArray = [];
@@ -188,24 +169,7 @@ export async function studySummary(baseDir, studyUID, options = {}) {
   }
 
   // Scan to check if update is needed
-  const seriesDirectories = await reader.scanDirectory(seriesPath, { withFileTypes: true });
-  const actualSeriesUIDs = new Set();
-  for (const entry of seriesDirectories) {
-    if (entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory()) {
-      actualSeriesUIDs.add(entry.name);
-    } else if (typeof entry === 'string') {
-      const seriesDirPath = `${seriesPath}/${entry}`;
-      const fullSeriesPath = path.join(reader.baseDir, seriesDirPath);
-      try {
-        const stats = fs.lstatSync(fullSeriesPath);
-        if (stats.isDirectory()) {
-          actualSeriesUIDs.add(entry);
-        }
-      } catch (error) {
-        console.verbose(`Could not stat ${seriesDirPath}: ${error.message}`);
-      }
-    }
-  }
+  const actualSeriesUIDs = new Set(await reader.listDirectories(seriesPath));
 
   if (
     !options.force &&

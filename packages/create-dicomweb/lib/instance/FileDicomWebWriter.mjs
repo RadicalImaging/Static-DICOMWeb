@@ -92,8 +92,8 @@ async function filesAreIdentical(fileA, fileB) {
  * This supports a "validate before commit" pattern where a pluggable
  * `validateInstance` hook runs after all data is written but before files are visible.
  *
- * When `options.canCommit` is set, the writer calls it immediately before each rename,
- * with no `await` between the call and the rename. When it returns false, the writer
+ * When `options.canCommit` is set, the writer calls it immediately before the rename (one
+ * call for all files of commitPendingMoves), with no `await` between the call and the rename. When it returns false, the writer
  * deletes the temp file and sets writeStatus to 'generation-changed'. Builds of derived
  * files use it to commit only a build of the current generation.
  */
@@ -232,10 +232,20 @@ export class FileDicomWebWriter extends DicomWebWriter {
   /**
    * Renames all deferred temp files to their final destinations.
    * Only meaningful when `deferFinalMove` is true. Call after validation passes.
+   * Compares all files first, and then renames them in one synchronous step with one
+   * `canCommit()` check, so on one node the files commit all together, or not at all.
    */
   async commitPendingMoves() {
+    const moves = [];
     for (const streamInfo of this.pendingMoves) {
-      await this._moveTempToFinal(streamInfo);
+      if (await this._prepareMove(streamInfo)) {
+        moves.push(streamInfo);
+      }
+    }
+    // No await from here to the last rename
+    const commit = this._canCommit();
+    for (const streamInfo of moves) {
+      this._finishMove(streamInfo, commit);
     }
     this.pendingMoves = [];
   }
@@ -251,6 +261,11 @@ export class FileDicomWebWriter extends DicomWebWriter {
     this.pendingMoves = [];
   }
 
+  /** @returns {boolean} - false when options.canCommit() refuses the commit */
+  _canCommit() {
+    return !this.options.canCommit || this.options.canCommit();
+  }
+
   /**
    * Moves a temp file to its final destination, warning if the original was modified.
    * When compareOnClose is set, compares first and skips if identical.
@@ -259,31 +274,64 @@ export class FileDicomWebWriter extends DicomWebWriter {
    * @private
    */
   async _moveTempToFinal(streamInfo) {
-    const { tempFilepath, filepath, finalDir, originalMtime, compareOnClose, staleMetadataDirs } =
-      streamInfo;
+    if (await this._prepareMove(streamInfo)) {
+      // No await between the check and the rename, so an upload cannot run between them
+      this._finishMove(streamInfo, this._canCommit());
+    }
+  }
+
+  /**
+   * First, asynchronous part of a move: when compareOnClose is set and the destination
+   * exists, compares the files, and sets writeStatus 'identical' when they are the same.
+   * @param {Object} streamInfo - The stream info
+   * @returns {Promise<boolean>} - true when the temp file must still be moved
+   * @private
+   */
+  async _prepareMove(streamInfo) {
+    const { tempFilepath, filepath, compareOnClose, staleMetadataDirs } = streamInfo;
 
     // closeStream can run twice for one stream: the filters close without awaiting, and
     // drainOpenStreams finishes any close whose bookkeeping had not run yet. The second rename
     // would fail with ENOENT and report a write failure for a file that was written correctly.
     if (streamInfo._moveStarted) {
-      return;
+      return false;
     }
     streamInfo._moveStarted = true;
 
     try {
-      // Check the current state of the destination file
-      let currentMtime = null;
-      try {
-        const stat = fs.statSync(filepath);
-        // A stale metadata directory at the destination is not a file that another writer made
-        if (!stat.isDirectory()) {
-          currentMtime = stat.mtimeMs;
-        }
-      } catch (err) {
-        if (err?.code !== 'ENOENT') {
-          console.warn(`[FileDicomWebWriter] Could not stat ${filepath}:`, err?.message || err);
+      if (compareOnClose && this._destinationMtime(filepath) !== null) {
+        if (await filesAreIdentical(tempFilepath, filepath)) {
+          streamInfo.writeStatus = 'identical';
+          this._cleanupTempFile(tempFilepath);
+          this._removeStaleMetadataDirs(staleMetadataDirs);
+          return false;
         }
       }
+      return true;
+    } catch (err) {
+      this._cleanupTempFile(tempFilepath);
+      throw err;
+    }
+  }
+
+  /**
+   * Second, synchronous part of a move: renames the temp file, or deletes it and sets
+   * writeStatus 'generation-changed' when `commit` is false.
+   * @param {Object} streamInfo - The stream info
+   * @param {boolean} commit - Result of the canCommit() check
+   * @private
+   */
+  _finishMove(streamInfo, commit) {
+    const { tempFilepath, filepath, originalMtime, staleMetadataDirs } = streamInfo;
+
+    try {
+      if (!commit) {
+        streamInfo.writeStatus = 'generation-changed';
+        this._cleanupTempFile(tempFilepath);
+        return;
+      }
+
+      const currentMtime = this._destinationMtime(filepath);
 
       // Detect if the destination changed since we opened:
       // - File existed at open and its mtime changed
@@ -291,16 +339,6 @@ export class FileDicomWebWriter extends DicomWebWriter {
       const destinationChanged =
         (originalMtime !== null && currentMtime !== null && currentMtime !== originalMtime) ||
         (originalMtime === null && currentMtime !== null);
-
-      // If compareOnClose is enabled and a destination file exists, check identity
-      if (compareOnClose && currentMtime !== null) {
-        if (await filesAreIdentical(tempFilepath, filepath)) {
-          streamInfo.writeStatus = 'identical';
-          this._cleanupTempFile(tempFilepath);
-          this._removeStaleMetadataDirs(staleMetadataDirs);
-          return;
-        }
-      }
 
       // Log warning if destination was modified by another writer
       if (destinationChanged && originalMtime !== null) {
@@ -314,13 +352,6 @@ export class FileDicomWebWriter extends DicomWebWriter {
           `[FileDicomWebWriter] WARNING: File ${filepath} was created by another writer ` +
             `since we started. Overwriting.`
         );
-      }
-
-      // No await from here to the rename, so an upload cannot run between the check and the move
-      if (this.options.canCommit && !this.options.canCommit()) {
-        streamInfo.writeStatus = 'generation-changed';
-        this._cleanupTempFile(tempFilepath);
-        return;
       }
 
       // Set writeStatus
@@ -352,6 +383,25 @@ export class FileDicomWebWriter extends DicomWebWriter {
       // Attempt cleanup of temp file
       this._cleanupTempFile(tempFilepath);
       throw err;
+    }
+  }
+
+  /**
+   * Returns the mtime of the destination file, or null when it does not exist or is a
+   * directory (a stale metadata directory is not a file that another writer made).
+   * @param {string} filepath
+   * @returns {number|null}
+   * @private
+   */
+  _destinationMtime(filepath) {
+    try {
+      const stat = fs.statSync(filepath);
+      return stat.isDirectory() ? null : stat.mtimeMs;
+    } catch (err) {
+      if (err?.code !== 'ENOENT') {
+        console.warn(`[FileDicomWebWriter] Could not stat ${filepath}:`, err?.message || err);
+      }
+      return null;
     }
   }
 

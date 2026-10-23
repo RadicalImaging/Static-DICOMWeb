@@ -33,13 +33,12 @@ export async function studyMain(studyUID, options = {}) {
   try {
     console.verbose(`Processing study ${studyUID}...`);
     const reader = new FileDicomWebReader(dicomdir);
-    const seriesEntries = await reader.scanDirectory(
-      reader.getStudyPath(studyUID, { path: 'series' }),
-      { withFileTypes: true }
+    const seriesUIDs = await reader.listDirectories(
+      reader.getStudyPath(studyUID, { path: 'series' })
     );
-    for (const entry of seriesEntries) {
-      if (entry?.isDirectory?.() && !seriesFilesExist(reader, studyUID, entry.name)) {
-        await buildSeries(entry.name);
+    for (const seriesUID of seriesUIDs) {
+      if (!seriesFilesExist(reader, studyUID, seriesUID)) {
+        await buildSeries(seriesUID);
       }
     }
     const result = await studySummary(dicomdir, studyUID, { force, generation });

@@ -99,24 +99,7 @@ export async function indexSummary(baseDir, studyUIDs = [], options = {}) {
     const studiesPath = path.join(reader.baseDir, studiesIndexPath);
 
     if (fs.existsSync(studiesPath)) {
-      const studyDirectories = await reader.scanDirectory(studiesIndexPath, { withFileTypes: true });
-
-      for (const entry of studyDirectories) {
-        if (entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory()) {
-          studiesToProcess.add(entry.name);
-        } else if (typeof entry === 'string') {
-          const studyDirPath = `${studiesIndexPath}/${entry}`;
-          const fullStudyPath = path.join(reader.baseDir, studyDirPath);
-          try {
-            const stats = fs.lstatSync(fullStudyPath);
-            if (stats.isDirectory()) {
-              studiesToProcess.add(entry);
-            }
-          } catch (error) {
-            console.warn(`Could not stat ${studyDirPath}: ${error.message}`);
-          }
-        }
-      }
+      studiesToProcess = new Set(await reader.listDirectories(studiesIndexPath));
     }
   } else {
     for (const studyUID of studyUIDs) {

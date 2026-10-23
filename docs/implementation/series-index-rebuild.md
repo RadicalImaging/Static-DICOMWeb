@@ -264,14 +264,19 @@ Applies SQR-D3, SQR-D6 and SQR-D8 to `writeMultipleWithRetry` and `FileDicomWebW
    before they read or scan any data, or get the value from the caller (for example the study
    job of SQR-I1). Without a value, the write function reads `current()` before it calls
    `generatePayload()`.
-2. `FileDicomWebWriter` gets a new option `canCommit()`. `_moveTempToFinal` calls `canCommit()`
-   after the `await filesAreIdentical(...)` step. The code from that call to `fs.renameSync`
-   is synchronous, so no upload can run between them (SQR-D8). When `canCommit()` returns
-   `false`, `_moveTempToFinal` deletes the temporary file, and sets `writeStatus` to
-   `'generation-changed'`.
+2. `FileDicomWebWriter` gets a new option `canCommit()`. `writeMultipleWithRetry` uses the
+   existing `deferFinalMove` mode of the writer. `commitPendingMoves()` first compares all
+   files (`filesAreIdentical`, asynchronous). Then it calls `canCommit()` one time, and does
+   all renames in one synchronous step. Thus no upload can run between the check and the
+   renames (SQR-D8), and on one node the files of a round commit all together, or not at all.
+   When `canCommit()` returns `false`, the writer deletes the temporary files, and sets
+   `writeStatus` to `'generation-changed'`. `_moveTempToFinal` (no deferred moves) does the
+   same for one file.
 3. After all moves, the write function reads `current()` again. If the value changed, it
-   deletes each file that it moved. On one node, this step finds no change, because of
-   step 2. The step is necessary for the multi-node extension.
+   deletes each file that it moved. On one node, an upload can change the generation after
+   the last rename. The step then deletes files that the upload also deletes, which is safe
+   (SQR-D2). With generations in shared storage, the step also removes a commit that the
+   check of step 2 did not stop.
 4. The write function returns `{ committed: false, payload }` when a file has the status
    `'generation-changed'`, or when step 3 found a change. The current retry loop for
    `'updated-stale'` stays.

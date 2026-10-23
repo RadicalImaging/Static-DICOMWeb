@@ -29,8 +29,9 @@ function createGenerationCheck(generation) {
 
 /**
  * Deletes the files that a round moved, after the generation changed (step 3 of the commit).
- * On one node the writer check finds each change first, so this step finds no change
- * there. The step is necessary when the generations are in shared storage.
+ * On one node, an upload can change the generation after the last rename, and then this
+ * step deletes files that the upload also deletes. With generations in shared storage, this
+ * step also removes a commit that the writer check did not stop.
  * @param {string[]} filepaths - Absolute paths of the moved files
  */
 function deleteMovedFiles(filepaths) {
@@ -129,8 +130,9 @@ export async function writeWithRetry({
  *
  * With `generation`, the files commit only when the generation did not change:
  * 1. Reads the generation before generatePayload() (or uses `generation.value`).
- * 2. The writer checks the generation immediately before each rename. When it changed,
- *    the writer deletes the temp file and sets writeStatus to 'generation-changed'.
+ * 2. The writer writes all temp files, compares them, and then checks the generation one time
+ *    immediately before the renames, with no await between the check and the renames. When it
+ *    changed, the writer deletes the temp files and sets writeStatus to 'generation-changed'.
  * 3. After all moves, reads the generation again. When it changed, deletes each moved file.
  * In both cases of a change, returns `committed: false` and does not retry: the caller
  * starts the next round. The retry loop for 'updated-stale' stays as it was.
@@ -156,7 +158,12 @@ export async function writeMultipleWithRetry({
   const isCurrent = createGenerationCheck(generation);
   let payload;
   for (let attempt = 1; attempt <= retries; attempt++) {
-    const writer = new FileDicomWebWriter(informationProvider, { baseDir, canCommit: isCurrent });
+    // Deferred moves: all files of the round commit together, after one canCommit() check
+    const writer = new FileDicomWebWriter(informationProvider, {
+      baseDir,
+      canCommit: isCurrent,
+      deferFinalMove: true,
+    });
     const streamInfos = [];
     for (const w of writes) {
       const streamInfo = await w.openStream(writer);
@@ -165,9 +172,7 @@ export async function writeMultipleWithRetry({
 
     payload = await generatePayload();
 
-    let anyStale = false;
-    let generationChanged = false;
-    const moved = [];
+    const written = [];
     for (const { streamInfo, getData } of streamInfos) {
       const data = getData(payload);
       if (data === null) {
@@ -177,6 +182,14 @@ export async function writeMultipleWithRetry({
       }
       streamInfo.write(Buffer.isBuffer(data) ? data : Buffer.from(data));
       await writer.closeStream(streamInfo.streamKey);
+      written.push(streamInfo);
+    }
+    await writer.commitPendingMoves();
+
+    let anyStale = false;
+    let generationChanged = false;
+    const moved = [];
+    for (const streamInfo of written) {
       const status = streamInfo.writeStatus;
       if (status === 'updated-stale') {
         anyStale = true;

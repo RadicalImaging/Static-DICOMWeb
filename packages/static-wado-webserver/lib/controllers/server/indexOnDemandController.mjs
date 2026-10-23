@@ -31,19 +31,6 @@ export function isStudiesIndexRequest(requestPath) {
 }
 
 /**
- * Lists the directory names in a directory of the reader.
- * @param {FileDicomWebReader} reader
- * @param {string} relativePath
- * @returns {Promise<string[]>}
- */
-async function listDirectories(reader, relativePath) {
-  const entries = await reader.scanDirectory(relativePath, { withFileTypes: true });
-  return entries
-    .filter(entry => entry && typeof entry === 'object' && entry.isDirectory?.())
-    .map(entry => entry.name);
-}
-
-/**
  * Runs a build as a nested job when a job context is given, otherwise as a top-level job.
  * @param {Object} options - { context, jobs, background }
  */
@@ -164,7 +151,7 @@ export async function ensureStudiesLevel(root, options = {}) {
     return undefined;
   }
   return runJob(options, 'studies', needsBuild, async context => {
-    for (const studyUID of await listDirectories(reader, 'studies')) {
+    for (const studyUID of await reader.listDirectories('studies')) {
       if (studyUID === 'temp') continue;
       await ensureStudyLevel(root, studyUID, { reader, context, studyIndex: false });
     }
