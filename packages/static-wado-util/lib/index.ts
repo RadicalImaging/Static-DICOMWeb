@@ -30,6 +30,7 @@ import uids from './uids';
 import { compareTo } from './compareTo';
 import { sortStudies, compareStudies, compareStudyDate, compareStudyTime, compareStudyUID } from './sortStudies.mjs';
 import { createPromiseTracker } from './createPromiseTracker.mjs';
+import { createJobManager, QueueFullError } from './createJobManager.mjs';
 import { createProgressReporter } from './createProgressReporter.mjs';
 import { parseTimeoutToMs } from './parseTimeoutToMs';
 import { parseSizeToBytes } from './parseSizeToBytes';
@@ -70,6 +71,8 @@ export {
   compareStudyTime,
   compareStudyUID,
   createPromiseTracker,
+  createJobManager,
+  QueueFullError,
   createProgressReporter,
   parseTimeoutToMs,
   parseSizeToBytes,
