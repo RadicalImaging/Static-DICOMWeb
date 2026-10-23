@@ -10,10 +10,9 @@ import {
  * (an updateSeries/updateStudy message, or a request) makes them again. Call it after
  * the upload stores all of its instances. Supports multiple study UIDs in a single call.
  *
- * First changes the generation of each study and of the studies list, then deletes the
- * files. All calls are synchronous, with no `await` between the generation change and
- * the deletions: a build on this node thus cannot check the generation and move a stale
- * file between the two steps.
+ * First changes the generation of each study, then deletes the files. All calls are
+ * synchronous, with no `await` between the generation change and the deletions: a build
+ * on this node thus cannot check the generation and move a stale file between the two steps.
  *
  * Per series (for each studyUID + seriesUID):
  * - Series metadata: studies/{studyUID}/series/{seriesUID}/metadata[.gz]
@@ -24,7 +23,8 @@ import {
  * - Study-level series index: studies/{studyUID}/series/index.json[.gz]
  * - Study-level information: studies/{studyUID}/index.json[.gz]
  *
- * Once per call: the studies list, studies/index.json[.gz]
+ * The studies list (studies/index.json) stays: it is a best-effort list, and the study
+ * update adds a missing study to it.
  *
  * @param {string} dicomdir - DICOMweb root directory (absolute or relative)
  * @param {Map<string, unknown>} seriesMap - Map of seriesId -> info, where seriesId is "studyUID&seriesUID"
@@ -62,7 +62,6 @@ export function deleteStaleSummaries(dicomdir, seriesMap, options = {}) {
   for (const studyUID of studyUIDs) {
     generations.advance(studyUID);
   }
-  generations.advance(null);
 
   // Delete per-series files for each (studyUID, seriesUID) using reader paths and writer.delete
   for (const [studyUID, seriesUIDSet] of seriesByStudy) {
@@ -81,6 +80,4 @@ export function deleteStaleSummaries(dicomdir, seriesMap, options = {}) {
     const studyRelativePath = reader.getStudyPath(studyUID);
     writer.delete(studyRelativePath, 'index.json');
   }
-
-  writer.delete('studies', 'index.json');
 }

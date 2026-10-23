@@ -37,7 +37,11 @@ export function seriesQueryController(dir, params = {}) {
 
     if (createOnDemand && !fs.existsSync(responsePath)) {
       try {
-        const options = { reader: new FileDicomWebReader(root), jobs: getBuildJobManager(params) };
+        const options = {
+          reader: new FileDicomWebReader(root),
+          jobs: getBuildJobManager(params),
+          studyIndex: params.studyIndex,
+        };
         const result = seriesUIDFromQuery
           ? await ensureSeriesLevel(root, studyUID, seriesUIDFromQuery, options)
           : await ensureStudyLevel(root, studyUID, options);

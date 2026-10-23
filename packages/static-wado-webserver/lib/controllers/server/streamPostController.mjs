@@ -8,11 +8,7 @@ import {
 } from '@radicalimaging/static-wado-util';
 import { instanceFromStream } from '@radicalimaging/create-dicomweb';
 import { SagaBusMessaging } from './SagaBusMessaging.mjs';
-import {
-  ensureSeriesLevel,
-  ensureStudyLevel,
-  ensureStudiesLevel,
-} from './indexOnDemandController.mjs';
+import { ensureSeriesLevel, ensureStudyLevel } from './indexOnDemandController.mjs';
 import { getBuildJobManager } from '../../util/buildJobManager.mjs';
 
 import { multipartStream } from './multipartStream.mjs';
@@ -392,15 +388,9 @@ function setupMessageHandlers(messaging, dicomdir, params = {}) {
 
     try {
       console.verbose(`[streamPostController] Processing updateStudy for study ${studyUid}`);
-      await ensureStudyLevel(dicomdir, studyUid, jobOptions);
-
-      // Create studies/index.json.gz unless disabled. The upload deleted it, so the job
-      // builds the full list: a merge into a missing file would list this study only.
-      const studyIndex = params.studyIndex !== false; // Default to true unless explicitly disabled
-      if (studyIndex) {
-        console.verbose(`[streamPostController] Creating/updating studies index for study ${studyUid}`);
-        await ensureStudiesLevel(dicomdir, jobOptions);
-      }
+      // A committed study build also adds a missing study to studies/index.json, unless
+      // params.studyIndex is false
+      await ensureStudyLevel(dicomdir, studyUid, { ...jobOptions, studyIndex: params.studyIndex });
 
       console.verbose(`[streamPostController] Completed updateStudy for study ${studyUid}`);
     } catch (err) {

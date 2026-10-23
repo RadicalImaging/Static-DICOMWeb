@@ -2,7 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import { FileDicomWebReader } from './FileDicomWebReader.mjs';
 import { writeWithRetry } from './writeWithRetry.mjs';
-import { generationTracker } from './generationTracker.mjs';
 import { Tags, sortStudies } from '@radicalimaging/static-wado-util';
 
 const { getValue } = Tags;
@@ -80,18 +79,15 @@ async function buildStudiesIndex(reader, studiesToProcess) {
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @param {string[]} studyUIDs - Optional array of Study Instance UIDs to process (if empty, scans all studies)
  * @param {Object} [options]
- * @param {number} [options.generation] - Generation of the studies list that the build read when
- *   it started (defaults to the current generation). The file commits only if it did not change.
- * @returns {Promise<{committed: boolean, payload?: string}>} - committed false when the generation
- *   changed; payload is the JSON of the studies list of the build
+ * @param {boolean} [options.onlyMissing] - Add only the studies that the existing index does not
+ *   list, and write nothing when it lists all of them or when the index does not exist
+ * @returns {Promise<void>}
  */
 export async function indexSummary(baseDir, studyUIDs = [], options = {}) {
   if (!baseDir) {
     throw new Error('baseDir is required');
   }
 
-  // Read the generation before any data, so a change during the scan stops the commit
-  const generation = options.generation ?? generationTracker.current(null);
   const reader = new FileDicomWebReader(baseDir);
   const studiesIndexPath = 'studies';
 
@@ -128,19 +124,30 @@ export async function indexSummary(baseDir, studyUIDs = [], options = {}) {
     }
   }
 
+  if (options.onlyMissing) {
+    const existing = await reader.readJsonFile(studiesIndexPath, 'index.json');
+    if (!Array.isArray(existing)) {
+      return;
+    }
+    for (const studyQuery of existing) {
+      studiesToProcess.delete(getValue(studyQuery, Tags.StudyInstanceUID));
+    }
+    if (studiesToProcess.size === 0) {
+      return;
+    }
+  }
+
   console.verbose(`indexSummary: processing ${studiesToProcess.size} studies`);
 
   // Write the updated studies/index.json.gz file with retry
   console.noQuiet('indexSummary: writing updated studies index');
 
   // Use an empty informationProvider since we're writing at the root studies level
-  const { committed, payload } = await writeWithRetry({
-    generation: { tracker: generationTracker, studyUID: null, value: generation },
+  await writeWithRetry({
     informationProvider: {},
     baseDir,
     openStream: (writer) => writer.openStream(studiesIndexPath, 'index.json', { gzip: true, compareOnClose: true }),
     generateData: () => buildStudiesIndex(reader, studiesToProcess),
     label: 'indexSummary studies/index.json',
   });
-  return { committed, payload };
 }

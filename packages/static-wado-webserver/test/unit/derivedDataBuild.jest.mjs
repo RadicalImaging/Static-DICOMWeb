@@ -17,7 +17,10 @@ import {
   indexSummary,
 } from '@radicalimaging/create-dicomweb';
 import { seriesQueryController } from '../../lib/controllers/server/seriesQueryController.mjs';
-import { studyQueryController } from '../../lib/controllers/server/indexOnDemandController.mjs';
+import {
+  studyQueryController,
+  ensureStudyLevel,
+} from '../../lib/controllers/server/indexOnDemandController.mjs';
 import { deleteStaleSummaries } from '../../lib/controllers/server/deleteStaleSummaries.mjs';
 import { indexingStaticController } from '../../lib/controllers/server/staticControllers.mjs';
 
@@ -29,10 +32,10 @@ const INSTANCES_PER_SERIES = 2;
 const NUMBER_OF_SERIES_RELATED_INSTANCES = '00201209';
 const SERIES_INSTANCE_UID = '0020000E';
 
-function instanceJson(seriesUID, sopUID, seriesNumber, instanceNumber) {
+function instanceJson(studyUID, seriesUID, sopUID, seriesNumber, instanceNumber) {
   return {
     '00100010': { vr: 'PN', Value: [{ Alphabetic: 'Test^Patient' }] },
-    '0020000D': { vr: 'UI', Value: [STUDY] },
+    '0020000D': { vr: 'UI', Value: [studyUID] },
     '0020000E': { vr: 'UI', Value: [seriesUID] },
     '00080018': { vr: 'UI', Value: [sopUID] },
     '00080016': { vr: 'UI', Value: ['1.2.840.10008.5.1.4.1.1.2'] },
@@ -56,15 +59,22 @@ describe('builds of missing derived files', () => {
   const seriesIndexPath = () => path.join(studyDir(), 'series', 'index.json.gz');
 
   /** Stores the instance metadata of one instance, as an upload does */
-  function storeInstance(seriesUID, instanceNumber) {
+  function storeInstance(seriesUID, instanceNumber, studyUID = STUDY) {
     const seriesNumber = SERIES.indexOf(seriesUID) + 1 || 9;
     const sopUID = `${seriesUID}.${instanceNumber}`;
-    const filePath = path.join(studyDir(), 'series', seriesUID, 'instances', sopUID, 'metadata.gz');
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(
-      filePath,
-      zlib.gzipSync(JSON.stringify([instanceJson(seriesUID, sopUID, seriesNumber, instanceNumber)]))
+    const filePath = path.join(
+      root,
+      'studies',
+      studyUID,
+      'series',
+      seriesUID,
+      'instances',
+      sopUID,
+      'metadata.gz'
     );
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    const instance = instanceJson(studyUID, seriesUID, sopUID, seriesNumber, instanceNumber);
+    fs.writeFileSync(filePath, zlib.gzipSync(JSON.stringify([instance])));
   }
 
   /** Stores the instances, and builds the series, study and studies levels */
@@ -188,7 +198,8 @@ describe('builds of missing derived files', () => {
     expect(fs.existsSync(path.join(changedDir, 'instances', 'index.json.gz'))).toBe(false);
     expect(fs.existsSync(seriesIndexPath())).toBe(false);
     expect(fs.existsSync(path.join(studyDir(), 'index.json.gz'))).toBe(false);
-    expect(fs.existsSync(path.join(root, 'studies', 'index.json.gz'))).toBe(false);
+    // The studies list is a best-effort helper, and the upload keeps it
+    expect(fs.existsSync(path.join(root, 'studies', 'index.json.gz'))).toBe(true);
 
     const reads = spyOnReads();
     const response = await fetch(`${baseUrl}/studies/${STUDY}/series`);
@@ -285,5 +296,32 @@ describe('builds of missing derived files', () => {
     ]);
     // A series build would write the modality of the instance metadata again
     expect(readGzJson(singletonPath)[0]['00080060'].Value).toEqual(['MR']);
+  });
+
+  // User experience (SQR-U4): the studies list lists each stored study, and an update of a
+  // study that the list has does not rewrite the list
+  it('adds a new study to the studies index, and leaves the index alone on the next upload', async () => {
+    const studiesIndexPath = path.join(root, 'studies', 'index.json.gz');
+    const studyUIDsOf = () =>
+      readGzJson(studiesIndexPath)
+        .map(study => study['0020000D'].Value[0])
+        .sort();
+    const newStudy = '1.2.4';
+    const newSeries = '1.2.4.1';
+    const upload = async instanceNumber => {
+      storeInstance(newSeries, instanceNumber, newStudy);
+      deleteStaleSummaries(root, new Map([[`${newStudy}&${newSeries}`, {}]]));
+      // The updateStudy message handler does this call
+      await ensureStudyLevel(root, newStudy, { jobs: createJobManager(), background: true });
+    };
+
+    await upload(1);
+    expect(studyUIDsOf()).toEqual([STUDY, newStudy]);
+
+    const before = fs.readFileSync(studiesIndexPath);
+    const mtimeBefore = fs.statSync(studiesIndexPath).mtimeMs;
+    await upload(2);
+    expect(fs.readFileSync(studiesIndexPath).equals(before)).toBe(true);
+    expect(fs.statSync(studiesIndexPath).mtimeMs).toBe(mtimeBefore);
   });
 });

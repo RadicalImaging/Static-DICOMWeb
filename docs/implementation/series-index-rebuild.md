@@ -81,6 +81,7 @@ does not add a new rule. If an item seems to need a new rule, add the rule to
 | SQR-D13 A started job always progresses | SQR-I2 |
 | SQR-D14 Reject new work when the queue is too long | SQR-I2 |
 | SQR-D15, SQR-D16 Multi-node extension | SQR-I7 (not in this fix) |
+| SQR-D17 Best-effort studies list | SQR-I1, SQR-I3 |
 
 ### SQR-I1. Share one "ensure the level" function for each level
 
@@ -89,7 +90,7 @@ handlers. `indexOnDemandController.mjs` exports three functions:
 
 - `ensureSeriesLevel(root, studyUID, seriesUID, options)` for the series level.
 - `ensureStudyLevel(root, studyUID, options)` for the study level.
-- `ensureStudiesLevel(root, options)` for the studies list.
+- `ensureStudiesLevel(root, options)` for the studies list (best effort, SQR-D17).
 
 Each function:
 
@@ -101,9 +102,20 @@ Each function:
 The study job reads the generation of the study first. Then it calls `ensureSeriesLevel` as a
 nested job for each series, so it builds only the series that have a missing file. Then it
 calls `studyMain(studyUID, { dicomdir, generation })`. That call writes `series/index.json`
-and `index.json`. The studies job does the same one level higher: it calls
-`ensureStudyLevel` as a nested job for each study, and then builds the full studies list with
-`indexSummary`.
+and `index.json`.
+
+The studies list is a best-effort helper (SQR-D17), outside the generation protocol:
+
+- After a study job commits, it calls `addStudyToStudiesIndex(root, studyUID)`, unless
+  `options.studyIndex` is false. The controllers and the upload handlers pass
+  `params.studyIndex`. The function calls
+  `indexSummary(root, [studyUID], { onlyMissing: true })`. That call reads
+  `studies/index.json`, and writes nothing when the file lists the study or when the file is
+  missing. Otherwise it adds the entry of the study.
+- When `studies/index.json` is missing, the studies job calls `ensureStudyLevel` as a nested
+  job for each study, and then builds the full list with `indexSummary(root, [])`.
+- A promise chain in `indexOnDemandController.mjs` serializes all writes of
+  `studies/index.json` in one process. Nothing serializes writes from different processes.
 
 The controllers use these functions:
 
@@ -112,11 +124,12 @@ The controllers use these functions:
   has `SeriesInstanceUID`. The call of `seriesMain` for the full study is removed (C1).
 - `studyQueryController` calls `ensureStudyLevel` for a query with `StudyInstanceUID`, so it
   also repairs a missing `series/index.json` (C4). Without `StudyInstanceUID`, it calls
-  `ensureStudiesLevel`.
+  `ensureStudiesLevel` (best effort).
 - `seriesMetadataQueryController` and the new `instancesQueryController` call
   `ensureSeriesLevel` when their file is missing.
 - The `updateSeries` handler calls `ensureSeriesLevel`. The `updateStudy` handler calls
-  `ensureStudyLevel` and then `ensureStudiesLevel`. Both use `background: true`.
+  `ensureStudyLevel`, which also adds a missing study to the studies list. Both use
+  `background: true`.
 
 When a round did not commit, the file does not exist after the call. The controller then sends
 the data of that round from memory (SQR-D7). When the job manager rejects the job, the
@@ -204,37 +217,36 @@ runs in that process, so the generation does not change during a CLI build.
 Applies SQR-D2, SQR-D5 and SQR-D8 to the upload path. `create-dicomweb` has a generation
 tracker (`packages/create-dicomweb/lib/instance/generationTracker.mjs`):
 
-- `current(studyUID)` returns the current generation of the study. `studyUID` `null` means the
-  studies list.
+- `current(studyUID)` returns the current generation of the study.
 - `advance(studyUID)` changes the generation.
 
-The base design uses an in-memory tracker: a `Map<studyUID, number>`, with a separate value
-for the studies list. Both operations are synchronous. The module exports one shared instance,
+The studies list has no generation (SQR-D17). The base design uses an in-memory tracker: a
+`Map<studyUID, number>`. Both operations are synchronous. The module exports one shared instance,
 `generationTracker`. The upload path and the builds use that instance.
 
-`deleteStaleSummaries` calls `advance()` for each study and for the studies list, and then
-deletes the files. It uses synchronous calls only, with no `await` between the `advance()`
-calls and the deletions (SQR-D8). It deletes all series files of the levels table
-(`metadata`, `series-singleton.json` and `instances/index.json`), the study files, and
-`studies/index.json`. Before this change, the function did not delete `instances/index.json`
-and `studies/index.json`.
+`deleteStaleSummaries` calls `advance()` for each study, and then deletes the files. It uses
+synchronous calls only, with no `await` between the `advance()` calls and the deletions
+(SQR-D8). It deletes all series files of the levels table (`metadata`,
+`series-singleton.json` and `instances/index.json`) and the study files. Before this change,
+the function did not delete `instances/index.json`. It does not delete `studies/index.json`
+(SQR-D17).
 
 `deleteStaleSummaries` already runs after the STOW request stores all of its instances
 (`streamPostController.mjs`, in `completePostController`), so the order of SQR-D5 is already
 correct.
 
-The `updateStudy` handler merged the study into the existing `studies/index.json`. A merge
-into a deleted file lists one study only, so the handler now builds the full list
-(`ensureStudiesLevel`).
+Before this change, the `updateStudy` handler merged the study into `studies/index.json` on
+each upload, also when the file listed the study. Now the study job adds the study only when
+the file does not list it (SQR-I1).
 
 ### SQR-I4. Check the generation before the move of each file
 
-Applies SQR-D3, SQR-D6 and SQR-D8 to `writeMultipleWithRetry`, `writeWithRetry` and
-`FileDicomWebWriter`.
+Applies SQR-D3, SQR-D6 and SQR-D8 to `writeMultipleWithRetry` and `FileDicomWebWriter`.
+`writeWithRetry` (the studies list) does not change (SQR-D17).
 
-1. `writeMultipleWithRetry` and `writeWithRetry` get a new option `generation`: the tracker,
-   the study UID, and the generation `value` that the build read when it started.
-   `seriesSummary`, `studySummary` and `indexSummary` read the generation as their first step,
+1. `writeMultipleWithRetry` gets a new option `generation`: the tracker, the study UID, and
+   the generation `value` that the build read when it started. `seriesSummary` and
+   `studySummary` read the generation as their first step,
    before they read or scan any data, or get the value from the caller (for example the study
    job of SQR-I1). Without a value, the write function reads `current()` before it calls
    `generatePayload()`.
@@ -332,6 +344,10 @@ proposal in these items:
   them. The series metadata query and the instances query also use the series job.
   `seriesQueryController` serves its own file when it exists, before it calls
   `ensureStudyLevel` (SQR-D1). The studies job skips the `studies/temp` directory.
+- **SQR-I1, SQR-I3, SQR-I4 (studies list).** The proposal kept the studies list in the
+  generation protocol, and the upload deleted `studies/index.json`. After review, the studies
+  list became a best-effort helper (SQR-U4, SQR-D17). The upload keeps the file, the studies
+  list has no generation, and a committed study build adds a missing study to the file.
 - **SQR-I1, SQR-I3.** `deleteStaleSummaries` also deletes `instances/index.json`, because the
   levels table lists it as a series file. The new `instancesQueryController` builds that file
   on demand, so SQR-D2 holds for the instances query.
@@ -341,9 +357,8 @@ proposal in these items:
   joins the queued job. The job manager also has `whenIdle()` and `stats()`. The CLI does not
   use the job manager. The server params are `maxRunningJobs` and `maxQueuedJobs`.
 - **SQR-I4.** The summary functions read the generation before their first scan, and not only
-  before `generatePayload()`. `seriesSummary` and `indexSummary` scan data before they call the
-  write function, so a later read can miss a change. `writeWithRetry` (for the studies list)
-  gets the same option as `writeMultipleWithRetry`. The `canCommit()` check runs before the
+  before `generatePayload()`. `seriesSummary` scans data before it calls the write function,
+  so a later read can miss a change. The `canCommit()` check runs before the
   removal of old-format metadata directories and before `fs.renameSync`. All of that code is
   synchronous.
 - **SQR-I5.** `studyMain` builds only the series that have a missing file. It does not call
@@ -373,13 +388,11 @@ This section is not a requirement of the code.
 - **Q1.** The response of the first round of SQR-D7 comes from memory when the round did not
   commit. Is it acceptable that this response is a little older than the data that the next
   round stores? SQR-U1 permits it, because the new data arrived during the build.
-- **Q2.** SQR-D5 deletes `studies/index.json` on each upload. The next build of the studies
-  list reads the study `index.json` of every study, and not only of the changed study. On a
-  server with many studies, each upload thus costs one read for each stored study. During a
-  long upload, each STOW request changes the generation of the studies list, so the studies job
-  can do many rounds that do not commit, and it holds one slot of `maxRunningJobs` for that
-  time. Is this cost acceptable, or does the studies list need a different rule in
-  `§ Design requirements`?
+- **Q2 (closed).** The proposal deleted `studies/index.json` on each upload, and the rebuild
+  of the full list did many rounds with no commit during a long upload. Decision: the studies
+  list is a best-effort helper for a local single system (SQR-U4, SQR-D17). The upload does
+  not delete it, and a committed study build adds a missing study to it. Some deployments do
+  not update the studies list on upload at all (`studyIndex: false`).
 - **Q3.** The builds use the paths of `FileDicomWebReader`, which do not use the
   `hashStudyUidPath` layout. This limit was in the code before this change. Does a deployment
   with `hashStudyUidPath` need the builds on demand?
@@ -401,8 +414,8 @@ The API must do this:
    one time (SQR-D7).
 4. Keep the study `index.json`, delete `series/index.json.gz`, and send a study query with
    `StudyInstanceUID`. The series index exists after the query (SQR-D4).
-5. Store one new instance in a series of a test study. The upload deletes the series files,
-   the study files and `studies/index.json`. A series query then builds only the changed
+5. Store one new instance in a series of a test study. The upload deletes the series files
+   and the study files, and keeps `studies/index.json`. A series query then builds only the changed
    series, and the index shows the new instance count (SQR-D4, SQR-D5).
 6. Start a study build. After its scan of the series, store a new series. The request that
    waited gets the result without the new series. The build does not commit that result. The
@@ -415,12 +428,16 @@ The API must do this:
 9. Fill the queue to `maxQueued`. A new series query that needs a build gets `503` with a
    `Retry-After` header. A series query for a study whose files exist gets `200` (SQR-D11,
    SQR-D14).
+10. Upload a new study. The study build adds its entry to the existing `studies/index.json`.
+    A second upload to the same study does not rewrite the file (SQR-D17).
 
 The user experience must have this: test 1 checks SQR-U1, the correct result with status 200.
 Test 6 checks the data rule of SQR-U1 for data that arrives during a build. Test 9 checks the
 `503` response of SQR-U3. Tests 2 and 3 cover SQR-U2 and SQR-U3, because the cost of a request
 does not increase with repeated or concurrent requests. A test of memory use or of response
 time is not reliable in a unit test, so there is no such test.
+
+Test 10 checks SQR-U4, the user experience of the studies list.
 
 Test 8 is in `packages/static-wado-webserver/test/unit/buildJobManager.jest.mjs`. The other
 tests are in `packages/static-wado-webserver/test/unit/derivedDataBuild.jest.mjs`. One more

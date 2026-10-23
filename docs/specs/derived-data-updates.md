@@ -56,8 +56,15 @@ code are in the implementation document.
   the webserver, when the request fails or when the request is slow. Other requests continue
   to work. When the server has too much update work in its queue, the server answers a new
   request that needs an update with `503 Service Unavailable` and a `Retry-After` header. A
-  request that needs no update does not get this response. This response is the only
-  exception to SQR-U1, and the client can send the request again later.
+  request that needs no update does not get this response. This response and SQR-U4 are
+  the only exceptions to SQR-U1. The client can send the request again later.
+- **SQR-U4. The studies list is a best-effort helper.** The studies list
+  (`GET /studies` without `StudyInstanceUID`) is a helper for the local files of a single
+  system. It lists each stored study. The summary values of an entry, for example the
+  counts of series and instances, can be older than the study. A query with
+  `StudyInstanceUID` gives the current values of the study (SQR-U1). This is the exception to
+  SQR-U1 for the studies list. Some deployments do not update the studies list on upload at
+  all (`studyIndex: false`), so the helper is optional.
 
 ## § Design requirements
 
@@ -71,15 +78,16 @@ below it:
 | Instance | the instance `metadata` | the stored DICOM instance |
 | Series | the series `metadata`, `series-singleton.json`, `instances/index.json` | the instance level of that series |
 | Study | `series/index.json`, the study `index.json` | the series level of that study |
-| Studies | `studies/index.json` | the study level of each study |
+| Studies | `studies/index.json` (best effort, SQR-D17) | the study level of each study |
 
 Each file at the series, study and studies levels serves one response path. For example,
 `series/index.json` serves `GET /studies/<studyUID>/series`.
 
-The design uses one **generation** for each study, and one generation for the studies list. A
-generation is a value that changes each time that new data for the study is stored. The series
-files and the study files of a study use the generation of that study. `studies/index.json`
-uses the generation of the studies list.
+The design uses one **generation** for each study. A generation is a value that changes each
+time that new data for the study is stored. The series files and the study files of a study
+use the generation of that study. The studies list has no generation: it is a best-effort
+helper, and SQR-D17 states its rule. SQR-D1 to SQR-D16 apply to the series level and the
+study level.
 
 The design has two parts:
 
@@ -106,9 +114,9 @@ The design has two parts:
   level in the same way. For example, a study build uses the stored files of each series, and
   builds only the series that have a missing file. Supports SQR-U1 and SQR-U2.
 - **SQR-D5. Store the data, then change the generation, then delete.** An upload first stores
-  the new instances. Then the upload changes the generation of each affected study and of
-  the studies list. Then the upload deletes the derived files that the new data affects: the
-  series files, the study files and `studies/index.json`. Supports SQR-U1.
+  the new instances. Then the upload changes the generation of each affected study. Then the
+  upload deletes the derived files that the new data affects: the series files and the study
+  files. The upload does not delete `studies/index.json` (SQR-D17). Supports SQR-U1.
 - **SQR-D6. Commit only a build of the current generation.** A build reads the generation
   before it reads any data. The build writes its files to temporary files. The build moves a
   temporary file to its final name only when the generation did not change. After the move,
@@ -159,6 +167,15 @@ The next requirements use these terms:
   The request gets the `503` response of SQR-U3. A job of an upload message, or a next round of
   SQR-D6, is not rejected. Supports SQR-U3.
 
+- **SQR-D17. Keep the studies list as a best-effort list.** The studies list has no
+  generation, and an upload does not delete it. When the server commits the study level of
+  a study, and the studies list is enabled (`studyIndex`), the server reads
+  `studies/index.json`. When the file lists the study, the server does not change the file.
+  When the file does not list the study, the server adds the entry of the study, and saves
+  the file. When the file is missing, a `GET /studies` request builds it from the study
+  level of each study (SQR-D2). The updates of the file in one process run one after the
+  other. The design gives no guarantee for updates from different processes. Supports SQR-U4.
+
 ### Multi-node extension requirements
 
 These requirements are not part of the base design. The base design must not block them.
@@ -192,6 +209,9 @@ generation shows that.
 | Several nodes, all work for one study on one node, base design | yes | yes |
 | Several nodes, any routing, SQR-D15 | yes | no, a stale file can stay until the next upload |
 | Several nodes, any routing, SQR-D15 and SQR-D16 | yes | yes |
+
+The table applies to the series level and the study level. The studies list (SQR-D17) is
+safe on one node only, and only to the level of SQR-U4.
 
 "All work for one study on one node" includes the builds that a query starts. A query for a
 study on a different node must go to the node of that study, or that deployment needs SQR-D15.
