@@ -236,7 +236,7 @@ describe('builds of missing derived files', () => {
   // User experience (SQR-U1) and the API (SQR-D6, SQR-D7, SQR-D8): data that arrives during
   // a build is missing from the first response, and is in the index that the next round commits
   it('responds with the first round, and commits the next round, when a series arrives during a study build', async () => {
-    await startServer(createJobManager());
+    await startServer(createJobManager({ roundDelayMs: 10 }));
     fs.rmSync(seriesIndexPath());
     fs.rmSync(path.join(studyDir(), 'index.json.gz'));
     const newSeries = '1.2.3.9';

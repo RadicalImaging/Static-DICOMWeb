@@ -164,7 +164,8 @@ Thus `@radicalimaging/static-wado-util` has a small job manager,
 - `run(key, needsBuild, fn, { background })` runs a top-level job for one caller. The job
   manager gives `fn` a job context.
 - `context.child(key, needsBuild, fn)` runs a nested job inside the job of the caller.
-- `whenIdle()` resolves when no job runs and the queue is empty. `stats()` gives the counts.
+- `whenIdle()` resolves when no job runs, the queue is empty, and no next round waits for its
+  delay. `stats()` gives the counts.
 
 The key is the level and the UIDs, for example `study:<studyUID>` or
 `series:<studyUID>/<seriesUID>`. `needsBuild()` is the check of SQR-D11. `fn()` does one round
@@ -182,9 +183,12 @@ The job manager obeys these rules:
    get the error. A call never takes over the job of a different caller. A top-level call for
    a key that is in the queue joins that queued job.
 4. **Start the next round (SQR-D6).** When `fn()` returns `{ committed: false }`, the job
-   manager resolves the callers of the first round, and then calls
-   `run(key, needsBuild, fn, { background: true })`. The job manager logs a warning after each
-   10 rounds of one key, and continues.
+   manager resolves the callers of the first round. After a delay, it calls
+   `run(key, needsBuild, fn, { background: true })`. The delay is `roundDelayMs` (default
+   1 s) for the first next round, and doubles after each round that does not commit, up to
+   `maxRoundDelayMs` (default 30 s). A commit of the key sets the delay back to 1 s. The job
+   manager logs a warning after each 10 rounds of one key, and continues. A request for the
+   key during the delay starts a new job at once, and the delayed round then finds the file.
 5. **Limit the top-level jobs only (SQR-D12).** At most `maxRunning` top-level jobs run at the
    same time, with a default of 2. Other top-level jobs wait in a first-in, first-out queue. A
    top-level call does the wait of rule 3 before it enters the queue, so the wait holds no
@@ -195,10 +199,10 @@ The job manager obeys these rules:
 7. **A queued job blocks nothing (SQR-D13).** A job in the queue has no entry in the map. Thus
    `child` for that key runs at once, by rule 6. When the queued job starts later, rule 1
    finds the file, and the job returns immediately.
-8. **Reject new work (SQR-D14).** When the queue holds `maxQueued` jobs, `run` rejects a new
-   request job with a `QueueFullError`. The error has `retryAfterSeconds` (default 10). The
-   controller answers `503` with a `Retry-After` header. A call with `background: true` enters
-   the queue and is not rejected.
+8. **Reject new work (SQR-D14).** When the queue holds `maxQueued` request jobs, `run` rejects
+   a new request job with a `QueueFullError`. The error has `retryAfterSeconds` (default 10).
+   The controller answers `503` with a `Retry-After` header. A call with `background: true`
+   enters the queue, is not rejected, and does not count to `maxQueued`.
 
 A job that a client abandons still completes, and the next request then finds the file.
 

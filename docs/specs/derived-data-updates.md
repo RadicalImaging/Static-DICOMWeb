@@ -124,8 +124,11 @@ The design has two parts:
   before it reads any data. The build writes its files to temporary files. The build moves a
   temporary file to its final name only when the generation did not change. After the move,
   the build reads the generation again. If the generation changed, the build deletes the
-  files that it moved. In both cases of a change, the build starts again. The build continues
-  until one round commits with no change of the generation. Supports SQR-U1.
+  files that it moved. In both cases of a change, the build starts again after a delay. The
+  delay increases after each round that does not commit, up to a configured maximum, and
+  goes back to its start value after a commit. Thus a build does not use a slot without
+  a stop while new data arrives. The build continues until one round commits with no change
+  of the generation. Supports SQR-U1 and SQR-U3.
 - **SQR-D7. Respond after the first build.** A caller that waits for a build gets the result of
   the first round of that build, also when the build must start again. The caller does not
   wait for the next rounds. The next rounds continue in the background. Supports SQR-U1 and
@@ -165,10 +168,11 @@ The next requirements use these terms:
   at a time. The job can do its nested jobs one after the other, in one thread of work. A job
   in the queue holds nothing that a running job waits for. Thus a job that has started always
   completes, for each number of levels. Supports SQR-U1 and SQR-U3.
-- **SQR-D14. Reject new work when the queue is too long.** When the queue of top-level jobs
-  has more than a configured number of jobs, the server does not add a job for a new request.
-  The request gets the `503` response of SQR-U3. A job of an upload message, or a next round of
-  SQR-D6, is not rejected. Supports SQR-U3.
+- **SQR-D14. Reject new work when the queue is too long.** When the queue holds more than a
+  configured number of request jobs, the server does not add a job for a new request. The
+  request gets the `503` response of SQR-U3. A job of an upload message, or a next round of
+  SQR-D6, is a background job. A background job is not rejected, and it does not count to the
+  limit, so an upload alone does not make other requests get `503`. Supports SQR-U3.
 
 - **SQR-D17. Keep the studies list as a best-effort list.** The studies list has no
   generation, and an upload does not delete it. When the server commits the study level of

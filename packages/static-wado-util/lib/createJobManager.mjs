@@ -30,29 +30,35 @@ export class QueueFullError extends Error {
  *    job of a different caller. A top-level call for a key that is in the queue joins
  *    that queued job.
  * 4. When `fn()` returns `{ committed: false }`, the callers get the result of that
- *    round, and the job manager starts the next round as a background job.
+ *    round, and the job manager starts the next round as a background job after a delay.
+ *    The delay starts at `roundDelayMs`, doubles after each round that does not commit,
+ *    stops at `maxRoundDelayMs`, and starts again at `roundDelayMs` after a commit.
  * 5. At most `maxRunning` top-level jobs run at the same time; the others wait in a
  *    first-in, first-out queue. The wait of rule 3 holds no slot.
  * 6. A nested job runs at once, in the slot of its top-level job, and is never limited.
  *    A job awaits each `child` call before the next one.
  * 7. A queued job blocks nothing: `child` for its key runs at once, and when the queued
  *    job starts later, rule 1 finds the file.
- * 8. When the queue holds `maxQueued` jobs, `run` rejects a new job with QueueFullError.
- *    A background job is never rejected.
+ * 8. When the queue holds `maxQueued` request jobs, `run` rejects a new request job with
+ *    QueueFullError. A background job is never rejected, and does not count to the limit.
  *
  * A running job waits only for jobs at lower levels, and a nested job never waits for a
  * slot, so the waits cannot form a loop and each started job completes.
  *
  * @param {Object} [options]
  * @param {number} [options.maxRunning=2] - Maximum number of top-level jobs that run at the same time
- * @param {number} [options.maxQueued=20] - Maximum number of top-level jobs in the queue
+ * @param {number} [options.maxQueued=20] - Maximum number of request (not background) jobs in the queue
  * @param {number} [options.retryAfterSeconds=10] - Value for the Retry-After header of a QueueFullError
+ * @param {number} [options.roundDelayMs=1000] - Delay before the first next round
+ * @param {number} [options.maxRoundDelayMs=30000] - Maximum delay before a next round
  * @returns {{run: Function, whenIdle: () => Promise<void>, stats: () => Object}}
  */
 export function createJobManager(options = {}) {
   const maxRunning = Math.max(1, options.maxRunning ?? 2);
   const maxQueued = Math.max(0, options.maxQueued ?? 20);
   const retryAfterSeconds = options.retryAfterSeconds ?? 10;
+  const roundDelayMs = options.roundDelayMs ?? 1000;
+  const maxRoundDelayMs = options.maxRoundDelayMs ?? 30000;
 
   /** key -> promise of the first-round result of the running job */
   const running = new Map();
@@ -63,12 +69,16 @@ export function createJobManager(options = {}) {
   /** key -> number of rounds that did not commit */
   const rounds = new Map();
   let active = 0;
+  /** Number of request (not background) jobs in the queue */
+  let queuedRequests = 0;
+  /** Number of next rounds that wait for their delay */
+  let delayedRounds = 0;
   let idleWaiters = [];
 
   const sharedResult = promise => promise.catch(() => undefined);
 
   function checkIdle() {
-    if (active === 0 && queue.length === 0 && running.size === 0) {
+    if (active === 0 && queue.length === 0 && running.size === 0 && delayedRounds === 0) {
       const waiters = idleWaiters;
       idleWaiters = [];
       waiters.forEach(resolve => resolve());
@@ -81,9 +91,15 @@ export function createJobManager(options = {}) {
     if (count % WARN_ROUNDS === 0) {
       console.warn(`[jobManager] ${key}: ${count} rounds did not commit, the data still changes`);
     }
-    run(key, needsBuild, fn, { background: true }).catch(err =>
-      console.warn(`[jobManager] ${key}: next round failed:`, err?.message || err)
-    );
+    const delay = Math.min(roundDelayMs * 2 ** (count - 1), maxRoundDelayMs);
+    delayedRounds++;
+    setTimeout(() => {
+      delayedRounds--;
+      run(key, needsBuild, fn, { background: true }).catch(err =>
+        console.warn(`[jobManager] ${key}: next round failed:`, err?.message || err)
+      );
+      checkIdle();
+    }, delay);
   }
 
   /** Starts a job (rule 1, 2 and 4); the caller checked that no job runs for the key */
@@ -171,12 +187,19 @@ export function createJobManager(options = {}) {
       active++;
       return runInSlot(key, needsBuild, fn);
     }
-    if (!runOptions.background && queue.length >= maxQueued) {
+    const background = runOptions.background === true;
+    if (!background && queuedRequests >= maxQueued) {
       throw new QueueFullError(key, retryAfterSeconds);
+    }
+    if (!background) {
+      queuedRequests++;
     }
     const queued = new Promise((resolve, reject) => {
       queue.push(() => {
         queuedByKey.delete(key);
+        if (!background) {
+          queuedRequests--;
+        }
         runInSlot(key, needsBuild, fn).then(resolve, reject);
       });
     });
@@ -193,7 +216,7 @@ export function createJobManager(options = {}) {
   }
 
   function stats() {
-    return { active, queued: queue.length, running: running.size };
+    return { active, queued: queue.length, queuedRequests, running: running.size, delayedRounds };
   }
 
   return { run, whenIdle, stats };
