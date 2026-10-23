@@ -273,6 +273,11 @@ Applies SQR-D4 and SQR-D10 to `seriesSummary`, `studySummary` and the CLI. The `
 The upload path is not affected. `deleteStaleSummaries` deletes the series `metadata` before
 `updateSeries` runs, so the UID sets do not match after an upload.
 
+`studySummary` returns early only when the series UIDs of `series/index.json` are the same as
+the series directories, and both study files exist (`studyFilesExist`, exported from
+create-dicomweb). Thus a missing study `index.json` is built again also when
+`series/index.json` is current.
+
 `seriesMain`, `seriesSummary`, `studyMain` and `studySummary` have a `force` option. The
 `--force` flag of the `series` command and of the `study` command sets it. The option skips
 the early return of its own level only.

@@ -6,6 +6,7 @@ export { FileDicomWebWriter } from './instance/FileDicomWebWriter.mjs';
 export { DicomWebStream } from './instance/DicomWebStream.mjs';
 export { StreamInfo } from './instance/StreamInfo.mjs';
 export { seriesSummary, seriesFilesExist } from './instance/SeriesSummary.mjs';
+export { studyFilesExist } from './instance/StudySummary.mjs';
 export { indexSummary } from './instance/IndexSummary.mjs';
 export { instanceFromStream } from './instance/instanceFromStream.mjs';
 export { generationTracker, createGenerationTracker } from './instance/generationTracker.mjs';

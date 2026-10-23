@@ -8,6 +8,7 @@ import {
   studyMain,
   seriesSummary,
   seriesFilesExist,
+  studyFilesExist,
   FileDicomWebReader,
   generationTracker,
 } from '@radicalimaging/create-dicomweb';
@@ -52,14 +53,6 @@ function runJob(options, key, needsBuild, fn) {
   }
   const jobs = options.jobs ?? getBuildJobManager();
   return jobs.run(key, needsBuild, fn, { background: options.background === true });
-}
-
-/** Returns true when both files of the study level exist: series/index.json and index.json */
-function studyFilesExist(reader, studyUID) {
-  return Boolean(
-    reader.studyFileExists(studyUID, 'index.json') &&
-    reader.fileExists(reader.getStudyPath(studyUID, { path: 'series' }), 'index.json')
-  );
 }
 
 /**

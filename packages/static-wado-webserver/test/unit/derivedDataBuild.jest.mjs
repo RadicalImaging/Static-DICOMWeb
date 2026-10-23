@@ -183,6 +183,20 @@ describe('builds of missing derived files', () => {
     expect(fs.existsSync(seriesIndexPath())).toBe(true);
   });
 
+  // The API must do this (SQR-D2, SQR-D3): a missing study index.json comes back when
+  // series/index.json is current
+  it('builds a missing study index.json on a study query when the series index exists', async () => {
+    await startServer(createJobManager());
+    const studyIndexPath = path.join(studyDir(), 'index.json.gz');
+    fs.rmSync(studyIndexPath);
+
+    const response = await fetch(`${baseUrl}/studies?StudyInstanceUID=${STUDY}`);
+
+    expect(response.status).toBe(200);
+    expect((await response.json())[0]['0020000D'].Value).toEqual([STUDY]);
+    expect(fs.existsSync(studyIndexPath)).toBe(true);
+  });
+
   // The API must do this (SQR-D4, SQR-D5): an upload deletes the stale files, and the
   // next build rebuilds only the changed series
   it('rebuilds only the changed series after an upload', async () => {

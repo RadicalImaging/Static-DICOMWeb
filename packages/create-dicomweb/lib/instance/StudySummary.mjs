@@ -134,6 +134,20 @@ async function readStudyData(reader, studyUID) {
 }
 
 /**
+ * Returns true when both files of the study level exist: series/index.json and the study
+ * index.json. A build of the studies list uses the stored files of a study when this is true.
+ * @param {FileDicomWebReader} reader
+ * @param {string} studyUID
+ * @returns {boolean}
+ */
+export function studyFilesExist(reader, studyUID) {
+  return Boolean(
+    reader.studyFileExists(studyUID, 'index.json') &&
+    reader.fileExists(reader.getStudyPath(studyUID, { path: 'series' }), 'index.json')
+  );
+}
+
+/**
  * Creates or updates study metadata/index.json.gz file
  *
  * @param {string} baseDir - Base directory for DICOMweb structure
@@ -196,7 +210,8 @@ export async function studySummary(baseDir, studyUID, options = {}) {
   if (
     !options.force &&
     existingSeriesUIDs.size === actualSeriesUIDs.size &&
-    [...existingSeriesUIDs].every(uid => actualSeriesUIDs.has(uid))
+    [...existingSeriesUIDs].every(uid => actualSeriesUIDs.has(uid)) &&
+    studyFilesExist(reader, studyUID)
   ) {
     console.verbose('studySummary: series index is up to date');
     return { committed: true };
