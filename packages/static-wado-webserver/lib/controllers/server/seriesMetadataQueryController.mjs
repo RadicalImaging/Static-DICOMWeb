@@ -1,12 +1,19 @@
 import fs from 'fs';
 import { handleHomeRelative } from '@radicalimaging/static-wado-util';
-import { seriesMain } from '@radicalimaging/create-dicomweb';
 import { otherJsonMap } from '../../adapters/requestAdapters.mjs';
+import { getBuildJobManager } from '../../util/buildJobManager.mjs';
+import {
+  ensureSeriesLevel,
+  sendBuildPayload,
+  seriesMetadataOf,
+  handleBuildError,
+} from './indexOnDemandController.mjs';
 
 /**
  * seriesMetadataQueryController: for GET /studies/:studyUID/series/:seriesUID/metadata.
- * When the series metadata file is missing, calls seriesMain for that series to create it
- * on demand, then invokes otherJsonMap.
+ * When the series metadata file is missing, builds the series level in the build job
+ * manager (ensureSeriesLevel), then invokes otherJsonMap. When the build did not commit,
+ * sends the data of the first round.
  *
  * @param {string} dir - Static files directory path (DICOMweb root)
  * @param {object} params - Server params (rootDir, createIndexOnDemand)
@@ -26,14 +33,21 @@ export function seriesMetadataQueryController(dir, params = {}) {
 
     try {
       if (createOnDemand && !fs.existsSync(metadataPath)) {
-        await seriesMain(studyUID, { dicomdir: root, seriesUid: seriesUID });
+        const result = await ensureSeriesLevel(root, studyUID, seriesUID, {
+          jobs: getBuildJobManager(params),
+        });
+        const data = seriesMetadataOf(result);
+        if (data?.length && !fs.existsSync(metadataPath)) {
+          return sendBuildPayload(res, data);
+        }
       }
     } catch (err) {
-      console.error(
-        'seriesMetadataQuery: failed to create series metadata:',
-        err?.message || err
+      return handleBuildError(
+        err,
+        res,
+        next,
+        'seriesMetadataQuery: failed to create series metadata'
       );
-      return next(err);
     }
     otherJsonMap(req, res, next);
   };

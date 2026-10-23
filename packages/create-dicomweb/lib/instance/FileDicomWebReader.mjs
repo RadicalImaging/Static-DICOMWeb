@@ -2,7 +2,24 @@ import fs from 'fs';
 import path from 'path';
 import { createGunzip } from 'zlib';
 import { DicomWebReader } from './DicomWebReader.mjs';
-import { removeStaleMetadataDir } from './removeStaleMetadataDir.mjs';
+
+/**
+ * Returns true when a read error shows that the file content is corrupt: the gunzip
+ * step failed (zlib codes start with `Z_`), or the JSON parse failed. An I/O error
+ * such as `ESTALE`, `EIO` or `ENOENT` returns false, because the file can be correct,
+ * for example when a read overlaps a rename on a network file system.
+ * @param {Error} error - The error of the read
+ * @returns {boolean}
+ */
+export function isCorruptFileError(error) {
+  if (!error) {
+    return false;
+  }
+  if (typeof error.code === 'string' && error.code.startsWith('Z_')) {
+    return true;
+  }
+  return error instanceof SyntaxError || error.cause instanceof SyntaxError;
+}
 
 /**
  * File-based implementation of DicomWebReader
@@ -119,12 +136,15 @@ export class FileDicomWebReader extends DicomWebReader {
   }
 
   /**
-   * Reads a JSON file; on decompress or parse error, optionally deletes the file and returns undefined.
+   * Reads a JSON file, and returns undefined on any read error.
+   * With `deleteFileOnError`, deletes the file only when it is corrupt (see
+   * isCorruptFileError). An I/O error never deletes the file, because a correct
+   * file can give a transient I/O error, for example `ESTALE` on a network file system.
    * @param {string} relativePath - Relative path within baseDir
    * @param {string} filename - Filename to read
    * @param {Object} [options] - Options
-   * @param {boolean} [options.deleteFileOnError=false] - If true, delete the file (or .gz) on read/parse error and return undefined
-   * @returns {Promise<Object|undefined>} - Parsed JSON or undefined if missing or (when deleteFileOnError) on error
+   * @param {boolean} [options.deleteFileOnError=false] - If true, delete the file (or .gz) after a gunzip or parse error
+   * @returns {Promise<Object|undefined>} - Parsed JSON, or undefined if missing or on error
    */
   async readJsonFile(relativePath, filename, options = {}) {
     const fileInfo = this.fileExists(relativePath, filename);
@@ -134,20 +154,29 @@ export class FileDicomWebReader extends DicomWebReader {
     try {
       return await super.readJsonFile(relativePath, filename, options);
     } catch (error) {
-      if (options.deleteFileOnError) {
+      if (!isCorruptFileError(error)) {
+        console.warn(`Could not read ${fileInfo.path}, keeping it: ${error.code || error.message}`);
+      } else if (options.deleteFileOnError) {
         try {
           await fs.promises.unlink(fileInfo.path);
           console.noQuiet(`Deleted corrupted file ${fileInfo.path}: ${error.message}`);
         } catch (unlinkErr) {
-          if (await removeStaleMetadataDir(fileInfo.path)) {
-            console.warn(`Deleted corrupted metadata directory ${fileInfo.path}: ${error.message}`);
-          } else {
-            console.warn(`Failed to delete corrupted file ${fileInfo.path}: ${unlinkErr.message}`);
-          }
+          console.warn(`Failed to delete corrupted file ${fileInfo.path}: ${unlinkErr.message}`);
         }
       }
       return undefined;
     }
+  }
+
+  /**
+   * Returns the names of the subdirectories of a directory (for example the series UIDs of
+   * a study), or [] when the directory does not exist.
+   * @param {string} relativePath - Relative path to scan
+   * @returns {Promise<string[]>}
+   */
+  async listDirectories(relativePath) {
+    const entries = await this.scanDirectory(relativePath, { withFileTypes: true });
+    return entries.filter(entry => entry.isDirectory()).map(entry => entry.name);
   }
 
   /**

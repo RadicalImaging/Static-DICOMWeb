@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { seriesSummary } from '../instance/SeriesSummary.mjs';
 import { FileDicomWebReader } from '../instance/FileDicomWebReader.mjs';
 
@@ -9,9 +7,11 @@ import { FileDicomWebReader } from '../instance/FileDicomWebReader.mjs';
  * @param {Object} options - Options object
  * @param {string} [options.dicomdir] - Base directory path where DICOMweb structure is located
  * @param {string} [options.seriesUid] - Specific Series Instance UID to process (if not provided, processes all series in the study)
+ * @param {boolean} [options.force] - Build each series also when its files are up to date
+ * @returns {Promise<{committed: boolean}>} - committed false when a series build did not commit
  */
 export async function seriesMain(studyUID, options = {}) {
-  const { dicomdir, seriesUid } = options;
+  const { dicomdir, seriesUid, force } = options;
 
   if (!dicomdir) {
     throw new Error('dicomdir option is required');
@@ -27,44 +27,26 @@ export async function seriesMain(studyUID, options = {}) {
   } else {
     // Scan for all series in the study
     const seriesPath = reader.getStudyPath(studyUID, { path: 'series' });
-    const seriesDirectories = await reader.scanDirectory(seriesPath, { withFileTypes: true });
-
-    for (const entry of seriesDirectories) {
-      // If withFileTypes is used, entry is a Dirent object
-      if (entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory()) {
-        seriesUIDs.push(entry.name);
-      } else if (typeof entry === 'string') {
-        // Fallback: if entry is a string, check if it's a directory
-        const seriesDirPath = `${seriesPath}/${entry}`;
-        const fullSeriesPath = path.join(reader.baseDir, seriesDirPath);
-
-        try {
-          const stats = fs.lstatSync(fullSeriesPath);
-          if (stats.isDirectory()) {
-            seriesUIDs.push(entry);
-          }
-        } catch (error) {
-          // Skip if we can't stat the path
-          console.warn(`Could not stat ${seriesDirPath}: ${error.message}`);
-        }
-      }
-    }
+    seriesUIDs = await reader.listDirectories(seriesPath);
   }
 
   if (seriesUIDs.length === 0) {
     console.warn(`No series found for study ${studyUID}`);
-    return;
+    return { committed: true };
   }
 
   // Process each series
+  let committed = true;
   for (const seriesUID of seriesUIDs) {
     try {
       console.verbose(`Processing series ${seriesUID}...`);
-      await seriesSummary(dicomdir, studyUID, seriesUID);
+      const result = await seriesSummary(dicomdir, studyUID, seriesUID, { force });
+      committed &&= result.committed !== false;
       console.noQuiet(`Completed series ${seriesUID}`);
     } catch (error) {
       console.error(`Error processing series ${seriesUID}: ${error.message}`);
       throw error;
     }
   }
+  return { committed };
 }

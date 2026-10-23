@@ -1,7 +1,6 @@
-import fs from 'fs';
-import path from 'path';
 import { FileDicomWebReader } from './FileDicomWebReader.mjs';
 import { writeMultipleWithRetry } from './writeWithRetry.mjs';
+import { generationTracker } from './generationTracker.mjs';
 import { Tags, TagLists } from '@radicalimaging/static-wado-util';
 
 const { getValue, setValue } = Tags;
@@ -160,18 +159,45 @@ async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
 }
 
 /**
- * Creates or updates series metadata/index.json.gz file
+ * Returns true when all files of the series level exist: the series metadata,
+ * series-singleton.json and instances/index.json. A build of a higher level uses the
+ * stored files of a series when this is true, and builds the series otherwise.
+ * @param {FileDicomWebReader} reader
+ * @param {string} studyUID
+ * @param {string} seriesUID
+ * @returns {boolean}
+ */
+export function seriesFilesExist(reader, studyUID, seriesUID) {
+  return Boolean(
+    reader.seriesFileExists(studyUID, seriesUID, 'series-singleton.json') &&
+    reader.seriesFileExists(studyUID, seriesUID, 'metadata') &&
+    reader.seriesFileExists(studyUID, seriesUID, 'instances/index.json')
+  );
+}
+
+/**
+ * Creates or updates the series metadata, series-singleton.json and instances/index.json.
+ * Returns early, with no write, when the instance UIDs in the series metadata are the
+ * same as the instance directories, and series-singleton.json and instances/index.json
+ * exist. `force` skips that early return.
  *
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @param {string} studyUID - Study Instance UID
  * @param {string} seriesUID - Series Instance UID
- * @returns {Promise<void>}
+ * @param {Object} [options]
+ * @param {boolean} [options.force] - Build the series also when its files are up to date
+ * @param {number} [options.generation] - Generation of the study that the build read when it
+ *   started (defaults to the current generation). The files commit only if it did not change.
+ * @returns {Promise<{committed: boolean, payload?: Object}>} - committed false when the
+ *   generation changed; payload is the series data of the build
  */
-export async function seriesSummary(baseDir, studyUID, seriesUID, options) {
+export async function seriesSummary(baseDir, studyUID, seriesUID, options = {}) {
   if (!baseDir || !studyUID || !seriesUID) {
     throw new Error('baseDir, studyUID, and seriesUID are required');
   }
 
+  // Read the generation before any data, so a change during the scan stops the commit
+  const generation = options.generation ?? generationTracker.current(studyUID);
   const reader = new FileDicomWebReader(baseDir);
   const seriesPath = reader.getSeriesPath(studyUID, seriesUID);
   const instancesPath = `${seriesPath}/instances`;
@@ -191,33 +217,18 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options) {
   }
 
   // Scan the instances directory to get actual instance UIDs
-  const instanceDirectories = await reader.scanDirectory(instancesPath, { withFileTypes: true });
-  const actualInstanceUIDs = new Set();
+  const actualInstanceUIDs = new Set(await reader.listDirectories(instancesPath));
 
-  for (const entry of instanceDirectories) {
-    if (entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory()) {
-      actualInstanceUIDs.add(entry.name);
-    } else if (typeof entry === 'string') {
-      const instanceDirPath = `${instancesPath}/${entry}`;
-      const fullInstancePath = path.join(reader.baseDir, instanceDirPath);
-      try {
-        const stats = fs.lstatSync(fullInstancePath);
-        if (stats.isDirectory()) {
-          actualInstanceUIDs.add(entry);
-        }
-      } catch (error) {
-        console.warn(`Could not stat ${instanceDirPath}: ${error.message}`);
-      }
-    }
-  }
-
-  // Compare sets - if they match exactly, return early
+  // Return early when the metadata lists the stored instances and the other files exist
   if (
+    !options.force &&
     existingInstanceUIDs.size === actualInstanceUIDs.size &&
-    [...existingInstanceUIDs].every(uid => actualInstanceUIDs.has(uid))
+    [...existingInstanceUIDs].every(uid => actualInstanceUIDs.has(uid)) &&
+    reader.fileExists(seriesPath, 'series-singleton.json') &&
+    reader.fileExists(seriesPath, 'instances/index.json')
   ) {
     console.verbose('seriesSummary: instance index is up to date');
-    // return; // Metadata is up to date
+    return { committed: true };
   }
 
   const informationProvider = { studyInstanceUid: studyUID, seriesInstanceUid: seriesUID };
@@ -225,8 +236,9 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options) {
   // Write all series-level files in one retry loop so readSeriesData is called once per attempt
   console.verbose('seriesSummary: writing series metadata and index files');
   let lastPayload;
-  await writeMultipleWithRetry({
+  const result = await writeMultipleWithRetry({
     ...options,
+    generation: { tracker: generationTracker, studyUID, value: generation },
     informationProvider,
     baseDir,
     generatePayload: async () => {
@@ -267,6 +279,7 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options) {
   if (lastPayload) {
     logSeriesDataWarnings(lastPayload, actualInstanceUIDs.size, `${studyUID}/${seriesUID}`);
   }
+  return { committed: result.committed, payload: result.payload };
 }
 
 /**

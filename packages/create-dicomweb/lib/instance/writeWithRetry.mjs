@@ -1,6 +1,48 @@
+import fs from 'fs';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
 
 const MAX_RETRIES = 3;
+
+/** Write statuses of a file that the writer moved to its final name */
+const MOVED_STATUSES = new Set(['created', 'updated', 'updated-stale']);
+
+/**
+ * Creates the generation check of one build round. Reads the generation now, so call it
+ * before the build reads any data. Without `generation`, returns undefined (no check).
+ *
+ * @param {Object} [generation]
+ * @param {{current: Function}} generation.tracker - Generation tracker
+ * @param {string} generation.studyUID - Study of the files
+ * @param {number} [generation.value] - Generation that the build read when it started. When the
+ *   build reads data before this write (for example nested builds of the series of a study),
+ *   pass the value that it read first. Defaults to the current generation.
+ * @returns {(() => boolean)|undefined} - Returns true while the generation did not change
+ */
+function createGenerationCheck(generation) {
+  if (!generation?.tracker) {
+    return undefined;
+  }
+  const { tracker, studyUID } = generation;
+  const expected = generation.value ?? tracker.current(studyUID);
+  return () => tracker.current(studyUID) === expected;
+}
+
+/**
+ * Deletes the files that a round moved, after the generation changed (step 3 of the commit).
+ * On one node, an upload can change the generation after the last rename, and then this
+ * step deletes files that the upload also deletes. With generations in shared storage, this
+ * step also removes a commit that the writer check did not stop.
+ * @param {string[]} filepaths - Absolute paths of the moved files
+ */
+function deleteMovedFiles(filepaths) {
+  for (const filepath of filepaths) {
+    try {
+      fs.rmSync(filepath, { force: true });
+    } catch (err) {
+      console.warn(`[writeWithRetry] Could not delete ${filepath}:`, err?.message || err);
+    }
+  }
+}
 
 /**
  * Writes data to a DICOMweb file with compareOnClose enabled, retrying if the
@@ -86,34 +128,52 @@ export async function writeWithRetry({
  * batch is retried (generatePayload is called again). Use when payload generation
  * (e.g. readSeriesData) is expensive and all outputs depend on the same inputs.
  *
+ * With `generation`, the files commit only when the generation did not change:
+ * 1. Reads the generation before generatePayload() (or uses `generation.value`).
+ * 2. The writer writes all temp files, compares them, and then checks the generation one time
+ *    immediately before the renames, with no await between the check and the renames. When it
+ *    changed, the writer deletes the temp files and sets writeStatus to 'generation-changed'.
+ * 3. After all moves, reads the generation again. When it changed, deletes each moved file.
+ * In both cases of a change, returns `committed: false` and does not retry: the caller
+ * starts the next round. The retry loop for 'updated-stale' stays as it was.
+ *
  * @param {Object} params
  * @param {Object} params.informationProvider - UID provider for the writer
  * @param {string} params.baseDir - Base directory for DICOMweb
  * @param {Function} params.generatePayload - async () => payload — called once per attempt after all streams are open
  * @param {Array<{openStream: (writer) => Promise<Object>, getData: (payload) => string|Buffer|null, label: string}>} params.writes
+ * @param {{tracker: Object, studyUID: string|null, value?: number}} [params.generation] - Generation tracker and study UID
  * @param {number} [params.retries]
- * @returns {Promise<{writeStatus: string}>}
+ * @returns {Promise<{writeStatus: string, committed: boolean, payload: *}>} - payload of the last attempt
  */
 export async function writeMultipleWithRetry({
   informationProvider,
   baseDir,
   generatePayload,
   writes,
+  generation,
   retries = MAX_RETRIES,
 }) {
   const label = writes.map(w => w.label).join(', ');
+  const isCurrent = createGenerationCheck(generation);
+  let payload;
   for (let attempt = 1; attempt <= retries; attempt++) {
-    const writer = new FileDicomWebWriter(informationProvider, { baseDir });
+    // Deferred moves: all files of the round commit together, after one canCommit() check
+    const writer = new FileDicomWebWriter(informationProvider, {
+      baseDir,
+      canCommit: isCurrent,
+      deferFinalMove: true,
+    });
     const streamInfos = [];
     for (const w of writes) {
       const streamInfo = await w.openStream(writer);
       streamInfos.push({ ...w, streamInfo });
     }
 
-    const payload = await generatePayload();
+    payload = await generatePayload();
 
-    let anyStale = false;
-    for (const { streamInfo, getData, label: wLabel } of streamInfos) {
+    const written = [];
+    for (const { streamInfo, getData } of streamInfos) {
       const data = getData(payload);
       if (data === null) {
         writer.recordStreamError(streamInfo.streamKey, new Error('No data to write'), true);
@@ -122,13 +182,33 @@ export async function writeMultipleWithRetry({
       }
       streamInfo.write(Buffer.isBuffer(data) ? data : Buffer.from(data));
       await writer.closeStream(streamInfo.streamKey);
-      if (streamInfo.writeStatus === 'updated-stale') {
+      written.push(streamInfo);
+    }
+    await writer.commitPendingMoves();
+
+    let anyStale = false;
+    let generationChanged = false;
+    const moved = [];
+    for (const streamInfo of written) {
+      const status = streamInfo.writeStatus;
+      if (status === 'updated-stale') {
         anyStale = true;
+      } else if (status === 'generation-changed') {
+        generationChanged = true;
+      }
+      if (MOVED_STATUSES.has(status)) {
+        moved.push(streamInfo.filepath);
       }
     }
 
+    if (generationChanged || (isCurrent && !isCurrent())) {
+      deleteMovedFiles(moved);
+      console.verbose(`[writeMultipleWithRetry] ${label}: the generation changed, not committed`);
+      return { writeStatus: 'generation-changed', committed: false, payload };
+    }
+
     if (!anyStale) {
-      return { writeStatus: 'ok' };
+      return { writeStatus: 'ok', committed: true, payload };
     }
 
     if (attempt < retries) {
@@ -140,7 +220,7 @@ export async function writeMultipleWithRetry({
     console.warn(
       `[writeMultipleWithRetry] ${label}: one or more files were modified by another writer, giving up after ${retries} attempts`
     );
-    return { writeStatus: 'retries-exhausted' };
+    return { writeStatus: 'retries-exhausted', committed: true, payload };
   }
-  return { writeStatus: 'retries-exhausted' };
+  return { writeStatus: 'retries-exhausted', committed: true, payload };
 }

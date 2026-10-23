@@ -78,9 +78,12 @@ async function buildStudiesIndex(reader, studiesToProcess) {
  *
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @param {string[]} studyUIDs - Optional array of Study Instance UIDs to process (if empty, scans all studies)
+ * @param {Object} [options]
+ * @param {boolean} [options.onlyMissing] - Add only the studies that the existing index does not
+ *   list, and write nothing when it lists all of them or when the index does not exist
  * @returns {Promise<void>}
  */
-export async function indexSummary(baseDir, studyUIDs = []) {
+export async function indexSummary(baseDir, studyUIDs = [], options = {}) {
   if (!baseDir) {
     throw new Error('baseDir is required');
   }
@@ -96,28 +99,24 @@ export async function indexSummary(baseDir, studyUIDs = []) {
     const studiesPath = path.join(reader.baseDir, studiesIndexPath);
 
     if (fs.existsSync(studiesPath)) {
-      const studyDirectories = await reader.scanDirectory(studiesIndexPath, { withFileTypes: true });
-
-      for (const entry of studyDirectories) {
-        if (entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory()) {
-          studiesToProcess.add(entry.name);
-        } else if (typeof entry === 'string') {
-          const studyDirPath = `${studiesIndexPath}/${entry}`;
-          const fullStudyPath = path.join(reader.baseDir, studyDirPath);
-          try {
-            const stats = fs.lstatSync(fullStudyPath);
-            if (stats.isDirectory()) {
-              studiesToProcess.add(entry);
-            }
-          } catch (error) {
-            console.warn(`Could not stat ${studyDirPath}: ${error.message}`);
-          }
-        }
-      }
+      studiesToProcess = new Set(await reader.listDirectories(studiesIndexPath));
     }
   } else {
     for (const studyUID of studyUIDs) {
       studiesToProcess.add(studyUID);
+    }
+  }
+
+  if (options.onlyMissing) {
+    const existing = await reader.readJsonFile(studiesIndexPath, 'index.json');
+    if (!Array.isArray(existing)) {
+      return;
+    }
+    for (const studyQuery of existing) {
+      studiesToProcess.delete(getValue(studyQuery, Tags.StudyInstanceUID));
+    }
+    if (studiesToProcess.size === 0) {
+      return;
     }
   }
 

@@ -1,11 +1,19 @@
-import { handleHomeRelative, getStudyUIDPathAndSubPath } from '@radicalimaging/static-wado-util';
 import {
-  indexMain,
+  handleHomeRelative,
+  getStudyUIDPathAndSubPath,
+  QueueFullError,
+} from '@radicalimaging/static-wado-util';
+import {
+  indexSummary,
   studyMain,
-  seriesMain,
+  seriesSummary,
+  seriesFilesExist,
+  studyFilesExist,
   FileDicomWebReader,
+  generationTracker,
 } from '@radicalimaging/create-dicomweb';
 import { studySingleMap, getDicomKey } from '../../adapters/requestAdapters.mjs';
+import { getBuildJobManager } from '../../util/buildJobManager.mjs';
 
 /**
  * Returns true if the request path is a query for the studies index (directory
@@ -23,104 +31,180 @@ export function isStudiesIndexRequest(requestPath) {
 }
 
 /**
- * Scans dicomweb/studies/* for study directories and ensures each study that
- * lacks a study singleton (index.json) has full series summary and study summary
- * built by calling ensureSingleStudyIndex. Used before building the studies root index.
+ * Runs a build as a nested job when a job context is given, otherwise as a top-level job.
+ * @param {Object} options - { context, jobs, background }
+ */
+function runJob(options, key, needsBuild, fn) {
+  if (options.context) {
+    return options.context.child(key, needsBuild, fn);
+  }
+  const jobs = options.jobs ?? getBuildJobManager();
+  return jobs.run(key, needsBuild, fn, { background: options.background === true });
+}
+
+/**
+ * Ensures that the series level of one series exists, and builds it in a job of the
+ * build job manager when a file is missing. Returns immediately, outside the job
+ * manager, when all files exist.
  *
  * @param {string} root - Resolved DICOMweb root directory
- * @param {import('@radicalimaging/create-dicomweb').FileDicomWebReader} [reader] - Optional reader instance
- * @returns {Promise<void>}
- */
-async function ensureStudySingletonsForStudiesRoot(root, reader) {
-  const r = reader ?? new FileDicomWebReader(root);
-  const entries = await r.scanDirectory('studies', { withFileTypes: true });
-  if (entries.length === 0) {
-    return;
-  }
-  for (const entry of entries) {
-    const isDir =
-      entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory();
-    if (!isDir) continue;
-    const studyUID = entry.name;
-    const exists = r.studyFileExists(studyUID, 'index.json');
-    if (!exists) {
-      await ensureSingleStudyIndex(root, studyUID, { reader: r });
-    }
-  }
-}
-
-/**
- * Ensures the studies index file exists at the given root directory, creating
- * it via indexMain if missing. Before building the index, scans dicomweb/studies/*
- * for study directories that lack a study singleton and runs full series/study
- * summary for each so the root index can include them. Honors params.studyIndex
- * and params.createIndexOnDemand.
- *
- * @param {string} dir - Static files root directory (DICOMweb root)
- * @param {object} params - Server params (rootDir, studyIndex, createIndexOnDemand)
- * @returns {Promise<boolean>} - true if index existed or was created, false if creation skipped
- */
-export async function ensureStudiesIndex(dir, params = {}) {
-  const root = handleHomeRelative(dir ?? params.rootDir);
-  if (!root) {
-    return false;
-  }
-  const createOnDemand = params.createIndexOnDemand !== false;
-  if (!createOnDemand) {
-    return false;
-  }
-  const reader = new FileDicomWebReader(root);
-  if (reader.fileExists('studies', 'index.json')) {
-    return true;
-  }
-  await ensureStudySingletonsForStudiesRoot(root, reader);
-  await indexMain([], { dicomdir: root });
-  return true;
-}
-
-/**
- * Ensures the study index exists for a single study. Uses the reader for directory
- * and existence checks so it can work with non-file storage when a different reader
- * is provided. Before summarizing the study, ensures every series directory has a
- * series index (series-singleton.json); calls seriesMain for any series that does
- * not. Then calls studyMain.
- *
- * @param {string} root - Resolved DICOMweb root directory (baseDir for the reader)
  * @param {string} studyUID - Study Instance UID
- * @param {Object} [options] - Options
- * @param {import('@radicalimaging/create-dicomweb').FileDicomWebReader} [options.reader] - Reader instance (defaults to new FileDicomWebReader(root))
- * @returns {Promise<void>}
+ * @param {string} seriesUID - Series Instance UID
+ * @param {Object} [options]
+ * @param {FileDicomWebReader} [options.reader] - Reader instance
+ * @param {Object} [options.context] - Job context of a running job; the build is then a nested job
+ * @param {Object} [options.jobs] - Job manager (defaults to the shared build job manager)
+ * @param {boolean} [options.background] - Never reject the job when the queue is full
+ * @returns {Promise<{committed: boolean, payload?: Object}|undefined>} - Result of the first
+ *   round of the build, or undefined when no build was necessary
  */
-async function ensureSingleStudyIndex(root, studyUID, options = {}) {
+export async function ensureSeriesLevel(root, studyUID, seriesUID, options = {}) {
   const reader = options.reader ?? new FileDicomWebReader(root);
-
-  if (reader.studyFileExists(studyUID, 'index.json')) {
-    return;
+  const needsBuild = () => !seriesFilesExist(reader, studyUID, seriesUID);
+  if (!needsBuild()) {
+    return undefined;
   }
-
-  const seriesPath = reader.getStudyPath(studyUID, { path: 'series' });
-  const seriesEntries = await reader.scanDirectory(seriesPath, {
-    withFileTypes: true,
+  return runJob(options, `series:${studyUID}/${seriesUID}`, needsBuild, async () => {
+    console.verbose(`Processing series ${seriesUID}...`);
+    const result = await seriesSummary(root, studyUID, seriesUID);
+    console.noQuiet(`Completed series ${seriesUID}`);
+    return result;
   });
-
-  for (const entry of seriesEntries) {
-    const isDir =
-      entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory();
-    if (!isDir) continue;
-    const seriesUID = entry.name;
-    if (!reader.seriesFileExists(studyUID, seriesUID, 'series-singleton.json')) {
-      await seriesMain(studyUID, { dicomdir: root, seriesUid: seriesUID });
-    }
-  }
-
-  await studyMain(studyUID, { dicomdir: root });
 }
 
 /**
- * studyQueryController: when the request is for the studies index
- * (no StudyInstanceUID in query) and the index file does not exist, calls indexMain
- * to create it; when StudyInstanceUID is in the query and that study's index does
- * not exist, calls studyMain to create it. Then invokes studySingleMap.
+ * Ensures that the study level of one study exists: series/index.json and the study
+ * index.json. Returns immediately, outside the job manager, when both files exist.
+ * Otherwise, in one job of the build job manager:
+ * 1. reads the generation of the study, before it reads any data;
+ * 2. calls studyMain, which builds each series that has a missing file as a nested job
+ *    (ensureSeriesLevel), uses the stored files of the other series, and then writes
+ *    series/index.json and index.json, and commits them only when the generation did not change;
+ * 3. after a commit, adds the study to the studies list when the list does not have it
+ *    (addStudyToStudiesIndex), unless `options.studyIndex` is false.
+ *
+ * @param {string} root - Resolved DICOMweb root directory
+ * @param {string} studyUID - Study Instance UID
+ * @param {Object} [options] - Same options as ensureSeriesLevel, and:
+ * @param {boolean} [options.studyIndex] - False: do not update studies/index.json (params.studyIndex)
+ * @returns {Promise<{committed: boolean, payload?: Object}|undefined>} - Result of the first
+ *   round of the build, or undefined when no build was necessary
+ */
+export async function ensureStudyLevel(root, studyUID, options = {}) {
+  const reader = options.reader ?? new FileDicomWebReader(root);
+  const needsBuild = () => !studyFilesExist(reader, studyUID);
+  if (!needsBuild()) {
+    return undefined;
+  }
+  return runJob(options, `study:${studyUID}`, needsBuild, async context => {
+    const generation = generationTracker.current(studyUID);
+    const result = await studyMain(studyUID, {
+      dicomdir: root,
+      generation,
+      buildSeries: seriesUID => ensureSeriesLevel(root, studyUID, seriesUID, { reader, context }),
+    });
+    if (result?.committed && options.studyIndex !== false) {
+      await addStudyToStudiesIndex(root, studyUID);
+    }
+    return result;
+  });
+}
+
+/** In-process lock of studies/index.json: each update starts after the previous one */
+let studiesIndexUpdates = Promise.resolve();
+
+function serializeStudiesIndex(update) {
+  const next = studiesIndexUpdates.then(update);
+  studiesIndexUpdates = next.catch(() => {});
+  return next;
+}
+
+/**
+ * Adds a study to studies/index.json when the file exists and does not list the study.
+ * Leaves the file alone when it lists the study, so the summary values of the entry can
+ * be older than the study. The studies list is a best-effort helper: an error is only
+ * logged, and the updates are serialized in this process only.
+ * @param {string} root - Resolved DICOMweb root directory
+ * @param {string} studyUID - Study Instance UID
+ * @returns {Promise<void>}
+ */
+export function addStudyToStudiesIndex(root, studyUID) {
+  return serializeStudiesIndex(() => indexSummary(root, [studyUID], { onlyMissing: true })).catch(
+    err => console.warn(`addStudyToStudiesIndex(${studyUID}): ${err?.message || err}`)
+  );
+}
+
+/**
+ * Ensures that the studies list (studies/index.json) exists. When it is missing, one job
+ * ensures the study level of each study as a nested job (ensureStudyLevel), and then
+ * builds the list from all study index files. Best effort: the studies list has no
+ * generation, and the write is serialized with addStudyToStudiesIndex in this process only.
+ *
+ * @param {string} root - Resolved DICOMweb root directory
+ * @param {Object} [options] - Same options as ensureSeriesLevel
+ * @returns {Promise<{committed: boolean}|undefined>} - undefined when the list exists
+ */
+export async function ensureStudiesLevel(root, options = {}) {
+  const reader = options.reader ?? new FileDicomWebReader(root);
+  const needsBuild = () => !reader.fileExists('studies', 'index.json');
+  if (!needsBuild()) {
+    return undefined;
+  }
+  return runJob(options, 'studies', needsBuild, async context => {
+    for (const studyUID of await reader.listDirectories('studies')) {
+      if (studyUID === 'temp') continue;
+      await ensureStudyLevel(root, studyUID, { reader, context, studyIndex: false });
+    }
+    await serializeStudiesIndex(() => indexSummary(root, []));
+    return { committed: true };
+  });
+}
+
+/**
+ * Returns the series metadata of a series build result: the metadata of the build, or the
+ * kept series metadata when no instance metadata was readable.
+ * @param {{payload?: Object}|undefined} result - Result of ensureSeriesLevel
+ * @returns {Object[]|undefined}
+ */
+export function seriesMetadataOf(result) {
+  const payload = result?.payload;
+  return payload?.noneReadable ? payload.keptSeriesMetadata : payload?.instanceMetadataArray;
+}
+
+/**
+ * Sends the result of a build round that did not commit. The response file does not
+ * exist in that case, so the data of the round (from memory) is the response.
+ * @param {Object} res - Express response
+ * @param {*} data - JSON value or JSON string
+ */
+export function sendBuildPayload(res, data) {
+  res.status(200);
+  res.setHeader('content-type', 'application/json; charset=utf-8');
+  res.send(typeof data === 'string' ? data : JSON.stringify(data));
+}
+
+/**
+ * Handles an error of a build for a request: a QueueFullError gets
+ * `503 Service Unavailable` with a `Retry-After` header, other errors go to next.
+ * @returns {boolean|void}
+ */
+export function handleBuildError(err, res, next, label) {
+  if (err instanceof QueueFullError || err?.name === 'QueueFullError') {
+    console.warn(`${label}: ${err.message}`);
+    res.setHeader('Retry-After', String(err.retryAfterSeconds ?? 10));
+    res.status(503).send('Service Unavailable: too many builds in progress, retry later');
+    return;
+  }
+  console.error(`${label}:`, err?.message || err);
+  next(err);
+}
+
+/**
+ * studyQueryController: for GET /studies. With StudyInstanceUID in the query, ensures
+ * the study level of that study (ensureStudyLevel), and serves the study index.json.
+ * Without it, ensures the studies list (ensureStudiesLevel), and serves studies/index.json.
+ * When a study build did not commit, sends the data of the first round. When the build
+ * queue is full, answers 503 with Retry-After.
  *
  * @param {string} dir - Static files directory path (DICOMweb root)
  * @param {object} params - Server params (rootDir, createIndexOnDemand, hashStudyUidPath)
@@ -132,12 +216,21 @@ export function studyQueryController(dir, params = {}) {
     const studyUID = getDicomKey('0020000d', 'studyinstanceuid', req.query);
     const createOnDemand = params.createIndexOnDemand !== false;
     const hashStudyUidPath = params.hashStudyUidPath === true;
+    const jobs = getBuildJobManager(params);
 
     try {
       if (studyUID) {
-        // Single-study case: ensure this study's index exists (series indices first, then study)
         if (createOnDemand && root) {
-          await ensureSingleStudyIndex(root, studyUID);
+          const reader = new FileDicomWebReader(root);
+          const result = await ensureStudyLevel(root, studyUID, {
+            reader,
+            jobs,
+            studyIndex: params.studyIndex,
+          });
+          const studyQuery = result?.payload?.studyQuery;
+          if (studyQuery && !reader.studyFileExists(studyUID, 'index.json')) {
+            return sendBuildPayload(res, [studyQuery]);
+          }
         }
         // Point staticWadoPath at the study so studySingleMap serves study/index.json.gz
         if (hashStudyUidPath) {
@@ -150,13 +243,11 @@ export function studyQueryController(dir, params = {}) {
         } else {
           req.staticWadoPath = `/studies/${studyUID}`;
         }
-      } else {
-        // Studies list: ensure studies index exists
-        await ensureStudiesIndex(dir, params);
+      } else if (createOnDemand && root) {
+        await ensureStudiesLevel(root, { jobs });
       }
     } catch (err) {
-      console.error('indexOnDemand: failed to create studies index:', err?.message || err);
-      return next(err);
+      return handleBuildError(err, res, next, 'indexOnDemand: failed to create studies index');
     }
     studySingleMap(req, res, next);
   };

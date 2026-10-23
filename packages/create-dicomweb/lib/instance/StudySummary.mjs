@@ -1,7 +1,6 @@
-import fs from 'fs';
-import path from 'path';
 import { FileDicomWebReader } from './FileDicomWebReader.mjs';
 import { writeMultipleWithRetry } from './writeWithRetry.mjs';
+import { generationTracker } from './generationTracker.mjs';
 import { Tags, TagLists } from '@radicalimaging/static-wado-util';
 
 const { getValue, setValue } = Tags;
@@ -43,24 +42,7 @@ async function readStudyData(reader, studyUID) {
   const seriesPath = `${studyPath}/series`;
 
   // Scan the series directory to get actual series UIDs
-  const seriesDirectories = await reader.scanDirectory(seriesPath, { withFileTypes: true });
-  const actualSeriesUIDs = new Set();
-  for (const entry of seriesDirectories) {
-    if (entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory()) {
-      actualSeriesUIDs.add(entry.name);
-    } else if (typeof entry === 'string') {
-      const seriesDirPath = `${seriesPath}/${entry}`;
-      const fullSeriesPath = path.join(reader.baseDir, seriesDirPath);
-      try {
-        const stats = fs.lstatSync(fullSeriesPath);
-        if (stats.isDirectory()) {
-          actualSeriesUIDs.add(entry);
-        }
-      } catch (error) {
-        console.verbose(`Could not stat ${seriesDirPath}: ${error.message}`);
-      }
-    }
-  }
+  const actualSeriesUIDs = new Set(await reader.listDirectories(seriesPath));
 
   // Read all series singleton files
   const seriesQueryArray = [];
@@ -133,17 +115,38 @@ async function readStudyData(reader, studyUID) {
 }
 
 /**
+ * Returns true when both files of the study level exist: series/index.json and the study
+ * index.json. A build of the studies list uses the stored files of a study when this is true.
+ * @param {FileDicomWebReader} reader
+ * @param {string} studyUID
+ * @returns {boolean}
+ */
+export function studyFilesExist(reader, studyUID) {
+  return Boolean(
+    reader.studyFileExists(studyUID, 'index.json') &&
+    reader.fileExists(reader.getStudyPath(studyUID, { path: 'series' }), 'index.json')
+  );
+}
+
+/**
  * Creates or updates study metadata/index.json.gz file
  *
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @param {string} studyUID - Study Instance UID
- * @returns {Promise<void>}
+ * @param {Object} [options]
+ * @param {boolean} [options.force] - Build the study files also when the series index is up to date
+ * @param {number} [options.generation] - Generation of the study that the build read when it
+ *   started (defaults to the current generation). The files commit only if it did not change.
+ * @returns {Promise<{committed: boolean, payload?: Object}>} - committed false when the
+ *   generation changed; payload is the study data of the build
  */
-export async function studySummary(baseDir, studyUID) {
+export async function studySummary(baseDir, studyUID, options = {}) {
   if (!baseDir || !studyUID) {
     throw new Error('baseDir and studyUID are required');
   }
 
+  // Read the generation before any data, so a change during the scan stops the commit
+  const generation = options.generation ?? generationTracker.current(studyUID);
   const reader = new FileDicomWebReader(baseDir);
   const studyPath = reader.getStudyPath(studyUID);
   const seriesPath = `${studyPath}/series`;
@@ -166,38 +169,24 @@ export async function studySummary(baseDir, studyUID) {
   }
 
   // Scan to check if update is needed
-  const seriesDirectories = await reader.scanDirectory(seriesPath, { withFileTypes: true });
-  const actualSeriesUIDs = new Set();
-  for (const entry of seriesDirectories) {
-    if (entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory()) {
-      actualSeriesUIDs.add(entry.name);
-    } else if (typeof entry === 'string') {
-      const seriesDirPath = `${seriesPath}/${entry}`;
-      const fullSeriesPath = path.join(reader.baseDir, seriesDirPath);
-      try {
-        const stats = fs.lstatSync(fullSeriesPath);
-        if (stats.isDirectory()) {
-          actualSeriesUIDs.add(entry);
-        }
-      } catch (error) {
-        console.verbose(`Could not stat ${seriesDirPath}: ${error.message}`);
-      }
-    }
-  }
+  const actualSeriesUIDs = new Set(await reader.listDirectories(seriesPath));
 
   if (
+    !options.force &&
     existingSeriesUIDs.size === actualSeriesUIDs.size &&
-    [...existingSeriesUIDs].every(uid => actualSeriesUIDs.has(uid))
+    [...existingSeriesUIDs].every(uid => actualSeriesUIDs.has(uid)) &&
+    studyFilesExist(reader, studyUID)
   ) {
     console.verbose('studySummary: series index is up to date');
-    return;
+    return { committed: true };
   }
 
   const informationProvider = { studyInstanceUid: studyUID };
 
   // Write both study-level files in one retry loop so readStudyData is called once per attempt
   console.verbose('studySummary: writing series index and study singleton files');
-  await writeMultipleWithRetry({
+  const { committed, payload } = await writeMultipleWithRetry({
+    generation: { tracker: generationTracker, studyUID, value: generation },
     informationProvider,
     baseDir,
     generatePayload: () => readStudyData(reader, studyUID),
@@ -217,4 +206,5 @@ export async function studySummary(baseDir, studyUID) {
       },
     ],
   });
+  return { committed, payload };
 }
