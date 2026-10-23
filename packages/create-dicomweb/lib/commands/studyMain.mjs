@@ -12,10 +12,15 @@ import { FileDicomWebReader } from '../instance/FileDicomWebReader.mjs';
  * @param {boolean} [options.force] - Build the study files also when they are up to date. Does
  *   not build a series whose files exist.
  * @param {number} [options.generation] - Generation of the study that the build read when it started
+ * @param {(seriesUID: string) => Promise<*>} [options.buildSeries] - Builds one series that has a
+ *   missing file. Defaults to seriesSummary. A server passes a nested job of its job manager.
  * @returns {Promise<{committed: boolean, payload?: Object}>} - Result of studySummary
  */
 export async function studyMain(studyUID, options = {}) {
   const { dicomdir, force, generation } = options;
+  const buildSeries =
+    options.buildSeries ??
+    (seriesUID => seriesSummary(dicomdir, studyUID, seriesUID, { generation }));
 
   if (!dicomdir) {
     throw new Error('dicomdir option is required');
@@ -34,7 +39,7 @@ export async function studyMain(studyUID, options = {}) {
     );
     for (const entry of seriesEntries) {
       if (entry?.isDirectory?.() && !seriesFilesExist(reader, studyUID, entry.name)) {
-        await seriesSummary(dicomdir, studyUID, entry.name, { generation });
+        await buildSeries(entry.name);
       }
     }
     const result = await studySummary(dicomdir, studyUID, { force, generation });

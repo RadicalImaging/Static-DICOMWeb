@@ -99,10 +99,12 @@ Each function:
 2. Otherwise runs one job in the job manager. With `options.context`, the job is a nested
    job. Otherwise the job is a top-level job.
 
-The study job reads the generation of the study first. Then it calls `ensureSeriesLevel` as a
-nested job for each series, so it builds only the series that have a missing file. Then it
-calls `studyMain(studyUID, { dicomdir, generation })`. That call writes `series/index.json`
-and `index.json`.
+The study job reads the generation of the study first. Then it calls
+`studyMain(studyUID, { dicomdir, generation, buildSeries })`. `studyMain` calls `buildSeries`
+for each series that has a missing file, and the study job gives a `buildSeries` that runs
+`ensureSeriesLevel` as a nested job. Thus each series build of the server runs in the job
+manager, and one key has one running build. Then `studyMain` writes `series/index.json` and
+`index.json`.
 
 The studies list is a best-effort helper (SQR-D17), outside the generation protocol:
 
@@ -284,7 +286,8 @@ the early return of its own level only.
 
 `studyMain` first builds each series that has a missing file (`seriesFilesExist`), without
 `force`, and uses the stored files of the other series. Thus the `study` command with
-`--force` does not build a series whose files exist again.
+`--force` does not build a series whose files exist again. The CLI builds a series with a
+direct `seriesSummary` call. The server gives the `buildSeries` option (SQR-I1).
 
 ### SQR-I6. Delete a file only after a parse error
 

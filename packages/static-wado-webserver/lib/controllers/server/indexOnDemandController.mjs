@@ -90,11 +90,10 @@ export async function ensureSeriesLevel(root, studyUID, seriesUID, options = {})
  * index.json. Returns immediately, outside the job manager, when both files exist.
  * Otherwise, in one job of the build job manager:
  * 1. reads the generation of the study, before it reads any data;
- * 2. builds each series that has a missing file, as a nested job (ensureSeriesLevel),
- *    and uses the stored files of the other series;
- * 3. calls studyMain, which writes series/index.json and index.json, and commits them
- *    only when the generation did not change;
- * 4. after a commit, adds the study to the studies list when the list does not have it
+ * 2. calls studyMain, which builds each series that has a missing file as a nested job
+ *    (ensureSeriesLevel), uses the stored files of the other series, and then writes
+ *    series/index.json and index.json, and commits them only when the generation did not change;
+ * 3. after a commit, adds the study to the studies list when the list does not have it
  *    (addStudyToStudiesIndex), unless `options.studyIndex` is false.
  *
  * @param {string} root - Resolved DICOMweb root directory
@@ -112,14 +111,11 @@ export async function ensureStudyLevel(root, studyUID, options = {}) {
   }
   return runJob(options, `study:${studyUID}`, needsBuild, async context => {
     const generation = generationTracker.current(studyUID);
-    const seriesUIDs = await listDirectories(
-      reader,
-      reader.getStudyPath(studyUID, { path: 'series' })
-    );
-    for (const seriesUID of seriesUIDs) {
-      await ensureSeriesLevel(root, studyUID, seriesUID, { reader, context });
-    }
-    const result = await studyMain(studyUID, { dicomdir: root, generation });
+    const result = await studyMain(studyUID, {
+      dicomdir: root,
+      generation,
+      buildSeries: seriesUID => ensureSeriesLevel(root, studyUID, seriesUID, { reader, context }),
+    });
     if (result?.committed && options.studyIndex !== false) {
       await addStudyToStudiesIndex(root, studyUID);
     }
