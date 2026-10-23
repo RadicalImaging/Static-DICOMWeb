@@ -201,6 +201,8 @@ function createProgressFilter(parentJob, parseJob, throttleMs) {
  * @param {number} options.sizePrivateBulkdataTags - Size threshold in bytes for private tags (default: 128 bytes)
  * @param {{ typeId: string, jobId: string }} [options.statusMonitorJob] - If set, progress (parseTagsAdded, parseProgressMs) is reported to StatusMonitor.updateJob for this job.
  * @param {number} [options.progressThrottleMs=50] - Min ms between progress updates when statusMonitorJob is set.
+ * @param {Function} [options.afterCommit] - (result) => void. Called synchronously right after the
+ *   instance files are committed, for example to mark the derived files of the series as stale.
  * @returns {Promise<{meta, dict, writer, informationFilter}>} - Parsed metadata and optional writer/filter instances
  */
 export async function instanceFromStream(stream, options = {}) {
@@ -464,6 +466,7 @@ export async function instanceFromStream(stream, options = {}) {
 
     // Commit deferred moves (rename temp → final). No-op on base class.
     await writer?.commitPendingMoves();
+    options.afterCommit?.(result);
 
     // After the commit above, because the rendition reads back the committed files
     if (writer && options.writeRawPart10 !== false && shouldStoreRawPart10(dict)) {

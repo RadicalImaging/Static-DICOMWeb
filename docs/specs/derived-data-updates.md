@@ -113,10 +113,13 @@ The design has two parts:
   not go further down. When a file of a lower level is missing, the build first builds that
   level in the same way. For example, a study build uses the stored files of each series, and
   builds only the series that have a missing file. Supports SQR-U1 and SQR-U2.
-- **SQR-D5. Store the data, then change the generation, then delete.** An upload first stores
-  the new instances. Then the upload changes the generation of each affected study. Then the
-  upload deletes the derived files that the new data affects: the series files and the study
-  files. The upload does not delete `studies/index.json` (SQR-D17). Supports SQR-U1.
+- **SQR-D5. Store the data, then change the generation, then delete.** An upload stores each
+  new instance. Immediately after the commit of each instance, the upload changes the
+  generation of its study. Then the upload deletes the derived files that the instance
+  affects: the files of its series and the study files. The upload does these steps for each
+  instance, so an upload that stops before its end leaves no stale derived file. The upload
+  does the steps again for all affected series when it ends. The upload does not delete
+  `studies/index.json` (SQR-D17). Supports SQR-U1.
 - **SQR-D6. Commit only a build of the current generation.** A build reads the generation
   before it reads any data. The build writes its files to temporary files. The build moves a
   temporary file to its final name only when the generation did not change. After the move,
@@ -205,10 +208,14 @@ generation shows that.
 
 | Deployment | Safe while all nodes run | Safe when a node stops |
 | --- | --- | --- |
-| One node, base design | yes | yes |
-| Several nodes, all work for one study on one node, base design | yes | yes |
+| One node, base design | yes | yes, except a stop in the short time between the commit of an instance and the deletion of its derived files (note 1) |
+| Several nodes, all work for one study on one node, base design | yes | yes, with the exception of note 1 |
 | Several nodes, any routing, SQR-D15 | yes | no, a stale file can stay until the next upload |
 | Several nodes, any routing, SQR-D15 and SQR-D16 | yes | yes |
+
+Note 1: in that short time, the process can stop after the instance is stored and before its
+derived files are deleted. The old derived files then stay until the next upload to that series,
+or until an operator runs a forced build (SQR-D10).
 
 The table applies to the series level and the study level. The studies list (SQR-D17) is
 safe on one node only, and only to the level of SQR-U4.

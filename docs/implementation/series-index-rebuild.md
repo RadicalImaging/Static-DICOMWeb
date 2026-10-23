@@ -233,9 +233,13 @@ synchronous calls only, with no `await` between the `advance()` calls and the de
 the function did not delete `instances/index.json`. It does not delete `studies/index.json`
 (SQR-D17).
 
-`deleteStaleSummaries` already runs after the STOW request stores all of its instances
-(`streamPostController.mjs`, in `completePostController`), so the order of SQR-D5 is already
-correct.
+The STOW listener calls `deleteStaleSummaries` for the series of each instance, immediately
+after the commit of that instance (the `afterCommit` option of `instanceFromStream`, which runs
+synchronously after `commitPendingMoves()`). Thus an upload that aborts later (a client
+disconnect, the listener timeout) leaves no stale derived file. `completePostController` still
+calls `deleteStaleSummaries` for all series at the end of the request. The cost for each
+instance is one `advance()` and the `unlink` calls of the derived files of one series and one
+study. `FileDicomWebWriter.delete` ignores a file that does not exist (`ENOENT`).
 
 Before this change, the `updateStudy` handler merged the study into `studies/index.json` on
 each upload, also when the file listed the study. Now the study job adds the study only when

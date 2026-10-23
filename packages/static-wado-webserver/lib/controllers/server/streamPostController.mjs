@@ -111,6 +111,23 @@ function createInMemoryTransport() {
 }
 
 /**
+ * Changes the study generation and deletes the derived files of the series and the study
+ * of a committed instance (deleteStaleSummaries, synchronous). Runs after each instance, so
+ * an upload that aborts before completePostController leaves no stale derived file.
+ * @param {string} dicomdir - DICOMweb root directory
+ * @param {{information: Object}} result - Result of instanceFromStream
+ */
+function markSeriesStale(dicomdir, result) {
+  const { studyInstanceUid, seriesInstanceUid } = result?.information ?? {};
+  if (dicomdir && studyInstanceUid && seriesInstanceUid) {
+    deleteStaleSummaries(
+      dicomdir,
+      new Map([[`${studyInstanceUid}&${seriesInstanceUid}`, result.information]])
+    );
+  }
+}
+
+/**
  * Handles an incoming stow-rs POST data, either in application/dicom (single instance), or in
  * multipart/related with JSON data elements.
  *
@@ -305,6 +322,8 @@ export function streamPostController(params) {
             deferFinalMove: true,
           },
           validateInstance: validateInstance ? validateInstance.bind(null, req) : undefined,
+          // An upload that aborts later must not leave stale derived files
+          afterCommit: result => markSeriesStale(dicomdir, result),
           statusMonitorJob:
             req?.statusMonitorInstancesJobId != null
               ? { typeId: 'stowInstances', jobId: req.statusMonitorInstancesJobId }
