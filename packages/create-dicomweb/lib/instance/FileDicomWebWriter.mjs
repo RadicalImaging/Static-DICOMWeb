@@ -77,6 +77,7 @@ async function filesAreIdentical(fileA, fileB) {
  * - 'created'        : new file; no previous version existed
  * - 'updated'        : replaced existing file that had the expected mtime
  * - 'updated-stale'  : replaced existing file whose mtime changed since open (another writer touched it)
+ * - 'generation-changed' : options.canCommit() returned false; temp deleted, no rename
  */
 
 /**
@@ -90,6 +91,11 @@ async function filesAreIdentical(fileA, fileB) {
  * rename all temp files, or `rollbackPendingMoves()` to discard them.
  * This supports a "validate before commit" pattern where a pluggable
  * `validateInstance` hook runs after all data is written but before files are visible.
+ *
+ * When `options.canCommit` is set, the writer calls it immediately before each rename,
+ * with no `await` between the call and the rename. When it returns false, the writer
+ * deletes the temp file and sets writeStatus to 'generation-changed'. Builds of derived
+ * files use it to commit only a build of the current generation.
  */
 export class FileDicomWebWriter extends DicomWebWriter {
   constructor(informationProvider, options) {
@@ -308,6 +314,13 @@ export class FileDicomWebWriter extends DicomWebWriter {
           `[FileDicomWebWriter] WARNING: File ${filepath} was created by another writer ` +
             `since we started. Overwriting.`
         );
+      }
+
+      // No await from here to the rename, so an upload cannot run between the check and the move
+      if (this.options.canCommit && !this.options.canCommit()) {
+        streamInfo.writeStatus = 'generation-changed';
+        this._cleanupTempFile(tempFilepath);
+        return;
       }
 
       // Set writeStatus

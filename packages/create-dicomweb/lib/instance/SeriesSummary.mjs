@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { FileDicomWebReader } from './FileDicomWebReader.mjs';
 import { writeMultipleWithRetry } from './writeWithRetry.mjs';
+import { generationTracker } from './generationTracker.mjs';
 import { Tags, TagLists } from '@radicalimaging/static-wado-util';
 
 const { getValue, setValue } = Tags;
@@ -165,13 +166,19 @@ async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @param {string} studyUID - Study Instance UID
  * @param {string} seriesUID - Series Instance UID
- * @returns {Promise<void>}
+ * @param {Object} [options]
+ * @param {number} [options.generation] - Generation of the study that the build read when it
+ *   started (defaults to the current generation). The files commit only if it did not change.
+ * @returns {Promise<{committed: boolean, payload?: Object}>} - committed false when the
+ *   generation changed; payload is the series data of the build
  */
-export async function seriesSummary(baseDir, studyUID, seriesUID, options) {
+export async function seriesSummary(baseDir, studyUID, seriesUID, options = {}) {
   if (!baseDir || !studyUID || !seriesUID) {
     throw new Error('baseDir, studyUID, and seriesUID are required');
   }
 
+  // Read the generation before any data, so a change during the scan stops the commit
+  const generation = options.generation ?? generationTracker.current(studyUID);
   const reader = new FileDicomWebReader(baseDir);
   const seriesPath = reader.getSeriesPath(studyUID, seriesUID);
   const instancesPath = `${seriesPath}/instances`;
@@ -225,8 +232,9 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options) {
   // Write all series-level files in one retry loop so readSeriesData is called once per attempt
   console.verbose('seriesSummary: writing series metadata and index files');
   let lastPayload;
-  await writeMultipleWithRetry({
+  const result = await writeMultipleWithRetry({
     ...options,
+    generation: { tracker: generationTracker, studyUID, value: generation },
     informationProvider,
     baseDir,
     generatePayload: async () => {
@@ -267,6 +275,7 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options) {
   if (lastPayload) {
     logSeriesDataWarnings(lastPayload, actualInstanceUIDs.size, `${studyUID}/${seriesUID}`);
   }
+  return { committed: result.committed, payload: result.payload };
 }
 
 /**

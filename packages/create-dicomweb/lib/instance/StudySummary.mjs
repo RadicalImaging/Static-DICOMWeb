@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { FileDicomWebReader } from './FileDicomWebReader.mjs';
 import { writeMultipleWithRetry } from './writeWithRetry.mjs';
+import { generationTracker } from './generationTracker.mjs';
 import { Tags, TagLists } from '@radicalimaging/static-wado-util';
 
 const { getValue, setValue } = Tags;
@@ -137,13 +138,19 @@ async function readStudyData(reader, studyUID) {
  *
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @param {string} studyUID - Study Instance UID
- * @returns {Promise<void>}
+ * @param {Object} [options]
+ * @param {number} [options.generation] - Generation of the study that the build read when it
+ *   started (defaults to the current generation). The files commit only if it did not change.
+ * @returns {Promise<{committed: boolean, payload?: Object}>} - committed false when the
+ *   generation changed; payload is the study data of the build
  */
-export async function studySummary(baseDir, studyUID) {
+export async function studySummary(baseDir, studyUID, options = {}) {
   if (!baseDir || !studyUID) {
     throw new Error('baseDir and studyUID are required');
   }
 
+  // Read the generation before any data, so a change during the scan stops the commit
+  const generation = options.generation ?? generationTracker.current(studyUID);
   const reader = new FileDicomWebReader(baseDir);
   const studyPath = reader.getStudyPath(studyUID);
   const seriesPath = `${studyPath}/series`;
@@ -190,14 +197,15 @@ export async function studySummary(baseDir, studyUID) {
     [...existingSeriesUIDs].every(uid => actualSeriesUIDs.has(uid))
   ) {
     console.verbose('studySummary: series index is up to date');
-    return;
+    return { committed: true };
   }
 
   const informationProvider = { studyInstanceUid: studyUID };
 
   // Write both study-level files in one retry loop so readStudyData is called once per attempt
   console.verbose('studySummary: writing series index and study singleton files');
-  await writeMultipleWithRetry({
+  const { committed, payload } = await writeMultipleWithRetry({
+    generation: { tracker: generationTracker, studyUID, value: generation },
     informationProvider,
     baseDir,
     generatePayload: () => readStudyData(reader, studyUID),
@@ -217,4 +225,5 @@ export async function studySummary(baseDir, studyUID) {
       },
     ],
   });
+  return { committed, payload };
 }

@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { FileDicomWebReader } from './FileDicomWebReader.mjs';
 import { writeWithRetry } from './writeWithRetry.mjs';
+import { generationTracker } from './generationTracker.mjs';
 import { Tags, sortStudies } from '@radicalimaging/static-wado-util';
 
 const { getValue } = Tags;
@@ -78,13 +79,18 @@ async function buildStudiesIndex(reader, studiesToProcess) {
  *
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @param {string[]} studyUIDs - Optional array of Study Instance UIDs to process (if empty, scans all studies)
- * @returns {Promise<void>}
+ * @param {Object} [options]
+ * @param {number} [options.generation] - Generation of the studies list that the build read when
+ *   it started (defaults to the current generation). The file commits only if it did not change.
+ * @returns {Promise<{committed: boolean}>} - committed false when the generation changed
  */
-export async function indexSummary(baseDir, studyUIDs = []) {
+export async function indexSummary(baseDir, studyUIDs = [], options = {}) {
   if (!baseDir) {
     throw new Error('baseDir is required');
   }
 
+  // Read the generation before any data, so a change during the scan stops the commit
+  const generation = options.generation ?? generationTracker.current(null);
   const reader = new FileDicomWebReader(baseDir);
   const studiesIndexPath = 'studies';
 
@@ -127,11 +133,13 @@ export async function indexSummary(baseDir, studyUIDs = []) {
   console.noQuiet('indexSummary: writing updated studies index');
 
   // Use an empty informationProvider since we're writing at the root studies level
-  await writeWithRetry({
+  const { committed } = await writeWithRetry({
+    generation: { tracker: generationTracker, studyUID: null, value: generation },
     informationProvider: {},
     baseDir,
     openStream: (writer) => writer.openStream(studiesIndexPath, 'index.json', { gzip: true, compareOnClose: true }),
     generateData: () => buildStudiesIndex(reader, studiesToProcess),
     label: 'indexSummary studies/index.json',
   });
+  return { committed };
 }
