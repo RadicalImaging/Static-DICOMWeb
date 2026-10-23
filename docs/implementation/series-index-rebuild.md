@@ -391,6 +391,26 @@ proposal in these items:
 - **SQR-I6.** The reader no longer removes an old-format metadata directory after a read
   error. The writer still removes such a directory when it commits the new file.
 
+## Compatibility
+
+This change changes two public contracts. The commits have no `BREAKING CHANGE` footer, so
+the maintainers must decide the version of the release.
+
+- **`getStowMessaging()` (static-wado-webserver).** The `updateSeries` and `updateStudy`
+  handlers now build only the derived files that are missing. Before this change, the handlers
+  always built the series and the study again. A plugin that changes stored data and then
+  sends these messages must first call `deleteStaleSummaries` for the changed series.
+  Otherwise the server keeps the old derived files.
+- **`seriesSummary` (create-dicomweb).** The function returns early again, with no write,
+  when the instance UIDs of the series metadata are the same as the instance directories, and
+  `series-singleton.json` and `instances/index.json` exist. Before this change, each call
+  built the series files again. A caller that changes instance metadata in place (with the
+  same SOP Instance UIDs) must use the `force` option, or delete the series files first.
+
+The other changes of the exported functions add to the earlier behaviour:
+`seriesSummary`, `studySummary` and `studyMain` return `{ committed, payload }`, and
+`indexSummary`, `studyMain` and `instanceFromStream` get new options.
+
 ## Deployment guidance
 
 This section is not a requirement of the code.
@@ -454,6 +474,13 @@ The API must do this:
    SQR-D14).
 10. Upload a new study. The study build adds its entry to the existing `studies/index.json`.
     A second upload to the same study does not rewrite the file (SQR-D17).
+11. Keep `series/index.json`, delete only the study `index.json`, and send a study query. The
+    response has status 200, and the file exists after the query (SQR-D2, SQR-D3).
+12. A job fails. Its caller gets the error, a call that waited gets `undefined`, and the next
+    call for the key builds again (SQR-D7, SQR-D13).
+13. An upload stores an instance, and then does not reach `completePostController`. The
+    derived files of the series and the study are deleted, and the generation of the study
+    changed (SQR-D5).
 
 The user experience must have this: test 1 checks SQR-U1, the correct result with status 200.
 Test 6 checks the data rule of SQR-U1 for data that arrives during a build. Test 9 checks the
@@ -463,8 +490,9 @@ time is not reliable in a unit test, so there is no such test.
 
 Test 10 checks SQR-U4, the user experience of the studies list.
 
-Test 8 is in `packages/static-wado-webserver/test/unit/buildJobManager.jest.mjs`. The other
-tests are in `packages/static-wado-webserver/test/unit/derivedDataBuild.jest.mjs`. One more
+Tests 8 and 12 are in `packages/static-wado-webserver/test/unit/buildJobManager.jest.mjs`.
+Test 13 is in `packages/static-wado-webserver/test/unit/stowAbort.jest.mjs`. The other tests
+are in `packages/static-wado-webserver/test/unit/derivedDataBuild.jest.mjs`. One more
 test, in `packages/create-dicomweb/test/readJsonFileDelete.jest.mjs`, checks SQR-D9: the reader
 deletes a file that fails the gunzip step, and keeps a file that has an `ESTALE` error. There
 are no tests for each branch of the early returns. Tests 2 and 7 cover the early returns.
