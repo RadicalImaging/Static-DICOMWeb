@@ -24,8 +24,11 @@ describe('an upload that aborts after it stores an instance', () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'stow-abort-'));
   });
 
-  afterEach(() => {
-    server?.close();
+  afterEach(async () => {
+    if (server) {
+      await new Promise(resolve => server.close(resolve));
+      server = undefined;
+    }
     fs.rmSync(root, { recursive: true, force: true });
   });
 
@@ -37,14 +40,15 @@ describe('an upload that aborts after it stores an instance', () => {
       streamPostController({ rootDir: root, disableSummary: true }),
       async (req, res) => {
         // completePostController does not run, as after a client disconnect
-        await Promise.allSettled(req.uploadListenerPromises);
-        res.status(500).end();
+        const results = await Promise.allSettled(req.uploadListenerPromises);
+        const failure = results.find(r => r.status !== 'fulfilled');
+        res.status(500).send(failure ? `not stored: ${failure.reason?.message}` : 'stored');
       }
     );
     server = app.listen(0);
     await once(server, 'listening');
-    const upload = () =>
-      fetch(`http://127.0.0.1:${server.address().port}/studies`, {
+    const upload = async () => {
+      const response = await fetch(`http://127.0.0.1:${server.address().port}/studies`, {
         method: 'POST',
         headers: {
           'content-type': `multipart/related; type="application/dicom"; boundary=${BOUNDARY}`,
@@ -55,8 +59,11 @@ describe('an upload that aborts after it stores an instance', () => {
           Buffer.from(`\r\n--${BOUNDARY}--\r\n`),
         ]),
       });
+      // Fail with the reason of the upload, and not with a later file check
+      expect(await response.text()).toBe('stored');
+    };
 
-    expect((await upload()).status).toBe(500);
+    await upload();
     const studiesDir = path.join(root, 'studies');
     const [studyUID] = fs.readdirSync(studiesDir).filter(name => name !== 'temp');
     const seriesRoot = path.join(studiesDir, studyUID, 'series');
@@ -74,7 +81,7 @@ describe('an upload that aborts after it stores an instance', () => {
     derivedFiles.forEach(file => expect(fs.existsSync(file)).toBe(true));
     const generation = generationTracker.current(studyUID);
 
-    expect((await upload()).status).toBe(500);
+    await upload();
 
     derivedFiles.forEach(file => expect(fs.existsSync(file)).toBe(false));
     expect(generationTracker.current(studyUID)).toBeGreaterThan(generation);
