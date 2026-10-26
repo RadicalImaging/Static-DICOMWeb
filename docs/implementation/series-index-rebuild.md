@@ -179,8 +179,9 @@ The job manager obeys these rules:
    jobs, top-level and nested. A job in the queue has no entry.
 3. **Wait for a build in progress, and then respond (SQR-D7).** When `run` or `child` finds a
    running job for its key, the call waits for the first round of that job, and then returns
-   the result of that round. When that job fails, the call returns `undefined`, and does not
-   get the error. A call never takes over the job of a different caller. A top-level call for
+   the result of that round. When that job fails, the call gets the same error as the caller
+   that started the job. Thus all requests that wait for one failed build get the same
+   response. A call never takes over the job of a different caller. A top-level call for
    a key that is in the queue joins that queued job.
 4. **Start the next round (SQR-D6).** When `fn()` returns `{ committed: false }`, the job
    manager resolves the callers of the first round. After a delay, it calls
@@ -476,8 +477,8 @@ The API must do this:
     A second upload to the same study does not rewrite the file (SQR-D17).
 11. Keep `series/index.json`, delete only the study `index.json`, and send a study query. The
     response has status 200, and the file exists after the query (SQR-D2, SQR-D3).
-12. A job fails. Its caller gets the error, a call that waited gets `undefined`, and the next
-    call for the key builds again (SQR-D7, SQR-D13).
+12. A job fails. Its caller and a call that waited get the same error, and the next call for
+    the key builds again (SQR-D7, SQR-D13).
 13. An upload stores an instance, and then does not reach `completePostController`. The
     derived files of the series and the study are deleted, and the generation of the study
     changed (SQR-D5).

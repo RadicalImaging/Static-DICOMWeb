@@ -26,7 +26,7 @@ export class QueueFullError extends Error {
  * 1. Each job calls `needsBuild()` when it starts, and returns undefined when it is false.
  * 2. One running job for each key, top-level or nested. A queued job is not running.
  * 3. A call that finds a running job for its key waits for the first round of that job,
- *    and gets its result (undefined when that job failed). A call never takes over the
+ *    and gets its result, or its error when that job failed. A call never takes over the
  *    job of a different caller. A top-level call for a key that is in the queue joins
  *    that queued job.
  * 4. When `fn()` returns `{ committed: false }`, the callers get the result of that
@@ -75,8 +75,6 @@ export function createJobManager(options = {}) {
   let delayedRounds = 0;
   let idleWaiters = [];
 
-  const sharedResult = promise => promise.catch(() => undefined);
-
   function checkIdle() {
     if (active === 0 && queue.length === 0 && running.size === 0 && delayedRounds === 0) {
       const waiters = idleWaiters;
@@ -93,13 +91,14 @@ export function createJobManager(options = {}) {
     }
     const delay = Math.min(roundDelayMs * 2 ** (count - 1), maxRoundDelayMs);
     delayedRounds++;
+    // unref: a pending next round does not keep the process alive
     setTimeout(() => {
       delayedRounds--;
       run(key, needsBuild, fn, { background: true }).catch(err =>
         console.warn(`[jobManager] ${key}: next round failed:`, err?.message || err)
       );
       checkIdle();
-    }, delay);
+    }, delay).unref?.();
   }
 
   /** Starts a job (rule 1, 2 and 4); the caller checked that no job runs for the key */
@@ -146,7 +145,7 @@ export function createJobManager(options = {}) {
     const existing = running.get(key);
     if (existing) {
       releaseSlot();
-      return sharedResult(existing);
+      return existing;
     }
     try {
       return await startJob(key, needsBuild, fn);
@@ -164,7 +163,7 @@ export function createJobManager(options = {}) {
   function child(key, needsBuild, fn) {
     const existing = running.get(key);
     if (existing) {
-      return sharedResult(existing);
+      return existing;
     }
     return startJob(key, needsBuild, fn);
   }
@@ -181,7 +180,7 @@ export function createJobManager(options = {}) {
   async function run(key, needsBuild, fn, runOptions = {}) {
     const existing = running.get(key) ?? queuedByKey.get(key);
     if (existing) {
-      return sharedResult(existing);
+      return existing;
     }
     if (active < maxRunning) {
       active++;

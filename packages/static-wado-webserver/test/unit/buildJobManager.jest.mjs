@@ -57,9 +57,9 @@ describe('createJobManager', () => {
     await jobs.whenIdle();
   });
 
-  // The API must do this (SQR-D7, SQR-D13): a failed job gives its error to its caller,
-  // and releases its key, so that the next call builds again
-  it('gives the error to the caller and undefined to a waiter, and releases the key, after a failed job', async () => {
+  // The API must do this (SQR-D7, SQR-D13): a failed job gives its error to its caller and
+  // to each waiter, and releases its key, so that the next call builds again
+  it('gives the error to the caller and to a waiter, and releases the key, after a failed job', async () => {
     const jobs = createJobManager({ maxRunning: 1 });
     const hold = gate();
     const failing = jobs.run(
@@ -78,7 +78,7 @@ describe('createJobManager', () => {
     hold.open();
 
     await expect(failing).rejects.toThrow('build failed');
-    await expect(waiter).resolves.toBeUndefined();
+    await expect(waiter).rejects.toThrow('build failed');
     await expect(
       jobs.run(
         'k',
