@@ -410,9 +410,12 @@ export function multipartStream(opts) {
           }
 
           try {
-            // Copy the buffer to avoid reuse issues - Node.js streams can reuse buffers
-            // Each chunk is added to this part's dedicated buffer stream
-            const chunkCopy = Buffer.from(chunk);
+            // Copy exactly the chunk bytes: dcmjs addBuffer uses the whole underlying ArrayBuffer
+            // and ignores byteOffset, and a small Buffer is a view of the shared Node.js pool
+            const chunkCopy = chunk.buffer.slice(
+              chunk.byteOffset,
+              chunk.byteOffset + chunk.byteLength
+            );
             readBufferStream.addBuffer(chunkCopy);
 
             // Backpressure: delegated to stream (shouldPause / waitForBackPressure)
