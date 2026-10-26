@@ -407,6 +407,10 @@ the maintainers must decide the version of the release.
   `series-singleton.json` and `instances/index.json` exist. Before this change, each call
   built the series files again. A caller that changes instance metadata in place (with the
   same SOP Instance UIDs) must use the `force` option, or delete the series files first.
+  This also applies to the CLI: when you store an instance again with the same SOP Instance
+  UID, the `series` command keeps the old series metadata. Use `--force` to build the series
+  files again. The webserver is not affected, because each upload deletes the derived files of
+  its series (SQR-D5).
 
 The other changes of the exported functions add to the earlier behaviour:
 `seriesSummary`, `studySummary` and `studyMain` return `{ committed, payload }`, and
@@ -433,7 +437,11 @@ This section is not a requirement of the code.
 
 - **Q1.** The response of the first round of SQR-D7 comes from memory when the round did not
   commit. Is it acceptable that this response is a little older than the data that the next
-  round stores? SQR-U1 permits it, because the new data arrived during the build.
+  round stores? SQR-U1 permits it, because the new data arrived during the build. During a
+  long upload, each request for the series starts a full build that does not commit. Then
+  the next rounds follow, with a delay that increases up to 30 s. The cost stays limited,
+  because one key has only one running job (SQR-I2 rule 2), and the delay increases
+  (SQR-D6).
 - **Q2 (closed).** The proposal deleted `studies/index.json` on each upload, and the rebuild
   of the full list did many rounds with no commit during a long upload. Decision: the studies
   list is a best-effort helper for a local single system (SQR-U4, SQR-D17). The upload does
