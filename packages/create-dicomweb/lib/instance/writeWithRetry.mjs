@@ -171,9 +171,10 @@ export async function writeWithRetry({
  * 3. After all moves, reads the generation again. When it changed, deletes each moved file.
  * In both cases of a change, returns `committed: false` and does not retry: the caller
  * starts the next round. The retry loop for 'updated-stale' stays as it was.
- * When an open, generatePayload() or getData() throws, the temp files of the round are
- * removed and the error is thrown. When a rename of the commit throws, the files that moved
- * before it are deleted (a missing file is safe, SQR-D2) and the error is thrown.
+ * When an open, generatePayload(), getData() or a write throws or fails, the temp files of the
+ * round are removed and the error is thrown. When a rename of the commit throws, the files
+ * that moved before it are deleted (a missing file is safe, SQR-D2) and the error is thrown.
+ * An I/O error is thrown as a StorageUnavailableError (toStorageError).
  * @param {Object} params
  * @param {Object} params.informationProvider - UID provider for the writer
  * @param {string} params.baseDir - Base directory for DICOMweb
@@ -232,7 +233,7 @@ export async function writeMultipleWithRetry({
       }
     } catch (err) {
       await discardRound(writer, streamInfos, closed, err);
-      throw err;
+      throw toStorageError(err?.path ?? label, err);
     }
 
     try {
@@ -240,7 +241,7 @@ export async function writeMultipleWithRetry({
     } catch (err) {
       // A missing file is safe (SQR-D2): remove the files that moved before the failure
       deleteMovedFiles(movedFiles(written));
-      throw toStorageError(label, err);
+      throw toStorageError(err?.path ?? label, err);
     }
 
     const anyStale = written.some(streamInfo => streamInfo.writeStatus === 'updated-stale');

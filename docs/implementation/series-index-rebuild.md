@@ -147,11 +147,13 @@ The controllers use these functions:
   `ensureStudiesLevel` (best effort).
 - `seriesMetadataQueryController` and the new `instancesQueryController` call
   `ensureSeriesLevel` when their file is missing.
-- `studyMetadataQueryController` runs one top-level job, `study-metadata:<studyUID>`, when a
-  series of the study needs a build (`seriesNeedsBuild`). Thus a series with no readable data
-  starts no job on each request. The job runs `ensureSeriesLevel` as a nested job for each
-  series, and returns the metadata of each build. The controller uses that data for a
-  series whose build did not commit.
+- `studyMetadataQueryController` first reads the metadata of all series. For the series whose
+  read gave no data, it runs one top-level job, `study-metadata:<studyUID>:<series UIDs>`,
+  when one of them needs a build (`seriesNeedsBuild`). Thus a series with no readable data
+  starts no job on each request. Two requests with different missing series each have their
+  own job, and share the nested series jobs. The job runs `ensureSeriesLevel` as a nested
+  job for each of those series, and returns the metadata of each build. The controller uses
+  that data for a series whose build did not commit.
 - The `updateSeries` handler calls `ensureSeriesLevel`. The `updateStudy` handler calls
   `ensureStudyLevel`, which also adds a missing study to the studies list. Both use
   `background: true`.
@@ -384,10 +386,12 @@ callers use it:
 
 `writeMultipleWithRetry` also applies rule 1 of SQR-D3 to its writes: a stream whose write
 failed (`closeStream` returns `undefined`) stops the round, and a failed rename stops the
-commit. Both throw `toStorageError` of the error. `toStorageError` gives a
-`StorageUnavailableError` only for an error with an operating system code that is not a
-missing path, not a corrupt file and not a Node.js `ERR_*` code. Other errors come back
-unchanged, and give `500`.
+commit, and so does a failed open of a stream. Each throws `toStorageError` of the error.
+`toStorageError` gives a `StorageUnavailableError` only for an error with an operating
+system code (`E` and capitals) that is not a missing path. Other errors come back unchanged,
+and give `500`. The build reader (`_throwIoError`) throws each read error that is not a
+missing path and not a corrupt file, also an error with no code, and also a failed deletion
+of a corrupt file. Thus a build never counts an unreadable file as missing data.
 
 `handleBuildError` answers a `StorageUnavailableError` with `503` and a `Retry-After` header,
 in the same way as a `QueueFullError`. `studyMetadataQueryController` lists and reads the
@@ -398,13 +402,17 @@ corrupt), in one job, and reads those again. Thus an upload that deletes a serie
 during the request does not remove that series from the response, and a corrupt file is
 built again at once. With builds on demand, a series with no stored metadata after its build
 (no readable data, SQR-U1) adds no instances. Without builds on demand
-(`createIndexOnDemand: false`), a series with no stored metadata gives `404` for the study,
-as before this change.
+(`createIndexOnDemand: false`, and also with `hashStudyUidPath`, because the builds use
+paths with no hash), a series with no stored metadata gives `404` for the study, as before
+this change. With `hashStudyUidPath`, `GET /studies` also builds no studies list.
+`studyMetadataQueryController` reads at most 16 series files at the same time.
 
-`studySummary` notes each series whose stored `series-singleton.json` gave no data (a corrupt
-file that the read deleted) in `payload.unreadSeries`. It then stores no study file, and
-returns `committed: false`. `studyMain` builds those series, and calls `studySummary` one
-more time (rule 4 of SQR-D3).
+`studySummary` notes each series whose `series-singleton.json` was there at the check but
+gave no data (a corrupt file that the read deleted, or a file that an upload deleted after
+the check) in `payload.unreadSeries`. It then stores no study file, and returns
+`committed: false`. `studyMain` builds those series, and calls `studySummary` one more time
+(rule 4 of SQR-D3). When `unreadSeries` is still not empty, `studyMain` throws, so the job
+fails and starts no next round.
 
 `indexSummary` with `onlyMissing` reads `studies/index.json` with `deleteFileOnError`, so a
 corrupt studies list is deleted, and the next `GET /studies` builds it again.
@@ -521,6 +529,12 @@ proposal in these items:
   again, and does not store study files without it. The study metadata query reads first,
   then builds. The job manager keeps one delayed round for each key. `toStorageError` treats
   only errors with an operating system code as storage errors.
+- **After the fourth internal review round.** The build reader throws each read error that is
+  not a missing path and not a corrupt file, and a failed deletion of a corrupt file, so a
+  build never leaves out an unreadable series and never repeats rounds that cannot change.
+  `studyMain` fails when a series file stays unreadable. A failed open of a stream gives
+  `503`. The reader reads the older layout `<name>.gz/index.json.gz`. With
+  `hashStudyUidPath`, the study metadata query and the studies list start no build.
 
 ## Compatibility
 
@@ -546,7 +560,8 @@ The other changes of the exported functions add to the earlier behaviour:
 `seriesSummary`, `studySummary` and `studyMain` return `{ committed, payload }`, `seriesMain`
 returns `{ committed }`, and `indexSummary`, `studyMain`, `studySummary` (`pendingSeries`)
 and `instanceFromStream` get new options. The `FileDicomWebReader` constructor gets the
-`throwOnIoError` option, and the reader gets `directoryExists`. `FileDicomWebWriter` gets the
+`throwOnIoError` option, and the reader gets `directoryExists` and `listDirectories`.
+`FileDicomWebWriter` gets the
 `canCommit` option, and `commitPendingMoves` cleans up after a failed rename. create-dicomweb
 exports `createBuildReader`, `seriesFilesExist`, `studyFilesExist`, `generationTracker`,
 `createGenerationTracker` and `seriesGenerationKey`. `@radicalimaging/static-wado-util`
@@ -568,7 +583,13 @@ These user-facing results also change:
 - With builds on demand, `GET /studies/<studyUID>/metadata` leaves out a series with only
   corrupt data, and gives the other series (SQR-U1). Before this change, the request gave
   `404` for the full study. A corrupt series `metadata` is deleted and built again, where
-  before the request gave `500`.
+  before the request gave `500`. Without builds on demand (`createIndexOnDemand: false`), a
+  corrupt series `metadata` is deleted, and the request gives `404` until the next upload to
+  that series. Before this change, it gave `500`.
+- With `hashStudyUidPath`, `GET /studies/<studyUID>/metadata` gives `404` when the metadata
+  of a series is missing, as on master. `GET /studies` builds no missing studies list, and
+  gives `404`. Before this change, it stored an empty list, because the build listed the
+  hash directories as studies.
 - An upload no longer changes the entry of an existing study in `studies/index.json`. The
   counts of that entry in `GET /studies` can be older than the study (SQR-U4). Before this
   change, the `updateStudy` handler merged the study into the file on each upload.
@@ -579,7 +600,9 @@ These user-facing results also change:
   `404`.
 - The `createdicomweb study` command first builds each series that has a missing file. The
   `index` command also fails on an I/O error.
-- A write I/O error of a derived file during a build gives `503`, and not `500`.
+- A write I/O error of a derived file during a build gives `503`, and not `500`. A read error
+  of a build that is not an I/O error (for example a file that is too large to parse) gives
+  `500`. Before this change, the build treated that file as missing data.
 - The STOW-RS upload stores the correct bytes when the request arrives in small chunks.
   Before this change, the server rejected some valid instances.
 
@@ -661,7 +684,8 @@ The user experience must have this:
     does not commit. Before the next round, the list does not hold the study. After the next
     round, the list holds the study (SQR-U4, SQR-D17).
 26. Send a study metadata query while an upload deletes the `metadata` of a series during
-    the request. The response holds all stored instances of that series (SQR-U1).
+    the request. The response holds at least the instances of that series that were stored
+    before the request (SQR-U1).
 
 The API must do this:
 
@@ -673,8 +697,8 @@ The API must do this:
    `StudyInstanceUID`. The series index exists after the query (SQR-D4).
 5. Store one new instance in a series of a test study. The upload deletes the series files
    and the study files, and keeps `studies/index.json`. A series query then builds only the
-   changed series, and the index shows the new instance count. The files of the other series
-   are not written again (SQR-D4, SQR-D5).
+   changed series, and the index shows the new instance count. No file of the other series is
+   opened for a write (SQR-D4, SQR-D5).
 7. Run `studyMain` with `force` (the `createdicomweb study --force` command) on a study whose
    files exist. The study files are written again, and no series is built again (SQR-D10).
 8. Set `maxRunning` to 1. Start a job that needs three levels of nested jobs, and queue a
@@ -721,10 +745,13 @@ These tests have no number, and check one function each (the API must do this):
 - `packages/create-dicomweb/test/readJsonFileDelete.jest.mjs` (SQR-D3, SQR-D9): the reader
   deletes a file that fails the gunzip step, and keeps a file that has an `ESTALE` error. A
   failed existence check with `ENOENT` or `ENOTDIR` gives "missing" in both modes, and one
-  with `EACCES` throws only from `createBuildReader`.
+  with `EACCES` throws only from `createBuildReader`. The reader of a build throws for a read
+  error with no code, and for a corrupt file whose deletion fails. The reader reads the older
+  layout `<name>.gz/index.json.gz`.
 - `packages/create-dicomweb/test/writeWithRetryCleanup.jest.mjs` (SQR-D2, SQR-D3): a failed
-  data step, a failed write of one file, or a failed rename of a commit, leaves no temporary
-  file and no part of a commit, and keeps each old file that did not get its new version.
+  data step, a failed open of a stream, a failed write of one file, or a failed rename of a
+  commit, leaves no temporary file and no part of a commit, and keeps each old file that did
+  not get its new version. An I/O error there gives a `StorageUnavailableError`.
 
 This test has no number, and the user experience must have it:
 

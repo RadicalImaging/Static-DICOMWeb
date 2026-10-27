@@ -48,13 +48,14 @@ does not change the user contract (SQR-U1).
 - **SQR-U1. Correct result.** A valid query or retrieve for data that the server stores
   returns that data, at every level: studies, series, instances and metadata. The server does
   not return an error for such a request.
-  Data that a client stores during a request, or very shortly before it, can be missing from
-  the response to that request. That data is in the later responses.
-  Stored data that the server cannot read because it is corrupt or incomplete (SQR-D9) is
+  Data that a client stores during a request, or while the server updates the summary that
+  the request uses, can be missing from the response to that request. For a large study, the
+  update can take minutes. That data is in the later responses.
+  Stored data that the server cannot read because it is corrupt or incomplete (SQR-D9) can be
   missing from the responses. A series in which no instance is readable can give `404` for
   its own series, instances and metadata requests, and the study responses leave it out.
   After new data for that series is stored, the series is back in the responses with its
-  readable instances. An instance whose stored metadata is corrupt stays missing until a
+  readable instances. An instance whose stored metadata is corrupt can be missing until a
   client stores that instance again.
 - **SQR-U2. Acceptable performance.** A query or a retrieve returns in a time that a client can
   accept, for each study size that the server stores. The time does not increase each time
@@ -66,11 +67,12 @@ does not change the user contract (SQR-U1).
   request that needs no update does not get this response. The client can send the request
   again later.
   A storage outage is outside SQR-U1. When the server cannot read, list or write stored data
-  because of an I/O error, a query or a metadata request whose summary file is missing, and a
-  study metadata request, get `503 Service Unavailable` with a `Retry-After` header. A
-  request for a stored file that the server sends as it is (for example a summary file that
-  exists, a frame or a bulk data item) gets the error of the file server. After the storage
-  recovers, the next request gets the correct result, with no upload and no restart.
+  because of an I/O error, a query or a metadata request whose summary file is missing or
+  cannot be checked, and a study metadata request, get `503 Service Unavailable` with a
+  `Retry-After` header. A request for a stored file that the server sends as it is (for
+  example a summary file that exists, a frame or a bulk data item) gets the error of the file
+  server. After the storage recovers, the next request gets the correct result, with no
+  upload and no restart.
 - **The exceptions to SQR-U1.** SQR-U1 has only these exceptions:
   - corrupt or incomplete stored data (SQR-U1);
   - a full queue (SQR-U3);
@@ -79,12 +81,18 @@ does not change the user contract (SQR-U1).
   - a deployment that turns off the builds on demand (`createIndexOnDemand: false`): a
     query or a metadata request whose summary file is missing then gives `404`;
   - a deployment that uses `hashStudyUidPath`: the server does not build a missing summary
-    file there, so such a request gives `404`;
-  - the limits of the section "Safety of each deployment" of the design requirements.
+    file there, so a query, a metadata request or a studies list request whose summary file
+    is missing gives `404`;
+  - a process stop or a storage failure during an upload: the responses can then leave out
+    the instances of that upload, or give older summary values, until the next upload to
+    that series, or until an operator runs a forced build of the CLI (the notes of the
+    section "Safety of each deployment" of the design requirements);
+  - a deployment with several nodes that does not send all work for one study to one node.
 - **SQR-U4. The studies list is a best-effort helper.** The studies list
   (`GET /studies` without `StudyInstanceUID`) is a helper for the local files of a single
-  system. It lists the stored studies. A new study is in the list after the server builds
-  the summary of that study, when the deployment updates the list on upload. A study with
+  system. It lists the stored studies. A new study is in the list after its upload ends, or
+  after the first query of that study, when the deployment updates the list on upload. A
+  study with
   only corrupt data is not in the list. The summary values of an entry, for example the
   counts of series and instances, can be older than the study. A query with
   `StudyInstanceUID` gives the current values of the study (SQR-U1). This is the exception to
@@ -114,8 +122,8 @@ value that changes each time that new data for the series or the study is stored
 files use the generation of their series, and the study files use the generation of their
 study. Thus an upload into one series does not stop the build of a different series of the
 same study. The studies list has no generation: it is a best-effort
-helper, and SQR-D17 states its rule. SQR-D1 to SQR-D16 apply to the series level and the
-study level.
+helper, and SQR-D17 states its rule. The generation rules (SQR-D5, SQR-D6, SQR-D8, SQR-D15
+and SQR-D16) apply to the series level and the study level only.
 
 The design has two parts:
 
@@ -129,13 +137,19 @@ The design has two parts:
 
 - **SQR-D1. Serve the stored version.** A response comes from the stored file of its level.
   When the file exists, the server does no other check. Supports SQR-U1 and SQR-U2.
-- **SQR-D2. A missing file is always safe.** A missing derived file means "build this file".
-  The server builds a missing file on the request path that needs it. Thus a lost update
-  message or a stopped process leaves a missing file, and not a wrong file, except in the
-  cases of notes 1 and 2 of "Safety of each deployment". Two exceptions to "build this
-  file": a series with no instances has no series files, and a series with no readable data
-  (rule 3 of SQR-D3) is not built again until its generation changes. Supports SQR-U1 and
-  SQR-U3.
+- **SQR-D2. A missing file is always safe.** With builds on demand, a missing derived file
+  of the series, study or studies level means "build this file". The server builds a missing
+  file on the request path that needs it. Thus a lost update message or a stopped process
+  leaves a missing file, and not a wrong file, except in the cases of notes 1 and 2 of
+  "Safety of each deployment". The exceptions to "build this file":
+  - a series with no instances has no series files;
+  - a series with no readable data (rule 3 of SQR-D3) is not built again until its
+    generation changes;
+  - a deleted instance `metadata` is not built again (SQR-D9);
+  - a deployment with `createIndexOnDemand: false` or `hashStudyUidPath` builds no file on
+    the request path.
+
+  Supports SQR-U1 and SQR-U3.
 - **SQR-D3. Store each build.** A build that commits stores each file of its level for which
   it has data. The rules below give the cases with no data. The terms of this requirement:
   - A **missing path** is a path that does not exist (`ENOENT`, `ENOTDIR`). An upload can
@@ -150,8 +164,10 @@ The design has two parts:
      or a move of a derived file, fails with an I/O error, the build fails with that error
      and records nothing, also when other reads are corrupt or succeed. The callers that wait
      get the error (SQR-D7), and a request gets the `503` response of SQR-U3. A later request
-     builds the level again. The checks that the writer does on its own temporary files are
-     not in this rule.
+     builds the level again. Any other read error of the stored data that is not a missing
+     path and not a corrupt file also fails the build (it gives `500`), so a build never
+     counts an unreadable file as missing data. The checks that the writer does on its own
+     temporary files, and on the modification time of a final file, are not in this rule.
   2. A series with no instance directories needs no build, and stores no series files.
   3. A series build that finds instance directories, but no readable instance metadata
      (corrupt files or missing paths) and no entry for those instances in the current series
@@ -160,7 +176,8 @@ The design has two parts:
      the series, and does not build the series again until the generation changes.
   4. A study build that finds a corrupt `series-singleton.json` deletes it (SQR-D9), builds
      that series again, and then builds the study files. It does not store study files
-     without that series.
+     without that series. When the deletion fails, or the file still gives no data after the
+     series build, the study build fails, and starts no next round.
   5. A build leaves out data only when the data is corrupt or missing: an instance with no
      readable metadata and no entry in the current series metadata, or a series with no
      readable data (rule 3).
@@ -171,9 +188,9 @@ The design has two parts:
   below it. For each lower level, the build uses the stored files when they exist, and does
   not go further down. When a file of a lower level is missing, the build first builds that
   level in the same way. For example, a study build uses the stored files of each series, and
-  builds only the series that have a missing file. One exception: a study build reads the
-  metadata of one instance, to get the patient and study attributes. Supports SQR-U1 and
-  SQR-U2.
+  builds only the series that have a missing file. One exception: a study build reads
+  instance metadata until it finds one readable instance, to get the patient and study
+  attributes. Supports SQR-U1 and SQR-U2.
 - **SQR-D5. Store the data, then change the generation, then delete.** An upload stores each
   new instance. Immediately after the commit of each instance, the upload changes the
   generation of its series and of its study. Then the upload deletes the derived files that the instance
@@ -191,7 +208,7 @@ The design has two parts:
   server), and goes back to its start value after a commit. A build has at most one round
   that waits for its delay. Thus a build does not use a slot without
   a stop while new data arrives. The build continues until one round commits with no change
-  of the generation. A study round whose build of a series did not commit (also a series
+  of the generation, a round fails, or a round finds that its files exist. A study round whose build of a series did not commit (also a series
   round that the study round joined, SQR-D7) does not commit either, because its files
   would leave out that series. Its result for the waiting callers uses the data of that
   series round for the series, so the response does not leave out the series. The study

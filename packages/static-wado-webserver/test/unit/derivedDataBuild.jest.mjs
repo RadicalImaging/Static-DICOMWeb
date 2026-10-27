@@ -171,7 +171,7 @@ describe('builds of missing derived files', () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
-  // Test 1 (and test 2 below). User experience (SQR-U1): a missing series index gives 200 and
+  // Test 1 (and test 2 below). User experience (SQR-U1, SQR-D2, SQR-D3): a missing series index gives 200 and
   // all series, and is stored
   it('builds a missing series index on a series query, and serves the stored file the next time', async () => {
     await startServer(createJobManager());
@@ -277,9 +277,6 @@ describe('builds of missing derived files', () => {
   it('rebuilds only the changed series after an upload', async () => {
     await startServer(createJobManager());
     const [changed, unchanged] = SERIES;
-    const unchangedMtime = fs.statSync(
-      path.join(studyDir(), 'series', unchanged, 'series-singleton.json.gz')
-    ).mtimeMs;
     storeInstance(changed, INSTANCES_PER_SERIES + 1);
 
     deleteStaleSummaries(root, new Map([[`${STUDY}&${changed}`, {}]]));
@@ -294,6 +291,7 @@ describe('builds of missing derived files', () => {
     expect(fs.existsSync(path.join(root, 'studies', 'index.json.gz'))).toBe(true);
 
     const reads = spyOnReads();
+    const openSpy = jest.spyOn(FileDicomWebWriter.prototype, '_openStream');
     const response = await fetch(`${baseUrl}/studies/${STUDY}/series`);
 
     expect(response.status).toBe(200);
@@ -311,13 +309,11 @@ describe('builds of missing derived files', () => {
     // The study build reads at most one instance of any series for the study attributes
     const unchangedReads = reads.filter(read => read.includes(`/${unchanged}/instances/`));
     expect(unchangedReads.length).toBeLessThan(INSTANCES_PER_SERIES);
-    const unchangedSingleton = path.join(
-      studyDir(),
-      'series',
-      unchanged,
-      'series-singleton.json.gz'
+    // No file of the unchanged series is opened for a write
+    const unchangedWrites = openSpy.mock.calls.filter(([relativePath]) =>
+      String(relativePath).includes(`/${unchanged}`)
     );
-    expect(fs.statSync(unchangedSingleton).mtimeMs).toBe(unchangedMtime);
+    expect(unchangedWrites).toEqual([]);
   });
 
   // Test 6. User experience (SQR-U1, SQR-D6, SQR-D7): data that arrives during
@@ -556,24 +552,38 @@ describe('builds of missing derived files', () => {
     });
   });
 
-  // Test 22. User experience (SQR-U4): a study whose round does not commit during a build of
+  // Test 22. User experience (SQR-U4, SQR-D17): a study whose round does not commit during a build of
   // the studies list is in the list after a later round
   it('lists a study whose round does not commit during a build of the studies list', async () => {
-    // The delay keeps the next round of the study after the first write of the list
-    const jobManager = createJobManager({ roundDelayMs: 300 });
+    const jobManager = createJobManager({ roundDelayMs: 10 });
     jobs = jobManager;
     const studiesIndexPath = path.join(root, 'studies', 'index.json.gz');
     fs.rmSync(studiesIndexPath);
     fs.rmSync(seriesIndexPath());
     fs.rmSync(path.join(studyDir(), 'index.json.gz'));
     let uploaded = false;
-    spyOnReads((relativePath, filename) => {
-      if (filename === 'series-singleton.json' && !uploaded) {
-        uploaded = true;
-        storeInstance('1.2.3.9', 1);
-        deleteStaleSummaries(root, new Map([[`${STUDY}&1.2.3.9`, {}]]));
-      }
+    let releaseNextRound;
+    const listWritten = new Promise(resolve => {
+      releaseNextRound = resolve;
     });
+    const readJsonFile = FileDicomWebReader.prototype.readJsonFile;
+    jest
+      .spyOn(FileDicomWebReader.prototype, 'readJsonFile')
+      .mockImplementation(async function readJsonFileSpy(relativePath, filename, options) {
+        if (filename === 'series-singleton.json' && !uploaded) {
+          uploaded = true;
+          storeInstance('1.2.3.9', 1);
+          deleteStaleSummaries(root, new Map([[`${STUDY}&1.2.3.9`, {}]]));
+        } else if (
+          uploaded &&
+          relativePath === `studies/${STUDY}/series` &&
+          filename === 'index.json'
+        ) {
+          // The next round of the study waits until the first write of the list
+          await listWritten;
+        }
+        return readJsonFile.call(this, relativePath, filename, options);
+      });
 
     const studyUIDs = () => readGzJson(studiesIndexPath).map(entry => entry['0020000D'].Value[0]);
 
@@ -581,6 +591,7 @@ describe('builds of missing derived files', () => {
     expect(uploaded).toBe(true);
     expect(studyUIDs()).toEqual([]);
 
+    releaseNextRound();
     await jobManager.whenIdle();
     expect(studyUIDs()).toEqual([STUDY]);
   });
@@ -728,7 +739,7 @@ describe('builds of missing derived files', () => {
     expect(readGzJson(singletonPath)[0]['00080060'].Value).toEqual(['MR']);
   });
 
-  // Test 10. User experience (SQR-U4): the studies list lists each stored study, and an update of a
+  // Test 10. User experience (SQR-U4, SQR-D17): the studies list lists each stored study, and an update of a
   // study that the list has does not rewrite the list
   it('adds a new study to the studies index, and leaves the index alone on the next upload', async () => {
     const studiesIndexPath = path.join(root, 'studies', 'index.json.gz');

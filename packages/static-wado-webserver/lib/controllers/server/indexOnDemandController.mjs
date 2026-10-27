@@ -303,7 +303,8 @@ export function studyQueryController(dir, params = {}) {
         } else {
           req.staticWadoPath = `/studies/${studyUID}`;
         }
-      } else if (createOnDemand && root) {
+      } else if (createOnDemand && root && !hashStudyUidPath) {
+        // The builds use paths with no hash (Q3): they would list the hash directories
         await ensureStudiesLevel(root, { jobs, studyIndex: params.studyIndex });
       }
     } catch (err) {

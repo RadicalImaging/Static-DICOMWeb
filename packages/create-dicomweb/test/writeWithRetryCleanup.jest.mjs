@@ -68,6 +68,30 @@ describe('write functions after a failure', () => {
     expect(files()).toEqual([]);
   });
 
+  // The API must do this (SQR-D3): an I/O error when a stream opens gives a
+  // StorageUnavailableError, and leaves no file
+  it('gives a StorageUnavailableError when a stream cannot open', async () => {
+    const failingWrites = [
+      writes[0],
+      {
+        ...writes[1],
+        openStream: () => {
+          throw Object.assign(new Error('no space'), { code: 'ENOSPC' });
+        },
+      },
+    ];
+
+    await expect(
+      writeMultipleWithRetry({
+        informationProvider: {},
+        baseDir,
+        writes: failingWrites,
+        generatePayload: async () => ({}),
+      })
+    ).rejects.toMatchObject({ name: 'StorageUnavailableError', code: 'ENOSPC' });
+    expect(files()).toEqual([]);
+  });
+
   // The API must do this (SQR-D3): a failed write of one file stops the commit of the round,
   // and gives a StorageUnavailableError
   it('does not commit a round when the write of one file fails', async () => {

@@ -95,7 +95,8 @@ describe('createJobManager', () => {
   // Test 25. The API must do this (SQR-D6): requests between two rounds of a key do not start
   // a second chain of next rounds
   it('keeps one waiting next round for a key', async () => {
-    const jobs = createJobManager({ roundDelayMs: 50 });
+    // The delay is much longer than the three calls, so no delayed round runs between them
+    const jobs = createJobManager({ roundDelayMs: 1000 });
     let rounds = 0;
     const round = async () => {
       rounds++;

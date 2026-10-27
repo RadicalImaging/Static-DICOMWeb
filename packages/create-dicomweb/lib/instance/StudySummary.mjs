@@ -35,10 +35,11 @@ async function getFirstInstanceMetadata(reader, studyUID, seriesUIDs) {
  * Scans series directory and reads all series singleton data for a study.
  * The reader must use `throwOnIoError`: an I/O error then throws, so the build fails and
  * does not commit an index that leaves out the series (SQR-D3).
+ * A series whose series-singleton.json was there at the check but gave no data (a corrupt
+ * file that the read deleted, or a file that an upload deleted after the check) is in
+ * `unreadSeries`, and the study files must not be stored without it.
  * @param {FileDicomWebReader} reader
  * @param {string} studyUID
- * A series whose stored series-singleton.json was there but gave no data (a corrupt file that
- * the read deleted) is in `unreadSeries`, and the study files must not be stored without it.
  * @param {Map<string, Object>} [pendingSeries] - Series query of each series whose round did not
  *   commit; used when the series has no stored series-singleton.json
  * @returns {Promise<{actualSeriesUIDs: Set<string>, seriesQueryArray: Object[], studyQuery: Object|null,
@@ -164,7 +165,8 @@ export function studyFilesExist(reader, studyUID) {
  * @param {Map<string, Object>} [options.pendingSeries] - Series UID -> series query (or
  *   undefined) of each series whose round did not commit
  * @returns {Promise<{committed: boolean, payload?: Object}>} - committed false when the
- *   generation changed or a series is pending; payload is the study data of the build
+ *   generation changed, a series is pending, or `payload.unreadSeries` is not empty; payload
+ *   is the study data of the build
  */
 export async function studySummary(baseDir, studyUID, options = {}) {
   if (!baseDir || !studyUID) {

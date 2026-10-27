@@ -28,7 +28,7 @@ export function isCorruptFileError(error) {
 }
 
 /**
- * Error of a build when the storage cannot read or list stored data (an I/O error). A
+ * Error of a build when the storage cannot read, list or write data (an I/O error). A
  * server answers it with `503 Service Unavailable` and a `Retry-After` header of
  * `retryAfterSeconds`. `code` is the code of the file system error, and `cause` the error.
  */
@@ -43,21 +43,15 @@ export class StorageUnavailableError extends Error {
 }
 
 /**
- * Returns true for an I/O error: a file system error with an errno code (for example
- * `ESTALE`, `EIO`, `EACCES`, `ENOSPC`) that is not a missing path. A corrupt file, a Node.js
- * error (`ERR_*`, for example a string that is too long) and an error with no code are not
- * I/O errors, because a retry after the storage recovers does not change them.
+ * Returns true for an I/O error: a file system error with an error code of the operating
+ * system (`E` and capitals, for example `ESTALE`, `EIO`, `EACCES`, `ENOSPC`) that is not a
+ * missing path. A corrupt file, a Node.js error (`ERR_*`, `ABORT_ERR`) and an error with no
+ * code are not I/O errors, because a retry after the storage recovers does not change them.
  * @param {Error} error
  * @returns {boolean}
  */
 function isIoError(error) {
-  const code = error?.code;
-  return (
-    typeof code === 'string' &&
-    !isMissingPathError(error) &&
-    !isCorruptFileError(error) &&
-    !code.startsWith('ERR_')
-  );
+  return /^E[A-Z0-9]+$/.test(error?.code ?? '') && !isMissingPathError(error);
 }
 
 /**

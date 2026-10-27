@@ -2,6 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { PassThrough } from 'stream';
+import zlib from 'zlib';
 import { StorageUnavailableError } from '@radicalimaging/static-wado-util';
 import { FileDicomWebReader, createBuildReader } from '../lib/instance/FileDicomWebReader.mjs';
 
@@ -70,5 +71,48 @@ describe('FileDicomWebReader errors: deleteFileOnError and throwOnIoError', () =
     } else {
       expect(check()).toBe(false);
     }
+  });
+
+  // The API must do this (SQR-D3): the reader of a build never counts an unreadable file as
+  // missing data: a read error that is not an I/O error, and a corrupt file that stays, throw
+  it('throws from the reader of a build for a read error with no code, and for a corrupt file that stays', async () => {
+    const goodPath = path.join(baseDir, 'studies', 'good.json.gz');
+    fs.writeFileSync(goodPath, 'content that the mock read never returns');
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(FileDicomWebReader.prototype, 'openInputStream').mockImplementation(async () => {
+      const stream = new PassThrough();
+      setImmediate(() => stream.destroy(new Error('program error')));
+      return stream;
+    });
+    expect(await new FileDicomWebReader(baseDir).readJsonFile('studies', 'good.json')).toBe(
+      undefined
+    );
+    await expect(createBuildReader(baseDir).readJsonFile('studies', 'good.json')).rejects.toThrow(
+      'program error'
+    );
+    jest.restoreAllMocks();
+
+    const corruptPath = path.join(baseDir, 'studies', 'corrupt.json.gz');
+    fs.writeFileSync(corruptPath, 'not gzip data');
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest
+      .spyOn(fs.promises, 'unlink')
+      .mockRejectedValue(Object.assign(new Error('not permitted'), { code: 'EPERM' }));
+    await expect(
+      createBuildReader(baseDir).readJsonFile('studies', 'corrupt.json', {
+        deleteFileOnError: true,
+      })
+    ).rejects.toThrow(StorageUnavailableError);
+  });
+
+  // The API must do this: the older layout <name>.gz/index.json.gz is read as <name>
+  it('reads a file in the older layout with a compressed directory name', async () => {
+    const dir = path.join(baseDir, 'studies', 'metadata.gz');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'index.json.gz'), zlib.gzipSync('[{"a":1}]'));
+
+    expect(await createBuildReader(baseDir).readJsonFile('studies', 'metadata')).toEqual([
+      { a: 1 },
+    ]);
   });
 });

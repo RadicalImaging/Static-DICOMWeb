@@ -6,7 +6,8 @@ import { createBuildReader } from '../instance/FileDicomWebReader.mjs';
  * Main function for processing study metadata. First builds each series that has a
  * missing file (without force), and uses the stored files of the other series. Then
  * builds the study files. When the study build finds a corrupt series-singleton.json
- * (`unreadSeries`), builds those series, and builds the study files one more time.
+ * (`unreadSeries`), builds those series, and builds the study files one more time. When the
+ * file is still unreadable after that, throws, so the job fails and starts no next round.
  * @param {string} studyUID - Study Instance UID
  * @param {Object} options - Options object
  * @param {string} [options.dicomdir] - Base directory path where DICOMweb structure is located
@@ -50,10 +51,16 @@ export async function studyMain(studyUID, options = {}) {
     };
     await build(seriesUIDs.filter(seriesUID => !seriesFilesExist(reader, studyUID, seriesUID)));
     let result = await studySummary(dicomdir, studyUID, { force, generation, pendingSeries });
-    // A corrupt series-singleton.json was deleted by the study read: build it, and try again
+    // A series-singleton.json gave no data (corrupt and deleted, or deleted by an upload)
     if (result.payload?.unreadSeries?.length) {
       await build(result.payload.unreadSeries);
       result = await studySummary(dicomdir, studyUID, { force, generation, pendingSeries });
+      // Fail, and do not start next rounds that cannot change the result
+      if (result.payload?.unreadSeries?.length) {
+        throw new Error(
+          `series-singleton.json of series ${result.payload.unreadSeries.join(', ')} stays unreadable`
+        );
+      }
     }
     console.noQuiet(`Completed study ${studyUID}`);
     return result;

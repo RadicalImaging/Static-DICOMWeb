@@ -8,6 +8,18 @@ import {
   handleBuildError,
 } from './indexOnDemandController.mjs';
 
+/** Number of series metadata files that one request reads at the same time */
+const READ_GROUP_SIZE = 16;
+
+/** Maps the items in groups of READ_GROUP_SIZE, so a large study opens a limited number of files */
+async function mapInGroups(items, fn) {
+  const results = [];
+  for (let start = 0; start < items.length; start += READ_GROUP_SIZE) {
+    results.push(...(await Promise.all(items.slice(start, start + READ_GROUP_SIZE).map(fn))));
+  }
+  return results;
+}
+
 /**
  * Builds the series of `seriesUIDs` that need a build (seriesNeedsBuild), in one job of the
  * build job manager, each series as a nested job.
@@ -49,7 +61,8 @@ async function buildSeriesMetadata(root, studyUID, seriesUIDs, reader, params) {
  * file counts as missing (a corrupt file is deleted, and then built), and an I/O error
  * answers 503 with Retry-After (handleBuildError), as does a full build queue. With builds
  * on demand, a series that stores no metadata (no readable data) adds no instances. Without
- * them, a series with no stored metadata gives 404 for the study.
+ * them (`createIndexOnDemand: false`, or `hashStudyUidPath`), a series with no stored
+ * metadata gives 404 for the study.
  *
  * @param {string} dir Static DICOMweb root directory.
  * @param {object} params Server parameters.
@@ -61,7 +74,8 @@ export function studyMetadataQueryController(dir, params = {}) {
     const studyUID = req.params.studyUID;
     const studyPath = req.staticWadoPath.replace(/\/metadata\/?$/, '').replace(/^\/+/, '');
     const seriesPath = seriesUID => `${studyPath}/series/${seriesUID}`;
-    const createOnDemand = params.createIndexOnDemand !== false;
+    // The builds use paths with no hash (Q3), so a hashStudyUidPath layout gets no build
+    const createOnDemand = params.createIndexOnDemand !== false && params.hashStudyUidPath !== true;
     const reader = createBuildReader(root);
 
     try {
@@ -72,7 +86,7 @@ export function studyMetadataQueryController(dir, params = {}) {
         reader.readJsonFile(seriesPath(seriesUID), 'metadata', { deleteFileOnError: true });
 
       // Read first, so a series that an upload changes after its read keeps its data
-      const metadataBySeries = await Promise.all(seriesUIDs.map(read));
+      const metadataBySeries = await mapInGroups(seriesUIDs, read);
       const missing = seriesUIDs.filter((_, index) => !metadataBySeries[index]);
       if (missing.length && !createOnDemand) {
         return res.status(404).json([]);

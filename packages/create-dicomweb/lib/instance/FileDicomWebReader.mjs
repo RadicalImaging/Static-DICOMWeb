@@ -58,18 +58,17 @@ export class FileDicomWebReader extends DicomWebReader {
   }
 
   /**
-   * Throws a StorageUnavailableError for an I/O error when `throwOnIoError` is set.
-   * Returns for a missing path or a corrupt file, and for any error without `throwOnIoError`.
+   * With `throwOnIoError`, throws each error that is not a missing path and not a corrupt
+   * file: a StorageUnavailableError for an I/O error (toStorageError), and any other error
+   * as it is. Thus a build never counts an unreadable file as missing data. Returns for a
+   * missing path or a corrupt file, and for any error without `throwOnIoError`.
    * @private
    */
   _throwIoError(fullPath, error) {
-    if (!this.throwOnIoError) {
+    if (!this.throwOnIoError || isMissingPathError(error) || isCorruptFileError(error)) {
       return;
     }
-    const storageError = toStorageError(fullPath, error);
-    if (storageError.name === 'StorageUnavailableError') {
-      throw storageError;
-    }
+    throw toStorageError(fullPath, error);
   }
 
   /**
@@ -115,8 +114,13 @@ export class FileDicomWebReader extends DicomWebReader {
 
     // Check compressed version
     const compressedPath = `${fullPath}.gz`;
-    if (this._stat(compressedPath)) {
+    const compressedStat = this._stat(compressedPath);
+    if (compressedStat?.isFile()) {
       return { exists: true, path: compressedPath, isCompressed: true };
+    }
+    // Older layout with a compressed name: <name>.gz/index.json(.gz)
+    if (compressedStat?.isDirectory() && filename !== 'index.json') {
+      return this.fileExists(`${relativePath}/${filename}.gz`, 'index.json');
     }
 
     // Older layout: <name>/index.json(.gz) instead of <name>(.gz), e.g. instances/<sop>/metadata/index.json.gz
@@ -184,7 +188,8 @@ export class FileDicomWebReader extends DicomWebReader {
    * @param {Object} [options] - Options
    * @param {boolean} [options.deleteFileOnError=false] - If true, delete the file (or .gz) after a gunzip or parse error
    * @returns {Promise<Object|undefined>} - Parsed JSON; undefined when missing or corrupt, or
-   *   after an I/O error without `throwOnIoError`
+   *   after any other error without `throwOnIoError`. With `throwOnIoError`, any other error,
+   *   and a failed deletion of a corrupt file, throws (see _throwIoError).
    */
   async readJsonFile(relativePath, filename, options = {}) {
     const fileInfo = this.fileExists(relativePath, filename);
@@ -205,6 +210,8 @@ export class FileDicomWebReader extends DicomWebReader {
           await fs.promises.unlink(fileInfo.path);
           console.noQuiet(`Deleted corrupted file ${fileInfo.path}: ${error.message}`);
         } catch (unlinkErr) {
+          // A build must not see a corrupt file that stays as missing data on each round
+          this._throwIoError(fileInfo.path, unlinkErr);
           console.warn(`Failed to delete corrupted file ${fileInfo.path}: ${unlinkErr.message}`);
         }
       }
