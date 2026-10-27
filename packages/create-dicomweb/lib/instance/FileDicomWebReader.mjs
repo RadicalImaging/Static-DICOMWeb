@@ -154,7 +154,10 @@ export class FileDicomWebReader extends DicomWebReader {
     try {
       return await super.readJsonFile(relativePath, filename, options);
     } catch (error) {
-      if (!isCorruptFileError(error)) {
+      if (error?.code === 'ENOENT') {
+        // An upload can delete a derived file between the check and the read
+        console.verbose(`Could not read ${fileInfo.path}: ENOENT`);
+      } else if (!isCorruptFileError(error)) {
         console.warn(`Could not read ${fileInfo.path}, keeping it: ${error.code || error.message}`);
       } else if (options.deleteFileOnError) {
         try {

@@ -486,7 +486,7 @@ export const completePostController = async (req, res, next) => {
       }
     }
 
-    // Change the generations, then delete the series, study and studies list files (always, even if messaging disabled)
+    // Change the generations, then delete the series and study files (always, even if messaging disabled)
     if (stowRootDir && seriesMap.size > 0) {
       deleteStaleSummaries(stowRootDir, seriesMap);
     }

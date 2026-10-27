@@ -222,8 +222,9 @@ cannot form a loop. A nested job never waits for a slot, and a queued job holds 
 each running job completes.
 
 The caller of the first round needs the result of that round, also when the round did not
-commit (SQR-D7). Thus `seriesSummary`, `studySummary` and `indexSummary` return
+commit (SQR-D7). Thus `seriesSummary`, `studySummary` and `studyMain` return
 `{ committed, payload }`, and the controller sends the payload when the file does not exist.
+`indexSummary` (the studies list, SQR-D17) returns nothing.
 
 The webserver has one shared instance, `getBuildJobManager(params)` in
 `packages/static-wado-webserver/lib/util/buildJobManager.mjs`. It reads the server params
@@ -550,8 +551,9 @@ instances again.
 ## Delivery
 
 SQR-I1 to SQR-I6 are in one pull request, because all of the items fix one report. SQR-I7
-is a later change. The pull request has one commit for each item, in this order, so that a
-reviewer can read the items one at a time:
+is a later change. The first commits of the pull request hold one item each, in this order,
+so that a reviewer can read the items one at a time. The later commits hold the changes
+after review:
 
 1. SQR-I6, the reader change. It does not depend on the other items.
 2. SQR-I3, the generation tracker and the change to `deleteStaleSummaries`.
