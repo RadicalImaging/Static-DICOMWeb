@@ -4,8 +4,9 @@ import path from 'path';
 import { writeWithRetry, writeMultipleWithRetry } from '../lib/instance/writeWithRetry.mjs';
 
 /**
- * A build that fails leaves no temp file, and no part of its commit (SQR-D2: a missing file
- * is safe). The failure can come from the data step or from a rename of the commit.
+ * A build that fails leaves no temp file, and no part of its commit: an old file stays, or
+ * the file is missing, which is safe (SQR-D2). The failure can come from the data step or
+ * from a rename of the commit.
  */
 describe('write functions after a failure', () => {
   let baseDir;
@@ -61,27 +62,41 @@ describe('write functions after a failure', () => {
           generatePayload: failAfterRead,
         }),
     ],
-    [
-      'writeMultipleWithRetry, when the second rename throws',
-      () => {
-        const rename = fs.renameSync;
-        let renames = 0;
-        jest.spyOn(fs, 'renameSync').mockImplementation((...args) => {
-          if (++renames === 2) {
-            throw Object.assign(new Error('busy'), { code: 'EBUSY' });
-          }
-          return rename(...args);
-        });
-        return writeMultipleWithRetry({
-          informationProvider: {},
-          baseDir,
-          writes,
-          generatePayload: async () => ({}),
-        });
-      },
-    ],
   ])('%s leaves no file', async (_, write) => {
     await expect(write()).rejects.toThrow();
     expect(files()).toEqual([]);
+  });
+
+  // The API must do this (SQR-D2): a failed rename keeps each old file that did not get its
+  // new version, and deletes each new file that moved before the failure
+  it.each([
+    ['the first', 1, ['a.json.gz', 'b.json.gz']],
+    ['the second', 2, ['b.json.gz']],
+  ])('keeps the old files when %s rename of a commit throws', async (_, failingRename, kept) => {
+    const studiesDir = path.join(baseDir, 'studies');
+    fs.mkdirSync(studiesDir, { recursive: true });
+    for (const name of ['a.json.gz', 'b.json.gz']) {
+      fs.writeFileSync(path.join(studiesDir, name), 'old');
+    }
+    const rename = fs.renameSync;
+    let renames = 0;
+    jest.spyOn(fs, 'renameSync').mockImplementation((...args) => {
+      if (++renames === failingRename) {
+        throw Object.assign(new Error('busy'), { code: 'EBUSY' });
+      }
+      return rename(...args);
+    });
+
+    await expect(
+      writeMultipleWithRetry({
+        informationProvider: {},
+        baseDir,
+        writes,
+        generatePayload: async () => ({}),
+      })
+    ).rejects.toThrow('busy');
+
+    expect(files().sort()).toEqual(kept);
+    kept.forEach(name => expect(fs.readFileSync(path.join(studiesDir, name), 'utf8')).toBe('old'));
   });
 });

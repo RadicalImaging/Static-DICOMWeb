@@ -37,16 +37,17 @@ export async function studyMain(studyUID, options = {}) {
     const seriesUIDs = await reader.listDirectories(
       reader.getStudyPath(studyUID, { path: 'series' })
     );
-    // A series round that did not commit (also one that a nested job joined) leaves the
-    // series out of the study files, so the study round must not commit either (SQR-D6)
-    let seriesPending = false;
+    // Series whose round did not commit (also a round that a nested job joined, SQR-D6)
+    const pendingSeries = new Map();
     for (const seriesUID of seriesUIDs) {
       if (!seriesFilesExist(reader, studyUID, seriesUID)) {
         const seriesResult = await buildSeries(seriesUID);
-        seriesPending ||= seriesResult?.committed === false;
+        if (seriesResult?.committed === false) {
+          pendingSeries.set(seriesUID, seriesResult.payload?.seriesQuery);
+        }
       }
     }
-    const result = await studySummary(dicomdir, studyUID, { force, generation, seriesPending });
+    const result = await studySummary(dicomdir, studyUID, { force, generation, pendingSeries });
     console.noQuiet(`Completed study ${studyUID}`);
     return result;
   } catch (error) {

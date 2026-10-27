@@ -80,6 +80,7 @@ describe('an upload that aborts after it stores an instance', () => {
     const derivedFiles = [
       path.join(seriesRoot, seriesUID, 'metadata.gz'),
       path.join(seriesRoot, seriesUID, 'series-singleton.json.gz'),
+      path.join(seriesRoot, seriesUID, 'instances', 'index.json.gz'),
       path.join(seriesRoot, 'index.json.gz'),
       path.join(studiesDir, studyUID, 'index.json.gz'),
     ];

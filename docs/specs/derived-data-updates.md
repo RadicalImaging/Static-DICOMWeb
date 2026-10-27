@@ -51,10 +51,12 @@ does not change the user contract (SQR-U1).
   A response includes all data whose storage completed before the update for that response
   started. Data whose storage completes during that update can be missing from that response.
   That data is in the responses after the next update.
-  Stored data that the server cannot read because it is corrupt (SQR-D9) is missing from the
-  responses. A series with only corrupt data can give `404` for its own series, instances
-  and metadata requests, and the study responses leave it out. The data is back in the responses
-  after new data for that series is stored.
+  Stored data that the server cannot read because it is corrupt or incomplete (SQR-D9) is
+  missing from the responses. A series in which no instance is readable can give `404` for
+  its own series, instances and metadata requests, and the study responses leave it out.
+  After new data for that series is stored, the series is back in the responses with its
+  readable instances. An instance whose stored metadata is corrupt stays missing until a
+  client stores that instance again.
 - **SQR-U2. Acceptable performance.** A query or a retrieve returns in a time that a client can
   accept, for each study size that the server stores. The time does not increase each time
   that a client sends the same request again.
@@ -66,11 +68,18 @@ does not change the user contract (SQR-U1).
   again later.
   A storage outage is outside SQR-U1: when the server cannot read or list stored data
   because of an I/O error, a request that needs an update gets `503 Service Unavailable`
-  with a `Retry-After` header. After the storage recovers, the next request gets the correct
-  result, with no upload and no restart.
-- **The exceptions to SQR-U1.** SQR-U1 has only these exceptions: corrupt data (SQR-U1),
-  the two `503` responses of SQR-U3 (a full queue, and a storage outage), and the studies
-  list of SQR-U4.
+  with a `Retry-After` header. A request that the server answers from the derived files of
+  the server itself (for example the study metadata) can also get this response. A request
+  for a stored file that the server sends as it is gets the error of the file server. After
+  the storage recovers, the next request gets the correct result, with no upload and no
+  restart.
+- **The exceptions to SQR-U1.** SQR-U1 has only these exceptions:
+  - corrupt or incomplete stored data (SQR-U1);
+  - the two `503` responses of SQR-U3 (a full queue, and a storage outage);
+  - the studies list of SQR-U4;
+  - a deployment that turns off the builds on demand (`createIndexOnDemand: false`): a
+    missing derived file then gives `404`;
+  - the limits of the section "Safety of each deployment" of the design requirements.
 - **SQR-U4. The studies list is a best-effort helper.** The studies list
   (`GET /studies` without `StudyInstanceUID`) is a helper for the local files of a single
   system. It lists each stored study. The summary values of an entry, for example the
@@ -118,12 +127,13 @@ The design has two parts:
   When the file exists, the server does no other check. Supports SQR-U1 and SQR-U2.
 - **SQR-D2. A missing file is always safe.** A missing derived file means "build this file".
   The server builds a missing file on the request path that needs it. Thus a lost update
-  message or a stopped process never leaves a wrong file, only a missing file. Two
-  exceptions: a series with no instances has no series files, and a series with only
-  unreadable data (SQR-D3) is not built again until its generation changes. Supports SQR-U1
-  and SQR-U3.
-- **SQR-D3. Store each build.** Each build stores all files of its level. After a build, each
-  response path of that level has a stored file. The terms of this requirement:
+  message or a stopped process leaves a missing file, and not a wrong file, except in the
+  cases of notes 1 and 2 of "Safety of each deployment". Two exceptions to "build this
+  file": a series with no instances has no series files, and a series in which no instance
+  metadata is readable (corrupt or missing, SQR-D3) is not built again until its generation
+  changes. Supports SQR-U1 and SQR-U3.
+- **SQR-D3. Store each build.** A build that commits stores each file of its level for which
+  it has data. The rules below give the cases with no data. The terms of this requirement:
   - A **missing path** is a path that does not exist (`ENOENT`, `ENOTDIR`). An upload can
     delete a derived file during a build, so a missing path is not an error.
   - A **corrupt file** is a file whose gunzip step or JSON parse fails (SQR-D9).
@@ -156,7 +166,8 @@ The design has two parts:
   new instance. Immediately after the commit of each instance, the upload changes the
   generation of its series and of its study. Then the upload deletes the derived files that the instance
   affects: the files of its series and the study files. The upload does these steps for each
-  instance, so an upload that stops before its end leaves no stale derived file. The upload
+  instance, so an upload that stops before its end leaves no stale derived file, except in
+  the cases of notes 1 and 2 of "Safety of each deployment". The upload
   does the steps again for all affected series when it ends. The upload does not delete
   `studies/index.json` (SQR-D17). Supports SQR-U1.
 - **SQR-D6. Commit only a build of the current generation.** A build reads the generation
@@ -169,8 +180,9 @@ The design has two parts:
   a stop while new data arrives. The build continues until one round commits with no change
   of the generation. A study round whose build of a series did not commit (also a series
   round that the study round joined, SQR-D7) does not commit either, because its files
-  would leave out that series. It starts again after a delay in the same way. Supports
-  SQR-U1 and SQR-U3.
+  would leave out that series. Its result for the waiting callers uses the data of that
+  series round for the series, so the response does not leave out the series. The study
+  round starts again after a delay in the same way. Supports SQR-U1 and SQR-U3.
 - **SQR-D7. Respond after the first build.** A caller that waits for a build gets the result of
   the first round of that build, also when the build must start again. The caller does not
   wait for the next rounds. The next rounds continue in the background. Supports SQR-U1 and
@@ -182,7 +194,9 @@ The design has two parts:
   Supports SQR-U1.
 - **SQR-D9. Delete only a corrupt file.** The server deletes a derived file because of a read
   only when the file is corrupt, for example when the gunzip step or the JSON parse fails. An
-  I/O error does not cause a deletion. Supports SQR-U1.
+  I/O error does not cause a deletion. The server builds a deleted file of the series, study
+  and studies levels again. The server cannot build a deleted instance `metadata` again,
+  because only an upload makes it from the stored DICOM instance. Supports SQR-U1.
 - **SQR-D10. Force a build from the CLI.** A `createdicomweb` command that builds derived data,
   for example `series` or `study`, builds its own level again when you use `--force`. The
   command does this also when the files exist. For the lower levels, the command obeys SQR-D4.
@@ -258,10 +272,10 @@ generation shows that.
 
 | Deployment | Safe while all nodes run | Safe when a node stops |
 | --- | --- | --- |
-| One node, base design | yes | yes, except a stop in the short time between the commit of an instance and the deletion of its derived files (note 1) |
-| Several nodes, all work for one study on one node, base design | yes | yes, with the exception of note 1 |
-| Several nodes, any routing, SQR-D15 | yes | no, a stale file can stay until the next upload |
-| Several nodes, any routing, SQR-D15 and SQR-D16 | yes | yes |
+| One node, base design | yes, except note 2 | yes, except a stop in the short time between the commit of an instance and the deletion of its derived files (note 1) |
+| Several nodes, all work for one study on one node, base design | yes, except note 2 | yes, with the exception of note 1 |
+| Several nodes, any routing, SQR-D15 | yes, except note 2 | no, a stale file can stay until the next upload |
+| Several nodes, any routing, SQR-D15 and SQR-D16 | yes, except note 2 | yes |
 
 Note 1: in that short time, the process can stop after the instance is stored and before its
 derived files are deleted. The old derived files then stay until the next upload to that series,

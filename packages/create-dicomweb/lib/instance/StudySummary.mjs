@@ -37,9 +37,11 @@ async function getFirstInstanceMetadata(reader, studyUID, seriesUIDs) {
  * does not commit an index that leaves out the series (SQR-D3).
  * @param {FileDicomWebReader} reader
  * @param {string} studyUID
+ * @param {Map<string, Object>} [pendingSeries] - Series query of each series whose round did not
+ *   commit; used when the series has no stored series-singleton.json
  * @returns {Promise<{actualSeriesUIDs: Set<string>, seriesQueryArray: Object[], studyQuery: Object|null}>}
  */
-async function readStudyData(reader, studyUID) {
+async function readStudyData(reader, studyUID, pendingSeries = new Map()) {
   const studyPath = reader.getStudyPath(studyUID);
   const seriesPath = `${studyPath}/series`;
 
@@ -53,9 +55,10 @@ async function readStudyData(reader, studyUID) {
 
   for (const seriesUID of actualSeriesUIDs) {
     const seriesSingletonPath = reader.getSeriesPath(studyUID, seriesUID);
-    let seriesSingleton = await reader.readJsonFile(seriesSingletonPath, 'series-singleton.json', {
-      deleteFileOnError: true,
-    });
+    let seriesSingleton =
+      (await reader.readJsonFile(seriesSingletonPath, 'series-singleton.json', {
+        deleteFileOnError: true,
+      })) ?? pendingSeries.get(seriesUID);
     if (seriesSingleton) {
       if (Array.isArray(seriesSingleton) && seriesSingleton.length > 0) {
         seriesSingleton = seriesSingleton[0];
@@ -131,7 +134,12 @@ export function studyFilesExist(reader, studyUID) {
 }
 
 /**
- * Creates or updates study metadata/index.json.gz file
+ * Creates or updates the study files: series/index.json and the study index.json.
+ *
+ * With `pendingSeries` (a series round of this study round did not commit), builds the study
+ * data for the response from the stored series files and the pending series queries, writes
+ * nothing, and returns `committed: false`. Stored files without that series would leave it
+ * out until the next upload (SQR-D6).
  *
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @param {string} studyUID - Study Instance UID
@@ -139,10 +147,10 @@ export function studyFilesExist(reader, studyUID) {
  * @param {boolean} [options.force] - Build the study files also when the series index is up to date
  * @param {number} [options.generation] - Generation of the study that the build read when it
  *   started (defaults to the current generation). The files commit only if it did not change.
- * @param {boolean} [options.seriesPending] - A series build of this round did not commit: build
- *   the study data for the response, and do not commit it
+ * @param {Map<string, Object>} [options.pendingSeries] - Series UID -> series query (or
+ *   undefined) of each series whose round did not commit
  * @returns {Promise<{committed: boolean, payload?: Object}>} - committed false when the
- *   generation changed; payload is the study data of the build
+ *   generation changed or a series is pending; payload is the study data of the build
  */
 export async function studySummary(baseDir, studyUID, options = {}) {
   if (!baseDir || !studyUID) {
@@ -155,6 +163,13 @@ export async function studySummary(baseDir, studyUID, options = {}) {
   const reader = createBuildReader(baseDir);
   const studyPath = reader.getStudyPath(studyUID);
   const seriesPath = `${studyPath}/series`;
+
+  if (options.pendingSeries?.size) {
+    return {
+      committed: false,
+      payload: await readStudyData(reader, studyUID, options.pendingSeries),
+    };
+  }
 
   // Check if series/index.json.gz exists and is up to date
   console.verbose('studySummary: seriesIndexFileInfo:', seriesPath);
@@ -184,7 +199,6 @@ export async function studySummary(baseDir, studyUID, options = {}) {
 
   if (
     !options.force &&
-    !options.seriesPending &&
     existingSeriesUIDs.size === actualSeriesUIDs.size &&
     [...existingSeriesUIDs].every(uid => actualSeriesUIDs.has(uid)) &&
     studyFilesExist(reader, studyUID)
@@ -199,7 +213,6 @@ export async function studySummary(baseDir, studyUID, options = {}) {
   console.verbose('studySummary: writing series index and study singleton files');
   const { committed, payload } = await writeMultipleWithRetry({
     generation: { tracker: generationTracker, key: studyUID, value: generation },
-    commit: !options.seriesPending,
     informationProvider,
     baseDir,
     generatePayload: () => readStudyData(reader, studyUID),

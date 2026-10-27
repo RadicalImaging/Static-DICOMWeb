@@ -89,7 +89,8 @@ export async function seriesNeedsBuild(reader, studyUID, seriesUID) {
  * @param {string} studyUID - Study Instance UID
  * @param {string} seriesUID - Series Instance UID
  * @param {Object} [options]
- * @param {FileDicomWebReader} [options.reader] - Reader instance
+ * @param {FileDicomWebReader} [options.reader] - A build reader (createBuildReader, the default):
+ *   with a lenient reader, an I/O error of a check counts as a missing file
  * @param {Object} [options.context] - Job context of a running job; the build is then a nested job
  * @param {Object} [options.jobs] - Job manager (defaults to the shared build job manager)
  * @param {boolean} [options.background] - Never reject the job when the queue is full
@@ -262,8 +263,8 @@ export function handleBuildError(err, res, next, label) {
  * studyQueryController: for GET /studies. With StudyInstanceUID in the query, ensures
  * the study level of that study (ensureStudyLevel), and serves the study index.json.
  * Without it, ensures the studies list (ensureStudiesLevel), and serves studies/index.json.
- * When a study build did not commit, sends the data of the first round. When the build
- * queue is full, answers 503 with Retry-After.
+ * When a study build did not commit, sends the data of the first round. When the build queue
+ * is full, or the storage cannot be read, answers 503 with Retry-After (handleBuildError).
  *
  * @param {string} dir - Static files directory path (DICOMweb root)
  * @param {object} params - Server params (rootDir, createIndexOnDemand, hashStudyUidPath)
@@ -303,7 +304,7 @@ export function studyQueryController(dir, params = {}) {
           req.staticWadoPath = `/studies/${studyUID}`;
         }
       } else if (createOnDemand && root) {
-        await ensureStudiesLevel(root, { jobs });
+        await ensureStudiesLevel(root, { jobs, studyIndex: params.studyIndex });
       }
     } catch (err) {
       return handleBuildError(err, res, next, 'indexOnDemand: failed to create studies index');

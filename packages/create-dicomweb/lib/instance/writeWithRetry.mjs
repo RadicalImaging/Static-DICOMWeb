@@ -172,10 +172,7 @@ export async function writeWithRetry({
  * starts the next round. The retry loop for 'updated-stale' stays as it was.
  * When an open, generatePayload() or getData() throws, the temp files of the round are
  * removed and the error is thrown. When a rename of the commit throws, the files that moved
- * before it are deleted (a missing file is safe, SQR-D2) and the error is thrown.
- * With `commit` false, the round writes and compares its files, and does not commit them
- * (`committed: false`), for example when a nested build of a lower level did not commit.
- *
+ * before it are deleted (a missing file is safe, SQR-D2) and the error is thrown. *
  * @param {Object} params
  * @param {Object} params.informationProvider - UID provider for the writer
  * @param {string} params.baseDir - Base directory for DICOMweb
@@ -183,7 +180,6 @@ export async function writeWithRetry({
  * @param {Array<{openStream: (writer) => Promise<Object>, getData: (payload) => string|Buffer|null, label: string}>} params.writes
  * @param {{tracker: Object, key: string, value?: number}} [params.generation] - Generation tracker and key
  * @param {number} [params.retries]
- * @param {boolean} [params.commit=true] - false: do not commit the round
  * @returns {Promise<{writeStatus: string, committed: boolean, payload: *}>} - payload of the last attempt
  */
 export async function writeMultipleWithRetry({
@@ -193,10 +189,9 @@ export async function writeMultipleWithRetry({
   writes,
   generation,
   retries = MAX_RETRIES,
-  commit = true,
 }) {
   const label = writes.map(w => w.label).join(', ');
-  const isCurrent = commit ? createGenerationCheck(generation) : () => false;
+  const isCurrent = createGenerationCheck(generation);
   let payload;
   for (let attempt = 1; attempt <= retries; attempt++) {
     // Deferred moves: all files of the round commit together, after one canCommit() check

@@ -14,8 +14,8 @@ import {
  * exists, with no other check. Otherwise builds the missing level in the build job manager:
  * with SeriesInstanceUID in the query, the series level of that series (ensureSeriesLevel);
  * without it, the study level (ensureStudyLevel), which writes series/index.json.
- * When the build did not commit, sends the data of the first round. When the build
- * queue is full, answers 503 with Retry-After.
+ * When the build did not commit, sends the data of the first round. When the build queue is
+ * full, or the storage cannot be read, answers 503 with Retry-After (handleBuildError).
  *
  * @param {string} dir - Static files directory path (DICOMweb root)
  * @param {object} params - Server params (rootDir, createIndexOnDemand, maxRunningJobs, maxQueuedJobs)
@@ -60,7 +60,8 @@ export function seriesQueryController(dir, params = {}) {
 /**
  * instancesQueryController: for GET /studies/:studyUID/series/:seriesUID/instances. When
  * instances/index.json is missing, builds the series level (ensureSeriesLevel), then
- * invokes qidoMap. When the build did not commit, sends the data of the first round.
+ * invokes qidoMap. When the build did not commit, sends the data of the first round. When
+ * the build queue is full, or the storage cannot be read, answers 503 (handleBuildError).
  *
  * @param {string} dir - Static files directory path (DICOMweb root)
  * @param {object} params - Server params (rootDir, createIndexOnDemand)

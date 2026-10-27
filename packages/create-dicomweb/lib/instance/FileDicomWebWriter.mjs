@@ -363,15 +363,6 @@ export class FileDicomWebWriter extends DicomWebWriter {
         );
       }
 
-      // Set writeStatus
-      if (destinationChanged) {
-        streamInfo.writeStatus = 'updated-stale';
-      } else if (originalMtime === null) {
-        streamInfo.writeStatus = 'created';
-      } else {
-        streamInfo.writeStatus = 'updated';
-      }
-
       // Ensure the final directory exists (it may have been cleaned up, or filename
       // may contain path components like "instances/index.json.gz")
       const targetDir = path.dirname(filepath);
@@ -384,6 +375,15 @@ export class FileDicomWebWriter extends DicomWebWriter {
 
       // Move temp file to final destination
       fs.renameSync(tempFilepath, filepath);
+
+      // Set writeStatus only after the rename, so a failed rename never reports a moved file
+      if (destinationChanged) {
+        streamInfo.writeStatus = 'updated-stale';
+      } else if (originalMtime === null) {
+        streamInfo.writeStatus = 'created';
+      } else {
+        streamInfo.writeStatus = 'updated';
+      }
     } catch (err) {
       console.warn(
         `[FileDicomWebWriter] Failed to move temp file ${tempFilepath} to ${filepath}:`,

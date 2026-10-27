@@ -7,9 +7,10 @@ import { FileDicomWebReader, createBuildReader } from '../lib/instance/FileDicom
 
 /**
  * readJsonFile with deleteFileOnError deletes a corrupt file only. A correct file can give
- * a transient I/O error (ESTALE on a network file system), and must stay.
+ * a transient I/O error (ESTALE on a network file system), and must stay. An existence check
+ * classifies its errors in the same way (SQR-D3).
  */
-describe('FileDicomWebReader.readJsonFile with deleteFileOnError', () => {
+describe('FileDicomWebReader errors: deleteFileOnError and throwOnIoError', () => {
   let baseDir;
 
   beforeEach(() => {
@@ -22,6 +23,7 @@ describe('FileDicomWebReader.readJsonFile with deleteFileOnError', () => {
     fs.rmSync(baseDir, { recursive: true, force: true });
   });
 
+  // The API must do this (SQR-D9)
   it('deletes a file that fails the gunzip step, and keeps a file that has an I/O error', async () => {
     const corruptPath = path.join(baseDir, 'studies', 'corrupt.json.gz');
     const goodPath = path.join(baseDir, 'studies', 'good.json.gz');

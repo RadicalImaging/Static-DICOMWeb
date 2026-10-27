@@ -13,7 +13,8 @@ import {
  * seriesMetadataQueryController: for GET /studies/:studyUID/series/:seriesUID/metadata.
  * When the series metadata file is missing, builds the series level in the build job
  * manager (ensureSeriesLevel), then invokes otherJsonMap. When the build did not commit,
- * sends the data of the first round.
+ * sends the data of the first round. When the build queue is full, or the storage cannot be
+ * read, answers 503 (handleBuildError).
  *
  * @param {string} dir - Static files directory path (DICOMweb root)
  * @param {object} params - Server params (rootDir, createIndexOnDemand)

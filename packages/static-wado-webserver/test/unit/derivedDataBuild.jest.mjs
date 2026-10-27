@@ -171,7 +171,8 @@ describe('builds of missing derived files', () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
-  // Test 1 (and test 2 below). User experience (SQR-U1): a missing series index gives 200 and all series, and is stored
+  // Test 1 (and test 2 below). User experience (SQR-U1): a missing series index gives 200 and
+  // all series, and is stored
   it('builds a missing series index on a series query, and serves the stored file the next time', async () => {
     await startServer(createJobManager());
     fs.rmSync(seriesIndexPath());
@@ -283,7 +284,7 @@ describe('builds of missing derived files', () => {
     expect(reads.some(read => read.includes(`/${unchanged}/instances/`))).toBe(false);
   });
 
-  // Test 6. User experience (SQR-U1) and the API (SQR-D6, SQR-D7, SQR-D8): data that arrives during
+  // Test 6. User experience (SQR-U1, SQR-D6, SQR-D7, SQR-D8): data that arrives during
   // a build is missing from the first response, and is in the index that the next round commits
   it('responds with the first round, and commits the next round, when a series arrives during a study build', async () => {
     await startServer(createJobManager({ roundDelayMs: 10 }));
@@ -361,15 +362,18 @@ describe('builds of missing derived files', () => {
     );
   });
 
-  // Test 17. User experience (SQR-U3) and the API (SQR-D3): an I/O error fails the series build and
-  // records nothing, so the series is built when the storage recovers, with no upload
+  // Test 17. User experience (SQR-U3, SQR-D3): an I/O error of a read or an existence check in
+  // the series build fails the build and records nothing, so the series is built when the
+  // storage recovers, with no upload
   it.each([
     ['a read', series => failReadsWithEstale(`${series}.1/metadata`), 'ESTALE'],
     [
       'an existence check',
       series =>
-        failStatsWithEacces(
-          target => target === path.join(studyDir(), 'series', series, 'instances')
+        failStatsWithEacces(target =>
+          target.startsWith(
+            path.join(studyDir(), 'series', series, 'instances', `${series}.1`, 'metadata')
+          )
         ),
       'EACCES',
     ],
@@ -398,7 +402,7 @@ describe('builds of missing derived files', () => {
     }
   );
 
-  // Test 18. User experience (SQR-U3) and the API (SQR-D3): an I/O error on a series file answers 503,
+  // Test 18. User experience (SQR-U3, SQR-D3): an I/O error on a series file answers 503,
   // and no series index that leaves out that series is stored
   it.each([
     ['a read', () => failReadsWithEstale(`${SERIES[1]}/series-singleton.json`)],
@@ -428,41 +432,63 @@ describe('builds of missing derived files', () => {
   // Test 19. User experience (SQR-U3, SQR-U4): a failed directory listing answers 503, and
   // stores no empty studies list
   it.each([
-    ['the studies list', () => '/studies', () => path.join(root, 'studies')],
+    ['the studies list', () => '/studies', () => path.join(root, 'studies'), true],
     [
       'the study metadata',
       () => `/studies/${STUDY}/metadata`,
       () => path.join(studyDir(), 'series'),
+      false,
     ],
-  ])('answers 503 for %s when a directory listing has an I/O error', async (_, url, listed) => {
-    await startServer(createJobManager());
-    const studiesIndexPath = path.join(root, 'studies', 'index.json.gz');
-    fs.rmSync(studiesIndexPath);
-    jest.spyOn(console, 'warn').mockImplementation(() => {});
-    const readdir = fs.promises.readdir;
-    jest
-      .spyOn(fs.promises, 'readdir')
-      .mockImplementation((dir, ...rest) =>
-        String(dir) === listed()
-          ? Promise.reject(Object.assign(new Error('permission denied'), { code: 'EACCES' }))
-          : readdir(dir, ...rest)
-      );
+  ])(
+    'answers 503 for %s when a directory listing has an I/O error',
+    async (_, url, listed, writesList) => {
+      await startServer(createJobManager());
+      const studiesIndexPath = path.join(root, 'studies', 'index.json.gz');
+      fs.rmSync(studiesIndexPath);
+      jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const readdir = fs.promises.readdir;
+      jest
+        .spyOn(fs.promises, 'readdir')
+        .mockImplementation((dir, ...rest) =>
+          String(dir) === listed()
+            ? Promise.reject(Object.assign(new Error('permission denied'), { code: 'EACCES' }))
+            : readdir(dir, ...rest)
+        );
 
-    const response = await fetch(`${baseUrl}${url()}`);
+      const response = await fetch(`${baseUrl}${url()}`);
 
-    expect(response.status).toBe(503);
-    expect(fs.existsSync(studiesIndexPath)).toBe(false);
-  });
+      expect(response.status).toBe(503);
+      if (writesList) {
+        expect(fs.existsSync(studiesIndexPath)).toBe(false);
+      }
+    }
+  );
 
-  // Test 21. The API must do this (SQR-D6): a study round that joins a series round that does
-  // not commit does not commit either, and a later round commits all series
+  // Test 21. The API must do this (SQR-U1, SQR-D6): a study round that joins a series round that
+  // does not commit does not commit either, its response keeps that series, and a later round
+  // commits all series
   it('does not commit a study round that joins a series round that does not commit', async () => {
     const jobManager = createJobManager({ roundDelayMs: 10 });
     jobs = jobManager;
     const [series] = SERIES;
     deleteStaleSummaries(root, new Map([[`${STUDY}&${series}`, {}]]));
     let study;
-    const original = FileDicomWebReader.prototype.readJsonFile;
+    let joined;
+    const studyJoined = new Promise(resolve => {
+      joined = resolve;
+    });
+    const listDirectories = FileDicomWebReader.prototype.listDirectories;
+    jest
+      .spyOn(FileDicomWebReader.prototype, 'listDirectories')
+      .mockImplementation(async function listDirectoriesSpy(relativePath) {
+        const result = await listDirectories.call(this, relativePath);
+        // The study build checks the series (seriesNeedsBuild), and then joins its round
+        if (study && relativePath.endsWith(`/${series}/instances`)) {
+          setImmediate(joined);
+        }
+        return result;
+      });
+    const readJsonFile = FileDicomWebReader.prototype.readJsonFile;
     jest
       .spyOn(FileDicomWebReader.prototype, 'readJsonFile')
       .mockImplementation(async function readJsonFileSpy(relativePath, filename, options) {
@@ -470,16 +496,17 @@ describe('builds of missing derived files', () => {
           storeInstance(series, INSTANCES_PER_SERIES + 1);
           deleteStaleSummaries(root, new Map([[`${STUDY}&${series}`, {}]]));
           study = ensureStudyLevel(root, STUDY, { jobs: jobManager });
-          // Hold the series round, so that the study build joins it
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await studyJoined;
         }
-        return original.call(this, relativePath, filename, options);
+        return readJsonFile.call(this, relativePath, filename, options);
       });
 
     const seriesRound = await ensureSeriesLevel(root, STUDY, series, { jobs: jobManager });
+    const studyRound = await study;
 
     expect(seriesRound.committed).toBe(false);
-    expect((await study).committed).toBe(false);
+    expect(studyRound.committed).toBe(false);
+    expect(seriesUIDsOf(studyRound.payload.seriesQueryArray)).toEqual(SERIES);
     await jobManager.whenIdle();
     const counts = Object.fromEntries(
       readGzJson(seriesIndexPath()).map(entry => [
@@ -533,6 +560,19 @@ describe('builds of missing derived files', () => {
     expect(fs.existsSync(path.join(emptyDir, 'metadata.gz'))).toBe(false);
   });
 
+  // Test 24. The API must do this (SQR-D4): a series build whose files are current reads no
+  // instance metadata and writes nothing (the early return of seriesSummary, cause C2)
+  it('reads no instance metadata and writes nothing when the series files are current', async () => {
+    const reads = spyOnReads();
+    const openSpy = jest.spyOn(FileDicomWebWriter.prototype, '_openStream');
+
+    const result = await seriesSummary(root, STUDY, SERIES[0]);
+
+    expect(result.committed).toBe(true);
+    expect(reads.filter(read => read.includes('/instances/'))).toEqual([]);
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
   // Test 20. User experience (SQR-U1): a series with corrupt data does not hide the other series of
   // the study metadata
   it('serves the study metadata of the other series when one series has corrupt data', async () => {
@@ -548,7 +588,7 @@ describe('builds of missing derived files', () => {
     expect(await response.json()).toHaveLength(SERIES.length * INSTANCES_PER_SERIES);
   });
 
-  // Test 9. User experience (SQR-U3) and the API (SQR-D11, SQR-D14): a full queue rejects only
+  // Test 9. User experience (SQR-U3, SQR-D11, SQR-D14): a full queue rejects only
   // the requests that need a build
   it('answers 503 with Retry-After when the queue is full, and 200 when the file exists', async () => {
     const jobManager = createJobManager({ maxRunning: 1, maxQueued: 1, retryAfterSeconds: 7 });

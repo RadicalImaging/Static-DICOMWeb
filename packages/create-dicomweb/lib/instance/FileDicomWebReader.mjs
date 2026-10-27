@@ -33,7 +33,8 @@ export class FileDicomWebReader extends DicomWebReader {
    *   existence check, a directory listing or a read fails with an I/O error (see
    *   toStorageError: an error that is not a missing path and not a corrupt file). A build
    *   uses this, so that a correct file that the storage cannot read now never counts as
-   *   missing data (SQR-D3). Without it, an I/O error counts as missing.
+   *   missing data (SQR-D3). Without it, an I/O error of an existence check or a read counts
+   *   as missing, and an I/O error of a listing is thrown as it is.
    */
   constructor(baseDir, options = {}) {
     super(baseDir);
@@ -91,7 +92,8 @@ export class FileDicomWebReader extends DicomWebReader {
    * Checks if a file exists (checks both compressed and uncompressed versions)
    * @param {string} relativePath - Relative path within baseDir
    * @param {string} filename - Filename to check
-   * @returns {Object} - { exists: boolean, path: string, isCompressed: boolean }
+   * @returns {Object|false} - { exists: boolean, path: string, isCompressed: boolean }, or false
+   * @throws {StorageUnavailableError} - With `throwOnIoError`, when a check has an I/O error
    */
   fileExists(relativePath, filename) {
     const fullPath = this._getFullPath(relativePath, filename);

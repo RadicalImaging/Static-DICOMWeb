@@ -10,7 +10,8 @@ function gate() {
 }
 
 describe('createJobManager', () => {
-  // The API must do this (SQR-D13): a started job always completes, and a queued job blocks nothing
+  // Test 8. The API must do this (SQR-D13): a started job always completes, and a queued job
+  // blocks nothing
   it('completes a job with three levels of nested jobs while a job for a nested key waits in the queue', async () => {
     const jobs = createJobManager({ maxRunning: 1, maxQueued: 5 });
     const built = new Set();
@@ -57,7 +58,7 @@ describe('createJobManager', () => {
     await jobs.whenIdle();
   });
 
-  // The API must do this (SQR-D7, SQR-D13): a failed job gives its error to its caller and
+  // Test 12. The API must do this (SQR-D7, SQR-D13): a failed job gives its error to its caller and
   // to each waiter, and releases its key, so that the next call builds again
   it('gives the error to the caller and to a waiter, and releases the key, after a failed job', async () => {
     const jobs = createJobManager({ maxRunning: 1 });
