@@ -547,7 +547,11 @@ proposal in these items:
   the file out. The writer opens temporary files synchronously, so no temporary file stays
   after a failure. `writeWithRetry` throws on a failed write or rename. `studyMain` throws only
   when no upload changed the study. The older `.gz` directory layout applies to `metadata`
-  only. `indexSummary` skips `studies/temp`.
+  only. `indexSummary` skips `studies/temp`. When an upload fails after the parse (for example
+  the metadata file cannot open), `instanceFromStream` aborts and drains the frame and
+  bulkdata streams before the rollback, so no temporary file of the instance stays.
+  `writeWithRetry` also gives a `StorageUnavailableError` for a failed open and a failed
+  rename.
 
 ## Compatibility
 

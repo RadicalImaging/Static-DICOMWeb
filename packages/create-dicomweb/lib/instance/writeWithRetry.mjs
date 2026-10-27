@@ -117,7 +117,12 @@ export async function writeWithRetry({
   for (let attempt = 1; attempt <= retries; attempt++) {
     // 1. Open the stream first — this snapshots the mtime of the existing file
     const writer = new FileDicomWebWriter(informationProvider, { baseDir });
-    const streamInfo = await openStream(writer);
+    let streamInfo;
+    try {
+      streamInfo = await openStream(writer);
+    } catch (err) {
+      throw toStorageError(err?.path ?? label, err);
+    }
 
     // 2. Now read source data (after mtime is captured)
     let data;
@@ -135,9 +140,15 @@ export async function writeWithRetry({
 
     // 3. Write and close
     streamInfo.write(Buffer.isBuffer(data) ? data : Buffer.from(data));
-    const resultPath = await writer.closeStream(streamInfo.streamKey);
+    let resultPath;
+    try {
+      resultPath = await writer.closeStream(streamInfo.streamKey);
+    } catch (err) {
+      // A failed rename throws; _finishMove has removed the temp file
+      throw toStorageError(err?.path ?? streamInfo.filepath, err);
+    }
     if (!resultPath) {
-      // closeStream records a failed write or rename, and returns undefined
+      // closeStream records a failed write, and returns undefined
       const error = writer.getStreamErrors().get(streamInfo.streamKey);
       throw toStorageError(streamInfo.filepath, error ?? new Error(`Write failed: ${label}`));
     }

@@ -53,12 +53,12 @@ export async function studyMain(studyUID, options = {}) {
       }
     };
     await build(seriesUIDs.filter(seriesUID => !seriesFilesExist(reader, studyUID, seriesUID)));
-    const options = { force, generation: studyGeneration, pendingSeries };
-    let result = await studySummary(dicomdir, studyUID, options);
+    const summaryOptions = { force, generation: studyGeneration, pendingSeries };
+    let result = await studySummary(dicomdir, studyUID, summaryOptions);
     // A series-singleton.json gave no data (corrupt and deleted, or deleted by an upload)
     if (result.payload?.unreadSeries?.length) {
       await build(result.payload.unreadSeries);
-      result = await studySummary(dicomdir, studyUID, options);
+      result = await studySummary(dicomdir, studyUID, summaryOptions);
       // An upload changed the study: a next round builds it. Otherwise fail, and start no
       // next rounds that cannot change the result
       if (

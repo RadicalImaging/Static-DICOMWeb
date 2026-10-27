@@ -485,6 +485,9 @@ export async function instanceFromStream(stream, options = {}) {
 
     return result;
   } catch (err) {
+    // Stop the frame and bulkdata streams that still close, so none joins pendingMoves later
+    writer?.abort(err);
+    await writer?.drainOpenStreams(options.drainOpenStreamsTimeoutMs).catch(() => {});
     writer?.rollbackPendingMoves();
     throw err;
   }

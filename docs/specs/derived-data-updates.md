@@ -80,8 +80,9 @@ does not change the user contract (SQR-U1).
   - a full queue (SQR-U3);
   - a storage outage (SQR-U3);
   - a stored file that the server cannot read for a reason other than corruption or an I/O
-    error (for example a file too large to parse), and a corrupt series summary that the
-    server cannot delete: a request that needs an update then gets `500`;
+    error (for example a file too large to parse): a request that needs an update then gets
+    `500`. A corrupt `series-singleton.json` that the server cannot delete gives `503` when
+    the deletion fails with an I/O error, and `500` otherwise (rule 4 of SQR-D3);
   - the studies list of SQR-U4;
   - a deployment that turns off the builds on demand (`createIndexOnDemand: false`): a
     query or a metadata request whose summary file is missing then gives `404`;

@@ -3,6 +3,7 @@ import os from 'os';
 import path from 'path';
 import { writeWithRetry, writeMultipleWithRetry } from '../lib/instance/writeWithRetry.mjs';
 import { FileDicomWebWriter } from '../lib/instance/FileDicomWebWriter.mjs';
+import { instanceFromStream } from '../lib/instance/instanceFromStream.mjs';
 
 /**
  * A build that fails leaves no temp file, and no part of its commit: an old file stays, or
@@ -33,8 +34,7 @@ describe('write functions after a failure', () => {
     throw new Error('read failed');
   };
 
-  /** Makes the write of the file whose final name ends with 
-ame fail with EIO */
+  /** Makes the write of the file whose final name ends with `name` fail with EIO */
   const failWriteOf = name => {
     const closeStream = FileDicomWebWriter.prototype.closeStream;
     jest
@@ -147,6 +147,56 @@ ame fail with EIO */
         generatePayload: async () => ({}),
       })
     ).rejects.toMatchObject({ name: 'StorageUnavailableError', code: 'EIO' });
+    expect(await files()).toEqual([]);
+  });
+
+  // The API must do this (SQR-D3): the studies list write gives a StorageUnavailableError for
+  // an I/O error of the open and of the rename, so the request gets 503
+  it.each([
+    ['the open', 'openSync', 'EMFILE'],
+    ['the rename', 'renameSync', 'EBUSY'],
+  ])('gives a StorageUnavailableError when %s of writeWithRetry fails', async (_, call, code) => {
+    jest.spyOn(fs, call).mockImplementation(() => {
+      throw Object.assign(new Error(code), { code });
+    });
+
+    await expect(
+      writeWithRetry({
+        informationProvider: {},
+        baseDir,
+        openStream: writes[0].openStream,
+        generateData: async () => '[]',
+        label: 'a.json',
+      })
+    ).rejects.toMatchObject({ name: 'StorageUnavailableError', code });
+    jest.restoreAllMocks();
+    expect(await files()).toEqual([]);
+  });
+
+  // The API must do this (SQR-D2): an upload whose metadata file cannot open leaves no temp
+  // file of its frames
+  it('leaves no temp file when the metadata of an instance cannot open', async () => {
+    const dicomFilePath = path.resolve(
+      process.cwd().endsWith('create-dicomweb')
+        ? process.cwd()
+        : path.resolve(process.cwd(), 'packages/create-dicomweb'),
+      '../static-wado-creator/dicom/jpeg8bit.dcm'
+    );
+    const openSync = fs.openSync;
+    jest.spyOn(fs, 'openSync').mockImplementation((target, ...rest) => {
+      if (String(target).endsWith('-metadata.gz')) {
+        throw Object.assign(new Error('no space'), { code: 'ENOSPC' });
+      }
+      return openSync(target, ...rest);
+    });
+
+    await expect(
+      instanceFromStream(fs.createReadStream(dicomFilePath), {
+        dicomdir: baseDir,
+        writerOptions: { baseDir, deferFinalMove: true },
+      })
+    ).rejects.toMatchObject({ code: 'ENOSPC' });
+    jest.restoreAllMocks();
     expect(await files()).toEqual([]);
   });
 
