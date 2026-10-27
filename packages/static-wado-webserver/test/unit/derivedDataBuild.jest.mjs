@@ -15,6 +15,7 @@ import {
   seriesSummary,
   studyMain,
   indexSummary,
+  generationTracker,
 } from '@radicalimaging/create-dicomweb';
 import { seriesQueryController } from '../../lib/controllers/server/seriesQueryController.mjs';
 import {
@@ -268,6 +269,32 @@ describe('builds of missing derived files', () => {
     expect(seriesUIDsOf(await response.json())).toEqual(SERIES);
     await jobs.whenIdle();
     expect(seriesUIDsOf(readGzJson(seriesIndexPath()))).toEqual([...SERIES, newSeries]);
+  });
+
+  // The API must do this (SQR-D6): an upload into one series does not stop the commit of a
+  // build of a different series of the same study, and stops the commit of the study level
+  it('commits a series build while an upload goes into a different series of the study', async () => {
+    const [built, uploaded] = SERIES;
+    const builtDir = path.join(studyDir(), 'series', built);
+    fs.rmSync(path.join(builtDir, 'metadata.gz'));
+    let stored = false;
+    spyOnReads((relativePath, filename) => {
+      // seriesSummary reads the instance metadata of the built series
+      if (relativePath.includes(`/${built}/instances/`) && !stored) {
+        stored = true;
+        storeInstance(uploaded, INSTANCES_PER_SERIES + 1);
+        deleteStaleSummaries(root, new Map([[`${STUDY}&${uploaded}`, {}]]));
+      }
+    });
+    const studyGeneration = generationTracker.current(STUDY);
+
+    const result = await seriesSummary(root, STUDY, built);
+
+    expect(stored).toBe(true);
+    expect(result.committed).toBe(true);
+    expect(fs.existsSync(path.join(builtDir, 'metadata.gz'))).toBe(true);
+    const study = await studyMain(STUDY, { dicomdir: root, generation: studyGeneration });
+    expect(study.committed).toBe(false);
   });
 
   // User experience (SQR-U3) and the API (SQR-D11, SQR-D14): a full queue rejects only

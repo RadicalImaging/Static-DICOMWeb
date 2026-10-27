@@ -12,7 +12,8 @@ const MOVED_STATUSES = new Set(['created', 'updated', 'updated-stale']);
  *
  * @param {Object} [generation]
  * @param {{current: Function}} generation.tracker - Generation tracker
- * @param {string} generation.studyUID - Study of the files
+ * @param {string} generation.key - Generation key of the files: the study UID, or
+ *   seriesGenerationKey(studyUID, seriesUID)
  * @param {number} [generation.value] - Generation that the build read when it started. When the
  *   build reads data before this write (for example nested builds of the series of a study),
  *   pass the value that it read first. Defaults to the current generation.
@@ -22,9 +23,9 @@ function createGenerationCheck(generation) {
   if (!generation?.tracker) {
     return undefined;
   }
-  const { tracker, studyUID } = generation;
-  const expected = generation.value ?? tracker.current(studyUID);
-  return () => tracker.current(studyUID) === expected;
+  const { tracker, key } = generation;
+  const expected = generation.value ?? tracker.current(key);
+  return () => tracker.current(key) === expected;
 }
 
 /**
@@ -142,7 +143,7 @@ export async function writeWithRetry({
  * @param {string} params.baseDir - Base directory for DICOMweb
  * @param {Function} params.generatePayload - async () => payload — called once per attempt after all streams are open
  * @param {Array<{openStream: (writer) => Promise<Object>, getData: (payload) => string|Buffer|null, label: string}>} params.writes
- * @param {{tracker: Object, studyUID: string|null, value?: number}} [params.generation] - Generation tracker and study UID
+ * @param {{tracker: Object, key: string, value?: number}} [params.generation] - Generation tracker and key
  * @param {number} [params.retries]
  * @returns {Promise<{writeStatus: string, committed: boolean, payload: *}>} - payload of the last attempt
  */

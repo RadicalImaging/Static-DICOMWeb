@@ -3,14 +3,17 @@ import {
   FileDicomWebReader,
   FileDicomWebWriter,
   generationTracker,
+  seriesGenerationKey,
 } from '@radicalimaging/create-dicomweb';
 
 /**
  * Deletes the derived files that new data makes stale, so that the next build
- * (an updateSeries/updateStudy message, or a request) makes them again. Call it after
- * the upload stores all of its instances. Supports multiple study UIDs in a single call.
+ * (an updateSeries/updateStudy message, or a request) makes them again. The upload calls
+ * it after each stored instance, and again after the upload stores all of its instances.
+ * Supports multiple study UIDs in a single call.
  *
- * First changes the generation of each study, then deletes the files. All calls are
+ * First changes the generation of each series and of each study, then deletes the files.
+ * A build of a different series of the same study can thus still commit. All calls are
  * synchronous, with no `await` between the generation change and the deletions: a build
  * on this node thus cannot check the generation and move a stale file between the two steps.
  *
@@ -59,8 +62,11 @@ export function deleteStaleSummaries(dicomdir, seriesMap, options = {}) {
     return;
   }
 
-  for (const studyUID of studyUIDs) {
+  for (const [studyUID, seriesUIDSet] of seriesByStudy) {
     generations.advance(studyUID);
+    for (const seriesUID of seriesUIDSet) {
+      generations.advance(seriesGenerationKey(studyUID, seriesUID));
+    }
   }
 
   // Delete per-series files for each (studyUID, seriesUID) using reader paths and writer.delete

@@ -228,14 +228,19 @@ runs in that process, so the generation does not change during a CLI build.
 Applies SQR-D2, SQR-D5 and SQR-D8 to the upload path. `create-dicomweb` has a generation
 tracker (`packages/create-dicomweb/lib/instance/generationTracker.mjs`):
 
-- `current(studyUID)` returns the current generation of the study.
-- `advance(studyUID)` changes the generation.
+- `current(key)` returns the current generation of the key.
+- `advance(key)` changes the generation of the key.
 
-The studies list has no generation (SQR-D17). The base design uses an in-memory tracker: a
-`Map<studyUID, number>`. Both operations are synchronous. The module exports one shared instance,
-`generationTracker`. The upload path and the builds use that instance.
+The key of a study is its UID. The key of a series is `seriesGenerationKey(studyUID,
+seriesUID)`, which is `<studyUID>/<seriesUID>`. The studies list has no generation (SQR-D17).
+The base design uses an in-memory tracker: a `Map<key, number>`. Both operations are
+synchronous. The module exports one shared instance, `generationTracker`. The upload path and
+the builds use that instance.
 
-`deleteStaleSummaries` calls `advance()` for each study, and then deletes the files. It uses
+`deleteStaleSummaries` calls `advance()` for each series and for each study, and then deletes
+the files. A build of a series that the upload does not change can thus commit during the
+upload. A study build cannot commit during the upload, because the study files list all
+series. It uses
 synchronous calls only, with no `await` between the `advance()` calls and the deletions
 (SQR-D8). It deletes all series files of the levels table (`metadata`,
 `series-singleton.json` and `instances/index.json`) and the study files. Before this change,
@@ -247,7 +252,7 @@ after the commit of that instance (the `afterCommit` option of `instanceFromStre
 synchronously after `commitPendingMoves()`). Thus an upload that aborts later (a client
 disconnect, the listener timeout) leaves no stale derived file. `completePostController` still
 calls `deleteStaleSummaries` for all series at the end of the request. The cost for each
-instance is one `advance()` and the `unlink` calls of the derived files of one series and one
+instance is two `advance()` calls and the `unlink` calls of the derived files of one series and one
 study. `FileDicomWebWriter.delete` ignores a file that does not exist (`ENOENT`).
 
 Before this change, the `updateStudy` handler merged the study into `studies/index.json` on
@@ -259,9 +264,10 @@ the file does not list it (SQR-I1).
 Applies SQR-D3, SQR-D6 and SQR-D8 to `writeMultipleWithRetry` and `FileDicomWebWriter`.
 `writeWithRetry` (the studies list) does not change (SQR-D17).
 
-1. `writeMultipleWithRetry` gets a new option `generation`: the tracker, the study UID, and
-   the generation `value` that the build read when it started. `seriesSummary` and
-   `studySummary` read the generation as their first step,
+1. `writeMultipleWithRetry` gets a new option `generation`: the tracker, the generation
+   `key`, and the generation `value` that the build read when it started. `seriesSummary`
+   reads the generation of its series, and `studySummary` reads the generation of its study,
+   as their first step,
    before they read or scan any data, or get the value from the caller (for example the study
    job of SQR-I1). Without a value, the write function reads `current()` before it calls
    `generatePayload()`.
@@ -387,6 +393,9 @@ proposal in these items:
   so a later read can miss a change. The `canCommit()` check runs before the
   removal of old-format metadata directories and before `fs.renameSync`. All of that code is
   synchronous.
+- **SQR-I3, SQR-I4 (generation of each series).** The proposal used one generation for each
+  study. After review, each series also has a generation, so that an upload into one series
+  does not stop the builds of the other series of the study.
 - **SQR-I5.** `studyMain` builds only the series that have a missing file. It does not call
   `seriesSummary` for each series.
 - **SQR-I6.** The reader no longer removes an old-format metadata directory after a read
@@ -441,7 +450,8 @@ This section is not a requirement of the code.
   long upload, each request for the series starts a full build that does not commit. Then
   the next rounds follow, with a delay that increases up to 30 s. The cost stays limited,
   because one key has only one running job (SQR-I2 rule 2), and the delay increases
-  (SQR-D6).
+  (SQR-D6). A build of a different series of the same study is not affected, because each
+  series has its own generation (SQR-I3). The study level commits after the upload ends.
 - **Q2 (closed).** The proposal deleted `studies/index.json` on each upload, and the rebuild
   of the full list did many rounds with no commit during a long upload. Decision: the studies
   list is a best-effort helper for a local single system (SQR-U4, SQR-D17). The upload does
@@ -490,6 +500,9 @@ The API must do this:
 13. An upload stores an instance, and then does not reach `completePostController`. The
     derived files of the series and the study are deleted, and the generation of the study
     changed (SQR-D5).
+14. A build of series A reads its data, and an upload then stores an instance in series B of
+    the same study. The build of A commits. A study build that started before the upload
+    does not commit (SQR-D6).
 
 The user experience must have this: test 1 checks SQR-U1, the correct result with status 200.
 Test 6 checks the data rule of SQR-U1 for data that arrives during a build. Test 9 checks the

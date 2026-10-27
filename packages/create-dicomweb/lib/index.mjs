@@ -9,4 +9,8 @@ export { seriesSummary, seriesFilesExist } from './instance/SeriesSummary.mjs';
 export { studyFilesExist } from './instance/StudySummary.mjs';
 export { indexSummary } from './instance/IndexSummary.mjs';
 export { instanceFromStream } from './instance/instanceFromStream.mjs';
-export { generationTracker, createGenerationTracker } from './instance/generationTracker.mjs';
+export {
+  generationTracker,
+  createGenerationTracker,
+  seriesGenerationKey,
+} from './instance/generationTracker.mjs';

@@ -83,9 +83,11 @@ below it:
 Each file at the series, study and studies levels serves one response path. For example,
 `series/index.json` serves `GET /studies/<studyUID>/series`.
 
-The design uses one **generation** for each study. A generation is a value that changes each
-time that new data for the study is stored. The series files and the study files of a study
-use the generation of that study. The studies list has no generation: it is a best-effort
+The design uses one **generation** for each series and one for each study. A generation is a
+value that changes each time that new data for the series or the study is stored. The series
+files use the generation of their series, and the study files use the generation of their
+study. Thus an upload into one series does not stop the build of a different series of the
+same study. The studies list has no generation: it is a best-effort
 helper, and SQR-D17 states its rule. SQR-D1 to SQR-D16 apply to the series level and the
 study level.
 
@@ -115,13 +117,13 @@ The design has two parts:
   builds only the series that have a missing file. Supports SQR-U1 and SQR-U2.
 - **SQR-D5. Store the data, then change the generation, then delete.** An upload stores each
   new instance. Immediately after the commit of each instance, the upload changes the
-  generation of its study. Then the upload deletes the derived files that the instance
+  generation of its series and of its study. Then the upload deletes the derived files that the instance
   affects: the files of its series and the study files. The upload does these steps for each
   instance, so an upload that stops before its end leaves no stale derived file. The upload
   does the steps again for all affected series when it ends. The upload does not delete
   `studies/index.json` (SQR-D17). Supports SQR-U1.
 - **SQR-D6. Commit only a build of the current generation.** A build reads the generation
-  before it reads any data. The build writes its files to temporary files. The build moves a
+  of its level (its series, or its study) before it reads any data. The build writes its files to temporary files. The build moves a
   temporary file to its final name only when the generation did not change. After the move,
   the build reads the generation again. If the generation changed, the build deletes the
   files that it moved. In both cases of a change, the build starts again after a delay. The

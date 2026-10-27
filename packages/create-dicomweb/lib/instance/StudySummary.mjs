@@ -192,7 +192,7 @@ export async function studySummary(baseDir, studyUID, options = {}) {
   // Write both study-level files in one retry loop so readStudyData is called once per attempt
   console.verbose('studySummary: writing series index and study singleton files');
   const { committed, payload } = await writeMultipleWithRetry({
-    generation: { tracker: generationTracker, studyUID, value: generation },
+    generation: { tracker: generationTracker, key: studyUID, value: generation },
     informationProvider,
     baseDir,
     generatePayload: () => readStudyData(reader, studyUID),

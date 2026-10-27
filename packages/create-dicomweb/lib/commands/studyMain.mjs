@@ -18,9 +18,9 @@ import { FileDicomWebReader } from '../instance/FileDicomWebReader.mjs';
  */
 export async function studyMain(studyUID, options = {}) {
   const { dicomdir, force, generation } = options;
+  // Each series build reads the generation of its own series
   const buildSeries =
-    options.buildSeries ??
-    (seriesUID => seriesSummary(dicomdir, studyUID, seriesUID, { generation }));
+    options.buildSeries ?? (seriesUID => seriesSummary(dicomdir, studyUID, seriesUID));
 
   if (!dicomdir) {
     throw new Error('dicomdir option is required');

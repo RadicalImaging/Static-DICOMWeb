@@ -1,6 +1,6 @@
 import { FileDicomWebReader } from './FileDicomWebReader.mjs';
 import { writeMultipleWithRetry } from './writeWithRetry.mjs';
-import { generationTracker } from './generationTracker.mjs';
+import { generationTracker, seriesGenerationKey } from './generationTracker.mjs';
 import { Tags, TagLists } from '@radicalimaging/static-wado-util';
 
 const { getValue, setValue } = Tags;
@@ -186,7 +186,7 @@ export function seriesFilesExist(reader, studyUID, seriesUID) {
  * @param {string} seriesUID - Series Instance UID
  * @param {Object} [options]
  * @param {boolean} [options.force] - Build the series also when its files are up to date
- * @param {number} [options.generation] - Generation of the study that the build read when it
+ * @param {number} [options.generation] - Generation of the series that the build read when it
  *   started (defaults to the current generation). The files commit only if it did not change.
  * @returns {Promise<{committed: boolean, payload?: Object}>} - committed false when the
  *   generation changed; payload is the series data of the build
@@ -197,7 +197,8 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options = {}) 
   }
 
   // Read the generation before any data, so a change during the scan stops the commit
-  const generation = options.generation ?? generationTracker.current(studyUID);
+  const generationKey = seriesGenerationKey(studyUID, seriesUID);
+  const generation = options.generation ?? generationTracker.current(generationKey);
   const reader = new FileDicomWebReader(baseDir);
   const seriesPath = reader.getSeriesPath(studyUID, seriesUID);
   const instancesPath = `${seriesPath}/instances`;
@@ -238,7 +239,7 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options = {}) 
   let lastPayload;
   const result = await writeMultipleWithRetry({
     ...options,
-    generation: { tracker: generationTracker, studyUID, value: generation },
+    generation: { tracker: generationTracker, key: generationKey, value: generation },
     informationProvider,
     baseDir,
     generatePayload: async () => {
