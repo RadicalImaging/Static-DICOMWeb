@@ -105,9 +105,10 @@ Two cases return before any job:
   unknown Study Instance UID. `studySummary` also returns before it opens a stream when it
   finds no series. Thus a query for an unknown study writes no directory, and uses no slot.
 - `ensureSeriesLevel` returns when an earlier build of the series committed but stored no
-  series file (no instance metadata is readable), and the generation of the series did not
+  series file (the instance metadata is corrupt), and the generation of the series did not
   change since that build (SQR-D3). An in-memory map in `indexOnDemandController.mjs` keeps
-  these results.
+  these results. A build that fails with an I/O error throws before the commit (SQR-I6), so
+  the map gets no entry, and the next request builds the series again.
 
 The study job reads the generation of the study first. Then it calls
 `studyMain(studyUID, { dicomdir, generation, buildSeries })`. `studyMain` calls `buildSeries`
@@ -298,6 +299,10 @@ Applies SQR-D3, SQR-D6 and SQR-D8 to `writeMultipleWithRetry` and `FileDicomWebW
 4. The write function returns `{ committed: false, payload }` when a file has the status
    `'generation-changed'`, or when step 3 found a change. The current retry loop for
    `'updated-stale'` stays.
+5. When `generatePayload()` throws, for example on an I/O error (SQR-I6), the write function
+   deletes the temporary files of the round, and throws the error. It does not return
+   `committed: false`, because that result starts the next rounds of SQR-D6, and those
+   rounds are for a change of the generation, not for a storage outage.
 
 ### SQR-I5. Restore the early return in `seriesSummary`, and add a `force` option
 
@@ -330,6 +335,14 @@ Applies SQR-D9 to the reader. In `FileDicomWebReader.readJsonFile`, the reader d
 file only when the gunzip step or `JSON.parse` fails (`isCorruptFileError`). The reader does
 not delete the file after an I/O error such as `ESTALE`, `EIO` or `ENOENT`. It logs the I/O
 error and returns `undefined`. This change removes the second path of C5.
+
+Applies SQR-D3 to the reads of a build. With the `throwOnIoError` option, `readJsonFile`
+throws an I/O error other than `ENOENT`, and still returns `undefined` for a corrupt file or
+for `ENOENT`. The data reads of the builds use this option: the instance metadata and the
+series metadata in `readSeriesData`, and the series singletons and the instance metadata in
+`readStudyData`. Thus a build fails on an I/O error, and does not commit files that leave
+out the data that it could not read. The reads for the early returns of SQR-I5 do not use
+the option, because a failed read there only starts a build.
 
 ### SQR-I7. Multi-node extension (not in this fix)
 
@@ -411,6 +424,11 @@ proposal in these items:
   `seriesSummary` for each series.
 - **SQR-I6.** The reader no longer removes an old-format metadata directory after a read
   error. The writer still removes such a directory when it commits the new file.
+- **SQR-I1, SQR-I4, SQR-I6 (I/O errors).** After the second review, a build fails on an I/O
+  error, and the record of a series with no readable data applies to corrupt data only
+  (SQR-D3). Before, an I/O error counted the same as missing data. A short storage outage
+  could then make a series give `404` until the next upload or a restart, and a study build
+  could commit a series index without a series.
 
 ## Compatibility
 
@@ -516,8 +534,14 @@ The API must do this:
     does not commit (SQR-D6).
 15. Send a series query for a study that does not exist. The response has status 404, the
     job manager starts no job, and the server creates no directory (SQR-D3, SQR-D12).
-16. Build a series whose instance metadata cannot be read. A second call reads no data.
+16. Build a series whose instance metadata is corrupt. A second call reads no data.
     After an upload into the series, the next call builds the series (SQR-D3).
+17. Build a series while the read of one instance fails with `ESTALE`. The build fails with
+    the error, and stores no file. After the reads succeed again, the next call builds the
+    series, with no upload between the two calls (SQR-U1, SQR-D3).
+18. Send a series query while the read of one series singleton fails with `ESTALE`. The
+    response is an error, and no `series/index.json` that leaves out that series is stored
+    (SQR-D3).
 
 The user experience must have this: test 1 checks SQR-U1, the correct result with status 200.
 Test 6 checks the data rule of SQR-U1 for data that arrives during a build. Test 9 checks the
@@ -525,7 +549,8 @@ Test 6 checks the data rule of SQR-U1 for data that arrives during a build. Test
 does not increase with repeated or concurrent requests. A test of memory use or of response
 time is not reliable in a unit test, so there is no such test.
 
-Test 10 checks SQR-U4, the user experience of the studies list.
+Test 10 checks SQR-U4, the user experience of the studies list. Test 17 checks that a short
+storage outage does not stop the correct result of SQR-U1 after the storage recovers.
 
 Tests 8 and 12 are in `packages/static-wado-webserver/test/unit/buildJobManager.jest.mjs`.
 Test 13 is in `packages/static-wado-webserver/test/unit/stowAbort.jest.mjs`. The other tests

@@ -45,8 +45,9 @@ function runJob(options, key, needsBuild, fn) {
 
 /**
  * Series generation key -> generation of a series build that committed, but could store no
- * series file (no instance metadata is readable). The series is not built again until new
+ * series file (the instance metadata is corrupt). The series is not built again until new
  * data changes its generation, so broken data does not cost a full read on each request.
+ * A read with an I/O error fails the build instead, and records nothing (SQR-D3).
  */
 const seriesWithNoData = new Map();
 

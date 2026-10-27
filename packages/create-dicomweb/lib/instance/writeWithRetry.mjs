@@ -137,6 +137,7 @@ export async function writeWithRetry({
  * 3. After all moves, reads the generation again. When it changed, deletes each moved file.
  * In both cases of a change, returns `committed: false` and does not retry: the caller
  * starts the next round. The retry loop for 'updated-stale' stays as it was.
+ * When generatePayload() throws, the temp files are removed and the error is thrown.
  *
  * @param {Object} params
  * @param {Object} params.informationProvider - UID provider for the writer
@@ -171,7 +172,16 @@ export async function writeMultipleWithRetry({
       streamInfos.push({ ...w, streamInfo });
     }
 
-    payload = await generatePayload();
+    try {
+      payload = await generatePayload();
+    } catch (err) {
+      // Remove the temp files of the round; the caller gets the error
+      for (const { streamInfo } of streamInfos) {
+        writer.recordStreamError(streamInfo.streamKey, err, true);
+        await writer.closeStream(streamInfo.streamKey);
+      }
+      throw err;
+    }
 
     const written = [];
     for (const { streamInfo, getData } of streamInfos) {

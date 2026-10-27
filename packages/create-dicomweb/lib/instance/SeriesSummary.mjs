@@ -54,8 +54,10 @@ function updateLocation(instanceMetadata, instanceUID) {
 
 /**
  * Reads all instance metadata and derives series query data for a series.
- * An instance whose own metadata is missing or unreadable keeps its entry from the
+ * An instance whose own metadata is missing or corrupt keeps its entry from the
  * current series metadata, so a rebuild never drops an instance that is still on disk.
+ * A read that fails with an I/O error (other than ENOENT) throws, so the build fails and
+ * stores nothing (SQR-D3).
  * @param {FileDicomWebReader} reader
  * @param {string} studyUID
  * @param {string} seriesUID
@@ -75,7 +77,8 @@ async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
     if (!currentSeriesMetadata) {
       const current = await reader.readJsonFile(
         reader.getSeriesPath(studyUID, seriesUID),
-        'metadata'
+        'metadata',
+        { throwOnIoError: true }
       );
       currentSeriesMetadata = Array.isArray(current) ? current : [];
     }
@@ -86,6 +89,7 @@ async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
     const instancePath = reader.getInstancePath(studyUID, seriesUID, instanceUID);
     let instanceMetadata = await reader.readJsonFile(instancePath, 'metadata', {
       deleteFileOnError: true,
+      throwOnIoError: true,
     });
     if (instanceMetadata) {
       if (Array.isArray(instanceMetadata) && instanceMetadata.length > 0) {

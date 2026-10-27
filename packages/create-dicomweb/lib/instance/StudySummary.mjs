@@ -22,6 +22,7 @@ async function getFirstInstanceMetadata(reader, studyUID, seriesUIDs) {
       const instancePath = reader.getInstancePath(studyUID, seriesUID, instanceUID);
       const metadata = await reader.readJsonFile(instancePath, 'metadata', {
         deleteFileOnError: true,
+        throwOnIoError: true,
       });
       if (metadata) {
         return Array.isArray(metadata) && metadata.length > 0 ? metadata[0] : metadata;
@@ -33,6 +34,8 @@ async function getFirstInstanceMetadata(reader, studyUID, seriesUIDs) {
 
 /**
  * Scans series directory and reads all series singleton data for a study.
+ * A read that fails with an I/O error (other than ENOENT) throws, so the build fails and
+ * does not commit an index that leaves out the series (SQR-D3).
  * @param {FileDicomWebReader} reader
  * @param {string} studyUID
  * @returns {Promise<{actualSeriesUIDs: Set<string>, seriesQueryArray: Object[], studyQuery: Object|null}>}
@@ -53,6 +56,7 @@ async function readStudyData(reader, studyUID) {
     const seriesSingletonPath = reader.getSeriesPath(studyUID, seriesUID);
     let seriesSingleton = await reader.readJsonFile(seriesSingletonPath, 'series-singleton.json', {
       deleteFileOnError: true,
+      throwOnIoError: true,
     });
     if (seriesSingleton) {
       if (Array.isArray(seriesSingleton) && seriesSingleton.length > 0) {

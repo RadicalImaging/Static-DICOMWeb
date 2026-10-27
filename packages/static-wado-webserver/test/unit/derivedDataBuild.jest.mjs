@@ -7,6 +7,7 @@ import os from 'os';
 import path from 'path';
 import zlib from 'zlib';
 import { once } from 'events';
+import { PassThrough } from 'stream';
 import express from 'express';
 import { createJobManager, createVerboseLog } from '@radicalimaging/static-wado-util';
 import {
@@ -121,6 +122,24 @@ describe('builds of missing derived files', () => {
         return original.call(this, relativePath, filename, options);
       });
     return reads;
+  }
+
+  /** Makes each read whose path includes `pathPart` fail with ESTALE until the returned function is called */
+  function failReadsWithEstale(pathPart) {
+    const original = FileDicomWebReader.prototype.openInputStream;
+    const spy = jest
+      .spyOn(FileDicomWebReader.prototype, 'openInputStream')
+      .mockImplementation(async function openInputStreamSpy(relativePath, filename) {
+        if (!`${relativePath}/${filename}`.includes(pathPart)) {
+          return original.call(this, relativePath, filename);
+        }
+        const stream = new PassThrough();
+        setImmediate(() =>
+          stream.destroy(Object.assign(new Error('stale file handle'), { code: 'ESTALE' }))
+        );
+        return stream;
+      });
+    return () => spy.mockRestore();
   }
 
   beforeEach(async () => {
@@ -323,6 +342,42 @@ describe('builds of missing derived files', () => {
     expect(fs.existsSync(path.join(studyDir(), 'series', broken, 'series-singleton.json.gz'))).toBe(
       true
     );
+  });
+
+  // User experience (SQR-U1) and the API (SQR-D3): an I/O error fails the series build and
+  // records nothing, so the series is built when the storage recovers, with no upload
+  it('fails a series build on an I/O error, and builds the series after the storage recovers', async () => {
+    const jobManager = createJobManager();
+    const [series] = SERIES;
+    const seriesDir = path.join(studyDir(), 'series', series);
+    deleteStaleSummaries(root, new Map([[`${STUDY}&${series}`, {}]]));
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const recover = failReadsWithEstale(`${series}.1/metadata`);
+
+    await expect(ensureSeriesLevel(root, STUDY, series, { jobs: jobManager })).rejects.toMatchObject(
+      { code: 'ESTALE' }
+    );
+    expect(fs.existsSync(path.join(seriesDir, 'series-singleton.json.gz'))).toBe(false);
+    expect(fs.readdirSync(seriesDir).filter(name => name !== 'instances')).toEqual([]);
+
+    recover();
+    await ensureSeriesLevel(root, STUDY, series, { jobs: jobManager });
+    const singleton = readGzJson(path.join(seriesDir, 'series-singleton.json.gz'));
+    expect(singleton[0][NUMBER_OF_SERIES_RELATED_INSTANCES].Value).toEqual([INSTANCES_PER_SERIES]);
+  });
+
+  // The API must do this (SQR-D3): an I/O error on a series file fails the study build, and
+  // no series index that leaves out that series is stored
+  it('stores no series index that leaves out a series with an I/O error', async () => {
+    await startServer(createJobManager());
+    fs.rmSync(seriesIndexPath());
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    failReadsWithEstale(`${SERIES[1]}/series-singleton.json`);
+
+    const response = await fetch(`${baseUrl}/studies/${STUDY}/series`);
+
+    expect(response.status).toBe(500);
+    expect(fs.existsSync(seriesIndexPath())).toBe(false);
   });
 
   // User experience (SQR-U3) and the API (SQR-D11, SQR-D14): a full queue rejects only

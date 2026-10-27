@@ -58,6 +58,9 @@ code are in the implementation document.
   request that needs an update with `503 Service Unavailable` and a `Retry-After` header. A
   request that needs no update does not get this response. This response and SQR-U4 are
   the only exceptions to SQR-U1. The client can send the request again later.
+  A storage outage is outside SQR-U1: when the server cannot read stored data because of an
+  I/O error, a request that needs an update gets an error response. The server keeps no
+  record of that error, so a request after the storage recovers gets the correct result.
 - **SQR-U4. The studies list is a best-effort helper.** The studies list
   (`GET /studies` without `StudyInstanceUID`) is a helper for the local files of a single
   system. It lists each stored study. The summary values of an entry, for example the
@@ -105,12 +108,20 @@ The design has two parts:
   When the file exists, the server does no other check. Supports SQR-U1 and SQR-U2.
 - **SQR-D2. A missing file is always safe.** A missing derived file means "build this file".
   The server builds a missing file on the request path that needs it. Thus a lost update
-  message or a stopped process never leaves a wrong file, only a missing file. Supports SQR-U1
-  and SQR-U3.
+  message or a stopped process never leaves a wrong file, only a missing file. The one
+  exception is a series with corrupt data (SQR-D3): its missing files are not built again
+  until its generation changes. Supports SQR-U1 and SQR-U3.
 - **SQR-D3. Store each build.** Each build stores all files of its level. After a build, each
-  response path of that level has a stored file. A build that finds no readable data stores
-  no file. The server then records that result with the generation of the level, and does
-  not build that level again until the generation changes. Supports SQR-U1 and SQR-U2.
+  response path of that level has a stored file. A build that finds no readable data because
+  the data is corrupt (SQR-D9) stores no file. The server then records that result with the
+  generation of the series, and does not build the series again until the generation changes.
+  When any read of a build fails with an I/O error, the build fails with that error and
+  records nothing, also when other reads are corrupt or succeed. The callers that wait get
+  the error (SQR-D7). A later request builds the level again. A file that does not exist
+  (`ENOENT`) is not an I/O error, because an upload can delete a derived file during a build.
+  A build can thus leave out data only when that data is corrupt or missing: an instance
+  with no readable metadata and no entry in the current series metadata, or a series with
+  no stored series file. Supports SQR-U1 and SQR-U2.
 - **SQR-D4. Build only when necessary, and stop at the stored data.** The server builds a level
   only when a file of the level is missing. A build of a level can work on all of the levels
   below it. For each lower level, the build uses the stored files when they exist, and does

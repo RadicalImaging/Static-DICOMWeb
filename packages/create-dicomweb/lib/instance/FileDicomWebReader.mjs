@@ -140,10 +140,14 @@ export class FileDicomWebReader extends DicomWebReader {
    * With `deleteFileOnError`, deletes the file only when it is corrupt (see
    * isCorruptFileError). An I/O error never deletes the file, because a correct
    * file can give a transient I/O error, for example `ESTALE` on a network file system.
+   * With `throwOnIoError`, an I/O error other than `ENOENT` is thrown, so that a build
+   * fails instead of treating a correct but unreadable file as missing data (SQR-D3).
+   * `ENOENT` still returns undefined, because an upload can delete a file during a build.
    * @param {string} relativePath - Relative path within baseDir
    * @param {string} filename - Filename to read
    * @param {Object} [options] - Options
    * @param {boolean} [options.deleteFileOnError=false] - If true, delete the file (or .gz) after a gunzip or parse error
+   * @param {boolean} [options.throwOnIoError=false] - If true, throw an I/O error other than ENOENT
    * @returns {Promise<Object|undefined>} - Parsed JSON, or undefined if missing or on error
    */
   async readJsonFile(relativePath, filename, options = {}) {
@@ -158,6 +162,9 @@ export class FileDicomWebReader extends DicomWebReader {
         // An upload can delete a derived file between the check and the read
         console.verbose(`Could not read ${fileInfo.path}: ENOENT`);
       } else if (!isCorruptFileError(error)) {
+        if (options.throwOnIoError) {
+          throw error;
+        }
         console.warn(`Could not read ${fileInfo.path}, keeping it: ${error.code || error.message}`);
       } else if (options.deleteFileOnError) {
         try {
