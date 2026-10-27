@@ -45,6 +45,33 @@ function deleteMovedFiles(filepaths) {
   }
 }
 
+/** @returns {string[]} - Paths of the files of `streamInfos` that the writer moved */
+function movedFiles(streamInfos) {
+  return streamInfos
+    .filter(streamInfo => MOVED_STATUSES.has(streamInfo.writeStatus))
+    .map(streamInfo => streamInfo.filepath);
+}
+
+/**
+ * Removes the temp files of a round that failed before its commit: aborts each stream that
+ * is still open, and removes the deferred moves of the closed streams. A cleanup error is
+ * logged, so the caller still gets the error of the round.
+ */
+async function discardRound(writer, streamInfos, closed, err) {
+  for (const { streamInfo } of streamInfos) {
+    if (closed.has(streamInfo)) {
+      continue;
+    }
+    try {
+      writer.recordStreamError(streamInfo.streamKey, err, true);
+      await writer.closeStream(streamInfo.streamKey);
+    } catch (cleanupErr) {
+      console.warn('[writeMultipleWithRetry] Could not discard a stream:', cleanupErr?.message);
+    }
+  }
+  writer.rollbackPendingMoves();
+}
+
 /**
  * Writes data to a DICOMweb file with compareOnClose enabled, retrying if the
  * file was modified by another writer during the write.
@@ -91,7 +118,13 @@ export async function writeWithRetry({
     const streamInfo = await openStream(writer);
 
     // 2. Now read source data (after mtime is captured)
-    const data = await generateData();
+    let data;
+    try {
+      data = await generateData();
+    } catch (err) {
+      writer.recordStreamError(streamInfo.streamKey, err, true);
+      throw err;
+    }
     if (data === null) {
       // Nothing to write — abort the stream and clean up
       writer.recordStreamError(streamInfo.streamKey, new Error('No data to write'), true);
@@ -137,7 +170,11 @@ export async function writeWithRetry({
  * 3. After all moves, reads the generation again. When it changed, deletes each moved file.
  * In both cases of a change, returns `committed: false` and does not retry: the caller
  * starts the next round. The retry loop for 'updated-stale' stays as it was.
- * When generatePayload() throws, the temp files are removed and the error is thrown.
+ * When an open, generatePayload() or getData() throws, the temp files of the round are
+ * removed and the error is thrown. When a rename of the commit throws, the files that moved
+ * before it are deleted (a missing file is safe, SQR-D2) and the error is thrown.
+ * With `commit` false, the round writes and compares its files, and does not commit them
+ * (`committed: false`), for example when a nested build of a lower level did not commit.
  *
  * @param {Object} params
  * @param {Object} params.informationProvider - UID provider for the writer
@@ -146,6 +183,7 @@ export async function writeWithRetry({
  * @param {Array<{openStream: (writer) => Promise<Object>, getData: (payload) => string|Buffer|null, label: string}>} params.writes
  * @param {{tracker: Object, key: string, value?: number}} [params.generation] - Generation tracker and key
  * @param {number} [params.retries]
+ * @param {boolean} [params.commit=true] - false: do not commit the round
  * @returns {Promise<{writeStatus: string, committed: boolean, payload: *}>} - payload of the last attempt
  */
 export async function writeMultipleWithRetry({
@@ -155,9 +193,10 @@ export async function writeMultipleWithRetry({
   writes,
   generation,
   retries = MAX_RETRIES,
+  commit = true,
 }) {
   const label = writes.map(w => w.label).join(', ');
-  const isCurrent = createGenerationCheck(generation);
+  const isCurrent = commit ? createGenerationCheck(generation) : () => false;
   let payload;
   for (let attempt = 1; attempt <= retries; attempt++) {
     // Deferred moves: all files of the round commit together, after one canCommit() check
@@ -167,50 +206,47 @@ export async function writeMultipleWithRetry({
       deferFinalMove: true,
     });
     const streamInfos = [];
-    for (const w of writes) {
-      const streamInfo = await w.openStream(writer);
-      streamInfos.push({ ...w, streamInfo });
-    }
-
+    const closed = new Set();
+    const written = [];
     try {
-      payload = await generatePayload();
-    } catch (err) {
-      // Remove the temp files of the round; the caller gets the error
-      for (const { streamInfo } of streamInfos) {
-        writer.recordStreamError(streamInfo.streamKey, err, true);
-        await writer.closeStream(streamInfo.streamKey);
+      for (const w of writes) {
+        const streamInfo = await w.openStream(writer);
+        streamInfos.push({ ...w, streamInfo });
       }
+
+      payload = await generatePayload();
+
+      for (const { streamInfo, getData } of streamInfos) {
+        const data = getData(payload);
+        if (data === null) {
+          writer.recordStreamError(streamInfo.streamKey, new Error('No data to write'), true);
+          await writer.closeStream(streamInfo.streamKey);
+          closed.add(streamInfo);
+          continue;
+        }
+        streamInfo.write(Buffer.isBuffer(data) ? data : Buffer.from(data));
+        await writer.closeStream(streamInfo.streamKey);
+        closed.add(streamInfo);
+        written.push(streamInfo);
+      }
+    } catch (err) {
+      await discardRound(writer, streamInfos, closed, err);
       throw err;
     }
 
-    const written = [];
-    for (const { streamInfo, getData } of streamInfos) {
-      const data = getData(payload);
-      if (data === null) {
-        writer.recordStreamError(streamInfo.streamKey, new Error('No data to write'), true);
-        await writer.closeStream(streamInfo.streamKey);
-        continue;
-      }
-      streamInfo.write(Buffer.isBuffer(data) ? data : Buffer.from(data));
-      await writer.closeStream(streamInfo.streamKey);
-      written.push(streamInfo);
+    try {
+      await writer.commitPendingMoves();
+    } catch (err) {
+      // A missing file is safe (SQR-D2): remove the files that moved before the failure
+      deleteMovedFiles(movedFiles(written));
+      throw err;
     }
-    await writer.commitPendingMoves();
 
-    let anyStale = false;
-    let generationChanged = false;
-    const moved = [];
-    for (const streamInfo of written) {
-      const status = streamInfo.writeStatus;
-      if (status === 'updated-stale') {
-        anyStale = true;
-      } else if (status === 'generation-changed') {
-        generationChanged = true;
-      }
-      if (MOVED_STATUSES.has(status)) {
-        moved.push(streamInfo.filepath);
-      }
-    }
+    const anyStale = written.some(streamInfo => streamInfo.writeStatus === 'updated-stale');
+    const generationChanged = written.some(
+      streamInfo => streamInfo.writeStatus === 'generation-changed'
+    );
+    const moved = movedFiles(written);
 
     if (generationChanged || (isCurrent && !isCurrent())) {
       deleteMovedFiles(moved);

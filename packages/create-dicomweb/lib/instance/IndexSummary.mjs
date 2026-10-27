@@ -1,6 +1,4 @@
-import fs from 'fs';
-import path from 'path';
-import { FileDicomWebReader } from './FileDicomWebReader.mjs';
+import { FileDicomWebReader, createBuildReader } from './FileDicomWebReader.mjs';
 import { writeWithRetry } from './writeWithRetry.mjs';
 import { Tags, sortStudies } from '@radicalimaging/static-wado-util';
 
@@ -18,7 +16,9 @@ async function buildStudiesIndex(reader, studiesToProcess) {
 
   // Read existing studies/index.json.gz
   const existingStudyUIDs = new Map();
-  const existingData = await reader.readJsonFile(studiesIndexPath, 'index.json', { deleteFileOnError: true });
+  const existingData = await reader.readJsonFile(studiesIndexPath, 'index.json', {
+    deleteFileOnError: true,
+  });
   if (existingData && Array.isArray(existingData)) {
     for (const studyQuery of existingData) {
       const studyUID = getValue(studyQuery, Tags.StudyInstanceUID);
@@ -32,11 +32,14 @@ async function buildStudiesIndex(reader, studiesToProcess) {
   const updatedStudyUIDs = new Map();
   for (const studyUID of studiesToProcess) {
     const studyPath = reader.getStudyPath(studyUID);
-    const studySingleton = await reader.readJsonFile(studyPath, 'index.json', { deleteFileOnError: true });
+    const studySingleton = await reader.readJsonFile(studyPath, 'index.json', {
+      deleteFileOnError: true,
+    });
     if (studySingleton) {
-      let studyQuery = Array.isArray(studySingleton) && studySingleton.length > 0
-        ? studySingleton[0]
-        : studySingleton;
+      let studyQuery =
+        Array.isArray(studySingleton) && studySingleton.length > 0
+          ? studySingleton[0]
+          : studySingleton;
       const studyUIDFromQuery = getValue(studyQuery, Tags.StudyInstanceUID);
       if (studyUIDFromQuery) {
         updatedStudyUIDs.set(studyUIDFromQuery, studyQuery);
@@ -55,12 +58,12 @@ async function buildStudiesIndex(reader, studiesToProcess) {
 
   for (const [studyUID, studyQuery] of existingStudyUIDs.entries()) {
     if (!processedUIDs.has(studyUID)) {
-      const studyPath = reader.getStudyPath(studyUID);
-      const studyDirPath = path.join(reader.baseDir, studyPath);
-      if (fs.existsSync(studyDirPath) && fs.lstatSync(studyDirPath).isDirectory()) {
+      if (reader.directoryExists(reader.getStudyPath(studyUID))) {
         finalStudiesIndex.push(studyQuery);
       } else {
-        console.noQuiet(`indexSummary: removing study ${studyUID} from index (directory not found)`);
+        console.noQuiet(
+          `indexSummary: removing study ${studyUID} from index (directory not found)`
+        );
       }
     }
   }
@@ -88,7 +91,8 @@ export async function indexSummary(baseDir, studyUIDs = [], options = {}) {
     throw new Error('baseDir is required');
   }
 
-  const reader = new FileDicomWebReader(baseDir);
+  // An I/O error throws, so the write never drops the studies that the storage cannot read now
+  const reader = createBuildReader(baseDir);
   const studiesIndexPath = 'studies';
 
   // Determine which studies to process
@@ -96,11 +100,7 @@ export async function indexSummary(baseDir, studyUIDs = [], options = {}) {
 
   if (studyUIDs.length === 0) {
     console.noQuiet('indexSummary: scanning studies directory for all studies');
-    const studiesPath = path.join(reader.baseDir, studiesIndexPath);
-
-    if (fs.existsSync(studiesPath)) {
-      studiesToProcess = new Set(await reader.listDirectories(studiesIndexPath));
-    }
+    studiesToProcess = new Set(await reader.listDirectories(studiesIndexPath));
   } else {
     for (const studyUID of studyUIDs) {
       studiesToProcess.add(studyUID);
@@ -108,7 +108,9 @@ export async function indexSummary(baseDir, studyUIDs = [], options = {}) {
   }
 
   if (options.onlyMissing) {
-    const existing = await reader.readJsonFile(studiesIndexPath, 'index.json');
+    const existing = await reader.readJsonFile(studiesIndexPath, 'index.json', {
+      deleteFileOnError: true,
+    });
     if (!Array.isArray(existing)) {
       return;
     }
@@ -129,7 +131,8 @@ export async function indexSummary(baseDir, studyUIDs = [], options = {}) {
   await writeWithRetry({
     informationProvider: {},
     baseDir,
-    openStream: (writer) => writer.openStream(studiesIndexPath, 'index.json', { gzip: true, compareOnClose: true }),
+    openStream: writer =>
+      writer.openStream(studiesIndexPath, 'index.json', { gzip: true, compareOnClose: true }),
     generateData: () => buildStudiesIndex(reader, studiesToProcess),
     label: 'indexSummary studies/index.json',
   });

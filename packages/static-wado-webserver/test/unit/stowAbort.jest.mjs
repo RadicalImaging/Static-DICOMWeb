@@ -8,7 +8,12 @@ import path from 'path';
 import { once } from 'events';
 import express from 'express';
 import { createVerboseLog } from '@radicalimaging/static-wado-util';
-import { seriesSummary, studyMain, generationTracker } from '@radicalimaging/create-dicomweb';
+import {
+  seriesSummary,
+  studyMain,
+  generationTracker,
+  seriesGenerationKey,
+} from '@radicalimaging/create-dicomweb';
 import { streamPostController } from '../../lib/controllers/server/streamPostController.mjs';
 
 createVerboseLog(false, { quiet: true });
@@ -32,7 +37,7 @@ describe('an upload that aborts after it stores an instance', () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
-  // The API must do this (SQR-D5): each stored instance makes its derived files stale at once
+  // Test 13. The API must do this (SQR-D5): each stored instance makes its derived files stale at once
   it('deletes the derived files of the series and the study, and changes the generation', async () => {
     const app = express();
     app.post(
@@ -79,11 +84,14 @@ describe('an upload that aborts after it stores an instance', () => {
       path.join(studiesDir, studyUID, 'index.json.gz'),
     ];
     derivedFiles.forEach(file => expect(fs.existsSync(file)).toBe(true));
+    const seriesKey = seriesGenerationKey(studyUID, seriesUID);
     const generation = generationTracker.current(studyUID);
+    const seriesGeneration = generationTracker.current(seriesKey);
 
     await upload();
 
     derivedFiles.forEach(file => expect(fs.existsSync(file)).toBe(false));
     expect(generationTracker.current(studyUID)).toBeGreaterThan(generation);
+    expect(generationTracker.current(seriesKey)).toBeGreaterThan(seriesGeneration);
   });
 });

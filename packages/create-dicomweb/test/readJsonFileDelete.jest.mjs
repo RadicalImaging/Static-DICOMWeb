@@ -2,7 +2,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { PassThrough } from 'stream';
-import { FileDicomWebReader } from '../lib/instance/FileDicomWebReader.mjs';
+import { StorageUnavailableError } from '@radicalimaging/static-wado-util';
+import { FileDicomWebReader, createBuildReader } from '../lib/instance/FileDicomWebReader.mjs';
 
 /**
  * readJsonFile with deleteFileOnError deletes a corrupt file only. A correct file can give
@@ -45,5 +46,27 @@ describe('FileDicomWebReader.readJsonFile with deleteFileOnError', () => {
       await reader.readJsonFile('studies', 'good.json', { deleteFileOnError: true })
     ).toBeUndefined();
     expect(fs.existsSync(goodPath)).toBe(true);
+  });
+
+  // The API must do this (SQR-D3): a missing path is "missing" in both modes, and an I/O error
+  // throws only from the reader of a build
+  it.each([
+    ['ENOENT', false],
+    ['ENOTDIR', false],
+    ['EACCES', true],
+  ])('classifies a failed existence check with %s', (code, ioError) => {
+    for (const name of ['statSync', 'lstatSync']) {
+      jest.spyOn(fs, name).mockImplementation(() => {
+        throw Object.assign(new Error(code), { code });
+      });
+    }
+
+    expect(new FileDicomWebReader(baseDir).fileExists('studies', 'x.json')).toBe(false);
+    const check = () => createBuildReader(baseDir).fileExists('studies', 'x.json');
+    if (ioError) {
+      expect(check).toThrow(StorageUnavailableError);
+    } else {
+      expect(check()).toBe(false);
+    }
   });
 });

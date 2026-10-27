@@ -236,18 +236,27 @@ export class FileDicomWebWriter extends DicomWebWriter {
    * `canCommit()` check, so on one node the files commit all together, or not at all.
    */
   async commitPendingMoves() {
-    const moves = [];
-    for (const streamInfo of this.pendingMoves) {
-      if (await this._prepareMove(streamInfo)) {
-        moves.push(streamInfo);
-      }
-    }
-    // No await from here to the last rename
-    const commit = this._canCommit();
-    for (const streamInfo of moves) {
-      this._finishMove(streamInfo, commit);
-    }
+    const pending = this.pendingMoves;
     this.pendingMoves = [];
+    try {
+      const moves = [];
+      for (const streamInfo of pending) {
+        if (await this._prepareMove(streamInfo)) {
+          moves.push(streamInfo);
+        }
+      }
+      // No await from here to the last rename
+      const commit = this._canCommit();
+      for (const streamInfo of moves) {
+        this._finishMove(streamInfo, commit);
+      }
+    } catch (err) {
+      // Remove the temp files that did not move; a moved temp file no longer exists
+      for (const streamInfo of pending) {
+        this._cleanupTempFile(streamInfo.tempFilepath);
+      }
+      throw err;
+    }
   }
 
   /**

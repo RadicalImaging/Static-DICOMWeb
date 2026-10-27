@@ -1,6 +1,5 @@
 import fs from 'fs';
 import { handleHomeRelative } from '@radicalimaging/static-wado-util';
-import { FileDicomWebReader } from '@radicalimaging/create-dicomweb';
 import { seriesSingleMap, qidoMap, getDicomKey } from '../../adapters/requestAdapters.mjs';
 import { getBuildJobManager } from '../../util/buildJobManager.mjs';
 import {
@@ -38,7 +37,6 @@ export function seriesQueryController(dir, params = {}) {
     if (createOnDemand && !fs.existsSync(responsePath)) {
       try {
         const options = {
-          reader: new FileDicomWebReader(root),
           jobs: getBuildJobManager(params),
           studyIndex: params.studyIndex,
         };

@@ -1,12 +1,17 @@
 import fs from 'node:fs/promises';
-import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import zlib from 'node:zlib';
-import { handleHomeRelative } from '@radicalimaging/static-wado-util';
+import {
+  handleHomeRelative,
+  isMissingPathError,
+  toStorageError,
+} from '@radicalimaging/static-wado-util';
+import { createBuildReader } from '@radicalimaging/create-dicomweb';
 import { getBuildJobManager } from '../../util/buildJobManager.mjs';
 import {
   ensureSeriesLevel,
+  seriesNeedsBuild,
   seriesMetadataOf,
   handleBuildError,
 } from './indexOnDemandController.mjs';
@@ -20,7 +25,7 @@ async function readSeriesMetadata(seriesDirectory) {
     const compressed = await fs.readFile(gzipPath);
     return JSON.parse((await gunzip(compressed)).toString('utf8'));
   } catch (error) {
-    if (error?.code !== 'ENOENT') {
+    if (!isMissingPathError(error)) {
       throw error;
     }
   }
@@ -28,16 +33,13 @@ async function readSeriesMetadata(seriesDirectory) {
   return JSON.parse(await fs.readFile(path.join(seriesDirectory, 'metadata'), 'utf8'));
 }
 
-const hasSeriesMetadata = seriesDirectory =>
-  existsSync(path.join(seriesDirectory, 'metadata.gz')) ||
-  existsSync(path.join(seriesDirectory, 'metadata'));
-
 /**
  * Serves standard WADO-RS study metadata by combining the generated metadata
- * arrays for every series in the study. When the metadata of a series is missing, builds
- * those series in one job of the build job manager (each series as a nested job), and uses
- * the data of the first round for a series whose build did not commit. When the build
- * queue is full, answers 503 with Retry-After.
+ * arrays for every series in the study. When a series needs a build (seriesNeedsBuild),
+ * builds those series in one job of the build job manager (each series as a nested job), and
+ * uses the data of the first round for a series whose build did not commit. With builds on
+ * demand, a series that stores no metadata (no readable data) adds no instances. When the
+ * build queue is full, or the storage cannot be read, answers 503 with Retry-After.
  *
  * @param {string} dir Static DICOMweb root directory.
  * @param {object} params Server parameters.
@@ -52,42 +54,57 @@ export function studyMetadataQueryController(dir, params = {}) {
     const createOnDemand = params.createIndexOnDemand !== false;
 
     try {
-      const seriesEntries = (await fs.readdir(seriesRoot, { withFileTypes: true }))
+      const seriesUIDs = (
+        await fs.readdir(seriesRoot, { withFileTypes: true }).catch(error => {
+          throw toStorageError(seriesRoot, error);
+        })
+      )
         .filter(entry => entry.isDirectory())
-        .sort((left, right) => left.name.localeCompare(right.name));
-      const missing = () =>
-        seriesEntries.filter(entry => !hasSeriesMetadata(path.join(seriesRoot, entry.name)));
+        .map(entry => entry.name)
+        .sort((left, right) => left.localeCompare(right));
 
       let built;
-      if (createOnDemand && missing().length) {
-        const result = await getBuildJobManager(params).run(
-          `study-metadata:${studyUID}`,
-          () => missing().length > 0,
-          async context => {
-            const payload = new Map();
-            for (const entry of missing()) {
-              const seriesResult = await ensureSeriesLevel(root, studyUID, entry.name, {
-                context,
-              });
-              payload.set(entry.name, seriesMetadataOf(seriesResult));
+      if (createOnDemand) {
+        const reader = createBuildReader(root);
+        const needsBuild = async () => {
+          for (const seriesUID of seriesUIDs) {
+            if (await seriesNeedsBuild(reader, studyUID, seriesUID)) {
+              return true;
             }
-            // Each series job starts its own next round, so this job does not
-            return { committed: true, payload };
           }
-        );
-        built = result?.payload;
+          return false;
+        };
+        if (await needsBuild()) {
+          const result = await getBuildJobManager(params).run(
+            `study-metadata:${studyUID}`,
+            needsBuild,
+            async context => {
+              const payload = new Map();
+              for (const seriesUID of seriesUIDs) {
+                const seriesResult = await ensureSeriesLevel(root, studyUID, seriesUID, {
+                  reader,
+                  context,
+                });
+                payload.set(seriesUID, seriesMetadataOf(seriesResult));
+              }
+              // Each series job starts its own next round, so this job does not
+              return { committed: true, payload };
+            }
+          );
+          built = result?.payload;
+        }
       }
 
       const metadataBySeries = await Promise.all(
-        seriesEntries.map(async entry => {
+        seriesUIDs.map(async seriesUID => {
+          const seriesDirectory = path.join(seriesRoot, seriesUID);
           try {
-            return await readSeriesMetadata(path.join(seriesRoot, entry.name));
+            return await readSeriesMetadata(seriesDirectory);
           } catch (error) {
-            const fallback = built?.get(entry.name);
-            if (error?.code === 'ENOENT' && fallback?.length) {
-              return fallback;
+            if (createOnDemand && isMissingPathError(error)) {
+              return built?.get(seriesUID) ?? [];
             }
-            throw error;
+            throw toStorageError(seriesDirectory, error);
           }
         })
       );
@@ -99,7 +116,7 @@ export function studyMetadataQueryController(dir, params = {}) {
 
       return res.type('application/dicom+json').send(metadata);
     } catch (error) {
-      if (error?.code === 'ENOENT') {
+      if (isMissingPathError(error)) {
         return res.status(404).json([]);
       }
       return handleBuildError(

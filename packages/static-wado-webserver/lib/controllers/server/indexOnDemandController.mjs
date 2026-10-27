@@ -1,15 +1,11 @@
-import {
-  handleHomeRelative,
-  getStudyUIDPathAndSubPath,
-  QueueFullError,
-} from '@radicalimaging/static-wado-util';
+import { handleHomeRelative, getStudyUIDPathAndSubPath } from '@radicalimaging/static-wado-util';
 import {
   indexSummary,
   studyMain,
   seriesSummary,
   seriesFilesExist,
   studyFilesExist,
-  FileDicomWebReader,
+  createBuildReader,
   generationTracker,
   seriesGenerationKey,
 } from '@radicalimaging/create-dicomweb';
@@ -44,10 +40,11 @@ function runJob(options, key, needsBuild, fn) {
 }
 
 /**
- * Series generation key -> generation of a series build that committed, but could store no
- * series file (the instance metadata is corrupt). The series is not built again until new
- * data changes its generation, so broken data does not cost a full read on each request.
- * A read with an I/O error fails the build instead, and records nothing (SQR-D3).
+ * Series generation key -> generation of a series build that committed, but found instance
+ * directories with no readable metadata (`noneReadable`: corrupt or missing files). The series
+ * is not built again until new data changes its generation, so broken data does not cost a
+ * full read on each request. An I/O error fails the build instead, and records nothing, and
+ * a series with no instance directories never starts a build (SQR-D3).
  */
 const seriesWithNoData = new Map();
 
@@ -64,9 +61,29 @@ function hasNoData(generationKey) {
 }
 
 /**
+ * Returns true when the series level of a series needs a build: a series file is missing,
+ * the series has instance directories, and no build of the current generation found only
+ * unreadable data (seriesWithNoData). With a build reader, an I/O error throws.
+ * @param {FileDicomWebReader} reader
+ * @param {string} studyUID
+ * @param {string} seriesUID
+ * @returns {Promise<boolean>}
+ */
+export async function seriesNeedsBuild(reader, studyUID, seriesUID) {
+  if (
+    seriesFilesExist(reader, studyUID, seriesUID) ||
+    hasNoData(seriesGenerationKey(studyUID, seriesUID))
+  ) {
+    return false;
+  }
+  const instancesPath = `${reader.getSeriesPath(studyUID, seriesUID)}/instances`;
+  return (await reader.listDirectories(instancesPath)).length > 0;
+}
+
+/**
  * Ensures that the series level of one series exists, and builds it in a job of the
- * build job manager when a file is missing. Returns immediately, outside the job
- * manager, when all files exist.
+ * build job manager when it needs a build (seriesNeedsBuild). Returns immediately, outside
+ * the job manager, when it does not.
  *
  * @param {string} root - Resolved DICOMweb root directory
  * @param {string} studyUID - Study Instance UID
@@ -80,18 +97,17 @@ function hasNoData(generationKey) {
  *   round of the build, or undefined when no build was necessary
  */
 export async function ensureSeriesLevel(root, studyUID, seriesUID, options = {}) {
-  const reader = options.reader ?? new FileDicomWebReader(root);
+  const reader = options.reader ?? createBuildReader(root);
   const generationKey = seriesGenerationKey(studyUID, seriesUID);
-  const needsBuild = () =>
-    !seriesFilesExist(reader, studyUID, seriesUID) && !hasNoData(generationKey);
-  if (!needsBuild()) {
+  const needsBuild = () => seriesNeedsBuild(reader, studyUID, seriesUID);
+  if (!(await needsBuild())) {
     return undefined;
   }
   return runJob(options, `series:${studyUID}/${seriesUID}`, needsBuild, async () => {
     console.verbose(`Processing series ${seriesUID}...`);
     const generation = generationTracker.current(generationKey);
     const result = await seriesSummary(root, studyUID, seriesUID, { generation });
-    if (result?.committed && !seriesFilesExist(reader, studyUID, seriesUID)) {
+    if (result?.committed && result.payload?.noneReadable) {
       seriesWithNoData.set(generationKey, generation);
     }
     console.noQuiet(`Completed series ${seriesUID}`);
@@ -118,7 +134,7 @@ export async function ensureSeriesLevel(root, studyUID, seriesUID, options = {})
  *   round of the build, or undefined when no build was necessary
  */
 export async function ensureStudyLevel(root, studyUID, options = {}) {
-  const reader = options.reader ?? new FileDicomWebReader(root);
+  const reader = options.reader ?? createBuildReader(root);
   const needsBuild = () => !studyFilesExist(reader, studyUID);
   if (!needsBuild()) {
     return undefined;
@@ -179,7 +195,7 @@ export function addStudyToStudiesIndex(root, studyUID) {
  * @returns {Promise<{committed: boolean}|undefined>} - undefined when the list exists
  */
 export async function ensureStudiesLevel(root, options = {}) {
-  const reader = options.reader ?? new FileDicomWebReader(root);
+  const reader = options.reader ?? createBuildReader(root);
   const needsBuild = () => !reader.fileExists('studies', 'index.json');
   if (!needsBuild()) {
     return undefined;
@@ -187,7 +203,8 @@ export async function ensureStudiesLevel(root, options = {}) {
   return runJob(options, 'studies', needsBuild, async context => {
     for (const studyUID of await reader.listDirectories('studies')) {
       if (studyUID === 'temp') continue;
-      await ensureStudyLevel(root, studyUID, { reader, context, studyIndex: false });
+      // A study round that does not commit adds the study itself when a later round commits
+      await ensureStudyLevel(root, studyUID, { reader, context, studyIndex: options.studyIndex });
     }
     await serializeStudiesIndex(() => indexSummary(root, []));
     return { committed: true };
@@ -217,16 +234,24 @@ export function sendBuildPayload(res, data) {
   res.send(typeof data === 'string' ? data : JSON.stringify(data));
 }
 
+/** Error names that a request answers with 503, and the reason of the response */
+const UNAVAILABLE_REASONS = {
+  QueueFullError: 'too many builds in progress',
+  StorageUnavailableError: 'the storage cannot be read',
+};
+
 /**
- * Handles an error of a build for a request: a QueueFullError gets
- * `503 Service Unavailable` with a `Retry-After` header, other errors go to next.
+ * Handles an error of a build for a request. A QueueFullError (SQR-D14) and a
+ * StorageUnavailableError (an I/O error of the storage, SQR-U3) get
+ * `503 Service Unavailable` with a `Retry-After` header. Other errors go to next.
  * @returns {boolean|void}
  */
 export function handleBuildError(err, res, next, label) {
-  if (err instanceof QueueFullError || err?.name === 'QueueFullError') {
+  const reason = UNAVAILABLE_REASONS[err?.name];
+  if (reason) {
     console.warn(`${label}: ${err.message}`);
     res.setHeader('Retry-After', String(err.retryAfterSeconds ?? 10));
-    res.status(503).send('Service Unavailable: too many builds in progress, retry later');
+    res.status(503).send(`Service Unavailable: ${reason}, retry later`);
     return;
   }
   console.error(`${label}:`, err?.message || err);
@@ -255,7 +280,7 @@ export function studyQueryController(dir, params = {}) {
     try {
       if (studyUID) {
         if (createOnDemand && root) {
-          const reader = new FileDicomWebReader(root);
+          const reader = createBuildReader(root);
           const result = await ensureStudyLevel(root, studyUID, {
             reader,
             jobs,

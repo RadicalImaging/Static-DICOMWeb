@@ -1,4 +1,4 @@
-import { FileDicomWebReader } from './FileDicomWebReader.mjs';
+import { FileDicomWebReader, createBuildReader } from './FileDicomWebReader.mjs';
 import { writeMultipleWithRetry } from './writeWithRetry.mjs';
 import { generationTracker, seriesGenerationKey } from './generationTracker.mjs';
 import { Tags, TagLists } from '@radicalimaging/static-wado-util';
@@ -56,7 +56,7 @@ function updateLocation(instanceMetadata, instanceUID) {
  * Reads all instance metadata and derives series query data for a series.
  * An instance whose own metadata is missing or corrupt keeps its entry from the
  * current series metadata, so a rebuild never drops an instance that is still on disk.
- * A read that fails with an I/O error (other than ENOENT) throws, so the build fails and
+ * The reader must use `throwOnIoError`: an I/O error then throws, so the build fails and
  * stores nothing (SQR-D3).
  * @param {FileDicomWebReader} reader
  * @param {string} studyUID
@@ -77,8 +77,7 @@ async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
     if (!currentSeriesMetadata) {
       const current = await reader.readJsonFile(
         reader.getSeriesPath(studyUID, seriesUID),
-        'metadata',
-        { throwOnIoError: true }
+        'metadata'
       );
       currentSeriesMetadata = Array.isArray(current) ? current : [];
     }
@@ -89,7 +88,6 @@ async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
     const instancePath = reader.getInstancePath(studyUID, seriesUID, instanceUID);
     let instanceMetadata = await reader.readJsonFile(instancePath, 'metadata', {
       deleteFileOnError: true,
-      throwOnIoError: true,
     });
     if (instanceMetadata) {
       if (Array.isArray(instanceMetadata) && instanceMetadata.length > 0) {
@@ -185,6 +183,11 @@ export function seriesFilesExist(reader, studyUID, seriesUID) {
  * same as the instance directories, and series-singleton.json and instances/index.json
  * exist. `force` skips that early return.
  *
+ * The series metadata is never written as []: when instance directories exist but no
+ * instance metadata is readable (`noneReadable`), the build keeps the current series
+ * metadata; a series with no instances stores no metadata. The reader of the build
+ * (createBuildReader) throws on an I/O error, so the build then fails and stores nothing.
+ *
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @param {string} studyUID - Study Instance UID
  * @param {string} seriesUID - Series Instance UID
@@ -203,7 +206,7 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options = {}) 
   // Read the generation before any data, so a change during the scan stops the commit
   const generationKey = seriesGenerationKey(studyUID, seriesUID);
   const generation = options.generation ?? generationTracker.current(generationKey);
-  const reader = new FileDicomWebReader(baseDir);
+  const reader = createBuildReader(baseDir);
   const seriesPath = reader.getSeriesPath(studyUID, seriesUID);
   const instancesPath = `${seriesPath}/instances`;
 
@@ -254,13 +257,9 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options = {}) 
       {
         openStream: writer =>
           writer.openSeriesStream('metadata', { gzip: true, compareOnClose: true }),
-        // Instance directories exist but none could be read: keep the current series
-        // metadata rather than replacing it with []
         getData: data => {
-          if (!data.noneReadable) {
-            return JSON.stringify(data.instanceMetadataArray);
-          }
-          return data.keptSeriesMetadata.length ? JSON.stringify(data.keptSeriesMetadata) : null;
+          const metadata = data.noneReadable ? data.keptSeriesMetadata : data.instanceMetadataArray;
+          return metadata.length ? JSON.stringify(metadata) : null;
         },
         label: `seriesSummary(${studyUID}/${seriesUID}) metadata`,
       },

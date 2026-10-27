@@ -28,9 +28,21 @@ import createStudyDirectories from './createStudyDirectories';
 import TagLists from './TagLists.mjs';
 import uids from './uids';
 import { compareTo } from './compareTo';
-import { sortStudies, compareStudies, compareStudyDate, compareStudyTime, compareStudyUID } from './sortStudies.mjs';
+import {
+  sortStudies,
+  compareStudies,
+  compareStudyDate,
+  compareStudyTime,
+  compareStudyUID,
+} from './sortStudies.mjs';
 import { createPromiseTracker } from './createPromiseTracker.mjs';
 import { createJobManager, QueueFullError } from './createJobManager.mjs';
+import {
+  StorageUnavailableError,
+  isMissingPathError,
+  isCorruptFileError,
+  toStorageError,
+} from './StorageUnavailableError.mjs';
 import { createProgressReporter } from './createProgressReporter.mjs';
 import { parseTimeoutToMs } from './parseTimeoutToMs';
 import { parseSizeToBytes } from './parseSizeToBytes';
@@ -73,6 +85,10 @@ export {
   createPromiseTracker,
   createJobManager,
   QueueFullError,
+  StorageUnavailableError,
+  isMissingPathError,
+  isCorruptFileError,
+  toStorageError,
   createProgressReporter,
   parseTimeoutToMs,
   parseSizeToBytes,

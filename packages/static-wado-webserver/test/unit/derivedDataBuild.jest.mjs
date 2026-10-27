@@ -23,7 +23,9 @@ import {
   studyQueryController,
   ensureStudyLevel,
   ensureSeriesLevel,
+  ensureStudiesLevel,
 } from '../../lib/controllers/server/indexOnDemandController.mjs';
+import { studyMetadataQueryController } from '../../lib/controllers/server/studyMetadataQueryController.mjs';
 import { deleteStaleSummaries } from '../../lib/controllers/server/deleteStaleSummaries.mjs';
 import { indexingStaticController } from '../../lib/controllers/server/staticControllers.mjs';
 
@@ -102,6 +104,7 @@ describe('builds of missing derived files', () => {
     });
     app.get('/studies', studyQueryController(root, params));
     app.get('/studies/:studyUID/series', seriesQueryController(root, params));
+    app.get('/studies/:studyUID/metadata', studyMetadataQueryController(root, params));
     app.use(indexingStaticController(root));
     server = app.listen(0);
     await once(server, 'listening');
@@ -142,6 +145,20 @@ describe('builds of missing derived files', () => {
     return () => spy.mockRestore();
   }
 
+  /** Makes each stat of a path that `matches` fail with EACCES until the returned function is called */
+  function failStatsWithEacces(matches) {
+    const spies = ['statSync', 'lstatSync'].map(name => {
+      const original = fs[name];
+      return jest.spyOn(fs, name).mockImplementation((target, ...rest) => {
+        if (matches(String(target))) {
+          throw Object.assign(new Error('permission denied'), { code: 'EACCES', syscall: name });
+        }
+        return original(target, ...rest);
+      });
+    });
+    return () => spies.forEach(spy => spy.mockRestore());
+  }
+
   beforeEach(async () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'derived-data-build-'));
     await storeAndBuildStudy();
@@ -154,7 +171,7 @@ describe('builds of missing derived files', () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
-  // User experience (SQR-U1): a missing series index gives 200 and all series, and is stored
+  // Test 1 (and test 2 below). User experience (SQR-U1): a missing series index gives 200 and all series, and is stored
   it('builds a missing series index on a series query, and serves the stored file the next time', async () => {
     await startServer(createJobManager());
     fs.rmSync(seriesIndexPath());
@@ -164,7 +181,7 @@ describe('builds of missing derived files', () => {
     expect(seriesUIDsOf(await response.json())).toEqual(SERIES);
     expect(fs.existsSync(seriesIndexPath())).toBe(true);
 
-    // The API must do this (SQR-D1, SQR-D11): a stored file is served with no build
+    // Test 2. The API must do this (SQR-D1, SQR-D11): a stored file is served with no build
     const reads = spyOnReads();
     const openSpy = jest.spyOn(FileDicomWebWriter.prototype, '_openStream');
     const second = await fetch(`${baseUrl}/studies/${STUDY}/series`);
@@ -174,7 +191,7 @@ describe('builds of missing derived files', () => {
     expect(openSpy).not.toHaveBeenCalled();
   });
 
-  // The API must do this (SQR-D7): concurrent queries share one build
+  // Test 3. The API must do this (SQR-D7): concurrent queries share one build
   it('runs one study build for two concurrent series queries', async () => {
     await startServer(createJobManager());
     fs.rmSync(seriesIndexPath());
@@ -193,7 +210,7 @@ describe('builds of missing derived files', () => {
     expect(reads.filter(read => read === `studies/${STUDY}/series/index.json`)).toHaveLength(1);
   });
 
-  // The API must do this (SQR-D3, SQR-D12): an unknown study starts no job and writes nothing
+  // Test 15. The API must do this (SQR-D11, SQR-D12): an unknown study starts no job and writes nothing
   it('answers 404 for an unknown study, with no job and no directory', async () => {
     await startServer(createJobManager());
     const runSpy = jest.spyOn(jobs, 'run');
@@ -205,7 +222,7 @@ describe('builds of missing derived files', () => {
     expect(fs.existsSync(path.join(root, 'studies', '9.9.9'))).toBe(false);
   });
 
-  // The API must do this (SQR-D4): the study query repairs a missing series index
+  // Test 4. The API must do this (SQR-D4): the study query repairs a missing series index
   it('builds a missing series index on a study query when the study index.json exists', async () => {
     await startServer(createJobManager());
     fs.rmSync(seriesIndexPath());
@@ -216,7 +233,7 @@ describe('builds of missing derived files', () => {
     expect(fs.existsSync(seriesIndexPath())).toBe(true);
   });
 
-  // The API must do this (SQR-D2, SQR-D3): a missing study index.json comes back when
+  // Test 11. The API must do this (SQR-D2, SQR-D3): a missing study index.json comes back when
   // series/index.json is current
   it('builds a missing study index.json on a study query when the series index exists', async () => {
     await startServer(createJobManager());
@@ -230,7 +247,7 @@ describe('builds of missing derived files', () => {
     expect(fs.existsSync(studyIndexPath)).toBe(true);
   });
 
-  // The API must do this (SQR-D4, SQR-D5): an upload deletes the stale files, and the
+  // Test 5. The API must do this (SQR-D4, SQR-D5): an upload deletes the stale files, and the
   // next build rebuilds only the changed series
   it('rebuilds only the changed series after an upload', async () => {
     await startServer(createJobManager());
@@ -266,7 +283,7 @@ describe('builds of missing derived files', () => {
     expect(reads.some(read => read.includes(`/${unchanged}/instances/`))).toBe(false);
   });
 
-  // User experience (SQR-U1) and the API (SQR-D6, SQR-D7, SQR-D8): data that arrives during
+  // Test 6. User experience (SQR-U1) and the API (SQR-D6, SQR-D7, SQR-D8): data that arrives during
   // a build is missing from the first response, and is in the index that the next round commits
   it('responds with the first round, and commits the next round, when a series arrives during a study build', async () => {
     await startServer(createJobManager({ roundDelayMs: 10 }));
@@ -291,7 +308,7 @@ describe('builds of missing derived files', () => {
     expect(seriesUIDsOf(readGzJson(seriesIndexPath()))).toEqual([...SERIES, newSeries]);
   });
 
-  // The API must do this (SQR-D6): an upload into one series does not stop the commit of a
+  // Test 14. The API must do this (SQR-D6): an upload into one series does not stop the commit of a
   // build of a different series of the same study, and stops the commit of the study level
   it('commits a series build while an upload goes into a different series of the study', async () => {
     const [built, uploaded] = SERIES;
@@ -317,7 +334,7 @@ describe('builds of missing derived files', () => {
     expect(study.committed).toBe(false);
   });
 
-  // The API must do this (SQR-D3): a series with no readable data is not read again on each
+  // Test 16. The API must do this (SQR-D3): a series with no readable data is not read again on each
   // request, and new data in the series starts a new build
   it('does not build a series with no readable data again until new data arrives', async () => {
     const jobManager = createJobManager();
@@ -344,43 +361,194 @@ describe('builds of missing derived files', () => {
     );
   });
 
-  // User experience (SQR-U1) and the API (SQR-D3): an I/O error fails the series build and
+  // Test 17. User experience (SQR-U3) and the API (SQR-D3): an I/O error fails the series build and
   // records nothing, so the series is built when the storage recovers, with no upload
-  it('fails a series build on an I/O error, and builds the series after the storage recovers', async () => {
-    const jobManager = createJobManager();
-    const [series] = SERIES;
-    const seriesDir = path.join(studyDir(), 'series', series);
-    deleteStaleSummaries(root, new Map([[`${STUDY}&${series}`, {}]]));
-    jest.spyOn(console, 'warn').mockImplementation(() => {});
-    const recover = failReadsWithEstale(`${series}.1/metadata`);
+  it.each([
+    ['a read', series => failReadsWithEstale(`${series}.1/metadata`), 'ESTALE'],
+    [
+      'an existence check',
+      series =>
+        failStatsWithEacces(
+          target => target === path.join(studyDir(), 'series', series, 'instances')
+        ),
+      'EACCES',
+    ],
+  ])(
+    'fails a series build when %s has an I/O error, and builds the series after the storage recovers',
+    async (_, fail, code) => {
+      const jobManager = createJobManager();
+      const [series] = SERIES;
+      const seriesDir = path.join(studyDir(), 'series', series);
+      deleteStaleSummaries(root, new Map([[`${STUDY}&${series}`, {}]]));
+      jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const recover = fail(series);
 
-    await expect(ensureSeriesLevel(root, STUDY, series, { jobs: jobManager })).rejects.toMatchObject(
-      { code: 'ESTALE' }
-    );
-    expect(fs.existsSync(path.join(seriesDir, 'series-singleton.json.gz'))).toBe(false);
-    expect(fs.readdirSync(seriesDir).filter(name => name !== 'instances')).toEqual([]);
+      await expect(
+        ensureSeriesLevel(root, STUDY, series, { jobs: jobManager })
+      ).rejects.toMatchObject({ name: 'StorageUnavailableError', code });
+      expect(fs.existsSync(path.join(seriesDir, 'series-singleton.json.gz'))).toBe(false);
+      expect(fs.readdirSync(seriesDir).filter(name => name !== 'instances')).toEqual([]);
 
-    recover();
-    await ensureSeriesLevel(root, STUDY, series, { jobs: jobManager });
-    const singleton = readGzJson(path.join(seriesDir, 'series-singleton.json.gz'));
-    expect(singleton[0][NUMBER_OF_SERIES_RELATED_INSTANCES].Value).toEqual([INSTANCES_PER_SERIES]);
-  });
+      recover();
+      await ensureSeriesLevel(root, STUDY, series, { jobs: jobManager });
+      const singleton = readGzJson(path.join(seriesDir, 'series-singleton.json.gz'));
+      expect(singleton[0][NUMBER_OF_SERIES_RELATED_INSTANCES].Value).toEqual([
+        INSTANCES_PER_SERIES,
+      ]);
+    }
+  );
 
-  // The API must do this (SQR-D3): an I/O error on a series file fails the study build, and
-  // no series index that leaves out that series is stored
-  it('stores no series index that leaves out a series with an I/O error', async () => {
+  // Test 18. User experience (SQR-U3) and the API (SQR-D3): an I/O error on a series file answers 503,
+  // and no series index that leaves out that series is stored
+  it.each([
+    ['a read', () => failReadsWithEstale(`${SERIES[1]}/series-singleton.json`)],
+    [
+      'an existence check',
+      () =>
+        failStatsWithEacces(target =>
+          target.startsWith(path.join(studyDir(), 'series', SERIES[1], 'series-singleton.json'))
+        ),
+    ],
+  ])(
+    'answers 503 and stores no series index when %s of a series file has an I/O error',
+    async (_, fail) => {
+      await startServer(createJobManager());
+      fs.rmSync(seriesIndexPath());
+      jest.spyOn(console, 'warn').mockImplementation(() => {});
+      fail();
+
+      const response = await fetch(`${baseUrl}/studies/${STUDY}/series`);
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get('retry-after')).toBe('10');
+      expect(fs.existsSync(seriesIndexPath())).toBe(false);
+    }
+  );
+
+  // Test 19. User experience (SQR-U3, SQR-U4): a failed directory listing answers 503, and
+  // stores no empty studies list
+  it.each([
+    ['the studies list', () => '/studies', () => path.join(root, 'studies')],
+    [
+      'the study metadata',
+      () => `/studies/${STUDY}/metadata`,
+      () => path.join(studyDir(), 'series'),
+    ],
+  ])('answers 503 for %s when a directory listing has an I/O error', async (_, url, listed) => {
     await startServer(createJobManager());
-    fs.rmSync(seriesIndexPath());
-    jest.spyOn(console, 'error').mockImplementation(() => {});
-    failReadsWithEstale(`${SERIES[1]}/series-singleton.json`);
+    const studiesIndexPath = path.join(root, 'studies', 'index.json.gz');
+    fs.rmSync(studiesIndexPath);
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const readdir = fs.promises.readdir;
+    jest
+      .spyOn(fs.promises, 'readdir')
+      .mockImplementation((dir, ...rest) =>
+        String(dir) === listed()
+          ? Promise.reject(Object.assign(new Error('permission denied'), { code: 'EACCES' }))
+          : readdir(dir, ...rest)
+      );
 
-    const response = await fetch(`${baseUrl}/studies/${STUDY}/series`);
+    const response = await fetch(`${baseUrl}${url()}`);
 
-    expect(response.status).toBe(500);
-    expect(fs.existsSync(seriesIndexPath())).toBe(false);
+    expect(response.status).toBe(503);
+    expect(fs.existsSync(studiesIndexPath)).toBe(false);
   });
 
-  // User experience (SQR-U3) and the API (SQR-D11, SQR-D14): a full queue rejects only
+  // Test 21. The API must do this (SQR-D6): a study round that joins a series round that does
+  // not commit does not commit either, and a later round commits all series
+  it('does not commit a study round that joins a series round that does not commit', async () => {
+    const jobManager = createJobManager({ roundDelayMs: 10 });
+    jobs = jobManager;
+    const [series] = SERIES;
+    deleteStaleSummaries(root, new Map([[`${STUDY}&${series}`, {}]]));
+    let study;
+    const original = FileDicomWebReader.prototype.readJsonFile;
+    jest
+      .spyOn(FileDicomWebReader.prototype, 'readJsonFile')
+      .mockImplementation(async function readJsonFileSpy(relativePath, filename, options) {
+        if (relativePath.includes(`/${series}/instances/`) && !study) {
+          storeInstance(series, INSTANCES_PER_SERIES + 1);
+          deleteStaleSummaries(root, new Map([[`${STUDY}&${series}`, {}]]));
+          study = ensureStudyLevel(root, STUDY, { jobs: jobManager });
+          // Hold the series round, so that the study build joins it
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        return original.call(this, relativePath, filename, options);
+      });
+
+    const seriesRound = await ensureSeriesLevel(root, STUDY, series, { jobs: jobManager });
+
+    expect(seriesRound.committed).toBe(false);
+    expect((await study).committed).toBe(false);
+    await jobManager.whenIdle();
+    const counts = Object.fromEntries(
+      readGzJson(seriesIndexPath()).map(entry => [
+        entry[SERIES_INSTANCE_UID].Value[0],
+        entry[NUMBER_OF_SERIES_RELATED_INSTANCES].Value[0],
+      ])
+    );
+    expect(counts).toEqual({
+      [series]: INSTANCES_PER_SERIES + 1,
+      [SERIES[1]]: INSTANCES_PER_SERIES,
+    });
+  });
+
+  // Test 22. User experience (SQR-U4): a study whose round does not commit during a build of
+  // the studies list is in the list after a later round
+  it('lists a study whose round does not commit during a build of the studies list', async () => {
+    const jobManager = createJobManager({ roundDelayMs: 10 });
+    jobs = jobManager;
+    const studiesIndexPath = path.join(root, 'studies', 'index.json.gz');
+    fs.rmSync(studiesIndexPath);
+    fs.rmSync(seriesIndexPath());
+    fs.rmSync(path.join(studyDir(), 'index.json.gz'));
+    let uploaded = false;
+    spyOnReads((relativePath, filename) => {
+      if (filename === 'series-singleton.json' && !uploaded) {
+        uploaded = true;
+        storeInstance('1.2.3.9', 1);
+        deleteStaleSummaries(root, new Map([[`${STUDY}&1.2.3.9`, {}]]));
+      }
+    });
+
+    await ensureStudiesLevel(root, { jobs: jobManager });
+    await jobManager.whenIdle();
+
+    expect(uploaded).toBe(true);
+    expect(readGzJson(studiesIndexPath).map(entry => entry['0020000D'].Value[0])).toEqual([STUDY]);
+  });
+
+  // Test 23. The API must do this (SQR-D3, SQR-D11): a series with no instances starts no
+  // build, and a build stores no series metadata for it
+  it('starts no build for a series with no instances, and stores no metadata', async () => {
+    const jobManager = createJobManager();
+    const runSpy = jest.spyOn(jobManager, 'run');
+    const emptyDir = path.join(studyDir(), 'series', '1.2.3.7');
+    fs.mkdirSync(path.join(emptyDir, 'instances'), { recursive: true });
+
+    expect(await ensureSeriesLevel(root, STUDY, '1.2.3.7', { jobs: jobManager })).toBeUndefined();
+    expect(runSpy).not.toHaveBeenCalled();
+
+    await seriesSummary(root, STUDY, '1.2.3.7');
+    expect(fs.existsSync(path.join(emptyDir, 'metadata.gz'))).toBe(false);
+  });
+
+  // Test 20. User experience (SQR-U1): a series with corrupt data does not hide the other series of
+  // the study metadata
+  it('serves the study metadata of the other series when one series has corrupt data', async () => {
+    await startServer(createJobManager());
+    const instanceDir = path.join(studyDir(), 'series', '1.2.3.8', 'instances', '1.2.3.8.1');
+    fs.mkdirSync(instanceDir, { recursive: true });
+    fs.writeFileSync(path.join(instanceDir, 'metadata.gz'), 'not gzip');
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const response = await fetch(`${baseUrl}/studies/${STUDY}/metadata`);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toHaveLength(SERIES.length * INSTANCES_PER_SERIES);
+  });
+
+  // Test 9. User experience (SQR-U3) and the API (SQR-D11, SQR-D14): a full queue rejects only
   // the requests that need a build
   it('answers 503 with Retry-After when the queue is full, and 200 when the file exists', async () => {
     const jobManager = createJobManager({ maxRunning: 1, maxQueued: 1, retryAfterSeconds: 7 });
@@ -414,7 +582,7 @@ describe('builds of missing derived files', () => {
     await Promise.all(blockers);
   });
 
-  // The API must do this (SQR-D10): `createdicomweb study --force` writes the study files
+  // Test 7. The API must do this (SQR-D10): `createdicomweb study --force` writes the study files
   // again, and does not build a series whose files exist
   it('builds the study files again with force, and no series', async () => {
     const singletonPath = path.join(studyDir(), 'series', SERIES[0], 'series-singleton.json.gz');
@@ -434,7 +602,7 @@ describe('builds of missing derived files', () => {
     expect(readGzJson(singletonPath)[0]['00080060'].Value).toEqual(['MR']);
   });
 
-  // User experience (SQR-U4): the studies list lists each stored study, and an update of a
+  // Test 10. User experience (SQR-U4): the studies list lists each stored study, and an update of a
   // study that the list has does not rewrite the list
   it('adds a new study to the studies index, and leaves the index alone on the next upload', async () => {
     const studiesIndexPath = path.join(root, 'studies', 'index.json.gz');

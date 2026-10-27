@@ -1,5 +1,5 @@
 import { seriesSummary } from '../instance/SeriesSummary.mjs';
-import { FileDicomWebReader } from '../instance/FileDicomWebReader.mjs';
+import { createBuildReader } from '../instance/FileDicomWebReader.mjs';
 
 /**
  * Main function for processing series metadata
@@ -17,7 +17,7 @@ export async function seriesMain(studyUID, options = {}) {
     throw new Error('dicomdir option is required');
   }
 
-  const reader = new FileDicomWebReader(dicomdir);
+  const reader = createBuildReader(dicomdir);
 
   let seriesUIDs = [];
 

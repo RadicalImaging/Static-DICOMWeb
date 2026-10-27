@@ -1,4 +1,4 @@
-import { FileDicomWebReader } from './FileDicomWebReader.mjs';
+import { FileDicomWebReader, createBuildReader } from './FileDicomWebReader.mjs';
 import { writeMultipleWithRetry } from './writeWithRetry.mjs';
 import { generationTracker } from './generationTracker.mjs';
 import { Tags, TagLists } from '@radicalimaging/static-wado-util';
@@ -22,7 +22,6 @@ async function getFirstInstanceMetadata(reader, studyUID, seriesUIDs) {
       const instancePath = reader.getInstancePath(studyUID, seriesUID, instanceUID);
       const metadata = await reader.readJsonFile(instancePath, 'metadata', {
         deleteFileOnError: true,
-        throwOnIoError: true,
       });
       if (metadata) {
         return Array.isArray(metadata) && metadata.length > 0 ? metadata[0] : metadata;
@@ -34,7 +33,7 @@ async function getFirstInstanceMetadata(reader, studyUID, seriesUIDs) {
 
 /**
  * Scans series directory and reads all series singleton data for a study.
- * A read that fails with an I/O error (other than ENOENT) throws, so the build fails and
+ * The reader must use `throwOnIoError`: an I/O error then throws, so the build fails and
  * does not commit an index that leaves out the series (SQR-D3).
  * @param {FileDicomWebReader} reader
  * @param {string} studyUID
@@ -56,7 +55,6 @@ async function readStudyData(reader, studyUID) {
     const seriesSingletonPath = reader.getSeriesPath(studyUID, seriesUID);
     let seriesSingleton = await reader.readJsonFile(seriesSingletonPath, 'series-singleton.json', {
       deleteFileOnError: true,
-      throwOnIoError: true,
     });
     if (seriesSingleton) {
       if (Array.isArray(seriesSingleton) && seriesSingleton.length > 0) {
@@ -141,6 +139,8 @@ export function studyFilesExist(reader, studyUID) {
  * @param {boolean} [options.force] - Build the study files also when the series index is up to date
  * @param {number} [options.generation] - Generation of the study that the build read when it
  *   started (defaults to the current generation). The files commit only if it did not change.
+ * @param {boolean} [options.seriesPending] - A series build of this round did not commit: build
+ *   the study data for the response, and do not commit it
  * @returns {Promise<{committed: boolean, payload?: Object}>} - committed false when the
  *   generation changed; payload is the study data of the build
  */
@@ -151,7 +151,8 @@ export async function studySummary(baseDir, studyUID, options = {}) {
 
   // Read the generation before any data, so a change during the scan stops the commit
   const generation = options.generation ?? generationTracker.current(studyUID);
-  const reader = new FileDicomWebReader(baseDir);
+  // An existence check, a listing or a read with an I/O error fails the build (SQR-D3)
+  const reader = createBuildReader(baseDir);
   const studyPath = reader.getStudyPath(studyUID);
   const seriesPath = `${studyPath}/series`;
 
@@ -183,6 +184,7 @@ export async function studySummary(baseDir, studyUID, options = {}) {
 
   if (
     !options.force &&
+    !options.seriesPending &&
     existingSeriesUIDs.size === actualSeriesUIDs.size &&
     [...existingSeriesUIDs].every(uid => actualSeriesUIDs.has(uid)) &&
     studyFilesExist(reader, studyUID)
@@ -197,6 +199,7 @@ export async function studySummary(baseDir, studyUID, options = {}) {
   console.verbose('studySummary: writing series index and study singleton files');
   const { committed, payload } = await writeMultipleWithRetry({
     generation: { tracker: generationTracker, key: studyUID, value: generation },
+    commit: !options.seriesPending,
     informationProvider,
     baseDir,
     generatePayload: () => readStudyData(reader, studyUID),
