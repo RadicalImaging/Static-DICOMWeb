@@ -94,9 +94,10 @@ export function studyMetadataQueryController(dir, params = {}) {
 
       if (missing.length) {
         const built = await buildSeriesMetadata(root, studyUID, missing, reader, params);
-        for (const seriesUID of missing) {
-          metadataBySeries[seriesUIDs.indexOf(seriesUID)] =
-            (await read(seriesUID)) ?? built.get(seriesUID) ?? [];
+        for (const [index, seriesUID] of seriesUIDs.entries()) {
+          if (!metadataBySeries[index]) {
+            metadataBySeries[index] = (await read(seriesUID)) ?? built.get(seriesUID) ?? [];
+          }
         }
       }
 

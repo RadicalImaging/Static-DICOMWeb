@@ -98,9 +98,16 @@ describe('FileDicomWebReader errors: deleteFileOnError and throwOnIoError', () =
     jest
       .spyOn(fs.promises, 'unlink')
       .mockRejectedValue(Object.assign(new Error('not permitted'), { code: 'EPERM' }));
+    // Only a caller that must not see the file again fails; the others leave it out
+    expect(
+      await createBuildReader(baseDir).readJsonFile('studies', 'corrupt.json', {
+        deleteFileOnError: true,
+      })
+    ).toBeUndefined();
     await expect(
       createBuildReader(baseDir).readJsonFile('studies', 'corrupt.json', {
         deleteFileOnError: true,
+        throwIfNotDeleted: true,
       })
     ).rejects.toThrow(StorageUnavailableError);
   });
@@ -114,5 +121,11 @@ describe('FileDicomWebReader errors: deleteFileOnError and throwOnIoError', () =
     expect(await createBuildReader(baseDir).readJsonFile('studies', 'metadata')).toEqual([
       { a: 1 },
     ]);
+
+    // Only metadata has this layout; another name with a directory counts as missing
+    const otherDir = path.join(baseDir, 'studies', 'series-singleton.json.gz');
+    fs.mkdirSync(otherDir, { recursive: true });
+    fs.writeFileSync(path.join(otherDir, 'index.json.gz'), zlib.gzipSync('[{"a":1}]'));
+    expect(createBuildReader(baseDir).fileExists('studies', 'series-singleton.json')).toBe(false);
   });
 });

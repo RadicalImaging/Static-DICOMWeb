@@ -398,14 +398,13 @@ describe('builds of missing derived files', () => {
   // the series build fails the build and records nothing, so the series is built when the
   // storage recovers, with no upload
   it.each([
-    ['a read', series => failReadsWithEstale(`${series}.1/metadata`), 'ESTALE'],
+    // Every instance fails, so a lenient reader would record the series as having no data
+    ['a read', series => failReadsWithEstale(`${series}/instances/`), 'ESTALE'],
     [
       'an existence check',
       series =>
         failStatsWithEacces(target =>
-          target.startsWith(
-            path.join(studyDir(), 'series', series, 'instances', `${series}.1`, 'metadata')
-          )
+          target.startsWith(path.join(studyDir(), 'series', series, 'instances') + path.sep)
         ),
       'EACCES',
     ],

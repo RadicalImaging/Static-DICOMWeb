@@ -9,9 +9,9 @@ import {
 import { DicomWebReader } from './DicomWebReader.mjs';
 
 /**
- * Creates the reader of a build: a missing path counts as missing, and an I/O error throws a
- * StorageUnavailableError (see the `throwOnIoError` option). Each build, and each check
- * before a build, uses this reader (SQR-D3).
+ * Creates the reader of a build: a missing path and a corrupt file count as missing, an I/O
+ * error throws a StorageUnavailableError, and any other error throws as it is (see the
+ * `throwOnIoError` option). Each build, and each `ensure*` check, uses this reader (SQR-D3).
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @returns {FileDicomWebReader}
  */
@@ -27,12 +27,13 @@ export class FileDicomWebReader extends DicomWebReader {
   /**
    * @param {string} baseDir - Base directory for DICOMweb structure
    * @param {Object} [options]
-   * @param {boolean} [options.throwOnIoError=false] - Throw a StorageUnavailableError when an
-   *   existence check, a directory listing or a read fails with an I/O error (see
-   *   toStorageError). A build uses this, so that a correct file that the storage cannot read
-   *   now never counts as missing data (SQR-D3). Without it, an I/O error of an existence
-   *   check or a read counts as missing (a listing of a directory that the check cannot see
-   *   gives []), and an I/O error of the listing itself is thrown as it is.
+   * @param {boolean} [options.throwOnIoError=false] - When an existence check, a directory
+   *   listing or a read fails with an error that is not a missing path and not a corrupt file,
+   *   throw: a StorageUnavailableError for an I/O error (toStorageError), and any other error
+   *   as it is. A build uses this, so that a file that it cannot read never counts as missing
+   *   data (SQR-D3). Without it, such an error of an existence check or a read counts as
+   *   missing (a listing of a directory that the check cannot see gives []), and an error of
+   *   the listing itself is thrown as it is.
    */
   constructor(baseDir, options = {}) {
     super(baseDir);
@@ -40,8 +41,8 @@ export class FileDicomWebReader extends DicomWebReader {
   }
 
   /**
-   * Returns the stat of a path (following links), or undefined when it does not exist. An
-   * I/O error throws with `throwOnIoError`, and returns undefined otherwise.
+   * Returns the stat of a path (following links), or undefined when it does not exist. Any
+   * other error throws with `throwOnIoError` (_throwIoError), and returns undefined otherwise.
    * @param {string} fullPath
    * @param {Object} [options]
    * @param {boolean} [options.lstat=false] - Do not follow a symbolic link
@@ -118,8 +119,9 @@ export class FileDicomWebReader extends DicomWebReader {
     if (compressedStat?.isFile()) {
       return { exists: true, path: compressedPath, isCompressed: true };
     }
-    // Older layout with a compressed name: <name>.gz/index.json(.gz)
-    if (compressedStat?.isDirectory() && filename !== 'index.json') {
+    // Older layout with a compressed name: metadata.gz/index.json(.gz). Only `metadata` has this
+    // layout, and only `metadata` has the cleanup of the writer (isStaleMetadataDirSync)
+    if (compressedStat?.isDirectory() && filename === 'metadata') {
       return this.fileExists(`${relativePath}/${filename}.gz`, 'index.json');
     }
 
@@ -176,10 +178,10 @@ export class FileDicomWebReader extends DicomWebReader {
   }
 
   /**
-   * Reads a JSON file. Returns undefined for a missing path or a corrupt file. An I/O error
+   * Reads a JSON file. Returns undefined for a missing path or a corrupt file. Any other error
    * also returns undefined, except with `throwOnIoError` (see the constructor), which throws
-   * a StorageUnavailableError. A missing path never throws, because an upload can delete a
-   * derived file during a build.
+   * it (_throwIoError). A missing path never throws, because an upload can delete a derived
+   * file during a build.
    * With `deleteFileOnError`, deletes the file only when it is corrupt (see
    * isCorruptFileError). An I/O error never deletes the file, because a correct
    * file can give a transient I/O error, for example `ESTALE` on a network file system.
@@ -187,9 +189,10 @@ export class FileDicomWebReader extends DicomWebReader {
    * @param {string} filename - Filename to read
    * @param {Object} [options] - Options
    * @param {boolean} [options.deleteFileOnError=false] - If true, delete the file (or .gz) after a gunzip or parse error
+   * @param {boolean} [options.throwIfNotDeleted=false] - Throw when the deletion of a corrupt file
+   *   fails, for a caller that must not see the same corrupt file again (SQR-D3 rule 4)
    * @returns {Promise<Object|undefined>} - Parsed JSON; undefined when missing or corrupt, or
-   *   after any other error without `throwOnIoError`. With `throwOnIoError`, any other error,
-   *   and a failed deletion of a corrupt file, throws (see _throwIoError).
+   *   after any other error without `throwOnIoError`
    */
   async readJsonFile(relativePath, filename, options = {}) {
     const fileInfo = this.fileExists(relativePath, filename);
@@ -210,8 +213,9 @@ export class FileDicomWebReader extends DicomWebReader {
           await fs.promises.unlink(fileInfo.path);
           console.noQuiet(`Deleted corrupted file ${fileInfo.path}: ${error.message}`);
         } catch (unlinkErr) {
-          // A build must not see a corrupt file that stays as missing data on each round
-          this._throwIoError(fileInfo.path, unlinkErr);
+          if (options.throwIfNotDeleted && !isMissingPathError(unlinkErr)) {
+            throw toStorageError(fileInfo.path, unlinkErr);
+          }
           console.warn(`Failed to delete corrupted file ${fileInfo.path}: ${unlinkErr.message}`);
         }
       }

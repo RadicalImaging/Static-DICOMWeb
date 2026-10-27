@@ -15,10 +15,7 @@ const { getValue, setValue } = Tags;
 async function getFirstInstanceMetadata(reader, studyUID, seriesUIDs) {
   for (const seriesUID of seriesUIDs) {
     const instancesPath = `${reader.getSeriesPath(studyUID, seriesUID)}/instances`;
-    const instanceDirs = await reader.scanDirectory(instancesPath, { withFileTypes: true });
-    for (const entry of instanceDirs) {
-      const instanceUID = entry?.name ?? entry;
-      if (typeof instanceUID !== 'string') continue;
+    for (const instanceUID of await reader.listDirectories(instancesPath)) {
       const instancePath = reader.getInstancePath(studyUID, seriesUID, instanceUID);
       const metadata = await reader.readJsonFile(instancePath, 'metadata', {
         deleteFileOnError: true,
@@ -60,11 +57,12 @@ async function readStudyData(reader, studyUID, pendingSeries = new Map()) {
 
   for (const seriesUID of actualSeriesUIDs) {
     const seriesSingletonPath = reader.getSeriesPath(studyUID, seriesUID);
+    // Checked before the read, so a file that the read deletes as corrupt is in unreadSeries
     const stored = reader.fileExists(seriesSingletonPath, 'series-singleton.json');
     const storedSingleton = await reader.readJsonFile(
       seriesSingletonPath,
       'series-singleton.json',
-      { deleteFileOnError: true }
+      { deleteFileOnError: true, throwIfNotDeleted: true }
     );
     if (stored && !storedSingleton) {
       unreadSeries.push(seriesUID);

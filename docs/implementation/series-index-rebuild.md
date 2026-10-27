@@ -289,8 +289,10 @@ the file does not list it (SQR-I1).
 ### SQR-I4. Check the generation before the move of each file
 
 Applies SQR-D3, SQR-D6 and SQR-D8 to `writeMultipleWithRetry` and `FileDicomWebWriter`.
-`writeWithRetry` (the studies list) has no generation (SQR-D17). It only removes its
-temporary file when `generateData()` throws, and throws the error.
+`writeWithRetry` (the studies list) has no generation (SQR-D17). When `generateData()`
+throws, it removes its temporary file and throws the error. When the write or the rename
+fails, it throws `toStorageError` of the error. `FileDicomWebWriter` opens each temporary
+file synchronously (`fs.openSync`), so a cleanup after a failure always finds the file.
 
 1. `writeMultipleWithRetry` gets a new option `generation`: the tracker, the generation
    `key`, and the generation `value` that the build read when it started. `seriesSummary`
@@ -390,8 +392,10 @@ commit, and so does a failed open of a stream. Each throws `toStorageError` of t
 `toStorageError` gives a `StorageUnavailableError` only for an error with an operating
 system code (`E` and capitals) that is not a missing path. Other errors come back unchanged,
 and give `500`. The build reader (`_throwIoError`) throws each read error that is not a
-missing path and not a corrupt file, also an error with no code, and also a failed deletion
-of a corrupt file. Thus a build never counts an unreadable file as missing data.
+missing path and not a corrupt file, also an error with no code. Thus a build never counts
+an unreadable file as missing data. A failed deletion of a corrupt file throws only with the
+read option `throwIfNotDeleted`, which only the singleton read of `readStudyData` uses (rule
+4 of SQR-D3). Other reads leave out a corrupt file that stays (rule 5).
 
 `handleBuildError` answers a `StorageUnavailableError` with `503` and a `Retry-After` header,
 in the same way as a `QueueFullError`. `studyMetadataQueryController` lists and reads the
@@ -411,8 +415,11 @@ this change. With `hashStudyUidPath`, `GET /studies` also builds no studies list
 gave no data (a corrupt file that the read deleted, or a file that an upload deleted after
 the check) in `payload.unreadSeries`. It then stores no study file, and returns
 `committed: false`. `studyMain` builds those series, and calls `studySummary` one more time
-(rule 4 of SQR-D3). When `unreadSeries` is still not empty, `studyMain` throws, so the job
-fails and starts no next round.
+(rule 4 of SQR-D3). When `unreadSeries` is still not empty and the generation of the study
+did not change, `studyMain` throws, so the job fails and starts no next round. When an upload
+changed the generation, it returns `committed: false`, and a next round builds the study.
+`studyMain` reads the generation of the study before its series builds, and gives that
+value to both `studySummary` calls.
 
 `indexSummary` with `onlyMissing` reads `studies/index.json` with `deleteFileOnError`, so a
 corrupt studies list is deleted, and the next `GET /studies` builds it again.
@@ -533,8 +540,14 @@ proposal in these items:
   not a missing path and not a corrupt file, and a failed deletion of a corrupt file, so a
   build never leaves out an unreadable series and never repeats rounds that cannot change.
   `studyMain` fails when a series file stays unreadable. A failed open of a stream gives
-  `503`. The reader reads the older layout `<name>.gz/index.json.gz`. With
+  `503`. The reader reads the older layout `metadata.gz/index.json.gz`. With
   `hashStudyUidPath`, the study metadata query and the studies list start no build.
+- **After the fifth internal review round.** A failed deletion of a corrupt file fails a
+  build only for the singleton read of a study build (`throwIfNotDeleted`); other reads leave
+  the file out. The writer opens temporary files synchronously, so no temporary file stays
+  after a failure. `writeWithRetry` throws on a failed write or rename. `studyMain` throws only
+  when no upload changed the study. The older `.gz` directory layout applies to `metadata`
+  only. `indexSummary` skips `studies/temp`.
 
 ## Compatibility
 
@@ -557,10 +570,13 @@ the maintainers must decide the version of the release.
   its series (SQR-D5).
 
 The other changes of the exported functions add to the earlier behaviour:
-`seriesSummary`, `studySummary` and `studyMain` return `{ committed, payload }`, `seriesMain`
-returns `{ committed }`, and `indexSummary`, `studyMain`, `studySummary` (`pendingSeries`)
-and `instanceFromStream` get new options. The `FileDicomWebReader` constructor gets the
-`throwOnIoError` option, and the reader gets `directoryExists` and `listDirectories`.
+`seriesSummary` and `studyMain` return `{ committed, payload }`, `seriesMain` returns
+`{ committed }`, and `seriesSummary` (`force`, `generation`), `seriesMain` (`force`),
+`studyMain` (`force`, `generation`, `buildSeries`), `indexSummary` (`onlyMissing`) and
+`instanceFromStream` (`afterCommit`) get new options. `studySummary` is internal, and is not
+exported. The `FileDicomWebReader` constructor gets the `throwOnIoError` option,
+`readJsonFile` gets the `throwIfNotDeleted` option, and the reader gets `directoryExists` and
+`listDirectories`.
 `FileDicomWebWriter` gets the
 `canCommit` option, and `commitPendingMoves` cleans up after a failed rename. create-dicomweb
 exports `createBuildReader`, `seriesFilesExist`, `studyFilesExist`, `generationTracker`,
@@ -640,11 +656,13 @@ This section is not a requirement of the code.
   not delete it, and a committed study build adds a missing study to it. Some deployments do
   not update the studies list on upload at all (`studyIndex: false`).
 - **Q5.** A study whose series all have only corrupt data has no study files, so each query
-  for that study starts a study job. The job is cheap, because each series build is skipped
-  (SQR-D3). Under a full queue, such a query can get `503`. Is that acceptable?
-- **Q6.** The generation tracker and the record of SQR-D3 keep one entry for each series that
-  an upload or a build changed, until the process stops. Each entry is small. Does a
-  long-running server need a limit?
+  for that study starts a study job. The job reads no instance data, because each series
+  build is skipped (SQR-D3), but it checks each instance metadata path. Under a full queue,
+  such a query can get `503`. Is that acceptable?
+- **Q6.** The generation tracker keeps one entry for each series and each study that an
+  upload changed, and the record of SQR-D3 keeps one entry for each series with no readable
+  data, until the process stops. Each entry is small. Does a long-running server need a
+  limit?
 - **Q3.** The builds use the paths of `FileDicomWebReader`, which do not use the
   `hashStudyUidPath` layout. This limit was in the code before this change. Does a deployment
   with `hashStudyUidPath` need the builds on demand?
@@ -746,12 +764,15 @@ These tests have no number, and check one function each (the API must do this):
   deletes a file that fails the gunzip step, and keeps a file that has an `ESTALE` error. A
   failed existence check with `ENOENT` or `ENOTDIR` gives "missing" in both modes, and one
   with `EACCES` throws only from `createBuildReader`. The reader of a build throws for a read
-  error with no code, and for a corrupt file whose deletion fails. The reader reads the older
-  layout `<name>.gz/index.json.gz`.
+  error with no code. A corrupt file whose deletion fails is left out, and throws only with
+  `throwIfNotDeleted`. The reader reads the older layout `metadata.gz/index.json.gz`, and no
+  such layout for another name.
 - `packages/create-dicomweb/test/writeWithRetryCleanup.jest.mjs` (SQR-D2, SQR-D3): a failed
   data step, a failed open of a stream, a failed write of one file, or a failed rename of a
   commit, leaves no temporary file and no part of a commit, and keeps each old file that did
-  not get its new version. An I/O error there gives a `StorageUnavailableError`.
+  not get its new version, also when the data step fails at once and when the check waits
+  100 ms for a late temporary file. `writeWithRetry` (the studies list) throws on a failed
+  write. An I/O error there gives a `StorageUnavailableError`.
 
 This test has no number, and the user experience must have it:
 

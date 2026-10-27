@@ -95,6 +95,7 @@ async function discardRound(writer, streamInfos, closed, err) {
  *
  * If the function returns normally, even with retries=1, then it means the file
  * exists and is readable.  That can be used for immediate access queries.
+ * A failed write or rename throws (a StorageUnavailableError for an I/O error, toStorageError).
  *
  * @param {Object} params
  * @param {Object} params.informationProvider - UID provider for the writer
@@ -135,6 +136,11 @@ export async function writeWithRetry({
     // 3. Write and close
     streamInfo.write(Buffer.isBuffer(data) ? data : Buffer.from(data));
     const resultPath = await writer.closeStream(streamInfo.streamKey);
+    if (!resultPath) {
+      // closeStream records a failed write or rename, and returns undefined
+      const error = writer.getStreamErrors().get(streamInfo.streamKey);
+      throw toStorageError(streamInfo.filepath, error ?? new Error(`Write failed: ${label}`));
+    }
 
     // 4. Only 'updated-stale' triggers a retry; everything else is clean
     const status = streamInfo.writeStatus;

@@ -100,7 +100,10 @@ export async function indexSummary(baseDir, studyUIDs = [], options = {}) {
 
   if (studyUIDs.length === 0) {
     console.noQuiet('indexSummary: scanning studies directory for all studies');
-    studiesToProcess = new Set(await reader.listDirectories(studiesIndexPath));
+    // studies/temp holds the temporary files of the writer, and is not a study
+    studiesToProcess = new Set(
+      (await reader.listDirectories(studiesIndexPath)).filter(name => name !== 'temp')
+    );
   } else {
     for (const studyUID of studyUIDs) {
       studiesToProcess.add(studyUID);

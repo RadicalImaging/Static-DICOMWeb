@@ -187,7 +187,8 @@ export class FileDicomWebWriter extends DicomWebWriter {
     const safeFilename = filename.replace(/[\\/]/g, '-');
     const tempFilename = `${Date.now()}-${Math.random().toString(36).slice(2)}-${safeFilename}`;
     const tempFilepath = path.join(tempDir, tempFilename);
-    const fileStream = fs.createWriteStream(tempFilepath);
+    // Open synchronously: an asynchronous open can create the file after a cleanup removed it
+    const fileStream = fs.createWriteStream(tempFilepath, { fd: fs.openSync(tempFilepath, 'w') });
 
     const streamInfo = {
       stream: fileStream,

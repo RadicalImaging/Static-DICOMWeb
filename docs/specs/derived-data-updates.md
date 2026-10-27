@@ -67,16 +67,21 @@ does not change the user contract (SQR-U1).
   request that needs no update does not get this response. The client can send the request
   again later.
   A storage outage is outside SQR-U1. When the server cannot read, list or write stored data
-  because of an I/O error, a query or a metadata request whose summary file is missing or
-  cannot be checked, and a study metadata request, get `503 Service Unavailable` with a
-  `Retry-After` header. A request for a stored file that the server sends as it is (for
-  example a summary file that exists, a frame or a bulk data item) gets the error of the file
-  server. After the storage recovers, the next request gets the correct result, with no
-  upload and no restart.
+  because of an I/O error, and builds on demand are on, a request that needs an update (a
+  query, or a series or study metadata request) gets `503 Service Unavailable` with a
+  `Retry-After` header. A study metadata request can get this response also when it needs no
+  update. A request for a stored file that the server sends as it is (for example a summary
+  that is already stored, a frame or a bulk data item) gets the error of the file server.
+  After the storage recovers, the next request gets the correct result, with no upload and no
+  restart. The one exception is a storage failure during an upload (see the exceptions to
+  SQR-U1).
 - **The exceptions to SQR-U1.** SQR-U1 has only these exceptions:
   - corrupt or incomplete stored data (SQR-U1);
   - a full queue (SQR-U3);
   - a storage outage (SQR-U3);
+  - a stored file that the server cannot read for a reason other than corruption or an I/O
+    error (for example a file too large to parse), and a corrupt series summary that the
+    server cannot delete: a request that needs an update then gets `500`;
   - the studies list of SQR-U4;
   - a deployment that turns off the builds on demand (`createIndexOnDemand: false`): a
     query or a metadata request whose summary file is missing then gives `404`;
@@ -90,10 +95,10 @@ does not change the user contract (SQR-U1).
   - a deployment with several nodes that does not send all work for one study to one node.
 - **SQR-U4. The studies list is a best-effort helper.** The studies list
   (`GET /studies` without `StudyInstanceUID`) is a helper for the local files of a single
-  system. It lists the stored studies. A new study is in the list after its upload ends, or
-  after the first query of that study, when the deployment updates the list on upload. A
-  study with
-  only corrupt data is not in the list. The summary values of an entry, for example the
+  system. It lists the stored studies. When the deployment updates the list on upload, a new
+  study is in the list after its upload ends, or after the first query of that study. A study
+  with only corrupt data is not added to the list. The summary values of an entry, for
+  example the
   counts of series and instances, can be older than the study. A query with
   `StudyInstanceUID` gives the current values of the study (SQR-U1). This is the exception to
   SQR-U1 for the studies list. A deployment can turn off the update of the studies list on
@@ -157,7 +162,7 @@ The design has two parts:
   - A **corrupt file** is a file whose gunzip step or JSON parse fails (SQR-D9).
   - An **I/O error** is each other file system error with an error code of the operating
     system, for example `ESTALE`, `EIO`, `EACCES` or `ENOSPC`. An error with no such code
-    (for example a program error) is not an I/O error, because a retry does not change it.
+    (for example a program error) is not an I/O error.
 
   The rules:
   1. When a read, an existence check or a directory listing of the stored data, or a write
@@ -176,8 +181,10 @@ The design has two parts:
      the series, and does not build the series again until the generation changes.
   4. A study build that finds a corrupt `series-singleton.json` deletes it (SQR-D9), builds
      that series again, and then builds the study files. It does not store study files
-     without that series. When the deletion fails, or the file still gives no data after the
-     series build, the study build fails, and starts no next round.
+     without that series, unless the series build finds no readable data (rule 3). When the
+     deletion fails, or the file still gives no data after the series build and no upload
+     changed the study, the study build fails (`500` or `503`), and starts no next round.
+     Other corrupt files that a build cannot delete are left out (rule 5).
   5. A build leaves out data only when the data is corrupt or missing: an instance with no
      readable metadata and no entry in the current series metadata, or a series with no
      readable data (rule 3).
@@ -226,13 +233,13 @@ The design has two parts:
   Supports SQR-U1.
 - **SQR-D9. Delete only a corrupt file.** The server deletes a derived file because of a read
   only when the file is corrupt, for example when the gunzip step or the JSON parse fails. An
-  I/O error does not cause a deletion. The server builds a deleted file of the series, study
-  and studies levels again. The server cannot build a deleted instance `metadata` again,
+  I/O error does not cause a deletion. With builds on demand, the server builds a deleted file
+  of the series, study and studies levels again (SQR-D2). The server cannot build a deleted instance `metadata` again,
   because only an upload makes it from the stored DICOM instance. Supports SQR-U1.
 - **SQR-D10. Force a build from the CLI.** A `createdicomweb` command that builds derived data,
   for example `series` or `study`, builds its own level again when you use `--force`. The
   command does this also when the files exist. For the lower levels, the command obeys SQR-D4.
-  Without `--force`, the command obeys SQR-D1 and SQR-D4 at all levels. The CLI runs in a
+  Without `--force`, the `series` and `study` commands obey SQR-D1 and SQR-D4 at all levels. The CLI runs in a
   different process from the server, so the CLI does not see the generations of the server.
   In the base design, run a CLI build only when the server stores no data for that study.
   Supports SQR-U1.

@@ -1,13 +1,15 @@
 import { studySummary } from '../instance/StudySummary.mjs';
 import { seriesSummary, seriesFilesExist } from '../instance/SeriesSummary.mjs';
 import { createBuildReader } from '../instance/FileDicomWebReader.mjs';
+import { generationTracker } from '../instance/generationTracker.mjs';
 
 /**
  * Main function for processing study metadata. First builds each series that has a
  * missing file (without force), and uses the stored files of the other series. Then
  * builds the study files. When the study build finds a corrupt series-singleton.json
  * (`unreadSeries`), builds those series, and builds the study files one more time. When the
- * file is still unreadable after that, throws, so the job fails and starts no next round.
+ * file is still unreadable after that, and no upload changed the study, throws, so the job
+ * fails and starts no next round. After an upload, returns `committed: false`.
  * @param {string} studyUID - Study Instance UID
  * @param {Object} options - Options object
  * @param {string} [options.dicomdir] - Base directory path where DICOMweb structure is located
@@ -35,6 +37,7 @@ export async function studyMain(studyUID, options = {}) {
 
   try {
     console.verbose(`Processing study ${studyUID}...`);
+    const studyGeneration = generation ?? generationTracker.current(studyUID);
     const reader = createBuildReader(dicomdir);
     const seriesUIDs = await reader.listDirectories(
       reader.getStudyPath(studyUID, { path: 'series' })
@@ -50,13 +53,18 @@ export async function studyMain(studyUID, options = {}) {
       }
     };
     await build(seriesUIDs.filter(seriesUID => !seriesFilesExist(reader, studyUID, seriesUID)));
-    let result = await studySummary(dicomdir, studyUID, { force, generation, pendingSeries });
+    const options = { force, generation: studyGeneration, pendingSeries };
+    let result = await studySummary(dicomdir, studyUID, options);
     // A series-singleton.json gave no data (corrupt and deleted, or deleted by an upload)
     if (result.payload?.unreadSeries?.length) {
       await build(result.payload.unreadSeries);
-      result = await studySummary(dicomdir, studyUID, { force, generation, pendingSeries });
-      // Fail, and do not start next rounds that cannot change the result
-      if (result.payload?.unreadSeries?.length) {
+      result = await studySummary(dicomdir, studyUID, options);
+      // An upload changed the study: a next round builds it. Otherwise fail, and start no
+      // next rounds that cannot change the result
+      if (
+        result.payload?.unreadSeries?.length &&
+        generationTracker.current(studyUID) === studyGeneration
+      ) {
         throw new Error(
           `series-singleton.json of series ${result.payload.unreadSeries.join(', ')} stays unreadable`
         );
