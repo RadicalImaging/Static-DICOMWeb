@@ -96,6 +96,13 @@ export async function ensureStudyLevel(root, studyUID, options = {}) {
   if (!needsBuild()) {
     return undefined;
   }
+  // A study with no stored series (for example an unknown UID) has nothing to build
+  const seriesUIDs = await reader.listDirectories(
+    reader.getStudyPath(studyUID, { path: 'series' })
+  );
+  if (!seriesUIDs.length) {
+    return undefined;
+  }
   return runJob(options, `study:${studyUID}`, needsBuild, async context => {
     const generation = generationTracker.current(studyUID);
     const result = await studyMain(studyUID, {

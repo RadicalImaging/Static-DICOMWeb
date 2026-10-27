@@ -172,6 +172,18 @@ describe('builds of missing derived files', () => {
     expect(reads.filter(read => read === `studies/${STUDY}/series/index.json`)).toHaveLength(1);
   });
 
+  // The API must do this (SQR-D3, SQR-D12): an unknown study starts no job and writes nothing
+  it('answers 404 for an unknown study, with no job and no directory', async () => {
+    await startServer(createJobManager());
+    const runSpy = jest.spyOn(jobs, 'run');
+
+    const response = await fetch(`${baseUrl}/studies/9.9.9/series`);
+
+    expect(response.status).toBe(404);
+    expect(runSpy).not.toHaveBeenCalled();
+    expect(fs.existsSync(path.join(root, 'studies', '9.9.9'))).toBe(false);
+  });
+
   // The API must do this (SQR-D4): the study query repairs a missing series index
   it('builds a missing series index on a study query when the study index.json exists', async () => {
     await startServer(createJobManager());

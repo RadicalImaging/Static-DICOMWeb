@@ -171,6 +171,12 @@ export async function studySummary(baseDir, studyUID, options = {}) {
   // Scan to check if update is needed
   const actualSeriesUIDs = new Set(await reader.listDirectories(seriesPath));
 
+  // No series: nothing to write, and no stream may create the study directory
+  if (!actualSeriesUIDs.size) {
+    console.verbose('studySummary: no series found');
+    return { committed: true };
+  }
+
   if (
     !options.force &&
     existingSeriesUIDs.size === actualSeriesUIDs.size &&
