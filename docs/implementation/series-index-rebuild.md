@@ -99,6 +99,16 @@ Each function:
 2. Otherwise runs one job in the job manager. With `options.context`, the job is a nested
    job. Otherwise the job is a top-level job.
 
+Two cases return before any job:
+
+- `ensureStudyLevel` returns when the study has no series directory, for example for an
+  unknown Study Instance UID. `studySummary` also returns before it opens a stream when it
+  finds no series. Thus a query for an unknown study writes no directory, and uses no slot.
+- `ensureSeriesLevel` returns when an earlier build of the series committed but stored no
+  series file (no instance metadata is readable), and the generation of the series did not
+  change since that build (SQR-D3). An in-memory map in `indexOnDemandController.mjs` keeps
+  these results.
+
 The study job reads the generation of the study first. Then it calls
 `studyMain(studyUID, { dicomdir, generation, buildSeries })`. `studyMain` calls `buildSeries`
 for each series that has a missing file, and the study job gives a `buildSeries` that runs
@@ -503,6 +513,10 @@ The API must do this:
 14. A build of series A reads its data, and an upload then stores an instance in series B of
     the same study. The build of A commits. A study build that started before the upload
     does not commit (SQR-D6).
+15. Send a series query for a study that does not exist. The response has status 404, the
+    job manager starts no job, and the server creates no directory (SQR-D3, SQR-D12).
+16. Build a series whose instance metadata cannot be read. A second call reads no data.
+    After an upload into the series, the next call builds the series (SQR-D3).
 
 The user experience must have this: test 1 checks SQR-U1, the correct result with status 200.
 Test 6 checks the data rule of SQR-U1 for data that arrives during a build. Test 9 checks the

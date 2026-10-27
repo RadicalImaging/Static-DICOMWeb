@@ -21,6 +21,7 @@ import { seriesQueryController } from '../../lib/controllers/server/seriesQueryC
 import {
   studyQueryController,
   ensureStudyLevel,
+  ensureSeriesLevel,
 } from '../../lib/controllers/server/indexOnDemandController.mjs';
 import { deleteStaleSummaries } from '../../lib/controllers/server/deleteStaleSummaries.mjs';
 import { indexingStaticController } from '../../lib/controllers/server/staticControllers.mjs';
@@ -295,6 +296,33 @@ describe('builds of missing derived files', () => {
     expect(fs.existsSync(path.join(builtDir, 'metadata.gz'))).toBe(true);
     const study = await studyMain(STUDY, { dicomdir: root, generation: studyGeneration });
     expect(study.committed).toBe(false);
+  });
+
+  // The API must do this (SQR-D3): a series with no readable data is not read again on each
+  // request, and new data in the series starts a new build
+  it('does not build a series with no readable data again until new data arrives', async () => {
+    const jobManager = createJobManager();
+    const broken = '1.2.3.8';
+    const instanceDir = path.join(studyDir(), 'series', broken, 'instances', `${broken}.1`);
+    fs.mkdirSync(instanceDir, { recursive: true });
+    fs.writeFileSync(path.join(instanceDir, 'metadata.gz'), 'not gzip');
+    const reads = spyOnReads();
+    const instanceReads = () => reads.filter(read => read.includes(`/${broken}/instances/`));
+
+    await ensureSeriesLevel(root, STUDY, broken, { jobs: jobManager });
+    const firstReads = instanceReads().length;
+    await ensureSeriesLevel(root, STUDY, broken, { jobs: jobManager });
+
+    expect(firstReads).toBeGreaterThan(0);
+    expect(instanceReads()).toHaveLength(firstReads);
+
+    storeInstance(broken, 2);
+    deleteStaleSummaries(root, new Map([[`${STUDY}&${broken}`, {}]]));
+    await ensureSeriesLevel(root, STUDY, broken, { jobs: jobManager });
+
+    expect(fs.existsSync(path.join(studyDir(), 'series', broken, 'series-singleton.json.gz'))).toBe(
+      true
+    );
   });
 
   // User experience (SQR-U3) and the API (SQR-D11, SQR-D14): a full queue rejects only

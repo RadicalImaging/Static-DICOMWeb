@@ -108,7 +108,9 @@ The design has two parts:
   message or a stopped process never leaves a wrong file, only a missing file. Supports SQR-U1
   and SQR-U3.
 - **SQR-D3. Store each build.** Each build stores all files of its level. After a build, each
-  response path of that level has a stored file. Supports SQR-U1 and SQR-U2.
+  response path of that level has a stored file. A build that finds no readable data stores
+  no file. The server then records that result with the generation of the level, and does
+  not build that level again until the generation changes. Supports SQR-U1 and SQR-U2.
 - **SQR-D4. Build only when necessary, and stop at the stored data.** The server builds a level
   only when a file of the level is missing. A build of a level can work on all of the levels
   below it. For each lower level, the build uses the stored files when they exist, and does

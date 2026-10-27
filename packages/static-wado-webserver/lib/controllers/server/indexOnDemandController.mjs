@@ -11,6 +11,7 @@ import {
   studyFilesExist,
   FileDicomWebReader,
   generationTracker,
+  seriesGenerationKey,
 } from '@radicalimaging/create-dicomweb';
 import { studySingleMap, getDicomKey } from '../../adapters/requestAdapters.mjs';
 import { getBuildJobManager } from '../../util/buildJobManager.mjs';
@@ -43,6 +44,25 @@ function runJob(options, key, needsBuild, fn) {
 }
 
 /**
+ * Series generation key -> generation of a series build that committed, but could store no
+ * series file (no instance metadata is readable). The series is not built again until new
+ * data changes its generation, so broken data does not cost a full read on each request.
+ */
+const seriesWithNoData = new Map();
+
+function hasNoData(generationKey) {
+  const generation = seriesWithNoData.get(generationKey);
+  if (generation === undefined) {
+    return false;
+  }
+  if (generation === generationTracker.current(generationKey)) {
+    return true;
+  }
+  seriesWithNoData.delete(generationKey);
+  return false;
+}
+
+/**
  * Ensures that the series level of one series exists, and builds it in a job of the
  * build job manager when a file is missing. Returns immediately, outside the job
  * manager, when all files exist.
@@ -60,13 +80,19 @@ function runJob(options, key, needsBuild, fn) {
  */
 export async function ensureSeriesLevel(root, studyUID, seriesUID, options = {}) {
   const reader = options.reader ?? new FileDicomWebReader(root);
-  const needsBuild = () => !seriesFilesExist(reader, studyUID, seriesUID);
+  const generationKey = seriesGenerationKey(studyUID, seriesUID);
+  const needsBuild = () =>
+    !seriesFilesExist(reader, studyUID, seriesUID) && !hasNoData(generationKey);
   if (!needsBuild()) {
     return undefined;
   }
   return runJob(options, `series:${studyUID}/${seriesUID}`, needsBuild, async () => {
     console.verbose(`Processing series ${seriesUID}...`);
-    const result = await seriesSummary(root, studyUID, seriesUID);
+    const generation = generationTracker.current(generationKey);
+    const result = await seriesSummary(root, studyUID, seriesUID, { generation });
+    if (result?.committed && !seriesFilesExist(reader, studyUID, seriesUID)) {
+      seriesWithNoData.set(generationKey, generation);
+    }
     console.noQuiet(`Completed series ${seriesUID}`);
     return result;
   });
