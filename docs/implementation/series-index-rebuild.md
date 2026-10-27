@@ -206,9 +206,12 @@ The job manager obeys these rules:
    manager resolves the callers of the first round. After a delay, it calls
    `run(key, needsBuild, fn, { background: true })`. The delay is `roundDelayMs` (default
    1 s) for the first next round, and doubles after each round that does not commit, up to
-   `maxRoundDelayMs` (default 30 s). A commit of the key sets the delay back to 1 s. The job
-   manager logs a warning after each 10 rounds of one key, and continues. A request for the
-   key during the delay starts a new job at once, and the delayed round then finds the file.
+   `maxRoundDelayMs` (default 30 s; the server uses the defaults). A commit or a failure of
+   the key sets the delay back to `roundDelayMs`. The job manager logs a warning after each
+   10 rounds of one key, and continues. A key has at most one next round that waits for its
+   delay. A request for the key during the delay starts a new job at once. When that job
+   commits, the delayed round finds the file. When it does not commit, it starts no second
+   delayed round.
 5. **Limit the top-level jobs only (SQR-D12).** At most `maxRunning` top-level jobs run at the
    same time, with a default of 2. Other top-level jobs wait in a first-in, first-out queue. A
    top-level call does the wait of rule 3 before it enters the queue, so the wait holds no
@@ -259,8 +262,9 @@ the builds use that instance.
 
 `deleteStaleSummaries` calls `advance()` for each series and for each study, and then deletes
 the files. A build of a series that the upload does not change can thus commit during the
-upload. A study build cannot commit during the upload, because the study files list all
-series. It uses
+upload. A study build that reads its data before a later instance of the upload is stored
+does not commit. A study build that commits between two instances of the upload has its files
+deleted by the next instance. It uses
 synchronous calls only, with no `await` between the `advance()` calls and the deletions
 (SQR-D8). It deletes all series files of the levels table (`metadata`,
 `series-singleton.json` and `instances/index.json`) and the study files. Before this change,
@@ -269,7 +273,8 @@ the function did not delete `instances/index.json`. It does not delete `studies/
 
 The STOW listener calls `deleteStaleSummaries` for the series of each instance, immediately
 after the commit of that instance (the `afterCommit` option of `instanceFromStream`, which runs
-synchronously after `commitPendingMoves()`). Thus an upload that aborts later (a client
+after `commitPendingMoves()` resolves, with no I/O between them; SQR-D8 states the result).
+Thus an upload that aborts later (a client
 disconnect, the listener timeout) leaves no stale derived file. `completePostController` still
 calls `deleteStaleSummaries` for all series at the end of the request. The cost for each
 instance is two `advance()` calls and the `unlink` calls of the derived files of one series and one
@@ -372,25 +377,45 @@ callers use it:
   read, existence check and listing of a build obeys SQR-D3. Thus also the CLI commands fail
   on an I/O error, and do not report "no series".
 - The checks before a build in the webserver (the default reader of `ensureSeriesLevel`,
-  `ensureStudyLevel` and `ensureStudiesLevel`), so that a failed check never counts as a
-  missing file or as an unknown study.
+  `ensureStudyLevel` and `ensureStudiesLevel`). The controllers first check their response
+  file with `fs.existsSync`. A failed check there only leads to the `ensure*` call, which
+  checks again with the build reader. Thus a failed check never counts as a missing file or
+  as an unknown study.
+
+`writeMultipleWithRetry` also applies rule 1 of SQR-D3 to its writes: a stream whose write
+failed (`closeStream` returns `undefined`) stops the round, and a failed rename stops the
+commit. Both throw `toStorageError` of the error. `toStorageError` gives a
+`StorageUnavailableError` only for an error with an operating system code that is not a
+missing path, not a corrupt file and not a Node.js `ERR_*` code. Other errors come back
+unchanged, and give `500`.
 
 `handleBuildError` answers a `StorageUnavailableError` with `503` and a `Retry-After` header,
 in the same way as a `QueueFullError`. `studyMetadataQueryController` lists and reads the
 stored files with a build reader, on the path of the request (also with
-`hashStudyUidPath`). It reads each series `metadata` with `deleteFileOnError`, so a corrupt
-file is deleted, and a later request builds it again. Only a series with no stored
-`metadata` gets the check of `seriesNeedsBuild`, so a request for a study whose files exist
-costs one existence check for each series. With builds on demand, a series with no stored
-metadata after its build (no readable data, SQR-U1) adds no instances. Without builds on
-demand (`createIndexOnDemand: false`), a series with no stored metadata gives `404` for the
-study, as before this change.
+`hashStudyUidPath`). It reads the `metadata` of all series first, in parallel, with
+`deleteFileOnError`. Then it builds only the series whose read gave no data (missing or
+corrupt), in one job, and reads those again. Thus an upload that deletes a series file
+during the request does not remove that series from the response, and a corrupt file is
+built again at once. With builds on demand, a series with no stored metadata after its build
+(no readable data, SQR-U1) adds no instances. Without builds on demand
+(`createIndexOnDemand: false`), a series with no stored metadata gives `404` for the study,
+as before this change.
+
+`studySummary` notes each series whose stored `series-singleton.json` gave no data (a corrupt
+file that the read deleted) in `payload.unreadSeries`. It then stores no study file, and
+returns `committed: false`. `studyMain` builds those series, and calls `studySummary` one
+more time (rule 4 of SQR-D3).
 
 `indexSummary` with `onlyMissing` reads `studies/index.json` with `deleteFileOnError`, so a
 corrupt studies list is deleted, and the next `GET /studies` builds it again.
 
-Other readers keep the earlier behaviour: `deleteStaleSummaries`, and the CLI commands that
-read derived files for other work.
+Other readers keep the lenient mode: `deleteStaleSummaries`, and the CLI commands that read
+derived files for other work. In the lenient mode, too, the reader no longer deletes a file
+after an I/O error.
+
+Known limit: `_finishMove` removes an old-layout metadata directory (`<name>/index.json`)
+before the rename, because an uncompressed file can have the same path. A failed rename
+there loses the old directory, and the next build makes the file again.
 
 ### SQR-I7. Multi-node extension (not in this fix)
 
@@ -490,7 +515,12 @@ proposal in these items:
   of the studies list keep the `studyIndex` option of the caller, so that a study whose
   round did not commit during the build of the list is added by its next round. A failed
   round leaves no temporary file and no part of a commit, and keeps each old file that did
-  not get its new version.
+  not get its new version (except the old-layout limit of SQR-I6).
+- **After the third internal review round.** A failed write of one file stops the round, and
+  gives `503`. A corrupt `series-singleton.json` makes the study build build that series
+  again, and does not store study files without it. The study metadata query reads first,
+  then builds. The job manager keeps one delayed round for each key. `toStorageError` treats
+  only errors with an operating system code as storage errors.
 
 ## Compatibility
 
@@ -513,12 +543,15 @@ the maintainers must decide the version of the release.
   its series (SQR-D5).
 
 The other changes of the exported functions add to the earlier behaviour:
-`seriesSummary`, `studySummary` and `studyMain` return `{ committed, payload }`, and
-`indexSummary`, `studyMain`, `studySummary` (`pendingSeries`) and `instanceFromStream` get
-new options. The `FileDicomWebReader`
-constructor gets the `throwOnIoError` option, and the reader gets `directoryExists`.
-create-dicomweb exports `createBuildReader`. `@radicalimaging/static-wado-util` exports
-`StorageUnavailableError`, `isMissingPathError`, `isCorruptFileError` and `toStorageError`.
+`seriesSummary`, `studySummary` and `studyMain` return `{ committed, payload }`, `seriesMain`
+returns `{ committed }`, and `indexSummary`, `studyMain`, `studySummary` (`pendingSeries`)
+and `instanceFromStream` get new options. The `FileDicomWebReader` constructor gets the
+`throwOnIoError` option, and the reader gets `directoryExists`. `FileDicomWebWriter` gets the
+`canCommit` option, and `commitPendingMoves` cleans up after a failed rename. create-dicomweb
+exports `createBuildReader`, `seriesFilesExist`, `studyFilesExist`, `generationTracker`,
+`createGenerationTracker` and `seriesGenerationKey`. `@radicalimaging/static-wado-util`
+exports `createJobManager`, `QueueFullError`, `StorageUnavailableError`,
+`isMissingPathError`, `isCorruptFileError` and `toStorageError`.
 
 These user-facing results also change:
 
@@ -539,6 +572,16 @@ These user-facing results also change:
 - An upload no longer changes the entry of an existing study in `studies/index.json`. The
   counts of that entry in `GET /studies` can be older than the study (SQR-U4). Before this
   change, the `updateStudy` handler merged the study into the file on each upload.
+- An upload no longer makes a missing `studies/index.json`. The next `GET /studies` makes
+  it. A tool that reads the file from the disk, with no `GET /studies`, does not find it.
+- `GET /studies/<studyUID>/series/<seriesUID>/instances` builds a missing
+  `instances/index.json` (`instancesQueryController`). Before this change, the request gave
+  `404`.
+- The `createdicomweb study` command first builds each series that has a missing file. The
+  `index` command also fails on an I/O error.
+- A write I/O error of a derived file during a build gives `503`, and not `500`.
+- The STOW-RS upload stores the correct bytes when the request arrives in small chunks.
+  Before this change, the server rejected some valid instances.
 
 ## Deployment guidance
 
@@ -566,7 +609,8 @@ This section is not a requirement of the code.
   the next rounds follow, with a delay that increases up to 30 s. The cost stays limited,
   because one key has only one running job (SQR-I2 rule 2), and the delay increases
   (SQR-D6). A build of a different series of the same study is not affected, because each
-  series has its own generation (SQR-I3). The study level commits after the upload ends.
+  series has its own generation (SQR-I3). The study level can commit between two instances
+  of the upload; the next instance then deletes the study files again (SQR-D5).
 - **Q2 (closed).** The proposal deleted `studies/index.json` on each upload, and the rebuild
   of the full list did many rounds with no commit during a long upload. Decision: the studies
   list is a best-effort helper for a local single system (SQR-U4, SQR-D17). The upload does
@@ -595,7 +639,7 @@ The user experience must have this:
    status 200 and lists all series. The file exists after the query (SQR-U1, SQR-D2, SQR-D3).
 6. Start a study build. After its scan of the series, store a new series. The request that
    waited gets the result without the new series. The build does not commit that result. The
-   next round commits the index with the new series (SQR-U1, SQR-D6, SQR-D7, SQR-D8).
+   next round commits the index with the new series (SQR-U1, SQR-D6, SQR-D7).
 9. Fill the queue to `maxQueued`. A new series query that needs a build gets `503` with a
    `Retry-After` header. A series query for a study whose files exist gets `200` (SQR-U3,
    SQR-D11, SQR-D14).
@@ -614,19 +658,23 @@ The user experience must have this:
 20. Send a study metadata query for a study that has a series with corrupt data. The
     response is `200`, and holds the instances of the other series (SQR-U1).
 22. Build the studies list while an upload changes a study, so that the round of that study
-    does not commit. After the next round, the list holds the study (SQR-U4, SQR-D17).
+    does not commit. Before the next round, the list does not hold the study. After the next
+    round, the list holds the study (SQR-U4, SQR-D17).
+26. Send a study metadata query while an upload deletes the `metadata` of a series during
+    the request. The response holds all stored instances of that series (SQR-U1).
 
 The API must do this:
 
 2. Send the series query of test 1 a second time. `seriesSummary` and `studySummary` read and
    write no file (SQR-D1, SQR-D11).
-3. Send two concurrent series queries for a study that has no series index. `studyMain` runs
-   one time (SQR-D7).
+3. Send two series queries for a study that has no series index, and hold the build until the
+   second query joins it. `studyMain` runs one time (SQR-D7).
 4. Keep the study `index.json`, delete `series/index.json.gz`, and send a study query with
    `StudyInstanceUID`. The series index exists after the query (SQR-D4).
 5. Store one new instance in a series of a test study. The upload deletes the series files
    and the study files, and keeps `studies/index.json`. A series query then builds only the
-   changed series, and the index shows the new instance count (SQR-D4, SQR-D5).
+   changed series, and the index shows the new instance count. The files of the other series
+   are not written again (SQR-D4, SQR-D5).
 7. Run `studyMain` with `force` (the `createdicomweb study --force` command) on a study whose
    files exist. The study files are written again, and no series is built again (SQR-D10).
 8. Set `maxRunning` to 1. Start a job that needs three levels of nested jobs, and queue a
@@ -654,13 +702,17 @@ The API must do this:
     it (SQR-D3, SQR-D11).
 24. Call `seriesSummary` for a series whose files are current. The call reads no instance
     metadata, and opens no file for a write (SQR-D4, the early return of SQR-I5 for C2).
+25. Three requests for one key each get a round that does not commit. The job manager keeps
+    one delayed round, and the key has four rounds in total (SQR-D6).
+27. Corrupt the `series-singleton.json` of a valid series, and send a series query. The
+    response and the stored `series/index.json` list all series (SQR-U1, SQR-D3).
 
 Tests 2 and 3 also cover SQR-U2 and SQR-U3, because the cost of a request does not increase
 with repeated or concurrent requests. A test of memory use or of response time is not
 reliable in a unit test, so there is no such test. Tests 7 and 24 cover the early returns of
 `studySummary` and `seriesSummary`. There are no tests for each branch of the early returns.
 
-Tests 8 and 12 are in `packages/static-wado-webserver/test/unit/buildJobManager.jest.mjs`.
+Tests 8, 12 and 25 are in `packages/static-wado-webserver/test/unit/buildJobManager.jest.mjs`.
 Test 13 is in `packages/static-wado-webserver/test/unit/stowAbort.jest.mjs`. The other
 numbered tests are in `packages/static-wado-webserver/test/unit/derivedDataBuild.jest.mjs`.
 
@@ -671,7 +723,11 @@ These tests have no number, and check one function each (the API must do this):
   failed existence check with `ENOENT` or `ENOTDIR` gives "missing" in both modes, and one
   with `EACCES` throws only from `createBuildReader`.
 - `packages/create-dicomweb/test/writeWithRetryCleanup.jest.mjs` (SQR-D2, SQR-D3): a failed
-  data step, or a failed rename of a commit, leaves no temporary file and no part of a commit.
+  data step, a failed write of one file, or a failed rename of a commit, leaves no temporary
+  file and no part of a commit, and keeps each old file that did not get its new version.
+
+This test has no number, and the user experience must have it:
+
 - `packages/static-wado-webserver/test/unit/multipartStream.jest.mjs`: the STOW parser gives
   the exact bytes of a part that arrives in small chunks.
 

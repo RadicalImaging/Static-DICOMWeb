@@ -37,9 +37,12 @@ async function getFirstInstanceMetadata(reader, studyUID, seriesUIDs) {
  * does not commit an index that leaves out the series (SQR-D3).
  * @param {FileDicomWebReader} reader
  * @param {string} studyUID
+ * A series whose stored series-singleton.json was there but gave no data (a corrupt file that
+ * the read deleted) is in `unreadSeries`, and the study files must not be stored without it.
  * @param {Map<string, Object>} [pendingSeries] - Series query of each series whose round did not
  *   commit; used when the series has no stored series-singleton.json
- * @returns {Promise<{actualSeriesUIDs: Set<string>, seriesQueryArray: Object[], studyQuery: Object|null}>}
+ * @returns {Promise<{actualSeriesUIDs: Set<string>, seriesQueryArray: Object[], studyQuery: Object|null,
+ *   unreadSeries: string[]}>}
  */
 async function readStudyData(reader, studyUID, pendingSeries = new Map()) {
   const studyPath = reader.getStudyPath(studyUID);
@@ -52,13 +55,20 @@ async function readStudyData(reader, studyUID, pendingSeries = new Map()) {
   const seriesQueryArray = [];
   let firstSeriesSingleton = null;
   let totalInstances = 0;
+  const unreadSeries = [];
 
   for (const seriesUID of actualSeriesUIDs) {
     const seriesSingletonPath = reader.getSeriesPath(studyUID, seriesUID);
-    let seriesSingleton =
-      (await reader.readJsonFile(seriesSingletonPath, 'series-singleton.json', {
-        deleteFileOnError: true,
-      })) ?? pendingSeries.get(seriesUID);
+    const stored = reader.fileExists(seriesSingletonPath, 'series-singleton.json');
+    const storedSingleton = await reader.readJsonFile(
+      seriesSingletonPath,
+      'series-singleton.json',
+      { deleteFileOnError: true }
+    );
+    if (stored && !storedSingleton) {
+      unreadSeries.push(seriesUID);
+    }
+    let seriesSingleton = storedSingleton ?? pendingSeries.get(seriesUID);
     if (seriesSingleton) {
       if (Array.isArray(seriesSingleton) && seriesSingleton.length > 0) {
         seriesSingleton = seriesSingleton[0];
@@ -116,7 +126,7 @@ async function readStudyData(reader, studyUID, pendingSeries = new Map()) {
     }
   }
 
-  return { actualSeriesUIDs, seriesQueryArray, studyQuery };
+  return { actualSeriesUIDs, seriesQueryArray, studyQuery, unreadSeries };
 }
 
 /**
@@ -140,6 +150,10 @@ export function studyFilesExist(reader, studyUID) {
  * data for the response from the stored series files and the pending series queries, writes
  * nothing, and returns `committed: false`. Stored files without that series would leave it
  * out until the next upload (SQR-D6).
+ *
+ * When a stored series-singleton.json is corrupt, the read deletes it, and the round stores
+ * nothing and returns `committed: false` with `payload.unreadSeries`. The caller builds those
+ * series, and builds the study again (studyMain).
  *
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @param {string} studyUID - Study Instance UID
@@ -221,16 +235,22 @@ export async function studySummary(baseDir, studyUID, options = {}) {
         openStream: writer =>
           writer.openStudyStream('series/index.json', { gzip: true, compareOnClose: true }),
         getData: data =>
-          data.seriesQueryArray.length > 0 ? JSON.stringify(data.seriesQueryArray) : null,
+          !data.unreadSeries.length && data.seriesQueryArray.length > 0
+            ? JSON.stringify(data.seriesQueryArray)
+            : null,
         label: `studySummary(${studyUID}) series/index.json`,
       },
       {
         openStream: writer =>
           writer.openStudyStream('index.json', { gzip: true, compareOnClose: true }),
-        getData: data => (data.studyQuery ? JSON.stringify([data.studyQuery]) : null),
+        getData: data =>
+          !data.unreadSeries.length && data.studyQuery ? JSON.stringify([data.studyQuery]) : null,
         label: `studySummary(${studyUID}) index.json`,
       },
     ],
   });
+  if (payload?.unreadSeries.length) {
+    return { committed: false, payload };
+  }
   return { committed, payload };
 }

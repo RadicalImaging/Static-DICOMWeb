@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { toStorageError } from '@radicalimaging/static-wado-util';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
 
 const MAX_RETRIES = 3;
@@ -172,7 +173,7 @@ export async function writeWithRetry({
  * starts the next round. The retry loop for 'updated-stale' stays as it was.
  * When an open, generatePayload() or getData() throws, the temp files of the round are
  * removed and the error is thrown. When a rename of the commit throws, the files that moved
- * before it are deleted (a missing file is safe, SQR-D2) and the error is thrown. *
+ * before it are deleted (a missing file is safe, SQR-D2) and the error is thrown.
  * @param {Object} params
  * @param {Object} params.informationProvider - UID provider for the writer
  * @param {string} params.baseDir - Base directory for DICOMweb
@@ -220,8 +221,13 @@ export async function writeMultipleWithRetry({
           continue;
         }
         streamInfo.write(Buffer.isBuffer(data) ? data : Buffer.from(data));
-        await writer.closeStream(streamInfo.streamKey);
+        const closedPath = await writer.closeStream(streamInfo.streamKey);
         closed.add(streamInfo);
+        if (!closedPath) {
+          // closeStream records a failed write and returns undefined; the round must not commit
+          const error = writer.getStreamErrors().get(streamInfo.streamKey);
+          throw toStorageError(streamInfo.filepath, error ?? new Error(`Write failed: ${label}`));
+        }
         written.push(streamInfo);
       }
     } catch (err) {
@@ -234,7 +240,7 @@ export async function writeMultipleWithRetry({
     } catch (err) {
       // A missing file is safe (SQR-D2): remove the files that moved before the failure
       deleteMovedFiles(movedFiles(written));
-      throw err;
+      throw toStorageError(label, err);
     }
 
     const anyStale = written.some(streamInfo => streamInfo.writeStatus === 'updated-stale');

@@ -111,7 +111,7 @@ function createInMemoryTransport() {
 }
 
 /**
- * Changes the study generation and deletes the derived files of the series and the study
+ * Changes the series and the study generations and deletes the derived files of the series and the study
  * of a committed instance (deleteStaleSummaries, synchronous). Runs after each instance, so
  * an upload that aborts before completePostController leaves no stale derived file.
  * @param {string} dicomdir - DICOMweb root directory

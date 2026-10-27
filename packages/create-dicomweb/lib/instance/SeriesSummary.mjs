@@ -55,7 +55,7 @@ function updateLocation(instanceMetadata, instanceUID) {
 /**
  * Reads all instance metadata and derives series query data for a series.
  * An instance whose own metadata is missing or corrupt keeps its entry from the
- * current series metadata, so a rebuild never drops an instance that is still on disk.
+ * current series metadata. An instance with neither is left out (`droppedCount`).
  * The reader must use `throwOnIoError`: an I/O error then throws, so the build fails and
  * stores nothing (SQR-D3).
  * @param {FileDicomWebReader} reader

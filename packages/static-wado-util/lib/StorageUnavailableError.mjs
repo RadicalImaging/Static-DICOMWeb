@@ -34,7 +34,7 @@ export function isCorruptFileError(error) {
  */
 export class StorageUnavailableError extends Error {
   constructor(path, cause) {
-    super(`Cannot read ${path}: ${cause?.code || cause?.message || cause}`, { cause });
+    super(`Storage error on ${path}: ${cause?.code || cause?.message || cause}`, { cause });
     this.name = 'StorageUnavailableError';
     this.code = cause?.code;
     this.path = path;
@@ -43,19 +43,34 @@ export class StorageUnavailableError extends Error {
 }
 
 /**
- * Classifies an error of a read, an existence check or a listing of `path`. A missing path
- * and a corrupt file give the error back unchanged. Any other error is an I/O error (for
- * example `ESTALE`, `EIO` or `EACCES`): the path can exist, but the storage cannot read it
- * now, so this returns a StorageUnavailableError.
+ * Returns true for an I/O error: a file system error with an errno code (for example
+ * `ESTALE`, `EIO`, `EACCES`, `ENOSPC`) that is not a missing path. A corrupt file, a Node.js
+ * error (`ERR_*`, for example a string that is too long) and an error with no code are not
+ * I/O errors, because a retry after the storage recovers does not change them.
+ * @param {Error} error
+ * @returns {boolean}
+ */
+function isIoError(error) {
+  const code = error?.code;
+  return (
+    typeof code === 'string' &&
+    !isMissingPathError(error) &&
+    !isCorruptFileError(error) &&
+    !code.startsWith('ERR_')
+  );
+}
+
+/**
+ * Classifies an error of a read, an existence check, a listing or a write of `path`. For an
+ * I/O error (isIoError), the path can exist, but the storage cannot read or write it now, so
+ * this returns a StorageUnavailableError. Any other error comes back unchanged.
  * @param {string} path
  * @param {Error} error
  * @returns {Error}
  */
 export function toStorageError(path, error) {
-  if (isMissingPathError(error) || isCorruptFileError(error)) {
+  if (error instanceof StorageUnavailableError || !isIoError(error)) {
     return error;
   }
-  return error instanceof StorageUnavailableError
-    ? error
-    : new StorageUnavailableError(path, error);
+  return new StorageUnavailableError(path, error);
 }

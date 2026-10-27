@@ -20,7 +20,7 @@ const { dicomWebServerConfig } = ConfigPoint.register({
     disableSummary: false,
     /** Maximum number of top-level builds of derived files (series, study, studies list) that run at the same time. */
     maxRunningJobs: 2,
-    /** Maximum number of builds in the queue. A request that needs a build above this gets 503 with Retry-After. */
+    /** Maximum number of request builds in the queue (upload builds do not count). A request that needs a build above this gets 503 with Retry-After. */
     maxQueuedJobs: 20,
     corsOptions: {
       enabled: true,

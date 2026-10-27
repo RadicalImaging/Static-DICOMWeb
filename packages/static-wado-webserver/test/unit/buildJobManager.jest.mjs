@@ -91,4 +91,23 @@ describe('createJobManager', () => {
     });
     expect(jobs.stats()).toMatchObject({ active: 0, running: 0, queued: 0 });
   });
+
+  // Test 25. The API must do this (SQR-D6): requests between two rounds of a key do not start
+  // a second chain of next rounds
+  it('keeps one waiting next round for a key', async () => {
+    const jobs = createJobManager({ roundDelayMs: 50 });
+    let rounds = 0;
+    const round = async () => {
+      rounds++;
+      return { committed: rounds >= 4 };
+    };
+
+    for (let i = 0; i < 3; i++) {
+      await jobs.run('k', () => true, round);
+    }
+    expect(jobs.stats().delayedRounds).toBe(1);
+
+    await jobs.whenIdle();
+    expect(rounds).toBe(4);
+  });
 });

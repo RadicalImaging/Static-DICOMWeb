@@ -2,6 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { writeWithRetry, writeMultipleWithRetry } from '../lib/instance/writeWithRetry.mjs';
+import { FileDicomWebWriter } from '../lib/instance/FileDicomWebWriter.mjs';
 
 /**
  * A build that fails leaves no temp file, and no part of its commit: an old file stays, or
@@ -67,6 +68,30 @@ describe('write functions after a failure', () => {
     expect(files()).toEqual([]);
   });
 
+  // The API must do this (SQR-D3): a failed write of one file stops the commit of the round,
+  // and gives a StorageUnavailableError
+  it('does not commit a round when the write of one file fails', async () => {
+    const closeStream = FileDicomWebWriter.prototype.closeStream;
+    jest
+      .spyOn(FileDicomWebWriter.prototype, 'closeStream')
+      .mockImplementation(async function closeStreamSpy(streamKey) {
+        if (this.openStreams.get(streamKey)?.filepath?.endsWith('b.json.gz')) {
+          this.recordStreamError(streamKey, Object.assign(new Error('io'), { code: 'EIO' }), true);
+        }
+        return closeStream.call(this, streamKey);
+      });
+
+    await expect(
+      writeMultipleWithRetry({
+        informationProvider: {},
+        baseDir,
+        writes,
+        generatePayload: async () => ({}),
+      })
+    ).rejects.toMatchObject({ name: 'StorageUnavailableError', code: 'EIO' });
+    expect(files()).toEqual([]);
+  });
+
   // The API must do this (SQR-D2): a failed rename keeps each old file that did not get its
   // new version, and deletes each new file that moved before the failure
   it.each([
@@ -94,7 +119,7 @@ describe('write functions after a failure', () => {
         writes,
         generatePayload: async () => ({}),
       })
-    ).rejects.toThrow('busy');
+    ).rejects.toMatchObject({ name: 'StorageUnavailableError', code: 'EBUSY' });
 
     expect(files().sort()).toEqual(kept);
     kept.forEach(name => expect(fs.readFileSync(path.join(studiesDir, name), 'utf8')).toBe('old'));

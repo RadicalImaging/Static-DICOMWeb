@@ -32,7 +32,8 @@ export class QueueFullError extends Error {
  * 4. When `fn()` returns `{ committed: false }`, the callers get the result of that
  *    round, and the job manager starts the next round as a background job after a delay.
  *    The delay starts at `roundDelayMs`, doubles after each round that does not commit,
- *    stops at `maxRoundDelayMs`, and starts again at `roundDelayMs` after a commit.
+ *    stops at `maxRoundDelayMs`, and starts again at `roundDelayMs` after a commit. A key
+ *    has at most one next round that waits for its delay.
  * 5. At most `maxRunning` top-level jobs run at the same time; the others wait in a
  *    first-in, first-out queue. The wait of rule 3 holds no slot.
  * 6. A nested job runs at once, in the slot of its top-level job, and is never limited.
@@ -71,12 +72,12 @@ export function createJobManager(options = {}) {
   let active = 0;
   /** Number of request (not background) jobs in the queue */
   let queuedRequests = 0;
-  /** Number of next rounds that wait for their delay */
-  let delayedRounds = 0;
+  /** Keys whose next round waits for its delay: one pending next round for each key */
+  const delayedKeys = new Set();
   let idleWaiters = [];
 
   function checkIdle() {
-    if (active === 0 && queue.length === 0 && running.size === 0 && delayedRounds === 0) {
+    if (active === 0 && queue.length === 0 && running.size === 0 && delayedKeys.size === 0) {
       const waiters = idleWaiters;
       idleWaiters = [];
       waiters.forEach(resolve => resolve());
@@ -84,16 +85,20 @@ export function createJobManager(options = {}) {
   }
 
   function nextRound(key, needsBuild, fn) {
+    // A round of a request between two rounds does not start a second chain of rounds
+    if (delayedKeys.has(key)) {
+      return;
+    }
     const count = (rounds.get(key) ?? 0) + 1;
     rounds.set(key, count);
     if (count % WARN_ROUNDS === 0) {
       console.warn(`[jobManager] ${key}: ${count} rounds did not commit, the data still changes`);
     }
     const delay = Math.min(roundDelayMs * 2 ** (count - 1), maxRoundDelayMs);
-    delayedRounds++;
+    delayedKeys.add(key);
     // unref: a pending next round does not keep the process alive
     setTimeout(() => {
-      delayedRounds--;
+      delayedKeys.delete(key);
       run(key, needsBuild, fn, { background: true }).catch(err =>
         console.warn(`[jobManager] ${key}: next round failed:`, err?.message || err)
       );
@@ -215,7 +220,13 @@ export function createJobManager(options = {}) {
   }
 
   function stats() {
-    return { active, queued: queue.length, queuedRequests, running: running.size, delayedRounds };
+    return {
+      active,
+      queued: queue.length,
+      queuedRequests,
+      running: running.size,
+      delayedRounds: delayedKeys.size,
+    };
   }
 
   return { run, whenIdle, stats };

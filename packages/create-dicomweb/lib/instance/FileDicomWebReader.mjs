@@ -8,8 +8,6 @@ import {
 } from '@radicalimaging/static-wado-util';
 import { DicomWebReader } from './DicomWebReader.mjs';
 
-export { isCorruptFileError };
-
 /**
  * Creates the reader of a build: a missing path counts as missing, and an I/O error throws a
  * StorageUnavailableError (see the `throwOnIoError` option). Each build, and each check
@@ -31,10 +29,10 @@ export class FileDicomWebReader extends DicomWebReader {
    * @param {Object} [options]
    * @param {boolean} [options.throwOnIoError=false] - Throw a StorageUnavailableError when an
    *   existence check, a directory listing or a read fails with an I/O error (see
-   *   toStorageError: an error that is not a missing path and not a corrupt file). A build
-   *   uses this, so that a correct file that the storage cannot read now never counts as
-   *   missing data (SQR-D3). Without it, an I/O error of an existence check or a read counts
-   *   as missing, and an I/O error of a listing is thrown as it is.
+   *   toStorageError). A build uses this, so that a correct file that the storage cannot read
+   *   now never counts as missing data (SQR-D3). Without it, an I/O error of an existence
+   *   check or a read counts as missing (a listing of a directory that the check cannot see
+   *   gives []), and an I/O error of the listing itself is thrown as it is.
    */
   constructor(baseDir, options = {}) {
     super(baseDir);

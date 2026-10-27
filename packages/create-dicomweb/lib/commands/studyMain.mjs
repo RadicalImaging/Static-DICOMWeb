@@ -5,7 +5,8 @@ import { createBuildReader } from '../instance/FileDicomWebReader.mjs';
 /**
  * Main function for processing study metadata. First builds each series that has a
  * missing file (without force), and uses the stored files of the other series. Then
- * builds the study files.
+ * builds the study files. When the study build finds a corrupt series-singleton.json
+ * (`unreadSeries`), builds those series, and builds the study files one more time.
  * @param {string} studyUID - Study Instance UID
  * @param {Object} options - Options object
  * @param {string} [options.dicomdir] - Base directory path where DICOMweb structure is located
@@ -39,15 +40,21 @@ export async function studyMain(studyUID, options = {}) {
     );
     // Series whose round did not commit (also a round that a nested job joined, SQR-D6)
     const pendingSeries = new Map();
-    for (const seriesUID of seriesUIDs) {
-      if (!seriesFilesExist(reader, studyUID, seriesUID)) {
+    const build = async uids => {
+      for (const seriesUID of uids) {
         const seriesResult = await buildSeries(seriesUID);
         if (seriesResult?.committed === false) {
           pendingSeries.set(seriesUID, seriesResult.payload?.seriesQuery);
         }
       }
+    };
+    await build(seriesUIDs.filter(seriesUID => !seriesFilesExist(reader, studyUID, seriesUID)));
+    let result = await studySummary(dicomdir, studyUID, { force, generation, pendingSeries });
+    // A corrupt series-singleton.json was deleted by the study read: build it, and try again
+    if (result.payload?.unreadSeries?.length) {
+      await build(result.payload.unreadSeries);
+      result = await studySummary(dicomdir, studyUID, { force, generation, pendingSeries });
     }
-    const result = await studySummary(dicomdir, studyUID, { force, generation, pendingSeries });
     console.noQuiet(`Completed study ${studyUID}`);
     return result;
   } catch (error) {

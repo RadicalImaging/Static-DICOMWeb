@@ -194,9 +194,33 @@ describe('builds of missing derived files', () => {
 
   // Test 3. The API must do this (SQR-D7): concurrent queries share one build
   it('runs one study build for two concurrent series queries', async () => {
-    await startServer(createJobManager());
+    const jobManager = createJobManager();
+    await startServer(jobManager);
     fs.rmSync(seriesIndexPath());
-    const reads = spyOnReads();
+    // Hold the build until the second request calls the job manager, so both overlap
+    let bothArrived;
+    const arrived = new Promise(resolve => {
+      bothArrived = resolve;
+    });
+    const run = jobManager.run;
+    let runs = 0;
+    jest.spyOn(jobManager, 'run').mockImplementation((...args) => {
+      if (++runs === 2) {
+        bothArrived();
+      }
+      return run(...args);
+    });
+    const reads = [];
+    const readJsonFile = FileDicomWebReader.prototype.readJsonFile;
+    jest
+      .spyOn(FileDicomWebReader.prototype, 'readJsonFile')
+      .mockImplementation(async function readJsonFileSpy(relativePath, filename, options) {
+        reads.push(`${relativePath}/${filename}`);
+        if (filename === 'series-singleton.json') {
+          await arrived;
+        }
+        return readJsonFile.call(this, relativePath, filename, options);
+      });
 
     const responses = await Promise.all([
       fetch(`${baseUrl}/studies/${STUDY}/series`),
@@ -253,6 +277,9 @@ describe('builds of missing derived files', () => {
   it('rebuilds only the changed series after an upload', async () => {
     await startServer(createJobManager());
     const [changed, unchanged] = SERIES;
+    const unchangedMtime = fs.statSync(
+      path.join(studyDir(), 'series', unchanged, 'series-singleton.json.gz')
+    ).mtimeMs;
     storeInstance(changed, INSTANCES_PER_SERIES + 1);
 
     deleteStaleSummaries(root, new Map([[`${STUDY}&${changed}`, {}]]));
@@ -281,10 +308,19 @@ describe('builds of missing derived files', () => {
       [unchanged]: INSTANCES_PER_SERIES,
     });
     expect(reads.some(read => read.includes(`/${changed}/instances/`))).toBe(true);
-    expect(reads.some(read => read.includes(`/${unchanged}/instances/`))).toBe(false);
+    // The study build reads at most one instance of any series for the study attributes
+    const unchangedReads = reads.filter(read => read.includes(`/${unchanged}/instances/`));
+    expect(unchangedReads.length).toBeLessThan(INSTANCES_PER_SERIES);
+    const unchangedSingleton = path.join(
+      studyDir(),
+      'series',
+      unchanged,
+      'series-singleton.json.gz'
+    );
+    expect(fs.statSync(unchangedSingleton).mtimeMs).toBe(unchangedMtime);
   });
 
-  // Test 6. User experience (SQR-U1, SQR-D6, SQR-D7, SQR-D8): data that arrives during
+  // Test 6. User experience (SQR-U1, SQR-D6, SQR-D7): data that arrives during
   // a build is missing from the first response, and is in the index that the next round commits
   it('responds with the first round, and commits the next round, when a series arrives during a study build', async () => {
     await startServer(createJobManager({ roundDelayMs: 10 }));
@@ -523,7 +559,8 @@ describe('builds of missing derived files', () => {
   // Test 22. User experience (SQR-U4): a study whose round does not commit during a build of
   // the studies list is in the list after a later round
   it('lists a study whose round does not commit during a build of the studies list', async () => {
-    const jobManager = createJobManager({ roundDelayMs: 10 });
+    // The delay keeps the next round of the study after the first write of the list
+    const jobManager = createJobManager({ roundDelayMs: 300 });
     jobs = jobManager;
     const studiesIndexPath = path.join(root, 'studies', 'index.json.gz');
     fs.rmSync(studiesIndexPath);
@@ -538,11 +575,14 @@ describe('builds of missing derived files', () => {
       }
     });
 
-    await ensureStudiesLevel(root, { jobs: jobManager });
-    await jobManager.whenIdle();
+    const studyUIDs = () => readGzJson(studiesIndexPath).map(entry => entry['0020000D'].Value[0]);
 
+    await ensureStudiesLevel(root, { jobs: jobManager });
     expect(uploaded).toBe(true);
-    expect(readGzJson(studiesIndexPath).map(entry => entry['0020000D'].Value[0])).toEqual([STUDY]);
+    expect(studyUIDs()).toEqual([]);
+
+    await jobManager.whenIdle();
+    expect(studyUIDs()).toEqual([STUDY]);
   });
 
   // Test 23. The API must do this (SQR-D3, SQR-D11): a series with no instances starts no
@@ -571,6 +611,52 @@ describe('builds of missing derived files', () => {
     expect(result.committed).toBe(true);
     expect(reads.filter(read => read.includes('/instances/'))).toEqual([]);
     expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  // Test 26. User experience (SQR-U1): an upload during a study metadata request does not
+  // remove a stored series from the response
+  it('keeps each stored series in the study metadata when an upload changes one during the request', async () => {
+    await startServer(createJobManager());
+    const [first, second] = SERIES;
+    let uploaded = false;
+    spyOnReads(relativePath => {
+      if (relativePath.endsWith(`/${first}`) && !uploaded) {
+        uploaded = true;
+        storeInstance(second, INSTANCES_PER_SERIES + 1);
+        deleteStaleSummaries(root, new Map([[`${STUDY}&${second}`, {}]]));
+      }
+    });
+
+    const response = await fetch(`${baseUrl}/studies/${STUDY}/metadata`);
+
+    expect(uploaded).toBe(true);
+    expect(response.status).toBe(200);
+    const seriesOf = instance => instance[SERIES_INSTANCE_UID].Value[0];
+    const instances = await response.json();
+    expect(instances.filter(instance => seriesOf(instance) === first)).toHaveLength(
+      INSTANCES_PER_SERIES
+    );
+    expect(
+      instances.filter(instance => seriesOf(instance) === second).length
+    ).toBeGreaterThanOrEqual(INSTANCES_PER_SERIES);
+  });
+
+  // Test 27. The API must do this (SQR-U1, SQR-D3): a corrupt series-singleton.json does not
+  // leave a valid series out of the stored series index
+  it('builds a series again when its series-singleton.json is corrupt, and stores it in the index', async () => {
+    await startServer(createJobManager());
+    fs.rmSync(seriesIndexPath());
+    fs.writeFileSync(
+      path.join(studyDir(), 'series', SERIES[1], 'series-singleton.json.gz'),
+      'not gzip'
+    );
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const response = await fetch(`${baseUrl}/studies/${STUDY}/series`);
+
+    expect(response.status).toBe(200);
+    expect(seriesUIDsOf(await response.json())).toEqual(SERIES);
+    expect(seriesUIDsOf(readGzJson(seriesIndexPath()))).toEqual(SERIES);
   });
 
   // Test 20. User experience (SQR-U1): a series with corrupt data does not hide the other series of
