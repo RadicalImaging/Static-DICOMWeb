@@ -67,7 +67,7 @@ export async function removeOrphanTempFiles(dicomdir, options = {}) {
     }
   }
   if (removed > 0) {
-    console.noQuiet(`[removeOrphanTempFiles] Removed ${removed} orphan temp file(s) in ${studiesDir}`);
+    console.noQuiet(`[removeOrphanTempFiles] Removed ${removed} temp file(s) in ${studiesDir}`);
   }
   return removed;
 }

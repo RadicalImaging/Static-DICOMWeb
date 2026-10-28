@@ -125,7 +125,7 @@ describe('the result of an upload', () => {
 
   // Test 38. The user experience must have this: the status of the response and the Failure
   // Reason of each failed instance obey PS3.18 (Table 10.5.3-1 and Table I.2-2)
-  it('answers 409 with A700 when the storage is full, and 202 with C000 for a bad part', async () => {
+  it('answers 409 with A700 for a full storage, and 202 with C000 for a bad part', async () => {
     jest.spyOn(console, 'warn').mockImplementation(() => {});
     const openSync = fs.openSync;
     const spy = jest.spyOn(fs, 'openSync').mockImplementation((target, ...rest) => {

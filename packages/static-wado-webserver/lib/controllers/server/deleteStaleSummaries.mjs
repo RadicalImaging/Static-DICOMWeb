@@ -35,8 +35,8 @@ import {
  * update adds a missing study to it.
  *
  * @param {string} dicomdir - DICOMweb root directory (absolute or relative)
- * @param {Map<string, Object>} seriesMap - Map of seriesId -> info, where seriesId is "studyUID&seriesUID"
- *   and info can have the sopInstanceUid of the stored instance
+ * @param {Map<string, Object>} seriesMap - Map of seriesId -> info, where seriesId is
+ *   "studyUID&seriesUID", and info can have the sopInstanceUid of the stored instance
  * @param {Object} [options]
  * @param {Object} [options.generations] - Generation tracker (defaults to the shared tracker of create-dicomweb)
  */
