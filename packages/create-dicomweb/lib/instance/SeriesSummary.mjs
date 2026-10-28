@@ -1,7 +1,6 @@
-import fs from 'fs';
-import path from 'path';
-import { FileDicomWebReader } from './FileDicomWebReader.mjs';
+import { FileDicomWebReader, createBuildReader } from './FileDicomWebReader.mjs';
 import { writeMultipleWithRetry } from './writeWithRetry.mjs';
+import { generationTracker, seriesGenerationKey } from './generationTracker.mjs';
 import { Tags, TagLists } from '@radicalimaging/static-wado-util';
 
 const { getValue, setValue } = Tags;
@@ -55,8 +54,10 @@ function updateLocation(instanceMetadata, instanceUID) {
 
 /**
  * Reads all instance metadata and derives series query data for a series.
- * An instance whose own metadata is missing or unreadable keeps its entry from the
- * current series metadata, so a rebuild never drops an instance that is still on disk.
+ * An instance whose own metadata is missing or corrupt keeps its entry from the
+ * current series metadata. An instance with neither is left out (`droppedCount`).
+ * The reader must use `throwOnIoError`: an I/O error then throws, so the build fails and
+ * stores nothing (SQR-D3).
  * @param {FileDicomWebReader} reader
  * @param {string} studyUID
  * @param {string} seriesUID
@@ -160,19 +161,52 @@ async function readSeriesData(reader, studyUID, seriesUID, actualInstanceUIDs) {
 }
 
 /**
- * Creates or updates series metadata/index.json.gz file
+ * Returns true when all files of the series level exist: the series metadata,
+ * series-singleton.json and instances/index.json. A build of a higher level uses the
+ * stored files of a series when this is true, and builds the series otherwise.
+ * @param {FileDicomWebReader} reader
+ * @param {string} studyUID
+ * @param {string} seriesUID
+ * @returns {boolean}
+ */
+export function seriesFilesExist(reader, studyUID, seriesUID) {
+  return Boolean(
+    reader.seriesFileExists(studyUID, seriesUID, 'series-singleton.json') &&
+    reader.seriesFileExists(studyUID, seriesUID, 'metadata') &&
+    reader.seriesFileExists(studyUID, seriesUID, 'instances/index.json')
+  );
+}
+
+/**
+ * Creates or updates the series metadata, series-singleton.json and instances/index.json.
+ * Returns early, with no write, when the instance UIDs in the series metadata are the
+ * same as the instance directories, and series-singleton.json and instances/index.json
+ * exist. `force` skips that early return.
+ *
+ * The series metadata is never written as []: when instance directories exist but no
+ * instance metadata is readable (`noneReadable`), the build keeps the current series
+ * metadata; a series with no instances stores no metadata. The reader of the build
+ * (createBuildReader) throws on an I/O error, so the build then fails and stores nothing.
  *
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @param {string} studyUID - Study Instance UID
  * @param {string} seriesUID - Series Instance UID
- * @returns {Promise<void>}
+ * @param {Object} [options]
+ * @param {boolean} [options.force] - Build the series also when its files are up to date
+ * @param {number} [options.generation] - Generation of the series that the build read when it
+ *   started (defaults to the current generation). The files commit only if it did not change.
+ * @returns {Promise<{committed: boolean, payload?: Object}>} - committed false when the
+ *   generation changed; payload is the series data of the build
  */
-export async function seriesSummary(baseDir, studyUID, seriesUID, options) {
+export async function seriesSummary(baseDir, studyUID, seriesUID, options = {}) {
   if (!baseDir || !studyUID || !seriesUID) {
     throw new Error('baseDir, studyUID, and seriesUID are required');
   }
 
-  const reader = new FileDicomWebReader(baseDir);
+  // Read the generation before any data, so a change during the scan stops the commit
+  const generationKey = seriesGenerationKey(studyUID, seriesUID);
+  const generation = options.generation ?? generationTracker.current(generationKey);
+  const reader = createBuildReader(baseDir);
   const seriesPath = reader.getSeriesPath(studyUID, seriesUID);
   const instancesPath = `${seriesPath}/instances`;
 
@@ -191,33 +225,18 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options) {
   }
 
   // Scan the instances directory to get actual instance UIDs
-  const instanceDirectories = await reader.scanDirectory(instancesPath, { withFileTypes: true });
-  const actualInstanceUIDs = new Set();
+  const actualInstanceUIDs = new Set(await reader.listDirectories(instancesPath));
 
-  for (const entry of instanceDirectories) {
-    if (entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory()) {
-      actualInstanceUIDs.add(entry.name);
-    } else if (typeof entry === 'string') {
-      const instanceDirPath = `${instancesPath}/${entry}`;
-      const fullInstancePath = path.join(reader.baseDir, instanceDirPath);
-      try {
-        const stats = fs.lstatSync(fullInstancePath);
-        if (stats.isDirectory()) {
-          actualInstanceUIDs.add(entry);
-        }
-      } catch (error) {
-        console.warn(`Could not stat ${instanceDirPath}: ${error.message}`);
-      }
-    }
-  }
-
-  // Compare sets - if they match exactly, return early
+  // Return early when the metadata lists the stored instances and the other files exist
   if (
+    !options.force &&
     existingInstanceUIDs.size === actualInstanceUIDs.size &&
-    [...existingInstanceUIDs].every(uid => actualInstanceUIDs.has(uid))
+    [...existingInstanceUIDs].every(uid => actualInstanceUIDs.has(uid)) &&
+    reader.fileExists(seriesPath, 'series-singleton.json') &&
+    reader.fileExists(seriesPath, 'instances/index.json')
   ) {
     console.verbose('seriesSummary: instance index is up to date');
-    // return; // Metadata is up to date
+    return { committed: true };
   }
 
   const informationProvider = { studyInstanceUid: studyUID, seriesInstanceUid: seriesUID };
@@ -225,8 +244,9 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options) {
   // Write all series-level files in one retry loop so readSeriesData is called once per attempt
   console.verbose('seriesSummary: writing series metadata and index files');
   let lastPayload;
-  await writeMultipleWithRetry({
+  const result = await writeMultipleWithRetry({
     ...options,
+    generation: { tracker: generationTracker, key: generationKey, value: generation },
     informationProvider,
     baseDir,
     generatePayload: async () => {
@@ -237,13 +257,9 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options) {
       {
         openStream: writer =>
           writer.openSeriesStream('metadata', { gzip: true, compareOnClose: true }),
-        // Instance directories exist but none could be read: keep the current series
-        // metadata rather than replacing it with []
         getData: data => {
-          if (!data.noneReadable) {
-            return JSON.stringify(data.instanceMetadataArray);
-          }
-          return data.keptSeriesMetadata.length ? JSON.stringify(data.keptSeriesMetadata) : null;
+          const metadata = data.noneReadable ? data.keptSeriesMetadata : data.instanceMetadataArray;
+          return metadata.length ? JSON.stringify(metadata) : null;
         },
         label: `seriesSummary(${studyUID}/${seriesUID}) metadata`,
       },
@@ -267,6 +283,7 @@ export async function seriesSummary(baseDir, studyUID, seriesUID, options) {
   if (lastPayload) {
     logSeriesDataWarnings(lastPayload, actualInstanceUIDs.size, `${studyUID}/${seriesUID}`);
   }
+  return { committed: result.committed, payload: result.payload };
 }
 
 /**

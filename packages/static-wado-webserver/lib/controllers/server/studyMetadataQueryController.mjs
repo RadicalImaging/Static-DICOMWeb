@@ -1,30 +1,75 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { promisify } from 'node:util';
-import zlib from 'node:zlib';
 import { handleHomeRelative } from '@radicalimaging/static-wado-util';
-import { seriesMain } from '@radicalimaging/create-dicomweb';
+import { createBuildReader, generationTracker } from '@radicalimaging/create-dicomweb';
+import { getBuildJobManager } from '../../util/buildJobManager.mjs';
+import {
+  ensureSeriesLevel,
+  seriesNeedsBuild,
+  seriesMetadataOf,
+  handleBuildError,
+} from './indexOnDemandController.mjs';
 
-const gunzip = promisify(zlib.gunzip);
+/** Number of series metadata files that one request reads at the same time */
+const READ_GROUP_SIZE = 16;
 
-async function readSeriesMetadata(seriesDirectory) {
-  const gzipPath = path.join(seriesDirectory, 'metadata.gz');
-
-  try {
-    const compressed = await fs.readFile(gzipPath);
-    return JSON.parse((await gunzip(compressed)).toString('utf8'));
-  } catch (error) {
-    if (error?.code !== 'ENOENT') {
-      throw error;
-    }
+/** Maps the items in groups of READ_GROUP_SIZE, so a large study opens a limited number of files */
+async function mapInGroups(items, fn) {
+  const results = [];
+  for (let start = 0; start < items.length; start += READ_GROUP_SIZE) {
+    results.push(...(await Promise.all(items.slice(start, start + READ_GROUP_SIZE).map(fn))));
   }
+  return results;
+}
 
-  return JSON.parse(await fs.readFile(path.join(seriesDirectory, 'metadata'), 'utf8'));
+/**
+ * Builds the series of `seriesUIDs` that need a build (seriesNeedsBuild), in one job of the
+ * build job manager, each series as a nested job.
+ * @returns {Promise<Map<string, Object[]>>} - Series UID -> metadata of the first round of its
+ *   build (also of a round that did not commit); empty when no build was necessary
+ */
+async function buildSeriesMetadata(root, studyUID, seriesUIDs, reader, params) {
+  const needsBuild = async () => {
+    for (const seriesUID of seriesUIDs) {
+      if (await seriesNeedsBuild(reader, studyUID, seriesUID)) {
+        return true;
+      }
+    }
+    return false;
+  };
+  if (!(await needsBuild())) {
+    return new Map();
+  }
+  const key = `study-metadata:${studyUID}:${seriesUIDs.join(',')}`;
+  const result = await getBuildJobManager(params).run(
+    key,
+    needsBuild,
+    async context => {
+      const payload = new Map();
+      for (const seriesUID of seriesUIDs) {
+        const seriesResult = await ensureSeriesLevel(root, studyUID, seriesUID, { reader, context });
+        payload.set(seriesUID, seriesMetadataOf(seriesResult));
+      }
+      // Each series job starts its own next round, so this job does not
+      return { committed: true, payload };
+    },
+    // An upload to each series also changes the generation of its study
+    { version: () => generationTracker.current(studyUID) }
+  );
+  return result?.payload ?? new Map();
 }
 
 /**
  * Serves standard WADO-RS study metadata by combining the generated metadata
- * arrays for every series in the study.
+ * arrays for every series in the study. Reads the metadata of all series first, in parallel.
+ * Then builds the series whose metadata is missing (buildSeriesMetadata), reads those again,
+ * and uses the data of the first round for a series whose build did not commit.
+ *
+ * The files are read with a build reader on the path of the request: a missing or corrupt
+ * file counts as missing (a corrupt file is deleted, and then built), and an I/O error
+ * answers 503 with Retry-After (handleBuildError), as does a full build queue. A corrupt
+ * file that the reader cannot delete answers 503 or 500 by the same rule. With builds
+ * on demand, a series that stores no metadata (no readable data) adds no instances. Without
+ * them (`createIndexOnDemand: false`, or `hashStudyUidPath`), a series with no stored
+ * metadata gives 404 for the study.
  *
  * @param {string} dir Static DICOMweb root directory.
  * @param {object} params Server parameters.
@@ -35,41 +80,60 @@ export function studyMetadataQueryController(dir, params = {}) {
     const root = handleHomeRelative(dir ?? params.rootDir);
     const studyUID = req.params.studyUID;
     const studyPath = req.staticWadoPath.replace(/\/metadata\/?$/, '').replace(/^\/+/, '');
-    const seriesRoot = path.join(root, studyPath, 'series');
-    const createOnDemand = params.createIndexOnDemand !== false;
+    const seriesPath = seriesUID => `${studyPath}/series/${seriesUID}`;
+    // The builds use paths with no hash (Q3), so a hashStudyUidPath layout gets no build
+    const createOnDemand = params.createIndexOnDemand !== false && params.hashStudyUidPath !== true;
+    const reader = createBuildReader(root);
 
     try {
-      const seriesEntries = (await fs.readdir(seriesRoot, { withFileTypes: true }))
-        .filter(entry => entry.isDirectory())
-        .sort((left, right) => left.name.localeCompare(right.name));
-
-      const metadataBySeries = await Promise.all(
-        seriesEntries.map(async entry => {
-          const seriesDirectory = path.join(seriesRoot, entry.name);
-
-          try {
-            return await readSeriesMetadata(seriesDirectory);
-          } catch (error) {
-            if (!createOnDemand || error?.code !== 'ENOENT') {
-              throw error;
-            }
-            await seriesMain(studyUID, { dicomdir: root, seriesUid: entry.name });
-            return readSeriesMetadata(seriesDirectory);
-          }
-        })
+      const seriesUIDs = (await reader.listDirectories(`${studyPath}/series`)).sort((a, b) =>
+        a.localeCompare(b)
       );
+      // A corrupt file that stays would count as built, and leave out its series (SQR-D3 rule 4)
+      const read = seriesUID =>
+        reader.readJsonFile(seriesPath(seriesUID), 'metadata', {
+          deleteFileOnError: true,
+          throwIfNotDeleted: true,
+        });
+
+      // Read first, so a series that an upload changes after its read keeps its data
+      const metadataBySeries = await mapInGroups(seriesUIDs, read);
+      const missing = seriesUIDs.filter((_, index) => !metadataBySeries[index]);
+      if (missing.length && !createOnDemand) {
+        return res.status(404).json([]);
+      }
+
+      if (missing.length) {
+        const built = await buildSeriesMetadata(root, studyUID, missing, reader, params);
+        for (const [index, seriesUID] of seriesUIDs.entries()) {
+          if (!metadataBySeries[index]) {
+            // No data when a build of another caller committed, and an upload deleted the file since
+            const data =
+              (await read(seriesUID)) ??
+              built.get(seriesUID) ??
+              seriesMetadataOf(
+                await ensureSeriesLevel(root, studyUID, seriesUID, {
+                  reader,
+                  jobs: getBuildJobManager(params),
+                })
+              );
+            metadataBySeries[index] = data ?? [];
+          }
+        }
+      }
 
       const metadata = metadataBySeries.flat();
       if (!metadata.length) {
         return res.status(404).json([]);
       }
-
       return res.type('application/dicom+json').send(metadata);
     } catch (error) {
-      if (error?.code === 'ENOENT') {
-        return res.status(404).json([]);
-      }
-      return next(error);
+      return handleBuildError(
+        error,
+        res,
+        next,
+        'studyMetadataQuery: failed to build series metadata'
+      );
     }
   };
 }

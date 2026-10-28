@@ -18,6 +18,12 @@ const { dicomWebServerConfig } = ConfigPoint.register({
     serverTimeoutMs: 30 * 60 * 1000,
     /** When true, do not update series/study summaries after STOW-RS uploads (--disable-summary). */
     disableSummary: false,
+    /** Maximum number of top-level builds of derived files (series, study, studies list) that run at the same time. */
+    maxRunningJobs: 2,
+    /** Maximum number of request builds in the queue (background builds, of upload messages and next rounds, do not count). A request that needs a build above this gets 503 with Retry-After. */
+    maxQueuedJobs: 20,
+    /** Extra running builds for requests only, above maxRunningJobs, so a request does not wait for the background builds. */
+    requestJobSlots: 1,
     corsOptions: {
       enabled: true,
       origin: true,

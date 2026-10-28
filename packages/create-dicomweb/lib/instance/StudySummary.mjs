@@ -1,7 +1,6 @@
-import fs from 'fs';
-import path from 'path';
-import { FileDicomWebReader } from './FileDicomWebReader.mjs';
+import { FileDicomWebReader, createBuildReader } from './FileDicomWebReader.mjs';
 import { writeMultipleWithRetry } from './writeWithRetry.mjs';
+import { generationTracker } from './generationTracker.mjs';
 import { Tags, TagLists } from '@radicalimaging/static-wado-util';
 
 const { getValue, setValue } = Tags;
@@ -16,10 +15,7 @@ const { getValue, setValue } = Tags;
 async function getFirstInstanceMetadata(reader, studyUID, seriesUIDs) {
   for (const seriesUID of seriesUIDs) {
     const instancesPath = `${reader.getSeriesPath(studyUID, seriesUID)}/instances`;
-    const instanceDirs = await reader.scanDirectory(instancesPath, { withFileTypes: true });
-    for (const entry of instanceDirs) {
-      const instanceUID = entry?.name ?? entry;
-      if (typeof instanceUID !== 'string') continue;
+    for (const instanceUID of await reader.listDirectories(instancesPath)) {
       const instancePath = reader.getInstancePath(studyUID, seriesUID, instanceUID);
       const metadata = await reader.readJsonFile(instancePath, 'metadata', {
         deleteFileOnError: true,
@@ -34,44 +30,47 @@ async function getFirstInstanceMetadata(reader, studyUID, seriesUIDs) {
 
 /**
  * Scans series directory and reads all series singleton data for a study.
+ * The reader must use `throwOnIoError`: an I/O error then throws, so the build fails and
+ * does not commit an index that leaves out the series (SQR-D3).
+ * A series whose series-singleton.json was there at the check but gave no data (a corrupt
+ * file that the read deleted, or a file that an upload deleted after the check) is in
+ * `unreadSeries`, and the study files must not be stored without it. A series with no stored
+ * series-singleton.json and no pending entry is in `missingSeries`: a series with no
+ * readable data, or a series whose files an upload deleted during the round (studyMain).
  * @param {FileDicomWebReader} reader
  * @param {string} studyUID
- * @returns {Promise<{actualSeriesUIDs: Set<string>, seriesQueryArray: Object[], studyQuery: Object|null}>}
+ * @param {Map<string, Object>} [pendingSeries] - Series query of each series whose round did not
+ *   commit; used when the series has no stored series-singleton.json
+ * @returns {Promise<{actualSeriesUIDs: Set<string>, seriesQueryArray: Object[], studyQuery: Object|null,
+ *   unreadSeries: string[], missingSeries: string[]}>}
  */
-async function readStudyData(reader, studyUID) {
+async function readStudyData(reader, studyUID, pendingSeries = new Map()) {
   const studyPath = reader.getStudyPath(studyUID);
   const seriesPath = `${studyPath}/series`;
 
   // Scan the series directory to get actual series UIDs
-  const seriesDirectories = await reader.scanDirectory(seriesPath, { withFileTypes: true });
-  const actualSeriesUIDs = new Set();
-  for (const entry of seriesDirectories) {
-    if (entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory()) {
-      actualSeriesUIDs.add(entry.name);
-    } else if (typeof entry === 'string') {
-      const seriesDirPath = `${seriesPath}/${entry}`;
-      const fullSeriesPath = path.join(reader.baseDir, seriesDirPath);
-      try {
-        const stats = fs.lstatSync(fullSeriesPath);
-        if (stats.isDirectory()) {
-          actualSeriesUIDs.add(entry);
-        }
-      } catch (error) {
-        console.verbose(`Could not stat ${seriesDirPath}: ${error.message}`);
-      }
-    }
-  }
+  const actualSeriesUIDs = new Set(await reader.listDirectories(seriesPath));
 
   // Read all series singleton files
   const seriesQueryArray = [];
   let firstSeriesSingleton = null;
   let totalInstances = 0;
+  const unreadSeries = [];
+  const missingSeries = [];
 
   for (const seriesUID of actualSeriesUIDs) {
     const seriesSingletonPath = reader.getSeriesPath(studyUID, seriesUID);
-    let seriesSingleton = await reader.readJsonFile(seriesSingletonPath, 'series-singleton.json', {
-      deleteFileOnError: true,
-    });
+    // Checked before the read, so a file that the read deletes as corrupt is in unreadSeries
+    const stored = reader.fileExists(seriesSingletonPath, 'series-singleton.json');
+    const storedSingleton = await reader.readJsonFile(
+      seriesSingletonPath,
+      'series-singleton.json',
+      { deleteFileOnError: true, throwIfNotDeleted: true }
+    );
+    if (stored && !storedSingleton) {
+      unreadSeries.push(seriesUID);
+    }
+    let seriesSingleton = storedSingleton ?? pendingSeries.get(seriesUID);
     if (seriesSingleton) {
       if (Array.isArray(seriesSingleton) && seriesSingleton.length > 0) {
         seriesSingleton = seriesSingleton[0];
@@ -86,6 +85,9 @@ async function readStudyData(reader, studyUID) {
       }
     } else {
       console.verbose('studySummary: series singleton file not found:', seriesSingletonPath);
+      if (!stored && !pendingSeries.has(seriesUID)) {
+        missingSeries.push(seriesUID);
+      }
     }
   }
 
@@ -129,24 +131,65 @@ async function readStudyData(reader, studyUID) {
     }
   }
 
-  return { actualSeriesUIDs, seriesQueryArray, studyQuery };
+  return { actualSeriesUIDs, seriesQueryArray, studyQuery, unreadSeries, missingSeries };
 }
 
 /**
- * Creates or updates study metadata/index.json.gz file
+ * Returns true when both files of the study level exist: series/index.json and the study
+ * index.json. A build of the studies list uses the stored files of a study when this is true.
+ * @param {FileDicomWebReader} reader
+ * @param {string} studyUID
+ * @returns {boolean}
+ */
+export function studyFilesExist(reader, studyUID) {
+  return Boolean(
+    reader.studyFileExists(studyUID, 'index.json') &&
+    reader.fileExists(reader.getStudyPath(studyUID, { path: 'series' }), 'index.json')
+  );
+}
+
+/**
+ * Creates or updates the study files: series/index.json and the study index.json.
+ *
+ * With `pendingSeries` (a series round of this study round did not commit), builds the study
+ * data for the response from the stored series files and the pending series queries, writes
+ * nothing, and returns `committed: false`. Stored files without that series would leave it
+ * out until the next upload (SQR-D6).
+ *
+ * When a stored series-singleton.json is corrupt, the read deletes it, and the round stores
+ * nothing and returns `committed: false` with `payload.unreadSeries`. The caller builds those
+ * series, and builds the study again (studyMain).
  *
  * @param {string} baseDir - Base directory for DICOMweb structure
  * @param {string} studyUID - Study Instance UID
- * @returns {Promise<void>}
+ * @param {Object} [options]
+ * @param {boolean} [options.force] - Build the study files also when the series index is up to date
+ * @param {number} [options.generation] - Generation of the study that the build read when it
+ *   started (defaults to the current generation). The files commit only if it did not change.
+ * @param {Map<string, Object>} [options.pendingSeries] - Series UID -> series query (or
+ *   undefined) of each series whose round did not commit
+ * @returns {Promise<{committed: boolean, payload?: Object}>} - committed false when the
+ *   generation changed, a series is pending, or `payload.unreadSeries` is not empty; payload
+ *   is the study data of the build
  */
-export async function studySummary(baseDir, studyUID) {
+export async function studySummary(baseDir, studyUID, options = {}) {
   if (!baseDir || !studyUID) {
     throw new Error('baseDir and studyUID are required');
   }
 
-  const reader = new FileDicomWebReader(baseDir);
+  // Read the generation before any data, so a change during the scan stops the commit
+  const generation = options.generation ?? generationTracker.current(studyUID);
+  // An existence check, a listing or a read with an I/O error fails the build (SQR-D3)
+  const reader = createBuildReader(baseDir);
   const studyPath = reader.getStudyPath(studyUID);
   const seriesPath = `${studyPath}/series`;
+
+  if (options.pendingSeries?.size) {
+    return {
+      committed: false,
+      payload: await readStudyData(reader, studyUID, options.pendingSeries),
+    };
+  }
 
   // Check if series/index.json.gz exists and is up to date
   console.verbose('studySummary: seriesIndexFileInfo:', seriesPath);
@@ -166,38 +209,30 @@ export async function studySummary(baseDir, studyUID) {
   }
 
   // Scan to check if update is needed
-  const seriesDirectories = await reader.scanDirectory(seriesPath, { withFileTypes: true });
-  const actualSeriesUIDs = new Set();
-  for (const entry of seriesDirectories) {
-    if (entry && typeof entry === 'object' && entry.isDirectory && entry.isDirectory()) {
-      actualSeriesUIDs.add(entry.name);
-    } else if (typeof entry === 'string') {
-      const seriesDirPath = `${seriesPath}/${entry}`;
-      const fullSeriesPath = path.join(reader.baseDir, seriesDirPath);
-      try {
-        const stats = fs.lstatSync(fullSeriesPath);
-        if (stats.isDirectory()) {
-          actualSeriesUIDs.add(entry);
-        }
-      } catch (error) {
-        console.verbose(`Could not stat ${seriesDirPath}: ${error.message}`);
-      }
-    }
+  const actualSeriesUIDs = new Set(await reader.listDirectories(seriesPath));
+
+  // No series: nothing to write, and no stream may create the study directory
+  if (!actualSeriesUIDs.size) {
+    console.verbose('studySummary: no series found');
+    return { committed: true };
   }
 
   if (
+    !options.force &&
     existingSeriesUIDs.size === actualSeriesUIDs.size &&
-    [...existingSeriesUIDs].every(uid => actualSeriesUIDs.has(uid))
+    [...existingSeriesUIDs].every(uid => actualSeriesUIDs.has(uid)) &&
+    studyFilesExist(reader, studyUID)
   ) {
     console.verbose('studySummary: series index is up to date');
-    return;
+    return { committed: true };
   }
 
   const informationProvider = { studyInstanceUid: studyUID };
 
   // Write both study-level files in one retry loop so readStudyData is called once per attempt
   console.verbose('studySummary: writing series index and study singleton files');
-  await writeMultipleWithRetry({
+  const { committed, payload } = await writeMultipleWithRetry({
+    generation: { tracker: generationTracker, key: studyUID, value: generation },
     informationProvider,
     baseDir,
     generatePayload: () => readStudyData(reader, studyUID),
@@ -206,15 +241,22 @@ export async function studySummary(baseDir, studyUID) {
         openStream: writer =>
           writer.openStudyStream('series/index.json', { gzip: true, compareOnClose: true }),
         getData: data =>
-          data.seriesQueryArray.length > 0 ? JSON.stringify(data.seriesQueryArray) : null,
+          !data.unreadSeries.length && data.seriesQueryArray.length > 0
+            ? JSON.stringify(data.seriesQueryArray)
+            : null,
         label: `studySummary(${studyUID}) series/index.json`,
       },
       {
         openStream: writer =>
           writer.openStudyStream('index.json', { gzip: true, compareOnClose: true }),
-        getData: data => (data.studyQuery ? JSON.stringify([data.studyQuery]) : null),
+        getData: data =>
+          !data.unreadSeries.length && data.studyQuery ? JSON.stringify([data.studyQuery]) : null,
         label: `studySummary(${studyUID}) index.json`,
       },
     ],
   });
+  if (payload?.unreadSeries.length) {
+    return { committed: false, payload };
+  }
+  return { committed, payload };
 }

@@ -1,6 +1,98 @@
+import fs from 'fs';
+import { toStorageError } from '@radicalimaging/static-wado-util';
 import { FileDicomWebWriter } from './FileDicomWebWriter.mjs';
 
 const MAX_RETRIES = 3;
+
+/** Write statuses of a file that the writer moved to its final name */
+const MOVED_STATUSES = new Set(['created', 'updated', 'updated-stale']);
+
+/**
+ * Creates the generation check of one build round. Reads the generation now, so call it
+ * before the build reads any data. Without `generation`, returns undefined (no check).
+ *
+ * @param {Object} [generation]
+ * @param {{current: Function}} generation.tracker - Generation tracker
+ * @param {string} generation.key - Generation key of the files: the study UID, or
+ *   seriesGenerationKey(studyUID, seriesUID)
+ * @param {number} [generation.value] - Generation that the build read when it started. When the
+ *   build reads data before this write (for example nested builds of the series of a study),
+ *   pass the value that it read first. Defaults to the current generation.
+ * @returns {(() => boolean)|undefined} - Returns true while the generation did not change
+ */
+function createGenerationCheck(generation) {
+  if (!generation?.tracker) {
+    return undefined;
+  }
+  const { tracker, key } = generation;
+  const expected = generation.value ?? tracker.current(key);
+  return () => tracker.current(key) === expected;
+}
+
+/**
+ * Deletes the files that a round moved, after the generation changed (step 3 of the commit).
+ * On one node, an upload can change the generation after the last rename, and then this
+ * step deletes files that the upload also deletes. With generations in shared storage, this
+ * step also removes a commit that the writer check did not stop.
+ * @param {string[]} filepaths - Absolute paths of the moved files
+ * @returns {string[]} - Paths that it could not delete
+ */
+function deleteMovedFiles(filepaths) {
+  const failed = [];
+  for (const filepath of filepaths) {
+    try {
+      fs.rmSync(filepath, { force: true });
+    } catch (err) {
+      failed.push(filepath);
+      console.warn(`[writeWithRetry] Could not delete ${filepath}:`, err?.message || err);
+    }
+  }
+  return failed;
+}
+
+/**
+ * Cleans up after a rename of the commit failed. Deletes the files that moved before the
+ * failure. When one of them stays, a new file sits next to the old files of the level, and
+ * all of them exist, so no request builds the level again. Then this also deletes the old
+ * files of the round, so that one file of the level is missing (SQR-D2).
+ */
+function cleanupFailedCommit(written) {
+  if (!deleteMovedFiles(movedFiles(written)).length) {
+    return;
+  }
+  const moved = new Set(movedFiles(written));
+  const old = written.map(streamInfo => streamInfo.filepath).filter(p => !moved.has(p));
+  if (deleteMovedFiles(old).length === old.length) {
+    console.warn('[writeMultipleWithRetry] A failed commit left new and old files of one level');
+  }
+}
+
+/** @returns {string[]} - Paths of the files of `streamInfos` that the writer moved */
+function movedFiles(streamInfos) {
+  return streamInfos
+    .filter(streamInfo => MOVED_STATUSES.has(streamInfo.writeStatus))
+    .map(streamInfo => streamInfo.filepath);
+}
+
+/**
+ * Removes the temp files of a round that failed before its commit: aborts each stream that
+ * is still open, and removes the deferred moves of the closed streams. A cleanup error is
+ * logged, so the caller still gets the error of the round.
+ */
+async function discardRound(writer, streamInfos, closed, err) {
+  for (const { streamInfo } of streamInfos) {
+    if (closed.has(streamInfo)) {
+      continue;
+    }
+    try {
+      writer.recordStreamError(streamInfo.streamKey, err, true);
+      await writer.closeStream(streamInfo.streamKey);
+    } catch (cleanupErr) {
+      console.warn('[writeMultipleWithRetry] Could not discard a stream:', cleanupErr?.message);
+    }
+  }
+  writer.rollbackPendingMoves();
+}
 
 /**
  * Writes data to a DICOMweb file with compareOnClose enabled, retrying if the
@@ -24,6 +116,7 @@ const MAX_RETRIES = 3;
  *
  * If the function returns normally, even with retries=1, then it means the file
  * exists and is readable.  That can be used for immediate access queries.
+ * A failed write or rename throws (a StorageUnavailableError for an I/O error, toStorageError).
  *
  * @param {Object} params
  * @param {Object} params.informationProvider - UID provider for the writer
@@ -45,10 +138,21 @@ export async function writeWithRetry({
   for (let attempt = 1; attempt <= retries; attempt++) {
     // 1. Open the stream first — this snapshots the mtime of the existing file
     const writer = new FileDicomWebWriter(informationProvider, { baseDir });
-    const streamInfo = await openStream(writer);
+    let streamInfo;
+    try {
+      streamInfo = await openStream(writer);
+    } catch (err) {
+      throw toStorageError(err?.path ?? label, err);
+    }
 
     // 2. Now read source data (after mtime is captured)
-    const data = await generateData();
+    let data;
+    try {
+      data = await generateData();
+    } catch (err) {
+      writer.recordStreamError(streamInfo.streamKey, err, true);
+      throw err;
+    }
     if (data === null) {
       // Nothing to write — abort the stream and clean up
       writer.recordStreamError(streamInfo.streamKey, new Error('No data to write'), true);
@@ -57,7 +161,18 @@ export async function writeWithRetry({
 
     // 3. Write and close
     streamInfo.write(Buffer.isBuffer(data) ? data : Buffer.from(data));
-    const resultPath = await writer.closeStream(streamInfo.streamKey);
+    let resultPath;
+    try {
+      resultPath = await writer.closeStream(streamInfo.streamKey);
+    } catch (err) {
+      // A failed rename throws; _finishMove has removed the temp file
+      throw toStorageError(err?.path ?? streamInfo.filepath, err);
+    }
+    if (!resultPath) {
+      // closeStream records a failed write, and returns undefined
+      const error = writer.getStreamErrors().get(streamInfo.streamKey);
+      throw toStorageError(streamInfo.filepath, error ?? new Error(`Write failed: ${label}`));
+    }
 
     // 4. Only 'updated-stale' triggers a retry; everything else is clean
     const status = streamInfo.writeStatus;
@@ -86,49 +201,102 @@ export async function writeWithRetry({
  * batch is retried (generatePayload is called again). Use when payload generation
  * (e.g. readSeriesData) is expensive and all outputs depend on the same inputs.
  *
+ * With `generation`, the files commit only when the generation did not change:
+ * 1. Reads the generation before generatePayload() (or uses `generation.value`).
+ * 2. The writer writes all temp files, compares them, and then checks the generation one time
+ *    immediately before the renames, with no await between the check and the renames. When it
+ *    changed, the writer deletes the temp files and sets writeStatus to 'generation-changed'.
+ * 3. After all moves, reads the generation again. When it changed, deletes each moved file.
+ * In both cases of a change, returns `committed: false` and does not retry: the caller
+ * starts the next round. The retry loop for 'updated-stale' stays as it was.
+ * When an open, generatePayload(), getData() or a write throws or fails, the temp files of the
+ * round are removed and the error is thrown. When a rename of the commit throws, the files
+ * that moved before it are deleted (a missing file is safe, SQR-D2) and the error is thrown.
+ * When such a delete fails, the old files of the round are deleted (cleanupFailedCommit).
+ * An I/O error is thrown as a StorageUnavailableError (toStorageError).
  * @param {Object} params
  * @param {Object} params.informationProvider - UID provider for the writer
  * @param {string} params.baseDir - Base directory for DICOMweb
  * @param {Function} params.generatePayload - async () => payload — called once per attempt after all streams are open
  * @param {Array<{openStream: (writer) => Promise<Object>, getData: (payload) => string|Buffer|null, label: string}>} params.writes
+ * @param {{tracker: Object, key: string, value?: number}} [params.generation] - Generation tracker and key
  * @param {number} [params.retries]
- * @returns {Promise<{writeStatus: string}>}
+ * @returns {Promise<{writeStatus: string, committed: boolean, payload: *}>} - payload of the last attempt
  */
 export async function writeMultipleWithRetry({
   informationProvider,
   baseDir,
   generatePayload,
   writes,
+  generation,
   retries = MAX_RETRIES,
 }) {
   const label = writes.map(w => w.label).join(', ');
+  const isCurrent = createGenerationCheck(generation);
+  let payload;
   for (let attempt = 1; attempt <= retries; attempt++) {
-    const writer = new FileDicomWebWriter(informationProvider, { baseDir });
+    // Deferred moves: all files of the round commit together, after one canCommit() check
+    const writer = new FileDicomWebWriter(informationProvider, {
+      baseDir,
+      canCommit: isCurrent,
+      deferFinalMove: true,
+    });
     const streamInfos = [];
-    for (const w of writes) {
-      const streamInfo = await w.openStream(writer);
-      streamInfos.push({ ...w, streamInfo });
+    const closed = new Set();
+    const written = [];
+    try {
+      for (const w of writes) {
+        const streamInfo = await w.openStream(writer);
+        streamInfos.push({ ...w, streamInfo });
+      }
+
+      payload = await generatePayload();
+
+      for (const { streamInfo, getData } of streamInfos) {
+        const data = getData(payload);
+        if (data === null) {
+          writer.recordStreamError(streamInfo.streamKey, new Error('No data to write'), true);
+          await writer.closeStream(streamInfo.streamKey);
+          closed.add(streamInfo);
+          continue;
+        }
+        streamInfo.write(Buffer.isBuffer(data) ? data : Buffer.from(data));
+        const closedPath = await writer.closeStream(streamInfo.streamKey);
+        closed.add(streamInfo);
+        if (!closedPath) {
+          // closeStream records a failed write and returns undefined; the round must not commit
+          const error = writer.getStreamErrors().get(streamInfo.streamKey);
+          throw toStorageError(streamInfo.filepath, error ?? new Error(`Write failed: ${label}`));
+        }
+        written.push(streamInfo);
+      }
+    } catch (err) {
+      await discardRound(writer, streamInfos, closed, err);
+      throw toStorageError(err?.path ?? label, err);
     }
 
-    const payload = await generatePayload();
+    try {
+      await writer.commitPendingMoves();
+    } catch (err) {
+      // A missing file is safe (SQR-D2): remove the files that moved before the failure
+      cleanupFailedCommit(written);
+      throw toStorageError(err?.path ?? label, err);
+    }
 
-    let anyStale = false;
-    for (const { streamInfo, getData, label: wLabel } of streamInfos) {
-      const data = getData(payload);
-      if (data === null) {
-        writer.recordStreamError(streamInfo.streamKey, new Error('No data to write'), true);
-        await writer.closeStream(streamInfo.streamKey);
-        continue;
-      }
-      streamInfo.write(Buffer.isBuffer(data) ? data : Buffer.from(data));
-      await writer.closeStream(streamInfo.streamKey);
-      if (streamInfo.writeStatus === 'updated-stale') {
-        anyStale = true;
-      }
+    const anyStale = written.some(streamInfo => streamInfo.writeStatus === 'updated-stale');
+    const generationChanged = written.some(
+      streamInfo => streamInfo.writeStatus === 'generation-changed'
+    );
+    const moved = movedFiles(written);
+
+    if (generationChanged || (isCurrent && !isCurrent())) {
+      deleteMovedFiles(moved);
+      console.verbose(`[writeMultipleWithRetry] ${label}: the generation changed, not committed`);
+      return { writeStatus: 'generation-changed', committed: false, payload };
     }
 
     if (!anyStale) {
-      return { writeStatus: 'ok' };
+      return { writeStatus: 'ok', committed: true, payload };
     }
 
     if (attempt < retries) {
@@ -140,7 +308,7 @@ export async function writeMultipleWithRetry({
     console.warn(
       `[writeMultipleWithRetry] ${label}: one or more files were modified by another writer, giving up after ${retries} attempts`
     );
-    return { writeStatus: 'retries-exhausted' };
+    return { writeStatus: 'retries-exhausted', committed: true, payload };
   }
-  return { writeStatus: 'retries-exhausted' };
+  return { writeStatus: 'retries-exhausted', committed: true, payload };
 }

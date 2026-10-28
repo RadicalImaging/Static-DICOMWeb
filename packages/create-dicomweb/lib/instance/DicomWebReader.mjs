@@ -190,7 +190,7 @@ export class DicomWebReader {
             const json = JSON.parse(jsonString);
             resolve(json);
           } catch (error) {
-            reject(new Error(`Failed to parse JSON: ${error.message}`));
+            reject(new Error(`Failed to parse JSON: ${error.message}`, { cause: error }));
           }
         });
         

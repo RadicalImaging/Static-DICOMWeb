@@ -75,9 +75,10 @@ program
   .argument('<studyUID>', 'Study Instance UID')
   .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
   .option('--series-uid <seriesUID>', 'Specific Series Instance UID to process (if not provided, processes all series in the study)')
+  .option('--force', 'Build the series files again, also when they are up to date')
   .action(async (studyUID, options) => {
     updateVerboseLog();
-    const seriesOptions = {};
+    const seriesOptions = { force: options.force === true };
     if (options.dicomdir) {
       seriesOptions.dicomdir = handleHomeRelative(options.dicomdir);
     }
@@ -92,9 +93,10 @@ program
   .description('Generate study metadata files')
   .argument('<studyUID>', 'Study Instance UID')
   .option('--dicomdir <path>', 'Base directory path where DICOMweb structure is located', '~/dicomweb')
+  .option('--force', 'Build the study files again, also when they are up to date (series whose files exist are not built again)')
   .action(async (studyUID, options) => {
     updateVerboseLog();
-    const studyOptions = {};
+    const studyOptions = { force: options.force === true };
     if (options.dicomdir) {
       studyOptions.dicomdir = handleHomeRelative(options.dicomdir);
     }

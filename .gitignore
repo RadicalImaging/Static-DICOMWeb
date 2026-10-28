@@ -63,3 +63,5 @@ node_modules/
 # Release outputs of the publish workflow
 /version.txt
 /release/
+
+temp/

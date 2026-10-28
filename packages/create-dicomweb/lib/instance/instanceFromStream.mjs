@@ -22,11 +22,7 @@ const { ReadBufferStream } = data;
  * @returns {boolean}
  */
 function isReadBufferStreamLike(stream) {
-  return (
-    stream &&
-    typeof stream.reset === 'function' &&
-    typeof stream.addBuffer === 'function'
-  );
+  return stream && typeof stream.reset === 'function' && typeof stream.addBuffer === 'function';
 }
 
 const PARSE_JOB_TYPE = 'stowInstanceParse';
@@ -201,6 +197,8 @@ function createProgressFilter(parentJob, parseJob, throttleMs) {
  * @param {number} options.sizePrivateBulkdataTags - Size threshold in bytes for private tags (default: 128 bytes)
  * @param {{ typeId: string, jobId: string }} [options.statusMonitorJob] - If set, progress (parseTagsAdded, parseProgressMs) is reported to StatusMonitor.updateJob for this job.
  * @param {number} [options.progressThrottleMs=50] - Min ms between progress updates when statusMonitorJob is set.
+ * @param {Function} [options.afterCommit] - (result) => void. Called synchronously right after the
+ *   instance files are committed, for example to mark the derived files of the series as stale.
  * @returns {Promise<{meta, dict, writer, informationFilter}>} - Parsed metadata and optional writer/filter instances
  */
 export async function instanceFromStream(stream, options = {}) {
@@ -431,6 +429,7 @@ export async function instanceFromStream(stream, options = {}) {
     throw e;
   }
 
+  let result;
   try {
     if (dict && reader.meta) {
       const meta = reader.meta;
@@ -455,7 +454,7 @@ export async function instanceFromStream(stream, options = {}) {
     await writer?.drainOpenStreams(options.drainOpenStreamsTimeoutMs);
     console.verbose('Finished writing metadata to file', information.sopInstanceUid);
 
-    const result = { fmi, dict, writer, information: listener.information };
+    result = { fmi, dict, writer, information: listener.information };
 
     // If a validateInstance hook is provided, run it before committing temp files.
     if (options.validateInstance) {
@@ -464,27 +463,37 @@ export async function instanceFromStream(stream, options = {}) {
 
     // Commit deferred moves (rename temp → final). No-op on base class.
     await writer?.commitPendingMoves();
-
-    // After the commit above, because the rendition reads back the committed files
-    if (writer && options.writeRawPart10 !== false && shouldStoreRawPart10(dict)) {
-      try {
-        await writeRawPart10(writer, dict, information.sopInstanceUid);
-        await writer.commitPendingMoves();
-      } catch (err) {
-        console.warn(
-          'Unable to store Part 10 rendition for',
-          information.sopInstanceUid,
-          err?.message ?? err
-        );
-        writer.rollbackPendingMoves();
-      }
-    }
-
-    return result;
   } catch (err) {
+    // Stop the frame and bulkdata streams that still close, so none joins pendingMoves later
+    writer?.abort(err);
+    await writer?.drainOpenStreams(options.drainOpenStreamsTimeoutMs).catch(() => {});
     writer?.rollbackPendingMoves();
     throw err;
   }
+
+  // The instance is stored from here on, so nothing below reports it as failed
+  try {
+    options.afterCommit?.(result);
+  } catch (err) {
+    console.warn('afterCommit failed for', information.sopInstanceUid, err?.message ?? err);
+  }
+
+  // After the commit above, because the rendition reads back the committed files
+  if (writer && options.writeRawPart10 !== false && shouldStoreRawPart10(dict)) {
+    try {
+      await writeRawPart10(writer, dict, information.sopInstanceUid);
+      await writer.commitPendingMoves();
+    } catch (err) {
+      console.warn(
+        'Unable to store Part 10 rendition for',
+        information.sopInstanceUid,
+        err?.message ?? err
+      );
+      writer.rollbackPendingMoves();
+    }
+  }
+
+  return result;
 }
 
 /**

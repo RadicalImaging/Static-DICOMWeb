@@ -194,8 +194,12 @@ describe('open stream back pressure', () => {
     try {
       const streamInfo = writer.openStream('bulkdata', 'boom.bin', { streamKey: 'bulkdata:boom' });
       streamInfo.write(Buffer.from('some data'));
+      const closed = new Promise(resolve => streamInfo.fileStream.once('close', resolve));
       streamInfo.fileStream.destroy(new Error('EIO'));
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // An fs stream emits 'error' only after its pending open and write finish, which a fixed
+      // delay does not cover on a loaded CI runner. 'close' follows 'error'.
+      await closed;
+      await new Promise(resolve => setImmediate(resolve));
 
       expect(writer.hasStreamErrors()).toBe(true);
       expect(unhandled).toEqual([]);
