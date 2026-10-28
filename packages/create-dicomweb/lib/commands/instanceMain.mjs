@@ -4,9 +4,10 @@ import { instanceFromStream } from '../instance/instanceFromStream.mjs';
 
 /**
  * Stores each Part 10 file of fileNames (files or directories, recursive). dirScanner logs
- * the error of a file that is not stored, and continues with the next file.
+ * the error of a file that is not stored, and of a path that does not exist, and continues
+ * with the next file. Another error of a path (for example EACCES) throws.
  * @returns {Promise<{ studyUIDs: Set<string>, failedFiles: string[] }>} - The studies of the
- *   stored instances, and the files that were not stored
+ *   stored instances, and the files and paths that were not stored
  */
 export async function storeInstanceFiles(fileNames, options) {
     const studyUIDs = new Set();
@@ -14,6 +15,8 @@ export async function storeInstanceFiles(fileNames, options) {
     await dirScanner(fileNames, {
         ...options,
         recursive: true,
+        // A path that does not exist is a file that was not stored (SQR-U5)
+        onMissing: (filename) => failedFiles.push(filename),
         callback: async (filename) => {
             let result;
             try {

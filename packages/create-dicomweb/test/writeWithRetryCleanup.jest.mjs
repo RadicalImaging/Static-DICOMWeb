@@ -381,6 +381,14 @@ describe('an upload of an instance after a failure', () => {
     }
   });
 
+  // Test 46. The user experience must have this (SQR-U5): a CLI input path that does not
+  // exist is a file that was not stored, so the command exits with a non-zero code
+  it('gives a missing input path of the CLI as not stored', async () => {
+    const missing = path.join(baseDir, 'no-such-file.dcm');
+    const { failedFiles } = await storeInstanceFiles([missing], { dicomdir: baseDir });
+    expect(failedFiles).toEqual([missing]);
+  });
+
   /** Makes the write of the file whose final name ends with `name` fail with ENOSPC */
   function failWriteOf(name) {
     const closeStream = FileDicomWebWriter.prototype.closeStream;

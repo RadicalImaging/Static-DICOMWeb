@@ -1,9 +1,14 @@
 const fs = require('fs');
 const path = require('path');
+const { isMissingPathError } = require('../StorageUnavailableError.mjs');
 
 /**
  * Executes a given callback on the scanned list of names, OR matches up the names present
  * in the actual directory with the specified list.
+ *
+ * A path that does not exist (isMissingPathError) is logged and skipped, and
+ * options.onMissing(path) is called. Any other error of the stat (for example EACCES or EIO)
+ * throws, so that a caller never counts an unreadable path as missing.
  */
 async function dirScanner(input, options) {
   let files = input;
@@ -21,11 +26,16 @@ async function dirScanner(input, options) {
     ) {
       continue;
     }
-    if (!fs.existsSync(file)) {
+    let stat;
+    try {
+      stat = fs.lstatSync(file);
+    } catch (err) {
+      if (!isMissingPathError(err)) throw err;
       console.warn('File does not exist', file);
+      options?.onMissing?.(file);
       continue;
     }
-    if (fs.lstatSync(file).isDirectory()) {
+    if (stat.isDirectory()) {
       const names = await fs.promises.readdir(file);
       const filtered = names.filter(
         (name) => name !== '__MACOSX' && !name.startsWith('.')
