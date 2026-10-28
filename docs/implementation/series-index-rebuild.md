@@ -203,7 +203,11 @@ The job manager obeys these rules:
    the result of that round. When that job fails, the call gets the same error as the caller
    that started the job. Thus all requests that wait for one failed build get the same
    response. A call never takes over the job of a different caller. A top-level call for
-   a key that is in the queue joins that queued job.
+   a key that is in the queue joins that queued job. With the `version` option, the job
+   manager records the version of each job when it starts. A call joins a running job only
+   when that version is at least the version that the call read when it arrived. Otherwise
+   the call waits until the job ends, and then looks again with the same arrival version. The
+   server passes the generation of the series, or of the study, as the version (`runJob`).
 4. **Start the next round (SQR-D6).** When `fn()` returns `{ committed: false }`, the job
    manager resolves the callers of the first round. After a delay, it calls
    `run(key, needsBuild, fn, { background: true })`. The delay is `roundDelayMs` (default
@@ -603,7 +607,8 @@ These user-facing results also change:
 - With builds on demand, `GET /studies/<studyUID>/metadata` leaves out a series with only
   corrupt data, and gives the other series (SQR-U1). Before this change, the request gave
   `404` for the full study. A corrupt series `metadata` is deleted and built again, where
-  before the request gave `500`. Without builds on demand (`createIndexOnDemand: false`), a
+  before the request gave `500`. When the server cannot delete that file, the request still
+  gives `503` for an I/O error, and `500` otherwise. Without builds on demand (`createIndexOnDemand: false`), a
   corrupt series `metadata` is deleted, and the request gives `404` until the next upload to
   that series. Before this change, it gave `500`.
 - With `hashStudyUidPath`, `GET /studies/<studyUID>/metadata` gives `404` when the metadata
@@ -622,7 +627,9 @@ These user-facing results also change:
   `index` command also fails on an I/O error.
 - A write I/O error of a derived file during a build gives `503`, and not `500`. A read error
   of a build that is not an I/O error (for example a file that is too large to parse) gives
-  `500`. Before this change, the build treated that file as missing data.
+  `500`. Before this change, the build treated that file as missing data. A permanent error
+  (`ELOOP`, `EISDIR`, `EINVAL`, `ENOTEMPTY`, `EEXIST`, `EXDEV`) gives `500`, and a name that
+  is too long (`ENAMETOOLONG`, for example a long UID in a request) counts as a missing path.
 - The STOW-RS upload stores the correct bytes when the request arrives in small chunks.
   Before this change, the server rejected some valid instances.
 
@@ -639,7 +646,8 @@ This section is not a requirement of the code.
   limits of SQR-D12 and SQR-D14.
 - With the base design, run one node. Or route all requests for one study to one node, for
   example with a hash of the Study Instance UID in the load balancer. Otherwise use SQR-I7.
-- Run a CLI build only when the server stores no data for that study (SQR-D10).
+- Run a CLI build only while no upload to that study runs (SQR-D10). The recovery procedure
+  after a storage failure is in the section "Safety of each deployment" of the specification.
 - A plugin that sends `updateSeries` or `updateStudy` through `getStowMessaging()` must first
   call `deleteStaleSummaries` for the changed series. The handlers build only missing files.
 
@@ -708,6 +716,10 @@ The user experience must have this:
 26. Send a study metadata query while an upload deletes the `metadata` of a series during
     the request. The response holds at least the instances of that series that were stored
     before the request (SQR-U1).
+21. A series round reads its data, and an upload then changes the series, so the round does
+    not commit. A study build that starts after the upload does not join that round. It waits
+    for the round, builds the series again, and its response and its commit have the new
+    instance count (SQR-U1, SQR-D7).
 
 The API must do this:
 
@@ -740,10 +752,6 @@ The API must do this:
     job manager starts no job, and the server creates no directory (SQR-D11, SQR-D12).
 16. Build a series whose instance metadata is corrupt. A second call reads no data.
     After an upload into the series, the next call builds the series (SQR-D3).
-21. A series round reads its data, and an upload then changes the series, so the round does
-    not commit. A study build joins that round. The study round does not commit either, its
-    response lists that series, and a later round commits the index with the new instance
-    count (SQR-U1, SQR-D6).
 23. A series with no instances starts no build, and a build stores no series `metadata` for
     it (SQR-D3, SQR-D11).
 24. Call `seriesSummary` for a series whose files are current. The call reads no instance
@@ -752,6 +760,9 @@ The API must do this:
     one delayed round, and the key has four rounds in total (SQR-D6).
 27. Corrupt the `series-singleton.json` of a valid series, and send a series query. The
     response and the stored `series/index.json` list all series (SQR-U1, SQR-D3).
+28. A call with a `version` joins a running round of the same version. A call that arrives
+    after the version changed waits for that round, and gets the result of a new round, for
+    `run` and for `child` (SQR-D7).
 
 Tests 2 and 3 also cover SQR-U2 and SQR-U3, because the cost of a request does not increase
 with repeated or concurrent requests. A test of memory use or of response time is not

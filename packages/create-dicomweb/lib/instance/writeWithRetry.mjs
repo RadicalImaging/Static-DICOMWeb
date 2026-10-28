@@ -35,14 +35,35 @@ function createGenerationCheck(generation) {
  * step deletes files that the upload also deletes. With generations in shared storage, this
  * step also removes a commit that the writer check did not stop.
  * @param {string[]} filepaths - Absolute paths of the moved files
+ * @returns {string[]} - Paths that it could not delete
  */
 function deleteMovedFiles(filepaths) {
+  const failed = [];
   for (const filepath of filepaths) {
     try {
       fs.rmSync(filepath, { force: true });
     } catch (err) {
+      failed.push(filepath);
       console.warn(`[writeWithRetry] Could not delete ${filepath}:`, err?.message || err);
     }
+  }
+  return failed;
+}
+
+/**
+ * Cleans up after a rename of the commit failed. Deletes the files that moved before the
+ * failure. When one of them stays, a new file sits next to the old files of the level, and
+ * all of them exist, so no request builds the level again. Then this also deletes the old
+ * files of the round, so that one file of the level is missing (SQR-D2).
+ */
+function cleanupFailedCommit(written) {
+  if (!deleteMovedFiles(movedFiles(written)).length) {
+    return;
+  }
+  const moved = new Set(movedFiles(written));
+  const old = written.map(streamInfo => streamInfo.filepath).filter(p => !moved.has(p));
+  if (deleteMovedFiles(old).length === old.length) {
+    console.warn('[writeMultipleWithRetry] A failed commit left new and old files of one level');
   }
 }
 
@@ -191,6 +212,7 @@ export async function writeWithRetry({
  * When an open, generatePayload(), getData() or a write throws or fails, the temp files of the
  * round are removed and the error is thrown. When a rename of the commit throws, the files
  * that moved before it are deleted (a missing file is safe, SQR-D2) and the error is thrown.
+ * When such a delete fails, the old files of the round are deleted (cleanupFailedCommit).
  * An I/O error is thrown as a StorageUnavailableError (toStorageError).
  * @param {Object} params
  * @param {Object} params.informationProvider - UID provider for the writer
@@ -257,7 +279,7 @@ export async function writeMultipleWithRetry({
       await writer.commitPendingMoves();
     } catch (err) {
       // A missing file is safe (SQR-D2): remove the files that moved before the failure
-      deleteMovedFiles(movedFiles(written));
+      cleanupFailedCommit(written);
       throw toStorageError(err?.path ?? label, err);
     }
 

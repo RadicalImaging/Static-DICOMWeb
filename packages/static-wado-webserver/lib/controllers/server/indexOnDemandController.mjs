@@ -29,14 +29,17 @@ export function isStudiesIndexRequest(requestPath) {
 
 /**
  * Runs a build as a nested job when a job context is given, otherwise as a top-level job.
+ * With `generationKey`, the caller joins only a round that started at the generation that it
+ * read when it arrived, or later, so the response has the data stored before the request.
  * @param {Object} options - { context, jobs, background }
  */
-function runJob(options, key, needsBuild, fn) {
+function runJob(options, key, needsBuild, fn, generationKey) {
+  const version = generationKey && (() => generationTracker.current(generationKey));
   if (options.context) {
-    return options.context.child(key, needsBuild, fn);
+    return options.context.child(key, needsBuild, fn, { version });
   }
   const jobs = options.jobs ?? getBuildJobManager();
-  return jobs.run(key, needsBuild, fn, { background: options.background === true });
+  return jobs.run(key, needsBuild, fn, { background: options.background === true, version });
 }
 
 /**
@@ -104,16 +107,22 @@ export async function ensureSeriesLevel(root, studyUID, seriesUID, options = {})
   if (!(await needsBuild())) {
     return undefined;
   }
-  return runJob(options, `series:${studyUID}/${seriesUID}`, needsBuild, async () => {
-    console.verbose(`Processing series ${seriesUID}...`);
-    const generation = generationTracker.current(generationKey);
-    const result = await seriesSummary(root, studyUID, seriesUID, { generation });
-    if (result?.committed && result.payload?.noneReadable) {
-      seriesWithNoData.set(generationKey, generation);
-    }
-    console.noQuiet(`Completed series ${seriesUID}`);
-    return result;
-  });
+  return runJob(
+    options,
+    `series:${studyUID}/${seriesUID}`,
+    needsBuild,
+    async () => {
+      console.verbose(`Processing series ${seriesUID}...`);
+      const generation = generationTracker.current(generationKey);
+      const result = await seriesSummary(root, studyUID, seriesUID, { generation });
+      if (result?.committed && result.payload?.noneReadable) {
+        seriesWithNoData.set(generationKey, generation);
+      }
+      console.noQuiet(`Completed series ${seriesUID}`);
+      return result;
+    },
+    generationKey
+  );
 }
 
 /**
@@ -147,18 +156,24 @@ export async function ensureStudyLevel(root, studyUID, options = {}) {
   if (!seriesUIDs.length) {
     return undefined;
   }
-  return runJob(options, `study:${studyUID}`, needsBuild, async context => {
-    const generation = generationTracker.current(studyUID);
-    const result = await studyMain(studyUID, {
-      dicomdir: root,
-      generation,
-      buildSeries: seriesUID => ensureSeriesLevel(root, studyUID, seriesUID, { reader, context }),
-    });
-    if (result?.committed && options.studyIndex !== false) {
-      await addStudyToStudiesIndex(root, studyUID);
-    }
-    return result;
-  });
+  return runJob(
+    options,
+    `study:${studyUID}`,
+    needsBuild,
+    async context => {
+      const generation = generationTracker.current(studyUID);
+      const result = await studyMain(studyUID, {
+        dicomdir: root,
+        generation,
+        buildSeries: seriesUID => ensureSeriesLevel(root, studyUID, seriesUID, { reader, context }),
+      });
+      if (result?.committed && options.studyIndex !== false) {
+        await addStudyToStudiesIndex(root, studyUID);
+      }
+      return result;
+    },
+    studyUID
+  );
 }
 
 /** In-process lock of studies/index.json: each update starts after the previous one */

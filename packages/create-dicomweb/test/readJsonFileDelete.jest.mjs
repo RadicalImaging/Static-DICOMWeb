@@ -53,11 +53,14 @@ describe('FileDicomWebReader errors: deleteFileOnError and throwOnIoError', () =
 
   // The API must do this (SQR-D3): a missing path is "missing" in both modes, and an I/O error
   // throws only from the reader of a build
+  // A permanent error (ELOOP) throws as it is, and gives 500, because a retry cannot help
   it.each([
-    ['ENOENT', false],
-    ['ENOTDIR', false],
-    ['EACCES', true],
-  ])('classifies a failed existence check with %s', (code, ioError) => {
+    ['ENOENT', 'missing'],
+    ['ENOTDIR', 'missing'],
+    ['ENAMETOOLONG', 'missing'],
+    ['EACCES', 'io'],
+    ['ELOOP', 'permanent'],
+  ])('classifies a failed existence check with %s', (code, kind) => {
     for (const name of ['statSync', 'lstatSync']) {
       jest.spyOn(fs, name).mockImplementation(() => {
         throw Object.assign(new Error(code), { code });
@@ -66,11 +69,18 @@ describe('FileDicomWebReader errors: deleteFileOnError and throwOnIoError', () =
 
     expect(new FileDicomWebReader(baseDir).fileExists('studies', 'x.json')).toBe(false);
     const check = () => createBuildReader(baseDir).fileExists('studies', 'x.json');
-    if (ioError) {
-      expect(check).toThrow(StorageUnavailableError);
-    } else {
+    if (kind === 'missing') {
       expect(check()).toBe(false);
+      return;
     }
+    let error;
+    try {
+      check();
+    } catch (err) {
+      error = err;
+    }
+    expect(error?.code).toBe(code);
+    expect(error instanceof StorageUnavailableError).toBe(kind === 'io');
   });
 
   // The API must do this (SQR-D3): the reader of a build never counts an unreadable file as

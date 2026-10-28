@@ -48,9 +48,9 @@ does not change the user contract (SQR-U1).
 - **SQR-U1. Correct result.** A valid query or retrieve for data that the server stores
   returns that data, at every level: studies, series, instances and metadata. The server does
   not return an error for such a request.
-  Data that a client stores during a request, or while the server updates the summary that
-  the request uses, can be missing from the response to that request. For a large study, the
-  update can take minutes. That data is in the later responses.
+  A response includes each instance whose storage the server confirmed before it received
+  the request. An instance that a client stores while the server works on a request can be
+  missing from the response to that request. That instance is in the later responses.
   Stored data that the server cannot read because it is corrupt or incomplete (SQR-D9) can be
   missing from the responses. A series in which no instance is readable can give `404` for
   its own series, instances and metadata requests, and the study responses leave it out.
@@ -71,39 +71,49 @@ does not change the user contract (SQR-U1).
   query, or a series or study metadata request) gets `503 Service Unavailable` with a
   `Retry-After` header. A study metadata request can get this response also when it needs no
   update. A request for a stored file that the server sends as it is (for example a summary
-  that is already stored, a frame or a bulk data item) gets the error of the file server.
+  that is already stored, a frame or a bulk data item) gets a `5xx` response. Its status
+  code and headers are outside this specification.
   After the storage recovers, the next request gets the correct result, with no upload and no
   restart. The one exception is a storage failure during an upload (see the exceptions to
   SQR-U1).
 - **The exceptions to SQR-U1.** SQR-U1 has only these exceptions:
-  - corrupt or incomplete stored data (SQR-U1);
+  - corrupt or incomplete stored data (SQR-U1). A stored file that the server can neither
+    read nor repair gives a `5xx` response;
   - a full queue (SQR-U3);
   - a storage outage (SQR-U3);
-  - a stored file that the server cannot read for a reason other than corruption or an I/O
-    error (for example a file too large to parse): a request that needs an update then gets
-    `500`. A corrupt `series-singleton.json` that the server cannot delete gives `503` when
-    the deletion fails with an I/O error, and `500` otherwise (rule 4 of SQR-D3);
   - the studies list of SQR-U4;
   - a deployment that turns off the builds on demand (`createIndexOnDemand: false`): a
     query or a metadata request whose summary file is missing then gives `404`;
-  - a deployment that uses `hashStudyUidPath`: the server does not build a missing summary
-    file there, so a query, a metadata request or a studies list request whose summary file
-    is missing gives `404`;
   - a process stop or a storage failure during an upload: the responses can then leave out
     the instances of that upload, or give older summary values, until the next upload to
-    that series, or until an operator runs a forced build of the CLI (the notes of the
-    section "Safety of each deployment" of the design requirements);
+    that series, or until an operator does the recovery procedure of the section "Safety of
+    each deployment" of the design requirements;
   - a deployment with several nodes that does not send all work for one study to one node.
+
+  The section "Known limitations" gives the current limits of the implementation. They are
+  not user requirements.
 - **SQR-U4. The studies list is a best-effort helper.** The studies list
   (`GET /studies` without `StudyInstanceUID`) is a helper for the local files of a single
   system. It lists the stored studies. When the deployment updates the list on upload, a new
-  study is in the list after its upload ends, or after the first query of that study. A study
-  with only corrupt data is not added to the list. The summary values of an entry, for
-  example the
-  counts of series and instances, can be older than the study. A query with
-  `StudyInstanceUID` gives the current values of the study (SQR-U1). This is the exception to
-  SQR-U1 for the studies list. A deployment can turn off the update of the studies list on
-  upload (SQR-D17), so the helper is optional.
+  study is in the list after the study build that follows its upload commits, or after the
+  first query that builds that study. For a large study, that build can end minutes after
+  the response to the upload. A study with only corrupt data is not added to the list. The
+  summary values of an entry, for example the counts of series and instances, can be older
+  than the study. A query with `StudyInstanceUID` gives the current values of the study
+  (SQR-U1). This is the exception to SQR-U1 for the studies list. A deployment can turn off
+  the update of the studies list on upload (SQR-D17), so the helper is optional.
+
+## Known limitations
+
+These limits come from the current implementation. They are not user requirements, and a
+later change can remove them:
+
+- **A file that the server cannot parse for a reason other than corruption.** For example, a
+  stored file that is too large to parse gives `500` to a request that needs an update.
+- **`hashStudyUidPath`.** The builds use paths with no hash (Q3 of the implementation
+  document), so the server does not build a missing summary file in that layout. A query, a
+  metadata request or a studies list request whose summary file is missing gives `404`. This
+  was the behaviour before the builds on demand.
 
 ## § Design requirements
 
@@ -158,9 +168,13 @@ The design has two parts:
   Supports SQR-U1 and SQR-U3.
 - **SQR-D3. Store each build.** A build that commits stores each file of its level for which
   it has data. The rules below give the cases with no data. The terms of this requirement:
-  - A **missing path** is a path that does not exist (`ENOENT`, `ENOTDIR`). An upload can
+  - A **missing path** is a path that does not exist (`ENOENT`, `ENOTDIR`), or a path whose
+    name is too long (`ENAMETOOLONG`), because no stored path has such a name. An upload can
     delete a derived file during a build, so a missing path is not an error.
   - A **corrupt file** is a file whose gunzip step or JSON parse fails (SQR-D9).
+  - A **permanent error** is a file system error that a retry cannot change, because the
+    layout of the files is wrong: `ELOOP`, `EISDIR`, `EINVAL`, `ENOTEMPTY`, `EEXIST`,
+    `EXDEV`. It gives `500`, and not the `503` of SQR-U3.
   - An **I/O error** is each other file system error with an error code of the operating
     system, for example `ESTALE`, `EIO`, `EACCES` or `ENOSPC`. An error with no such code
     (for example a program error) is not an I/O error.
@@ -223,8 +237,13 @@ The design has two parts:
   round starts again after a delay in the same way. Supports SQR-U1 and SQR-U3.
 - **SQR-D7. Respond after the first build.** A caller that waits for a build gets the result of
   the first round of that build, also when the build must start again. The caller does not
-  wait for the next rounds. The next rounds continue in the background. Supports SQR-U1 and
-  SQR-U2.
+  wait for the next rounds. The next rounds continue in the background. A caller joins only
+  a round that started at the generation that the caller read when it arrived, or at a later
+  generation. For an older round, the caller waits until that round ends, and then joins or
+  starts a round. That round starts after the caller arrived, so the caller waits for at most
+  one older round, and the result has each upload that changed the generation before the
+  caller arrived. A study metadata request uses the generation of its study. Supports SQR-U1
+  and SQR-U2.
 - **SQR-D8. Make the check and the move atomic on one node.** On one node, the check of the
   generation and the move of the file run with no other work between them. The upload changes
   the generation and deletes the files with no other work between them. Thus on one node, an
@@ -240,10 +259,11 @@ The design has two parts:
 - **SQR-D10. Force a build from the CLI.** A `createdicomweb` command that builds derived data,
   for example `series` or `study`, builds its own level again when you use `--force`. The
   command does this also when the files exist. For the lower levels, the command obeys SQR-D4.
-  Without `--force`, the `series` and `study` commands obey SQR-D1 and SQR-D4 at all levels. The CLI runs in a
-  different process from the server, so the CLI does not see the generations of the server.
-  In the base design, run a CLI build only when the server stores no data for that study.
-  Supports SQR-U1.
+  Without `--force`, the `series` and `study` commands obey SQR-D1 and SQR-D4 at all levels.
+  `study --force` does not build a series whose files exist; use `series --force` for that
+  series. The CLI runs in a different process from the server, so the CLI does not see the
+  generations of the server. In the base design, run a CLI build only while no upload to
+  that study runs. Supports SQR-U1.
 
 The next requirements use these terms:
 
@@ -280,8 +300,10 @@ The next requirements use these terms:
   in the file at first. The next round of that study adds it, in the same way as after an
   upload. The updates of the file in one process run one after the
   other. The design gives no guarantee for updates from different processes. The server
-  parameter `studyIndex: false` turns off the update of the file after a study build.
-  Supports SQR-U4.
+  parameter `studyIndex: false` turns off the update of the file after a study build. The
+  server parameter `disableSummary: true` stops the update messages of an upload, so no
+  study build starts after an upload, and the file changes only after a query builds a
+  study. Supports SQR-U4.
 
 ### Multi-node extension requirements
 
@@ -319,13 +341,26 @@ generation shows that.
 
 Note 1: in that short time, the process can stop after the instance is stored and before its
 derived files are deleted. The old derived files then stay until the next upload to that series,
-or until an operator runs a forced build (SQR-D10).
+or until an operator does the recovery procedure below.
 
-Note 2: the same old derived files stay in two more cases on each deployment. The storage can
-refuse the deletion of a derived file with an I/O error (the server logs the error). Or the
-commit of an instance can fail after it moved some of the files of that instance, and the
-upload then does not delete the derived files. Both cases need a storage failure during the
-upload.
+Note 2: the same old derived files stay in three more cases on each deployment. Each case
+needs a storage failure:
+
+- The storage refuses the deletion of a derived file during an upload with an I/O error (the
+  server logs the error).
+- The commit of an instance fails after it moved some of the files of that instance, and the
+  upload then does not delete the derived files.
+- A rename of a build commit fails, and the storage refuses the deletion of the new files
+  that moved and of all old files of that round (the server logs the error).
+
+Recovery procedure for notes 1 and 2, after the storage recovers. Do one of these:
+
+- Delete the series files (the series `metadata`, `series-singleton.json` and
+  `instances/index.json`) of each affected series, and the study files (`series/index.json`
+  and the study `index.json`). With builds on demand, the next request builds them
+  (SQR-D2).
+- Stop the uploads to that study. Run `series --force` for each affected series, and then
+  `study --force` for the study (SQR-D10).
 
 The table applies to the series level and the study level. The studies list (SQR-D17) is
 safe on one node only, and only to the level of SQR-U4.
@@ -341,7 +376,10 @@ study on a different node must go to the node of that study, or that deployment 
    X to 8, and deletes the files of S and the study files of X.
 3. B1 completes its files. Before the move, B1 finds generation 8. B1 does not move its files,
    and starts round 2 in the background.
-4. The request that waited for B1 gets the result of round 1, without S (SQR-D7).
+4. The request that waited for B1 gets the result of round 1, without S (SQR-D7). That
+   request arrived before the upload of S. A request that arrives after step 2 does not join
+   round 1. It waits for round 1 to end, and then starts or joins a new round, and gets its
+   result, with S.
 5. Round 2 reads generation 8. It builds S as a nested job, uses the stored files of the other
    series, and commits `series/index.json` with S. The generation is still 8, so the build
    ends.

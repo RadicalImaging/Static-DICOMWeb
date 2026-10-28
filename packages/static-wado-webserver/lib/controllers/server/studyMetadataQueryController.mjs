@@ -1,5 +1,5 @@
 import { handleHomeRelative } from '@radicalimaging/static-wado-util';
-import { createBuildReader } from '@radicalimaging/create-dicomweb';
+import { createBuildReader, generationTracker } from '@radicalimaging/create-dicomweb';
 import { getBuildJobManager } from '../../util/buildJobManager.mjs';
 import {
   ensureSeriesLevel,
@@ -39,15 +39,21 @@ async function buildSeriesMetadata(root, studyUID, seriesUIDs, reader, params) {
     return new Map();
   }
   const key = `study-metadata:${studyUID}:${seriesUIDs.join(',')}`;
-  const result = await getBuildJobManager(params).run(key, needsBuild, async context => {
-    const payload = new Map();
-    for (const seriesUID of seriesUIDs) {
-      const seriesResult = await ensureSeriesLevel(root, studyUID, seriesUID, { reader, context });
-      payload.set(seriesUID, seriesMetadataOf(seriesResult));
-    }
-    // Each series job starts its own next round, so this job does not
-    return { committed: true, payload };
-  });
+  const result = await getBuildJobManager(params).run(
+    key,
+    needsBuild,
+    async context => {
+      const payload = new Map();
+      for (const seriesUID of seriesUIDs) {
+        const seriesResult = await ensureSeriesLevel(root, studyUID, seriesUID, { reader, context });
+        payload.set(seriesUID, seriesMetadataOf(seriesResult));
+      }
+      // Each series job starts its own next round, so this job does not
+      return { committed: true, payload };
+    },
+    // An upload to each series also changes the generation of its study
+    { version: () => generationTracker.current(studyUID) }
+  );
   return result?.payload ?? new Map();
 }
 
@@ -59,7 +65,8 @@ async function buildSeriesMetadata(root, studyUID, seriesUIDs, reader, params) {
  *
  * The files are read with a build reader on the path of the request: a missing or corrupt
  * file counts as missing (a corrupt file is deleted, and then built), and an I/O error
- * answers 503 with Retry-After (handleBuildError), as does a full build queue. With builds
+ * answers 503 with Retry-After (handleBuildError), as does a full build queue. A corrupt
+ * file that the reader cannot delete answers 503 or 500 by the same rule. With builds
  * on demand, a series that stores no metadata (no readable data) adds no instances. Without
  * them (`createIndexOnDemand: false`, or `hashStudyUidPath`), a series with no stored
  * metadata gives 404 for the study.
@@ -82,8 +89,12 @@ export function studyMetadataQueryController(dir, params = {}) {
       const seriesUIDs = (await reader.listDirectories(`${studyPath}/series`)).sort((a, b) =>
         a.localeCompare(b)
       );
+      // A corrupt file that stays would count as built, and leave out its series (SQR-D3 rule 4)
       const read = seriesUID =>
-        reader.readJsonFile(seriesPath(seriesUID), 'metadata', { deleteFileOnError: true });
+        reader.readJsonFile(seriesPath(seriesUID), 'metadata', {
+          deleteFileOnError: true,
+          throwIfNotDeleted: true,
+        });
 
       // Read first, so a series that an upload changes after its read keeps its data
       const metadataBySeries = await mapInGroups(seriesUIDs, read);

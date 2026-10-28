@@ -1,9 +1,18 @@
-/** Codes of a file system error that mean that the path does not exist */
-const MISSING_PATH_CODES = new Set(['ENOENT', 'ENOTDIR']);
+/**
+ * Codes of a file system error that mean that the path does not exist. No stored path has a
+ * name that is too long, so `ENAMETOOLONG` (for example a long UID in a request) is missing.
+ */
+const MISSING_PATH_CODES = new Set(['ENOENT', 'ENOTDIR', 'ENAMETOOLONG']);
+
+/**
+ * Codes of a file system error that a retry after the storage recovers does not change: the
+ * layout of the files or the request is wrong. These are not I/O errors.
+ */
+const PERMANENT_CODES = new Set(['ELOOP', 'EISDIR', 'EINVAL', 'ENOTEMPTY', 'EEXIST', 'EXDEV']);
 
 /**
  * Returns true when a file system error means that the path does not exist (`ENOENT`,
- * `ENOTDIR`): a missing path. Compare isCorruptFileError and toStorageError.
+ * `ENOTDIR`, `ENAMETOOLONG`): a missing path. Compare isCorruptFileError and toStorageError.
  * @param {Error} error
  * @returns {boolean}
  */
@@ -45,13 +54,15 @@ export class StorageUnavailableError extends Error {
 /**
  * Returns true for an I/O error: a file system error with an error code of the operating
  * system (`E` and capitals, for example `ESTALE`, `EIO`, `EACCES`, `ENOSPC`) that is not a
- * missing path. A corrupt file, a Node.js error (`ERR_*`, `ABORT_ERR`) and an error with no
- * code are not I/O errors, because a retry after the storage recovers does not change them.
+ * missing path, and not in PERMANENT_CODES. A corrupt file, a Node.js error (`ERR_*`,
+ * `ABORT_ERR`) and an error with no code are not I/O errors, because a retry after the
+ * storage recovers does not change them.
  * @param {Error} error
  * @returns {boolean}
  */
 function isIoError(error) {
-  return /^E[A-Z0-9]+$/.test(error?.code ?? '') && !isMissingPathError(error);
+  const code = error?.code ?? '';
+  return /^E[A-Z0-9]+$/.test(code) && !isMissingPathError(error) && !PERMANENT_CODES.has(code);
 }
 
 /**

@@ -232,4 +232,40 @@ describe('write functions after a failure', () => {
     expect((await files()).sort()).toEqual(kept);
     kept.forEach(name => expect(fs.readFileSync(path.join(studiesDir, name), 'utf8')).toBe('old'));
   });
+
+  // The API must do this (SQR-D2): when a moved file cannot be deleted, the old files of the
+  // round are deleted, so a file of the level is missing, and the next request builds it
+  it('deletes the old files when a moved file of a failed commit cannot be deleted', async () => {
+    const studiesDir = path.join(baseDir, 'studies');
+    fs.mkdirSync(studiesDir, { recursive: true });
+    for (const name of ['a.json.gz', 'b.json.gz']) {
+      fs.writeFileSync(path.join(studiesDir, name), 'old');
+    }
+    const rename = fs.renameSync;
+    let renames = 0;
+    jest.spyOn(fs, 'renameSync').mockImplementation((...args) => {
+      if (++renames === 2) {
+        throw Object.assign(new Error('io'), { code: 'EIO' });
+      }
+      return rename(...args);
+    });
+    const rm = fs.rmSync;
+    jest.spyOn(fs, 'rmSync').mockImplementation((target, ...rest) => {
+      if (String(target).endsWith('a.json.gz')) {
+        throw Object.assign(new Error('read-only'), { code: 'EROFS' });
+      }
+      return rm(target, ...rest);
+    });
+
+    await expect(
+      writeMultipleWithRetry({
+        informationProvider: {},
+        baseDir,
+        writes,
+        generatePayload: async () => ({}),
+      })
+    ).rejects.toMatchObject({ name: 'StorageUnavailableError', code: 'EIO' });
+
+    expect(await files()).toEqual(['a.json.gz']);
+  });
 });

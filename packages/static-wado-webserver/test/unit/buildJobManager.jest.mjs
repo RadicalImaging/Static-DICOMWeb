@@ -111,4 +111,47 @@ describe('createJobManager', () => {
     await jobs.whenIdle();
     expect(rounds).toBe(4);
   });
+
+  // Test 28. The API must do this (SQR-U1, SQR-D7): a call joins a round that started at its
+  // version or later; for an older round, it waits, and gets the result of a newer round
+  let parents = 0;
+  it.each([
+    ['run', (jobs, ...args) => jobs.run(...args)],
+    [
+      'child',
+      (jobs, key, needsBuild, fn, options) =>
+        jobs.run(`parent${++parents}`, () => true, context =>
+          context.child(key, needsBuild, fn, options)
+        ),
+    ],
+  ])('%s does not give a caller the result of a round that started before its version', async (_, call) => {
+    // Three slots, so that no parent job waits in the queue
+    const jobs = createJobManager({ maxRunning: 3, roundDelayMs: 1000 });
+    let generation = 1;
+    const version = () => generation;
+    const started = gate();
+    const hold = gate();
+    const round = async () => {
+      const read = generation;
+      if (read === 1) {
+        started.open();
+        await hold.promise;
+      }
+      return { committed: read === generation, read };
+    };
+
+    const first = jobs.run('k', () => true, round, { version });
+    await started.promise;
+    const joined = call(jobs, 'k', () => true, round, { version });
+    // A parent job calls child in a later microtask
+    await new Promise(resolve => setImmediate(resolve));
+    generation = 2;
+    const later = call(jobs, 'k', () => true, round, { version });
+    hold.open();
+
+    await expect(first).resolves.toMatchObject({ read: 1 });
+    await expect(joined).resolves.toMatchObject({ read: 1 });
+    await expect(later).resolves.toMatchObject({ committed: true, read: 2 });
+    await jobs.whenIdle();
+  });
 });

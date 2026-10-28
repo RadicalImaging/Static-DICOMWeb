@@ -408,6 +408,14 @@ describe('builds of missing derived files', () => {
         ),
       'EACCES',
     ],
+    [
+      'the existence check of the instances directory',
+      series =>
+        failStatsWithEacces(
+          target => target === path.join(studyDir(), 'series', series, 'instances')
+        ),
+      'EACCES',
+    ],
   ])(
     'fails a series build when %s has an I/O error, and builds the series after the storage recovers',
     async (_, fail, code) => {
@@ -495,10 +503,10 @@ describe('builds of missing derived files', () => {
     }
   );
 
-  // Test 21. The API must do this (SQR-U1, SQR-D6): a study round that joins a series round that
-  // does not commit does not commit either, its response keeps that series, and a later round
-  // commits all series
-  it('does not commit a study round that joins a series round that does not commit', async () => {
+  // Test 21. User experience (SQR-U1, SQR-D7): a study build that starts after an upload does
+  // not take the series round that started before the upload. It waits for that round, builds
+  // the series again, and its response and its commit have the new instance
+  it('gives a study build that starts after an upload the data of that upload', async () => {
     const jobManager = createJobManager({ roundDelayMs: 10 });
     jobs = jobManager;
     const [series] = SERIES;
@@ -534,21 +542,20 @@ describe('builds of missing derived files', () => {
 
     const seriesRound = await ensureSeriesLevel(root, STUDY, series, { jobs: jobManager });
     const studyRound = await study;
+    const countsOf = list =>
+      Object.fromEntries(
+        list.map(entry => [
+          entry[SERIES_INSTANCE_UID].Value[0],
+          entry[NUMBER_OF_SERIES_RELATED_INSTANCES].Value[0],
+        ])
+      );
+    const expected = { [series]: INSTANCES_PER_SERIES + 1, [SERIES[1]]: INSTANCES_PER_SERIES };
 
     expect(seriesRound.committed).toBe(false);
-    expect(studyRound.committed).toBe(false);
-    expect(seriesUIDsOf(studyRound.payload.seriesQueryArray)).toEqual(SERIES);
+    expect(studyRound.committed).toBe(true);
+    expect(countsOf(studyRound.payload.seriesQueryArray)).toEqual(expected);
     await jobManager.whenIdle();
-    const counts = Object.fromEntries(
-      readGzJson(seriesIndexPath()).map(entry => [
-        entry[SERIES_INSTANCE_UID].Value[0],
-        entry[NUMBER_OF_SERIES_RELATED_INSTANCES].Value[0],
-      ])
-    );
-    expect(counts).toEqual({
-      [series]: INSTANCES_PER_SERIES + 1,
-      [SERIES[1]]: INSTANCES_PER_SERIES,
-    });
+    expect(countsOf(readGzJson(seriesIndexPath()))).toEqual(expected);
   });
 
   // Test 22. User experience (SQR-U4, SQR-D17): a study whose round does not commit during a build of

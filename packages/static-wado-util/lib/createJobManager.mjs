@@ -28,7 +28,11 @@ export class QueueFullError extends Error {
  * 3. A call that finds a running job for its key waits for the first round of that job,
  *    and gets its result, or its error when that job failed. A call never takes over the
  *    job of a different caller. A top-level call for a key that is in the queue joins
- *    that queued job.
+ *    that queued job. With a `version` option (a value that only increases, for example
+ *    the generation of the data), a call joins only a round that started at the version
+ *    that the call read when it arrived, or later. For an older round, the call waits until
+ *    that round ends, and then joins or starts a round. That round starts after the call
+ *    arrived, so a call waits for at most one older round.
  * 4. When `fn()` returns `{ committed: false }`, the callers get the result of that
  *    round, and the job manager starts the next round as a background job after a delay.
  *    The delay starts at `roundDelayMs`, doubles after each round that does not commit,
@@ -63,6 +67,8 @@ export function createJobManager(options = {}) {
 
   /** key -> promise of the first-round result of the running job */
   const running = new Map();
+  /** key -> version that the running job read when it started (rule 3) */
+  const startVersions = new Map();
   /** key -> promise of the result of a queued top-level job */
   const queuedByKey = new Map();
   /** FIFO queue of top-level jobs that wait for a slot */
@@ -84,7 +90,23 @@ export function createJobManager(options = {}) {
     }
   }
 
-  function nextRound(key, needsBuild, fn) {
+  /** True when a call that arrived at version `arrival` can join the running job of `key` */
+  function joinable(key, arrival) {
+    const started = startVersions.get(key);
+    return arrival === undefined || started === undefined || started >= arrival;
+  }
+
+  /**
+   * Returns the running job of `key` when a call that arrived at `arrival` cannot join it
+   * (rule 3). The call waits until it ends, and then looks again.
+   * @returns {Promise|undefined}
+   */
+  function olderRound(key, arrival) {
+    const existing = running.get(key);
+    return existing && !joinable(key, arrival) ? existing.catch(() => {}) : undefined;
+  }
+
+  function nextRound(key, needsBuild, fn, version) {
     // A round of a request between two rounds does not start a second chain of rounds
     if (delayedKeys.has(key)) {
       return;
@@ -99,7 +121,7 @@ export function createJobManager(options = {}) {
     // unref: a pending next round does not keep the process alive
     setTimeout(() => {
       delayedKeys.delete(key);
-      run(key, needsBuild, fn, { background: true }).catch(err =>
+      run(key, needsBuild, fn, { background: true, version }).catch(err =>
         console.warn(`[jobManager] ${key}: next round failed:`, err?.message || err)
       );
       checkIdle();
@@ -107,8 +129,9 @@ export function createJobManager(options = {}) {
   }
 
   /** Starts a job (rule 1, 2 and 4); the caller checked that no job runs for the key */
-  function startJob(key, needsBuild, fn) {
+  function startJob(key, needsBuild, fn, version) {
     const context = { key, child };
+    startVersions.set(key, version?.());
     const promise = (async () => {
       if (!(await needsBuild())) {
         return undefined;
@@ -120,8 +143,9 @@ export function createJobManager(options = {}) {
     promise.then(
       result => {
         running.delete(key);
+        startVersions.delete(key);
         if (result?.committed === false) {
-          nextRound(key, needsBuild, fn);
+          nextRound(key, needsBuild, fn, version);
         } else {
           rounds.delete(key);
         }
@@ -129,6 +153,7 @@ export function createJobManager(options = {}) {
       },
       () => {
         running.delete(key);
+        startVersions.delete(key);
         rounds.delete(key);
         checkIdle();
       }
@@ -146,14 +171,15 @@ export function createJobManager(options = {}) {
   }
 
   /** Runs a top-level job in a slot that the caller acquired */
-  async function runInSlot(key, needsBuild, fn) {
+  async function runInSlot(key, needsBuild, fn, version) {
+    // A job that runs now started after each caller of this queued job arrived (rule 3)
     const existing = running.get(key);
     if (existing) {
       releaseSlot();
       return existing;
     }
     try {
-      return await startJob(key, needsBuild, fn);
+      return await startJob(key, needsBuild, fn, version);
     } finally {
       releaseSlot();
     }
@@ -164,13 +190,16 @@ export function createJobManager(options = {}) {
    * @param {string} key - Level and UIDs, for example `series:<studyUID>/<seriesUID>`
    * @param {() => boolean|Promise<boolean>} needsBuild
    * @param {(context: Object) => Promise<{committed: boolean}>} fn
+   * @param {Object} [childOptions]
+   * @param {() => number} [childOptions.version] - Version of the data of the key (rule 3)
    */
-  function child(key, needsBuild, fn) {
-    const existing = running.get(key);
-    if (existing) {
-      return existing;
+  function child(key, needsBuild, fn, childOptions = {}) {
+    const arrival = childOptions.arrival ?? childOptions.version?.();
+    const older = olderRound(key, arrival);
+    if (older) {
+      return older.then(() => child(key, needsBuild, fn, { ...childOptions, arrival }));
     }
-    return startJob(key, needsBuild, fn);
+    return running.get(key) ?? startJob(key, needsBuild, fn, childOptions.version);
   }
 
   /**
@@ -180,16 +209,24 @@ export function createJobManager(options = {}) {
    * @param {(context: Object) => Promise<{committed: boolean}>} fn - One round of the build
    * @param {Object} [runOptions]
    * @param {boolean} [runOptions.background=false] - Never reject the job when the queue is full
+   * @param {() => number} [runOptions.version] - Version of the data of the key (rule 3)
    * @returns {Promise<*>} - Result of the first round, or undefined when no build was necessary
    */
   async function run(key, needsBuild, fn, runOptions = {}) {
+    const { version } = runOptions;
+    const arrival = runOptions.arrival ?? version?.();
+    const older = olderRound(key, arrival);
+    if (older) {
+      await older;
+      return run(key, needsBuild, fn, { ...runOptions, arrival });
+    }
     const existing = running.get(key) ?? queuedByKey.get(key);
     if (existing) {
       return existing;
     }
     if (active < maxRunning) {
       active++;
-      return runInSlot(key, needsBuild, fn);
+      return runInSlot(key, needsBuild, fn, version);
     }
     const background = runOptions.background === true;
     if (!background && queuedRequests >= maxQueued) {
@@ -204,7 +241,7 @@ export function createJobManager(options = {}) {
         if (!background) {
           queuedRequests--;
         }
-        runInSlot(key, needsBuild, fn).then(resolve, reject);
+        runInSlot(key, needsBuild, fn, version).then(resolve, reject);
       });
     });
     queuedByKey.set(key, queued);
