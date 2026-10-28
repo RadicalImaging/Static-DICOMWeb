@@ -5,6 +5,7 @@ import { writeWithRetry, writeMultipleWithRetry } from '../lib/instance/writeWit
 import { FileDicomWebWriter } from '../lib/instance/FileDicomWebWriter.mjs';
 import { instanceFromStream } from '../lib/instance/instanceFromStream.mjs';
 import { instanceFromFile, storeInstanceFiles } from '../lib/commands/instanceMain.mjs';
+import { removeOrphanTempFiles } from '../lib/instance/removeOrphanTempFiles.mjs';
 
 /**
  * A build that fails leaves no temp file, and no part of its commit: an old file stays, or
@@ -402,4 +403,45 @@ describe('an upload of an instance after a failure', () => {
       .filter(entry => entry.isFile())
       .map(entry => entry.name);
   }
+});
+
+describe('removeOrphanTempFiles', () => {
+  let baseDir;
+
+  beforeEach(() => {
+    baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'orphan-temp-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  });
+
+  // Test 42. The API must do this (SQR-D19): the cleanup removes only the old temp files of
+  // the writer, and keeps a recent temp file (a running upload) and each other file
+  it('removes only the temp files of the writer that are older than the limit', async () => {
+    const hour = 60 * 60 * 1000;
+    const now = Date.now();
+    const files = {
+      'studies/1.2.3/temp/1700000000000-abc123-1.mht': now - 25 * hour,
+      'studies/temp/1700000000000-def456-index.json.gz': now - 25 * hour,
+      'studies/1.2.3/temp/1700000000001-ghi789-metadata.gz': now - hour,
+      'studies/1.2.3/temp/notes.txt': now - 25 * hour,
+      'studies/1.2.3/series/1.2.3.4/metadata.gz': now - 25 * hour,
+    };
+    for (const [name, mtime] of Object.entries(files)) {
+      const file = path.join(baseDir, name);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, 'data');
+      fs.utimesSync(file, new Date(mtime), new Date(mtime));
+    }
+
+    expect(await removeOrphanTempFiles(baseDir, { maxAgeMs: 24 * hour, now })).toBe(2);
+
+    const kept = Object.keys(files).filter(name => fs.existsSync(path.join(baseDir, name)));
+    expect(kept).toEqual([
+      'studies/1.2.3/temp/1700000000001-ghi789-metadata.gz',
+      'studies/1.2.3/temp/notes.txt',
+      'studies/1.2.3/series/1.2.3.4/metadata.gz',
+    ]);
+  });
 });

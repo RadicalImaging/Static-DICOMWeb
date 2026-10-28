@@ -8,6 +8,8 @@ import configureProgram from './program/index.mjs';
 import setRoutes from './routes/index.mjs';
 import setMiddlewares from './middlewares/index.mjs';
 import { getStatusPayload } from './controllers/server/statusController.mjs';
+import { handleHomeRelative } from '@radicalimaging/static-wado-util';
+import { removeOrphanTempFiles } from '@radicalimaging/create-dicomweb';
 
 /**
  * Serve up the web files
@@ -47,6 +49,13 @@ const DicomWebServer = async params => {
     },
     () => {
       console.log(`Listening on port ${port} for both IPv4 and IPv6`);
+      // Temp files of a stopped process (SQR-D19), in the background
+      const tempMaxAgeHours = params.tempMaxAgeHours ?? 24;
+      if (params.rootDir && tempMaxAgeHours > 0) {
+        removeOrphanTempFiles(handleHomeRelative(params.rootDir), {
+          maxAgeMs: tempMaxAgeHours * 60 * 60 * 1000,
+        }).catch(err => console.warn('Temp file cleanup failed:', err?.message || err));
+      }
       if (params.showStatus) {
         const intervalSec = params.statusTime ?? 60;
         setInterval(() => {

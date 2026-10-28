@@ -24,6 +24,8 @@ const { dicomWebServerConfig } = ConfigPoint.register({
     maxQueuedJobs: 20,
     /** Extra running builds for requests only, above maxRunningJobs, so a request does not wait for the background builds. */
     requestJobSlots: 1,
+    /** At start, remove the temp files of studies/<studyUID>/temp older than this (hours). One upload of an instance must take less time. 0 turns the removal off. */
+    tempMaxAgeHours: 24,
     corsOptions: {
       enabled: true,
       origin: true,

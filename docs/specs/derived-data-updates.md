@@ -363,6 +363,14 @@ The next requirements use these terms:
   or the Part 10 rendition) does not report the instance as failed. When the Part 10 rendition
   of the instance fails, the upload deletes the stored rendition of an earlier upload, and
   the server makes the rendition from the stored files on request. Supports SQR-U5.
+- **SQR-D19. Remove the temporary files of a stopped process.** A process that stops during a
+  write leaves its temporary files. The server removes a temporary file only when all of these
+  conditions are true: the file is in a temporary directory of the writer, its name is a
+  temporary file name of the writer, and its last write is older than a configured age. The
+  age must be longer than the upload of one instance, because an upload keeps the temporary
+  files of an instance until the commit of that instance. Thus the server never removes a file
+  of a running write, also of another process on the same storage. The server keeps the
+  temporary directories, because a writer can open a file in them at any time. Supports SQR-U3.
 
 ### Multi-node extension requirements
 

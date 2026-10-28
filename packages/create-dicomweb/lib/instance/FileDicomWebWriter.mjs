@@ -19,6 +19,9 @@ function getTempRelativePath(relativePath) {
   return 'studies/temp';
 }
 
+/** Name of a temp file of this writer: `<Date.now()>-<random base 36>-<file name>` */
+export const TEMP_FILE_NAME_RE = /^\d{13}-[a-z0-9]+-./;
+
 const COMPARE_BLOCK_SIZE = 4096;
 
 /**

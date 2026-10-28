@@ -83,6 +83,7 @@ does not add a new rule. If an item seems to need a new rule, add the rule to
 | SQR-D15, SQR-D16 Multi-node extension | SQR-I7 (not in this fix) |
 | SQR-D17 Best-effort studies list | SQR-I1, SQR-I3 |
 | SQR-D18 Commit an instance only when all of its writes succeeded | SQR-I8 |
+| SQR-D19 Remove the temporary files of a stopped process | SQR-I9 |
 
 ### SQR-I1. Share one "ensure the level" function for each level
 
@@ -515,6 +516,18 @@ lists the defects that this item corrects.
 
 The partial commit of issue #143 is not in this item. It is a known limitation of the
 specification.
+
+### SQR-I9. Remove the orphan temporary files at server start
+
+Applies SQR-D19. `removeOrphanTempFiles(dicomdir, { maxAgeMs })` (create-dicomweb) lists
+`studies/temp/` and `studies/<studyUID>/temp/`. It removes each file whose name matches
+`TEMP_FILE_NAME_RE` of `FileDicomWebWriter` (`<Date.now()>-<random>-<name>`), and whose mtime
+is older than `maxAgeMs`. It keeps the directories. It uses asynchronous calls one after the
+other, logs each error, and returns the number of removed files.
+
+The webserver calls it in the background after `listen`, with the server param
+`tempMaxAgeHours` (default 24; `0` turns it off). A process makes orphan files only when it
+stops, so the next start is the correct time for the removal.
 
 ### Changes from the proposal
 

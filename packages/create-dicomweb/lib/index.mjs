@@ -3,6 +3,10 @@ export { DicomWebReader } from './instance/DicomWebReader.mjs';
 export { FileDicomWebReader, createBuildReader } from './instance/FileDicomWebReader.mjs';
 export { DicomWebWriter } from './instance/DicomWebWriter.mjs';
 export { FileDicomWebWriter } from './instance/FileDicomWebWriter.mjs';
+export {
+  removeOrphanTempFiles,
+  DEFAULT_TEMP_MAX_AGE_MS,
+} from './instance/removeOrphanTempFiles.mjs';
 export { DicomWebStream } from './instance/DicomWebStream.mjs';
 export { StreamInfo } from './instance/StreamInfo.mjs';
 export { seriesSummary, seriesFilesExist } from './instance/SeriesSummary.mjs';
