@@ -115,6 +115,16 @@ does not change the user contract (SQR-U1).
   instance before it answers, the request gets `503 Service Unavailable` with a `Retry-After`
   header, and not `400`. The client can then send the instances again. An upload of a stored
   instance replaces that instance. The section "Known limitations" gives one exception.
+  - The HTTP status of the response obeys PS3.18 Table 10.5.3-1: `200` when the server stored
+    all instances of the request, `202` when it stored some instances and others failed, and
+    `409` when the request has instances and the server stored none of them.
+  - Each failed instance is in the Failed SOP Sequence `(0008,1198)`. Its Failure Reason
+    `(0008,1197)` obeys PS3.18 Table I.2-2: `A700` (refused, out of resources) when the
+    storage or the server has no free space or resources, `0110` (processing failure) for
+    another storage error, and `C000` (cannot understand) when the server cannot read the
+    instance.
+  - The `createdicomweb instance` and `create` commands exit with a code that is not `0`
+    when they did not store one or more files.
 
 ## Known limitations
 
