@@ -479,15 +479,8 @@ export class DicomWebWriter {
     const shouldGzip = options.gzip ?? this._shouldGzipFrame(tsUID);
     const filename = shouldGzip ? `${frameNumber}.mht.gz` : `${frameNumber}.mht`;
 
-    // Ensure stale frame variants are removed when transfer syntax/gzip mode changes
-    // (e.g. previous writes may have left 1.mht.gz while current write is 1.mht).
-    try {
-      this.delete(path, `${frameNumber}.mht`);
-    } catch {
-      // delete is optional for writer implementations that do not support filesystem cleanup
-    }
-
-    // Open the stream with multipart wrapping
+    // Open the stream with multipart wrapping. The commit of the frame removes the other
+    // variant (`replaces`), so a failed upload keeps the stored frame.
     const streamInfo = this.openStream(path, filename, {
       ...options,
       gzip: shouldGzip,
@@ -496,6 +489,7 @@ export class DicomWebWriter {
       contentType: contentTypeHeader,
       boundary,
       streamKey: options.streamKey || `${FRAME_STREAM_KEY_PREFIX}${frameNumber}`,
+      replaces: [shouldGzip ? `${frameNumber}.mht` : `${frameNumber}.mht.gz`],
     });
 
     return streamInfo;

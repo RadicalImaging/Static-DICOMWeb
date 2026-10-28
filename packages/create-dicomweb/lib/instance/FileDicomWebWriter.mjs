@@ -323,6 +323,7 @@ export class FileDicomWebWriter extends DicomWebWriter {
           streamInfo.writeStatus = 'identical';
           this._cleanupTempFile(tempFilepath);
           this._removeStaleMetadataDirs(staleMetadataDirs);
+          this._removeReplacedFiles(streamInfo);
           return false;
         }
       }
@@ -394,6 +395,7 @@ export class FileDicomWebWriter extends DicomWebWriter {
       } else {
         streamInfo.writeStatus = 'updated';
       }
+      this._removeReplacedFiles(streamInfo);
     } catch (err) {
       console.warn(
         `[FileDicomWebWriter] Failed to move temp file ${tempFilepath} to ${filepath}:`,
@@ -433,6 +435,26 @@ export class FileDicomWebWriter extends DicomWebWriter {
     for (const dirPath of staleMetadataDirs || []) {
       if (removeStaleMetadataDirSync(dirPath)) {
         console.noQuiet(`[FileDicomWebWriter] Cleaned up old metadata directory at ${dirPath}`);
+      }
+    }
+  }
+
+  /**
+   * Deletes the files that a committed stream replaces (`options.replaces`: file names in the
+   * same directory, for example the other variant `1.mht.gz` of a frame `1.mht`). Runs only
+   * after the commit, so a failed write keeps them. Never throws.
+   * @param {Object} streamInfo
+   * @private
+   */
+  _removeReplacedFiles(streamInfo) {
+    for (const name of streamInfo.replaces || []) {
+      const replaced = path.join(path.dirname(streamInfo.filepath), name);
+      try {
+        fs.unlinkSync(replaced);
+      } catch (err) {
+        if (err?.code !== 'ENOENT') {
+          console.warn(`[FileDicomWebWriter] Could not delete ${replaced}:`, err?.message || err);
+        }
       }
     }
   }

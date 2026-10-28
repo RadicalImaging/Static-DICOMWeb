@@ -269,3 +269,75 @@ describe('write functions after a failure', () => {
     expect(await files()).toEqual(['a.json.gz']);
   });
 });
+
+describe('an upload of an instance after a failure', () => {
+  const dicomFilePath = path.resolve(
+    process.cwd().endsWith('create-dicomweb')
+      ? process.cwd()
+      : path.resolve(process.cwd(), 'packages/create-dicomweb'),
+    '../static-wado-creator/dicom/jpeg8bit.dcm'
+  );
+  let baseDir;
+
+  const upload = options =>
+    instanceFromStream(fs.createReadStream(dicomFilePath), {
+      dicomdir: baseDir,
+      writerOptions: { baseDir, deferFinalMove: true },
+      ...options,
+    });
+
+  /** The stored files of the instance, relative to its directory, with their contents */
+  const instanceFiles = instanceDir =>
+    Object.fromEntries(
+      fs
+        .readdirSync(instanceDir, { recursive: true, withFileTypes: true })
+        .filter(entry => entry.isFile())
+        .map(entry => {
+          const file = path.join(entry.parentPath ?? entry.path, entry.name);
+          return [path.relative(instanceDir, file), fs.readFileSync(file).toString('base64')];
+        })
+    );
+
+  beforeEach(() => {
+    baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'instance-failure-'));
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  });
+
+  // Test 33. The user experience must have this: a failed new upload of a stored instance
+  // keeps its stored frames, and a committed upload replaces the other frame variant
+  it('keeps the stored frames when a new upload of the instance fails before commit', async () => {
+    const { information } = await upload();
+    const instanceDir = path.join(
+      baseDir,
+      'studies',
+      information.studyInstanceUid,
+      'series',
+      information.seriesInstanceUid,
+      'instances',
+      information.sopInstanceUid
+    );
+    const stored = instanceFiles(instanceDir);
+    expect(Object.keys(stored)).toContain(path.join('frames', '1.mht'));
+
+    await expect(
+      upload({
+        validateInstance: async () => {
+          throw new Error('rejected');
+        },
+      })
+    ).rejects.toThrow('rejected');
+    expect(instanceFiles(instanceDir)).toEqual(stored);
+
+    const otherVariant = path.join(instanceDir, 'frames', '1.mht.gz');
+    fs.writeFileSync(otherVariant, 'old variant');
+    await upload();
+    expect(fs.existsSync(otherVariant)).toBe(false);
+    expect(fs.existsSync(path.join(instanceDir, 'frames', '1.mht'))).toBe(true);
+  });
+});
