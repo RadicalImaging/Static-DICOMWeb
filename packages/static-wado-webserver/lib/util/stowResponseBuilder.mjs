@@ -227,7 +227,8 @@ export function createDatasetResponseFromUploadedFiles(files = [], options = {})
   const failedItems = [];
 
   for (const file of files) {
-    const information = file.result?.information;
+    // A failed file has the UIDs that the parse read on its error (instanceFromStream)
+    const information = file.result?.information ?? file.cause?.information;
     const hasInformation = !!information;
     // instanceFromStream throws on a failed stream write, so file.ok covers those errors
     const isValidSuccess = file.ok && hasInformation;

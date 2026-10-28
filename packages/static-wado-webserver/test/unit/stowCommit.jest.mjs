@@ -130,7 +130,7 @@ describe('the result of an upload', () => {
 
   // Test 38. The user experience must have this: the status of the response and the Failure
   // Reason of each failed instance obey SQR-U5 (PS3.18 Table 10.5.3-1 and Table I.2-2). A
-  // storage outage gives 503.
+  // storage outage gives 503, and a failed item names its instance when the parse read it.
   it.each([
     ['ENOSPC', 503, 0xa700],
     ['EIO', 503, 0x0110],
@@ -148,6 +148,8 @@ describe('the result of an upload', () => {
     expect(response.status).toBe(status);
     expect(response.retryAfter).toBe(status === 503 ? '10' : null);
     expect(failureReasons(response.body)).toEqual([reason]);
+    const [item] = response.body['00081198'].Value;
+    expect(item['00081155']?.Value?.[0]).toMatch(/^1\.3\.12\./);
   });
 
   // Test 38 (continued). A part that is not DICOM gives C000, and the request gives 202

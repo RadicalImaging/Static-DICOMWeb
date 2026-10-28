@@ -412,7 +412,8 @@ export async function instanceFromStream(stream, options = {}) {
     parseError = err;
     writer?.abort(err);
     writer?.rollbackPendingMoves();
-    throw streamForAbort?.abortedReason ? abortedError(streamForAbort) : markDataError(err);
+    const error = streamForAbort?.abortedReason ? abortedError(streamForAbort) : markDataError(err);
+    throw withInformation(error, listener.information);
   } finally {
     progressFilter.reportProgress?.();
     if (parseJobId != null) {
@@ -426,7 +427,7 @@ export async function instanceFromStream(stream, options = {}) {
 
   // If stream was aborted during parse (e.g. STOW timeout), treat response as aborted
   if (streamForAbort?.abortedReason) {
-    throw abortedError(streamForAbort);
+    throw withInformation(abortedError(streamForAbort), listener.information);
   }
 
   let result;
@@ -480,7 +481,7 @@ export async function instanceFromStream(stream, options = {}) {
     writer?.abort(err);
     await writer?.drainOpenStreams(options.drainOpenStreamsTimeoutMs).catch(() => {});
     writer?.rollbackPendingMoves();
-    throw err;
+    throw withInformation(err, listener.information);
   }
 
   // The instance is stored from here on, so nothing below reports it as failed
@@ -541,6 +542,20 @@ function abortedError(stream) {
   error.aborted = true;
   if (Number.isInteger(reason?.failureReason)) {
     error.failureReason = reason.failureReason;
+  }
+  return error;
+}
+
+/**
+ * Gives an error of an instance the UIDs that the parse read (`error.information`), so the
+ * STOW response can name the failed instance (SQR-U5). Keeps information that is already set.
+ * @param {Error} error
+ * @param {Object} information - listener.information
+ * @returns {Error}
+ */
+function withInformation(error, information) {
+  if (error && typeof error === 'object' && !error.information && information?.sopInstanceUid) {
+    error.information = { ...information };
   }
   return error;
 }
