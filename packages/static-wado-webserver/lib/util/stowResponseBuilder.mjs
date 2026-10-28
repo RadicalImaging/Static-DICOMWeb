@@ -128,14 +128,62 @@ export function createDatasetResponseFromInstances(
     }
   }
 
-  let statusCode = options.successStatusCode ?? 200;
-  if (failedItems.length > 0 && successItems.length > 0) {
-    statusCode = options.partialSuccessStatusCode ?? 202;
-  } else if (failedItems.length > 0 && successItems.length === 0) {
-    statusCode = options.failureStatusCode ?? 409;
-  }
-
+  const statusCode = stowStatusCode(successItems.length, failedItems.length, options);
   return { statusCode, dataset: response };
+}
+
+/**
+ * HTTP status of a STOW-RS response (PS3.18 Table 10.5.3-1): 200 when all instances are
+ * stored, 202 when some failed, 409 when the request has instances and none is stored.
+ * Options: successStatusCode, partialSuccessStatusCode, failureStatusCode.
+ * @returns {number}
+ */
+function stowStatusCode(successCount, failedCount, options = {}) {
+  if (failedCount === 0) {
+    return options.successStatusCode ?? 200;
+  }
+  return successCount > 0
+    ? (options.partialSuccessStatusCode ?? 202)
+    : (options.failureStatusCode ?? 409);
+}
+
+/**
+ * HTTP status for a dataset of createDatasetResponseFromUploadedFiles (see stowStatusCode).
+ * @param {Object} dataset
+ * @returns {number}
+ */
+export function getStowStatusCode(dataset, options = {}) {
+  return stowStatusCode(
+    dataset?.['00081199']?.Value?.length ?? 0,
+    dataset?.['00081198']?.Value?.length ?? 0,
+    options
+  );
+}
+
+/** Codes of an error that means the storage or the server has no free space or resources */
+const OUT_OF_RESOURCES_CODES = new Set(['ENOSPC', 'EDQUOT', 'EMFILE', 'ENFILE', 'ENOMEM']);
+
+/**
+ * Failure Reason (0008,1197) of a failed instance (PS3.18 Table I.2-2):
+ * - error.failureReason, when a hook (for example validateInstance) sets a number;
+ * - A700 (refused, out of resources) for OUT_OF_RESOURCES_CODES;
+ * - 0110 (processing failure) for another error with an operating system code (`E...`);
+ * - C000 (cannot understand) otherwise, for example a parse error.
+ * @param {Error} error
+ * @returns {number}
+ */
+export function stowFailureReason(error) {
+  if (Number.isInteger(error?.failureReason)) {
+    return error.failureReason;
+  }
+  const code = error?.code ?? error?.cause?.code ?? '';
+  if (OUT_OF_RESOURCES_CODES.has(code)) {
+    return 0xa700;
+  }
+  if (/^E[A-Z0-9]+$/.test(code)) {
+    return 0x0110;
+  }
+  return DEFAULT_FAILURE_REASON;
 }
 
 function getSOPClassUID(information) {
@@ -183,10 +231,11 @@ export function createDatasetResponseFromUploadedFiles(files = [], options = {})
     if (isValidSuccess) {
       successItems.push(item);
     } else {
-      item['00081197'] = {
-        vr: 'US',
-        Value: [options.defaultFailureReason ?? DEFAULT_FAILURE_REASON],
-      };
+      // file.cause is the error of instanceFromStream (completePostController)
+      const failureReason = file.cause
+        ? stowFailureReason(file.cause)
+        : (options.defaultFailureReason ?? DEFAULT_FAILURE_REASON);
+      item['00081197'] = { vr: 'US', Value: [failureReason] };
       failedItems.push(item);
     }
   }

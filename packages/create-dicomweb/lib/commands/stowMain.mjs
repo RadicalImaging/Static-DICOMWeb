@@ -331,6 +331,10 @@ export async function stowFiles(
   }
 
   if (!responseLike.ok) {
+    // 409: no instance stored; the body still lists each failed instance (PS3.18 10.5.3)
+    if (res.statusCode === 409) {
+      await parseAndLogDicomJsonErrors(responseLike, responseText, files);
+    }
     throw new Error(
       `HTTP ${res.statusCode} ${res.statusMessage || ''}: ${responseText}`
     );

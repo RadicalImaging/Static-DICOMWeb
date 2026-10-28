@@ -15,7 +15,10 @@ import { multipartStream } from './multipartStream.mjs';
 import { TrackableReadBufferStream } from './TrackableReadBufferStream.mjs';
 import { deleteStaleSummaries } from './deleteStaleSummaries.mjs';
 import { getLivelockDetectMs } from '../../util/livelockRegistry.mjs';
-import { createDatasetResponseFromUploadedFiles } from '../../util/stowResponseBuilder.mjs';
+import {
+  createDatasetResponseFromUploadedFiles,
+  getStowStatusCode,
+} from '../../util/stowResponseBuilder.mjs';
 
 const maxFileSize = 4 * 1024 * 1024 * 1024;
 const maxTotalFileSize = 10 * maxFileSize;
@@ -467,6 +470,7 @@ export const completePostController = async (req, res, next) => {
         ...entry.fileInfo,
         ok: false,
         error: String(r.reason),
+        cause: r.reason,
       };
     });
 
@@ -505,6 +509,8 @@ export const completePostController = async (req, res, next) => {
 
     // Create the dataset response (used for both JSON and XML)
     const datasetResponse = createDatasetResponseFromUploadedFiles(files, { logger: console });
+    // 200, 202 or 409 (PS3.18 Table 10.5.3-1)
+    const statusCode = getStowStatusCode(datasetResponse);
 
     console.verbose('[streamPostController] Dataset response:', JSON.stringify(datasetResponse, null, 2));
 
@@ -523,11 +529,14 @@ export const completePostController = async (req, res, next) => {
     if (useXml) {
       const xml = dicomToXml(datasetResponse);
 
-      res.status(200).setHeader('Content-Type', 'application/dicom+xml; charset=utf-8').send(xml);
+      res
+        .status(statusCode)
+        .setHeader('Content-Type', 'application/dicom+xml; charset=utf-8')
+        .send(xml);
     } else {
       // Format as DICOM JSON (use dataset directly - it's already a single object)
       res
-        .status(200)
+        .status(statusCode)
         .setHeader('Content-Type', 'application/dicom+json; charset=utf-8')
         .json(datasetResponse);
     }
