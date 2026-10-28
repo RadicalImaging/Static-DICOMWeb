@@ -732,7 +732,12 @@ The user experience must have this:
     is not stored, and the next request lists the study. After `ELOOP`, the list is stored
     without the study (SQR-U4, SQR-D17).
 31. Send a series query, and delete `series/index.json` after the check of the request and
-    before the send. The response is `200` with all series (SQR-U1, SQR-D1).
+    before the send: before the stat, and between the stat and the open. The response is
+    `200` with all series, and has no `Content-Encoding` header (SQR-U1, SQR-D1).
+36. Store an instance, build its series and study files, and make the delete of an
+    old-layout series `metadata` directory fail. The upload reports the instance as stored,
+    and the other derived files are deleted (SQR-D5). The test has the number of pull request
+    #146, which adds tests 33 to 35 for other upload failures.
 
 The API must do this:
 
@@ -782,6 +787,8 @@ The API must do this:
     (SQR-D12, SQR-D14).
 32. An upload deletes the files of a series after `studyMain` checked them. The study round
     does not commit, and its result has that series with the new instance (SQR-U1, SQR-D6).
+43. With `maxRunning: 1` and constant request load, a queued background job starts after
+    `backgroundEvery` request jobs (SQR-D12). Pull request #146 uses the numbers 33 to 42.
 
 Tests 2 and 3 also cover SQR-U2 and SQR-U3, because the cost of a request does not increase
 with repeated or concurrent requests. A test of memory use or of response time is not

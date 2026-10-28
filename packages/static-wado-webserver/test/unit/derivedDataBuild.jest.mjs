@@ -137,9 +137,7 @@ describe('builds of missing derived files', () => {
           return original.call(this, relativePath, filename);
         }
         const stream = new PassThrough();
-        setImmediate(() =>
-          stream.destroy(Object.assign(new Error('read failed'), { code }))
-        );
+        setImmediate(() => stream.destroy(Object.assign(new Error('read failed'), { code })));
         return stream;
       });
     return () => spy.mockRestore();
@@ -722,24 +720,29 @@ describe('builds of missing derived files', () => {
 
   // Test 31. User experience (SQR-U1, SQR-D5): an upload that deletes the series index after
   // the check of a request, and before the file is sent, does not give 404
-  it('builds the series index when an upload deletes it after the check of the request', async () => {
-    await startServer(createJobManager());
-    const stat = fs.stat;
-    let deleted = false;
-    jest.spyOn(fs, 'stat').mockImplementation((target, ...rest) => {
-      if (!deleted && path.resolve(String(target)) === path.resolve(seriesIndexPath())) {
-        deleted = true;
-        fs.rmSync(seriesIndexPath());
-      }
-      return stat(target, ...rest);
-    });
+  // The second case deletes the file between the stat and the open of serve-static
+  it.each([['stat'], ['createReadStream']])(
+    'builds the series index when an upload deletes it before fs.%s of the send',
+    async method => {
+      await startServer(createJobManager());
+      const original = fs[method];
+      let deleted = false;
+      jest.spyOn(fs, method).mockImplementation((target, ...rest) => {
+        if (!deleted && path.resolve(String(target)) === path.resolve(seriesIndexPath())) {
+          deleted = true;
+          fs.rmSync(seriesIndexPath());
+        }
+        return original(target, ...rest);
+      });
 
-    const response = await fetch(`${baseUrl}/studies/${STUDY}/series`);
+      const response = await fetch(`${baseUrl}/studies/${STUDY}/series`);
 
-    expect(deleted).toBe(true);
-    expect(response.status).toBe(200);
-    expect(seriesUIDsOf(await response.json())).toEqual(SERIES);
-  });
+      expect(deleted).toBe(true);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-encoding')).toBeNull();
+      expect(seriesUIDsOf(await response.json())).toEqual(SERIES);
+    }
+  );
 
   // Test 32. The API must do this (SQR-U1, SQR-D3 rule 5): an upload that deletes the files of
   // a series during a study round does not leave that series out of the result of the round

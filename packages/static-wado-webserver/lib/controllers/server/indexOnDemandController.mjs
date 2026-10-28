@@ -238,6 +238,11 @@ export async function ensureStudiesLevel(root, options = {}) {
     const payload = await serializeStudiesIndex(() =>
       indexSummary(root, [], { exclude: failed, write: !unavailable })
     );
+    if (unavailable) {
+      console.warn(
+        `ensureStudiesLevel: studies/index.json not stored, each GET /studies scans all studies until these studies can be read: ${[...failed].join(', ')}`
+      );
+    }
     // No next round after an I/O error: the list is not stored, so the next request builds it
     return { committed: true, payload };
   });
@@ -269,12 +274,27 @@ export function sendBuildPayload(res, data) {
 /** Root directory -> static handler of the stored derived files */
 const staticHandlers = new Map();
 
+/** Headers that the static handler sets for a stored file before it opens the file */
+const STORED_FILE_HEADERS = [
+  'Content-Encoding',
+  'Content-Length',
+  'Content-Type',
+  'Last-Modified',
+  'ETag',
+  'Accept-Ranges',
+];
+
 /**
  * Serves the stored file of a request. `map` points req.url at the file, and the static
  * handler sends it. An upload can delete the file after the check of the caller (SQR-D5).
  * When the static handler then finds no file, `build` runs one time, and its data is the
  * response, so the request does not get 404 for stored data. With no data, or with no
  * `build`, the request goes to the next handler.
+ *
+ * The file can also go between the stat and the open. serve-static then calls `next(err)`
+ * with a 404 error, and has already set the headers of the stored file (for example
+ * `Content-Encoding: gzip`). Such an error counts as a missing file, and the build response
+ * removes those headers first.
  * @param {string} root - Resolved DICOMweb root directory
  * @param {Function} map - Request adapter, for example seriesSingleMap
  * @param {(() => Promise<*>)|false} build - Returns the data of a build, or undefined
@@ -286,8 +306,14 @@ export function serveStored(root, map, req, res, next, build, label) {
   }
   map(req, res, () =>
     staticHandlers.get(root)(req, res, async err => {
-      if (err || !build) {
+      const missing =
+        !err ||
+        (!res.headersSent && (err.code === 'ENOENT' || (err.statusCode ?? err.status) === 404));
+      if (!missing || !build) {
         return next(err);
+      }
+      if (err) {
+        for (const header of STORED_FILE_HEADERS) res.removeHeader(header);
       }
       try {
         const data = await build();
@@ -343,7 +369,10 @@ export function studyQueryController(dir, params = {}) {
     const jobs = getBuildJobManager(params);
     const label = 'indexOnDemand: failed to create studies index';
     const buildStudy = async () => {
-      const result = await ensureStudyLevel(root, studyUID, { jobs, studyIndex: params.studyIndex });
+      const result = await ensureStudyLevel(root, studyUID, {
+        jobs,
+        studyIndex: params.studyIndex,
+      });
       return result?.payload?.studyQuery && [result.payload.studyQuery];
     };
 

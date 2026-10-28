@@ -147,44 +147,73 @@ describe('createJobManager', () => {
     await jobs.whenIdle();
   });
 
+  // Test 43. The API must do this (SQR-D12): under constant request load, a queued
+  // background job still starts after `backgroundEvery` request jobs
+  it('starts a waiting background job after backgroundEvery request jobs', async () => {
+    const jobs = createJobManager({ maxRunning: 1, requestSlots: 0, backgroundEvery: 2 });
+    const hold = gate();
+    const order = [];
+    const job = name => async () => {
+      order.push(name);
+      if (name === 'r0') await hold.promise;
+      return { committed: true };
+    };
+
+    const all = [
+      jobs.run('r0', () => true, job('r0')),
+      jobs.run('b1', () => true, job('b1'), { background: true }),
+      ...['r1', 'r2', 'r3'].map(key => jobs.run(key, () => true, job(key))),
+    ];
+    hold.open();
+
+    await Promise.all(all);
+    expect(order).toEqual(['r0', 'r1', 'r2', 'b1', 'r3']);
+    await jobs.whenIdle();
+  });
+
   let parents = 0;
   it.each([
     ['run', (jobs, ...args) => jobs.run(...args)],
     [
       'child',
       (jobs, key, needsBuild, fn, options) =>
-        jobs.run(`parent${++parents}`, () => true, context =>
-          context.child(key, needsBuild, fn, options)
+        jobs.run(
+          `parent${++parents}`,
+          () => true,
+          context => context.child(key, needsBuild, fn, options)
         ),
     ],
-  ])('%s does not give a caller the result of a round that started before its version', async (_, call) => {
-    // Three slots, so that no parent job waits in the queue
-    const jobs = createJobManager({ maxRunning: 3, roundDelayMs: 1000 });
-    let generation = 1;
-    const version = () => generation;
-    const started = gate();
-    const hold = gate();
-    const round = async () => {
-      const read = generation;
-      if (read === 1) {
-        started.open();
-        await hold.promise;
-      }
-      return { committed: read === generation, read };
-    };
+  ])(
+    '%s does not give a caller the result of a round that started before its version',
+    async (_, call) => {
+      // Three slots, so that no parent job waits in the queue
+      const jobs = createJobManager({ maxRunning: 3, roundDelayMs: 1000 });
+      let generation = 1;
+      const version = () => generation;
+      const started = gate();
+      const hold = gate();
+      const round = async () => {
+        const read = generation;
+        if (read === 1) {
+          started.open();
+          await hold.promise;
+        }
+        return { committed: read === generation, read };
+      };
 
-    const first = jobs.run('k', () => true, round, { version });
-    await started.promise;
-    const joined = call(jobs, 'k', () => true, round, { version });
-    // A parent job calls child in a later microtask
-    await new Promise(resolve => setImmediate(resolve));
-    generation = 2;
-    const later = call(jobs, 'k', () => true, round, { version });
-    hold.open();
+      const first = jobs.run('k', () => true, round, { version });
+      await started.promise;
+      const joined = call(jobs, 'k', () => true, round, { version });
+      // A parent job calls child in a later microtask
+      await new Promise(resolve => setImmediate(resolve));
+      generation = 2;
+      const later = call(jobs, 'k', () => true, round, { version });
+      hold.open();
 
-    await expect(first).resolves.toMatchObject({ read: 1 });
-    await expect(joined).resolves.toMatchObject({ read: 1 });
-    await expect(later).resolves.toMatchObject({ committed: true, read: 2 });
-    await jobs.whenIdle();
-  });
+      await expect(first).resolves.toMatchObject({ read: 1 });
+      await expect(joined).resolves.toMatchObject({ read: 1 });
+      await expect(later).resolves.toMatchObject({ committed: true, read: 2 });
+      await jobs.whenIdle();
+    }
+  );
 });

@@ -292,7 +292,10 @@ The next requirements use these terms:
   configuration value. A request job can also use a small number of extra slots that a
   background job (SQR-D14) cannot use, and a request job in the queue starts before each
   background job. A request that needs the job of a queued background job moves that job
-  to the request queue. Thus the background work of an upload does not delay a request.
+  to the request queue. Thus the background work of an upload does not take the slots of
+  request jobs. A request that needs a key whose older round runs still waits for that round
+  (SQR-D7). A waiting background job starts after a fixed number of request jobs (8 on the
+  server), so a constant request load does not stop the background work of an upload.
   Supports SQR-U2 and SQR-U3.
 - **SQR-D13. A started job always progresses.** A nested job does not wait for a slot of the
   top-level limit. A running job can always start at least one nested job, or wait for one,
@@ -315,7 +318,8 @@ The next requirements use these terms:
   the file. When the file is missing, a `GET /studies` request builds it from the study
   level of each study (SQR-D2). A study whose build fails is left out. After an I/O error of
   a study, the server sends the list, and does not store it, so the next request builds the
-  list again. After any other error, the server stores the list without that study, and a
+  list again. The server logs a warning that names each such study, because a lasting I/O
+  error (for example `EACCES`) makes each `GET /studies` scan all studies. After any other error, the server stores the list without that study, and a
   later commit of that study adds it. A study whose round did not commit during that build is not
   in the file at first. The next round of that study adds it, in the same way as after an
   upload. The updates of the file in one process run one after the

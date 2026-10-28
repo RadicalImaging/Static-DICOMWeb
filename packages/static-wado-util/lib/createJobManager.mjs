@@ -40,8 +40,10 @@ export class QueueFullError extends Error {
  *    has at most one next round that waits for its delay.
  * 5. At most `maxRunning` top-level jobs run at the same time, and `requestSlots` more
  *    request jobs. The others wait in two first-in, first-out queues: a request job starts
- *    before each background job. A request call that joins a queued background job moves
- *    that job to the request queue. The wait of rule 3 holds no slot.
+ *    before each background job, except that a waiting background job starts after
+ *    `backgroundEvery` request jobs started from the queue, so that it never waits forever.
+ *    A request call that joins a queued background job moves that job to the request
+ *    queue. The wait of rule 3 holds no slot.
  * 6. A nested job runs at once, in the slot of its top-level job, and is never limited.
  *    A job awaits each `child` call before the next one.
  * 7. A queued job blocks nothing: `child` for its key runs at once, and when the queued
@@ -57,6 +59,7 @@ export class QueueFullError extends Error {
  * @param {number} [options.maxRunning=2] - Maximum number of top-level jobs that run at the same time
  * @param {number} [options.maxQueued=20] - Maximum number of request (not background) jobs in the queue
  * @param {number} [options.requestSlots=0] - Running slots for request jobs only, above `maxRunning`
+ * @param {number} [options.backgroundEvery=8] - Queued request jobs that start before a waiting background job
  * @param {number} [options.retryAfterSeconds=10] - Value for the Retry-After header of a QueueFullError
  * @param {number} [options.roundDelayMs=1000] - Delay before the first next round
  * @param {number} [options.maxRoundDelayMs=30000] - Maximum delay before a next round
@@ -66,6 +69,7 @@ export function createJobManager(options = {}) {
   const maxRunning = Math.max(1, options.maxRunning ?? 2);
   const maxQueued = Math.max(0, options.maxQueued ?? 20);
   const maxRequestRunning = maxRunning + Math.max(0, options.requestSlots ?? 0);
+  const backgroundEvery = Math.max(1, options.backgroundEvery ?? 8);
   const retryAfterSeconds = options.retryAfterSeconds ?? 10;
   const roundDelayMs = options.roundDelayMs ?? 1000;
   const maxRoundDelayMs = options.maxRoundDelayMs ?? 30000;
@@ -82,6 +86,8 @@ export function createJobManager(options = {}) {
   /** key -> number of rounds that did not commit */
   const rounds = new Map();
   let active = 0;
+  /** Request jobs that started from the queue while a background job waited (rule 5) */
+  let requestsBeforeBackground = 0;
   /** Number of request (not background) jobs in the queue */
   let queuedRequests = 0;
   /** Keys whose next round waits for its delay: one pending next round for each key */
@@ -168,15 +174,28 @@ export function createJobManager(options = {}) {
     return promise;
   }
 
+  function startBackground() {
+    active++;
+    requestsBeforeBackground = 0;
+    backgroundQueue.shift().start();
+  }
+
   function releaseSlot() {
     active--;
+    if (
+      backgroundQueue.length > 0 &&
+      requestsBeforeBackground >= backgroundEvery &&
+      active < maxRunning
+    ) {
+      startBackground();
+    }
     while (active < maxRequestRunning && requestQueue.length > 0) {
       active++;
+      if (backgroundQueue.length > 0) requestsBeforeBackground++;
       requestQueue.shift().start();
     }
     while (active < maxRunning && backgroundQueue.length > 0) {
-      active++;
-      backgroundQueue.shift().start();
+      startBackground();
     }
     checkIdle();
   }

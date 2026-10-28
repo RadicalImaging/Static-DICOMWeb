@@ -106,7 +106,13 @@ export class FileDicomWebWriter extends DicomWebWriter {
   }
 
   /**
-   * Deletes a file and its .gz counterpart if present. Ignores ENOENT.
+   * Deletes a file and its .gz counterpart if present, and an old-format metadata directory
+   * at either path. Ignores ENOENT.
+   *
+   * Never throws: it logs any other error. An upload calls it after the commit of an
+   * instance, so a refused delete must not report the stored instance as failed. The derived
+   * file that stays is note 2 of "Safety of each deployment" in
+   * docs/specs/derived-data-updates.md.
    * @param {string} relativePath - Relative path within baseDir
    * @param {string} filename - Filename to delete (without .gz)
    */
@@ -116,11 +122,14 @@ export class FileDicomWebWriter extends DicomWebWriter {
       try {
         fs.unlinkSync(p);
       } catch (err) {
-        if (removeStaleMetadataDirSync(p)) {
-          // Cleaned up old metadata directory
-        } else if (err?.code !== 'ENOENT') {
-          console.warn(`[FileDicomWebWriter] Could not delete ${p}:`, err?.message || err);
+        if (err?.code === 'ENOENT') continue;
+        let error = err;
+        try {
+          if (removeStaleMetadataDirSync(p)) continue;
+        } catch (rmErr) {
+          error = rmErr;
         }
+        console.warn(`[FileDicomWebWriter] Could not delete ${p}:`, error?.message || error);
       }
     }
   }

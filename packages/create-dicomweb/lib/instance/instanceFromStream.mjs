@@ -22,11 +22,7 @@ const { ReadBufferStream } = data;
  * @returns {boolean}
  */
 function isReadBufferStreamLike(stream) {
-  return (
-    stream &&
-    typeof stream.reset === 'function' &&
-    typeof stream.addBuffer === 'function'
-  );
+  return stream && typeof stream.reset === 'function' && typeof stream.addBuffer === 'function';
 }
 
 const PARSE_JOB_TYPE = 'stowInstanceParse';
@@ -433,6 +429,7 @@ export async function instanceFromStream(stream, options = {}) {
     throw e;
   }
 
+  let result;
   try {
     if (dict && reader.meta) {
       const meta = reader.meta;
@@ -457,7 +454,7 @@ export async function instanceFromStream(stream, options = {}) {
     await writer?.drainOpenStreams(options.drainOpenStreamsTimeoutMs);
     console.verbose('Finished writing metadata to file', information.sopInstanceUid);
 
-    const result = { fmi, dict, writer, information: listener.information };
+    result = { fmi, dict, writer, information: listener.information };
 
     // If a validateInstance hook is provided, run it before committing temp files.
     if (options.validateInstance) {
@@ -466,24 +463,6 @@ export async function instanceFromStream(stream, options = {}) {
 
     // Commit deferred moves (rename temp → final). No-op on base class.
     await writer?.commitPendingMoves();
-    options.afterCommit?.(result);
-
-    // After the commit above, because the rendition reads back the committed files
-    if (writer && options.writeRawPart10 !== false && shouldStoreRawPart10(dict)) {
-      try {
-        await writeRawPart10(writer, dict, information.sopInstanceUid);
-        await writer.commitPendingMoves();
-      } catch (err) {
-        console.warn(
-          'Unable to store Part 10 rendition for',
-          information.sopInstanceUid,
-          err?.message ?? err
-        );
-        writer.rollbackPendingMoves();
-      }
-    }
-
-    return result;
   } catch (err) {
     // Stop the frame and bulkdata streams that still close, so none joins pendingMoves later
     writer?.abort(err);
@@ -491,6 +470,30 @@ export async function instanceFromStream(stream, options = {}) {
     writer?.rollbackPendingMoves();
     throw err;
   }
+
+  // The instance is stored from here on, so nothing below reports it as failed
+  try {
+    options.afterCommit?.(result);
+  } catch (err) {
+    console.warn('afterCommit failed for', information.sopInstanceUid, err?.message ?? err);
+  }
+
+  // After the commit above, because the rendition reads back the committed files
+  if (writer && options.writeRawPart10 !== false && shouldStoreRawPart10(dict)) {
+    try {
+      await writeRawPart10(writer, dict, information.sopInstanceUid);
+      await writer.commitPendingMoves();
+    } catch (err) {
+      console.warn(
+        'Unable to store Part 10 rendition for',
+        information.sopInstanceUid,
+        err?.message ?? err
+      );
+      writer.rollbackPendingMoves();
+    }
+  }
+
+  return result;
 }
 
 /**
