@@ -384,10 +384,18 @@ The next requirements use these terms:
   write leaves its temporary files. The server removes a temporary file only when all of these
   conditions are true: the file is in a temporary directory of the writer, its name is a
   temporary file name of the writer, and its last write is older than a configured age. The
-  age must be longer than the upload of one instance, because an upload keeps the temporary
-  files of an instance until the commit of that instance. Thus the server never removes a file
-  of a running write, also of another process on the same storage. The server keeps the
-  temporary directories, because a writer can open a file in them at any time. Supports SQR-U3.
+  server removes it only when it starts, so a write of the same process is always newer. The
+  safety for another process on the same storage (a CLI, or another node) depends on the
+  configuration and on the clocks:
+  - the age must be longer than the upload of one instance, because an upload keeps the
+    temporary files of an instance until the commit of that instance;
+  - the age must also be much longer than the difference between the clock of the server and
+    the clock of the storage, because the time of the last write comes from the storage.
+
+  With an age that obeys both conditions, the server does not remove a file of a running
+  write. The default age (24 hours) obeys them for the usual uploads and clocks. The server
+  keeps the temporary directories, because a writer can open a file in them at any time.
+  Supports SQR-U3.
 
 ### Multi-node extension requirements
 
