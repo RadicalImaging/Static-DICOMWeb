@@ -444,7 +444,11 @@ export async function instanceFromStream(stream, options = {}) {
 
     if (writer) {
       console.verbose('Writing metadata to file', information.sopInstanceUid);
-      const metadataStream = await writer.openInstanceStream('metadata', { gzip: true });
+      // commitLast: the builds see the instance only after its frames moved
+      const metadataStream = await writer.openInstanceStream('metadata', {
+        gzip: true,
+        commitLast: true,
+      });
       metadataStream.stream.write(Buffer.from(JSON.stringify([dict])));
       // closeStream records a failure and resolves undefined rather than rejecting
       if ((await writer.closeStream(metadataStream.streamKey)) === undefined) {

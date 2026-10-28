@@ -247,9 +247,14 @@ export class FileDicomWebWriter extends DicomWebWriter {
    * Only meaningful when `deferFinalMove` is true. Call after validation passes.
    * Compares all files first, and then renames them in one synchronous step with one
    * `canCommit()` check, so on one node the files commit all together, or not at all.
+   * A stream opened with `commitLast: true` (the instance `metadata`) renames after all other
+   * files, so a failed rename or a process stop never shows an instance without its frames.
    */
   async commitPendingMoves() {
-    const pending = this.pendingMoves;
+    const pending = [
+      ...this.pendingMoves.filter(streamInfo => !streamInfo.commitLast),
+      ...this.pendingMoves.filter(streamInfo => streamInfo.commitLast),
+    ];
     this.pendingMoves = [];
     try {
       const moves = [];

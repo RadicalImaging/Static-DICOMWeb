@@ -381,6 +381,31 @@ describe('an upload of an instance after a failure', () => {
     }
   });
 
+  // Test 48. The API must do this (SQR-D18, note 2 of the specification): the commit renames
+  // the instance metadata last, also when a frame closes after the metadata
+  it('renames the instance metadata after the frames', async () => {
+    const closeStream = FileDicomWebWriter.prototype.closeStream;
+    jest
+      .spyOn(FileDicomWebWriter.prototype, 'closeStream')
+      .mockImplementation(async function delayFrame1(streamKey) {
+        if (this.openStreams.get(streamKey)?.filepath?.endsWith(`${path.sep}1.mht`)) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        return closeStream.call(this, streamKey);
+      });
+    const rename = fs.renameSync;
+    const renamed = [];
+    jest.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+      renamed.push(path.basename(String(to)));
+      return rename(from, to);
+    });
+
+    await upload();
+
+    expect(renamed).toContain('1.mht');
+    expect(renamed[renamed.length - 1]).toBe('metadata.gz');
+  });
+
   // Test 46. The user experience must have this (SQR-U5): a CLI input path that does not
   // exist is a file that was not stored, so the command exits with a non-zero code
   it('gives a missing input path of the CLI as not stored', async () => {
