@@ -190,7 +190,7 @@ function createProgressFilter(parentJob, parseJob, throttleMs) {
  * @param {Object} options - Configuration options
  * @param {string} options.dicomdir - Base directory for writing files (required if DicomWebWriter is not provided)
  * @param {Function} options.DicomWebWriter - Constructor for DicomWebWriter. Defaults to FileDicomWebWriter if dicomdir is provided
- * @param {Object} options.writerOptions - Additional options to pass to the DicomWebWriter constructor
+ * @param {Object} options.writerOptions - Additional options to pass to the DicomWebWriter constructor. `deferFinalMove` defaults to true.
  * @param {{ add: (p: Promise) => Promise, limitUnsettled: (max, timeoutMs) => Promise }|undefined} [options.streamWritePromiseTracker] - Optional tracker for stream write promises (e.g. for back pressure). One is created when omitted. It is always passed to the writer, which registers every stream's completion promise with it, and the listener drain awaits limitUnsettled before emitting more frame data so we never open more streams than can be consumed.
  * @param {number} [options.drainMaxUnsettled] - Max unsettled stream writes allowed before the reader waits. Defaults to max(25, maxOpenStreams) so this gate never binds before the open file gate; pass a value explicitly only to cap a tracker shared across instances.
  * @param {number} [options.drainTimeoutMs=5000] - Timeout in ms for drain wait.
@@ -291,6 +291,8 @@ export async function instanceFromStream(stream, options = {}) {
     const writerOptions = {
       baseDir: options.dicomdir,
       maxOpenStreams: options.maxOpenStreams,
+      // Each file moves at commitPendingMoves, so a failed instance moves no file (SQR-D18)
+      deferFinalMove: true,
       ...options.writerOptions,
       streamWritePromiseTracker,
     };

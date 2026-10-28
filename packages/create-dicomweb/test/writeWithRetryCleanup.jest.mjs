@@ -4,6 +4,7 @@ import path from 'path';
 import { writeWithRetry, writeMultipleWithRetry } from '../lib/instance/writeWithRetry.mjs';
 import { FileDicomWebWriter } from '../lib/instance/FileDicomWebWriter.mjs';
 import { instanceFromStream } from '../lib/instance/instanceFromStream.mjs';
+import { instanceFromFile } from '../lib/commands/instanceMain.mjs';
 
 /**
  * A build that fails leaves no temp file, and no part of its commit: an old file stays, or
@@ -346,23 +347,42 @@ describe('an upload of an instance after a failure', () => {
   it.each([['metadata.gz'], ['1.mht']])(
     'fails the instance, and commits nothing, when the write of %s fails',
     async name => {
-      const closeStream = FileDicomWebWriter.prototype.closeStream;
-      jest
-        .spyOn(FileDicomWebWriter.prototype, 'closeStream')
-        .mockImplementation(async function closeStreamSpy(streamKey) {
-          if (this.openStreams.get(streamKey)?.filepath?.endsWith(name)) {
-            const error = Object.assign(new Error('no space'), { code: 'ENOSPC' });
-            this.recordStreamError(streamKey, error, true);
-          }
-          return closeStream.call(this, streamKey);
-        });
-
+      failWriteOf(name);
       await expect(upload()).rejects.toMatchObject({ code: 'ENOSPC' });
-      await new Promise(resolve => setTimeout(resolve, 100));
-      const stored = fs
-        .readdirSync(baseDir, { recursive: true, withFileTypes: true })
-        .filter(entry => entry.isFile());
-      expect(stored).toEqual([]);
+      expect(await storedFiles()).toEqual([]);
     }
   );
+
+  // Test 39. The user experience must have this: the CLI (instanceFromFile, no writer
+  // options) commits no file of an instance whose frame write failed
+  it('commits nothing from the CLI when the write of a frame fails', async () => {
+    failWriteOf('1.mht');
+    await expect(instanceFromFile(dicomFilePath, { dicomdir: baseDir })).rejects.toMatchObject({
+      code: 'ENOSPC',
+    });
+    expect(await storedFiles()).toEqual([]);
+  });
+
+  /** Makes the write of the file whose final name ends with `name` fail with ENOSPC */
+  function failWriteOf(name) {
+    const closeStream = FileDicomWebWriter.prototype.closeStream;
+    jest
+      .spyOn(FileDicomWebWriter.prototype, 'closeStream')
+      .mockImplementation(async function closeStreamSpy(streamKey) {
+        if (this.openStreams.get(streamKey)?.filepath?.endsWith(name)) {
+          const error = Object.assign(new Error('no space'), { code: 'ENOSPC' });
+          this.recordStreamError(streamKey, error, true);
+        }
+        return closeStream.call(this, streamKey);
+      });
+  }
+
+  /** The files under baseDir, after a wait, so a temp file that closes late is also seen */
+  async function storedFiles() {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    return fs
+      .readdirSync(baseDir, { recursive: true, withFileTypes: true })
+      .filter(entry => entry.isFile())
+      .map(entry => entry.name);
+  }
 });
