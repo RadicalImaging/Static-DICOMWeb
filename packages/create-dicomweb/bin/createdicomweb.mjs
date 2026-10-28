@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { createRequire } from 'module';
 import { Command } from 'commander';
-import { instanceMain, seriesMain, studyMain, createMain, stowMain, thumbnailMain, indexMain } from '../lib/index.mjs';
+import { storeInstanceFiles, seriesMain, studyMain, createMain, stowMain, thumbnailMain, indexMain } from '../lib/index.mjs';
 import {
   handleHomeRelative,
   createVerboseLog,
@@ -19,6 +19,16 @@ const program = new Command();
 
 // Initialize verbose logging with defaults
 createVerboseLog(false, {});
+
+/** Prints the files that were not stored, and sets a non-zero exit code (SQR-U5) */
+const reportFailedFiles = failedFiles => {
+  if (failedFiles?.length > 0) {
+    const shown = failedFiles.slice(0, 20).join(', ');
+    const more = failedFiles.length > 20 ? ', ...' : '';
+    console.error(`${failedFiles.length} file(s) not stored: ${shown}${more}`);
+    process.exitCode = 1;
+  }
+};
 
 // Helper function to update verbose logging from program options
 const updateVerboseLog = () => {
@@ -66,7 +76,8 @@ program
     if (maxOpenFiles !== undefined) {
       instanceOptions.maxOpenStreams = maxOpenFiles;
     }
-    await instanceMain([fileName], instanceOptions);
+    const { failedFiles } = await storeInstanceFiles([fileName], instanceOptions);
+    reportFailedFiles(failedFiles);
   });
 
 program
@@ -130,7 +141,8 @@ program
     if (maxOpenFiles !== undefined) {
       createOptions.maxOpenStreams = maxOpenFiles;
     }
-    await createMain(fileNames, createOptions);
+    const { failedFiles } = await createMain(fileNames, createOptions);
+    reportFailedFiles(failedFiles);
   });
 
 program

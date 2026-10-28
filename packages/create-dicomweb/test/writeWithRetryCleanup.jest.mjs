@@ -4,7 +4,7 @@ import path from 'path';
 import { writeWithRetry, writeMultipleWithRetry } from '../lib/instance/writeWithRetry.mjs';
 import { FileDicomWebWriter } from '../lib/instance/FileDicomWebWriter.mjs';
 import { instanceFromStream } from '../lib/instance/instanceFromStream.mjs';
-import { instanceFromFile } from '../lib/commands/instanceMain.mjs';
+import { instanceFromFile, storeInstanceFiles } from '../lib/commands/instanceMain.mjs';
 
 /**
  * A build that fails leaves no temp file, and no part of its commit: an old file stays, or
@@ -361,6 +361,23 @@ describe('an upload of an instance after a failure', () => {
       code: 'ENOSPC',
     });
     expect(await storedFiles()).toEqual([]);
+  });
+
+  // Test 40. The API must do this: the CLI store gives the files that it did not store, so
+  // the instance and create commands can exit with a non-zero code
+  it('gives the files that the CLI did not store', async () => {
+    const sourceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'instance-files-'));
+    try {
+      fs.copyFileSync(dicomFilePath, path.join(sourceDir, 'good.dcm'));
+      fs.writeFileSync(path.join(sourceDir, 'bad.dcm'), 'not a DICOM file');
+      const { studyUIDs, failedFiles } = await storeInstanceFiles([sourceDir], {
+        dicomdir: baseDir,
+      });
+      expect(studyUIDs.size).toBe(1);
+      expect(failedFiles.map(file => path.basename(file))).toEqual(['bad.dcm']);
+    } finally {
+      fs.rmSync(sourceDir, { recursive: true, force: true });
+    }
   });
 
   /** Makes the write of the file whose final name ends with `name` fail with ENOSPC */

@@ -1,4 +1,4 @@
-import { instanceMain } from './instanceMain.mjs';
+import { storeInstanceFiles } from './instanceMain.mjs';
 import { seriesMain } from './seriesMain.mjs';
 import { studyMain } from './studyMain.mjs';
 import { indexSummary } from '../instance/IndexSummary.mjs';
@@ -10,6 +10,7 @@ import { indexSummary } from '../instance/IndexSummary.mjs';
  * @param {Object} options - Options object
  * @param {string} [options.dicomdir] - Base directory path where DICOMweb structure is located
  * @param {boolean} [options.studyIndex=true] - Whether to create/update studies/index.json.gz file
+ * @returns {Promise<{ failedFiles: string[] }>} - The files that were not stored
  */
 export async function createMain(fileNames, options = {}) {
   const { dicomdir, studyIndex = true } = options;
@@ -20,11 +21,11 @@ export async function createMain(fileNames, options = {}) {
 
   // Step 1: Process instances and collect study UIDs
   console.log('Processing instances...');
-  const studyUIDs = await instanceMain(fileNames, options);
+  const { studyUIDs, failedFiles } = await storeInstanceFiles(fileNames, options);
 
   if (studyUIDs.size === 0) {
     console.warn('No study UIDs found in processed instances');
-    return;
+    return { failedFiles };
   }
 
   console.log(`Found ${studyUIDs.size} unique study(ies)`);
@@ -55,4 +56,5 @@ export async function createMain(fileNames, options = {}) {
   }
 
   console.log('Completed all processing');
+  return { failedFiles };
 }
