@@ -1,10 +1,25 @@
 import { handleHomeRelative } from '@radicalimaging/static-wado-util';
 import { thumbnailMain } from '@radicalimaging/create-dicomweb';
 import fs from 'fs';
+import { getBuildJobManager } from '../../util/buildJobManager.mjs';
+import {
+  ensureSeriesLevel,
+  ensureStudyLevel,
+  handleBuildError,
+} from './indexOnDemandController.mjs';
 
+/**
+ * Makes a missing instance or series thumbnail. An upload deletes the thumbnails, and also the
+ * series and study files that thumbnailMain reads (SQR-D5). Thus, with builds on demand, this
+ * first builds those files in the build job manager: the series level for an instance
+ * thumbnail, and the study level for a series thumbnail. A build error gives 503 or 500
+ * (handleBuildError), as for a query.
+ * @param {Object} options - Server params (dir, createIndexOnDemand, and the job limits)
+ */
 export default function createMissingThumbnail(options) {
   const { dir } = options;
   const baseDir = handleHomeRelative(dir);
+  const createOnDemand = options.createIndexOnDemand !== false;
 
   return async (req, res, next) => {
     const fullPath = `${baseDir}${req.staticWadoPath}`;
@@ -24,6 +39,20 @@ export default function createMissingThumbnail(options) {
       seriesUID,
       instanceUID
     );
+
+    if (createOnDemand) {
+      try {
+        const jobOptions = { jobs: getBuildJobManager(options) };
+        if (instanceUID && seriesUID) {
+          await ensureSeriesLevel(baseDir, studyUID, seriesUID, jobOptions);
+        } else {
+          await ensureStudyLevel(baseDir, studyUID, jobOptions);
+        }
+      } catch (err) {
+        handleBuildError(err, res, next, 'thumbnail: failed to build the summary files');
+        return;
+      }
+    }
 
     try {
       const thumbnailOptions = {

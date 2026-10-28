@@ -14,6 +14,7 @@ import {
   completePostController,
 } from '../../lib/controllers/server/streamPostController.mjs';
 import { stowFailureReason } from '../../lib/util/stowResponseBuilder.mjs';
+import createMissingThumbnail from '../../lib/controllers/server/createMissingThumbnail.mjs';
 
 createVerboseLog(false, { quiet: true });
 
@@ -126,6 +127,44 @@ describe('the result of an upload', () => {
     expect((await upload()).status).toBe(200);
     expect(fs.existsSync(seriesThumbnail)).toBe(false);
     expect(fs.existsSync(instanceThumbnail)).toBe(false);
+  });
+
+  // Test 47. The user experience must have this (SQR-U5): a thumbnail request after an upload
+  // gets a new thumbnail, and not 404, also when the upload deleted the series files
+  it('makes a new instance thumbnail after the instance is stored again', async () => {
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const first = await upload();
+    const sopInstanceUID = first.body['00081199'].Value[0]['00081155'].Value[0];
+    const { studyUID, seriesRoot, seriesUID } = storedSeries();
+    await seriesSummary(root, studyUID, seriesUID);
+    await upload();
+    const instanceThumbnail = path.join(
+      seriesRoot,
+      seriesUID,
+      'instances',
+      sopInstanceUID,
+      'thumbnail'
+    );
+    expect(fs.existsSync(path.join(seriesRoot, seriesUID, 'metadata.gz'))).toBe(false);
+
+    const req = {
+      params: { studyUID, seriesUID, instanceUID: sopInstanceUID },
+      staticWadoPath: `/${path.relative(root, instanceThumbnail).split(path.sep).join('/')}`,
+    };
+    const res = {
+      headersSent: false,
+      status: jest.fn(() => res),
+      json: jest.fn(),
+      send: jest.fn(),
+    };
+    res.setHeader = jest.fn();
+    const next = jest.fn();
+    await createMissingThumbnail({ dir: root })(req, res, next);
+
+    expect(res.status).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith();
+    expect(fs.existsSync(instanceThumbnail)).toBe(true);
   });
 
   // Test 38. The user experience must have this: the status of the response and the Failure
