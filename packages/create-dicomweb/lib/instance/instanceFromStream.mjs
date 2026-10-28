@@ -398,10 +398,7 @@ export async function instanceFromStream(stream, options = {}) {
         error: streamForAbort.abortedReason?.message ?? 'Request aborted',
       });
     }
-    const e = new Error(streamForAbort.abortedReason?.message ?? 'Request aborted');
-    e.code = 'ABORTED';
-    e.aborted = true;
-    throw e;
+    throw abortedError(streamForAbort);
   }
 
   let fmi;
@@ -415,7 +412,7 @@ export async function instanceFromStream(stream, options = {}) {
     parseError = err;
     writer?.abort(err);
     writer?.rollbackPendingMoves();
-    throw err;
+    throw streamForAbort?.abortedReason ? abortedError(streamForAbort) : markDataError(err);
   } finally {
     progressFilter.reportProgress?.();
     if (parseJobId != null) {
@@ -429,10 +426,7 @@ export async function instanceFromStream(stream, options = {}) {
 
   // If stream was aborted during parse (e.g. STOW timeout), treat response as aborted
   if (streamForAbort?.abortedReason) {
-    const e = new Error(streamForAbort.abortedReason?.message ?? 'Request aborted');
-    e.code = 'ABORTED';
-    e.aborted = true;
-    throw e;
+    throw abortedError(streamForAbort);
   }
 
   let result;
@@ -472,7 +466,11 @@ export async function instanceFromStream(stream, options = {}) {
 
     // If a validateInstance hook is provided, run it before committing temp files.
     if (options.validateInstance) {
-      await options.validateInstance(result);
+      try {
+        await options.validateInstance(result);
+      } catch (err) {
+        throw markDataError(err);
+      }
     }
 
     // Commit deferred moves (rename temp → final). No-op on base class.
@@ -498,6 +496,53 @@ export async function instanceFromStream(stream, options = {}) {
   }
 
   return result;
+}
+
+/** Failure Reason C000 (cannot understand) of PS3.18 Table I.2-2 */
+const CANNOT_UNDERSTAND = 0xc000;
+
+/**
+ * Returns true for an error that the server causes, and not the data: an operating system
+ * error (`E...`), a Node.js stream error (`ERR_STREAM_*`), or an abort (`ABORT_ERR`).
+ * @param {Error} error
+ * @returns {boolean}
+ */
+function isServerError(error) {
+  const code = typeof error?.code === 'string' ? error.code : '';
+  return /^E[A-Z0-9]+$/.test(code) || code.startsWith('ERR_STREAM') || code === 'ABORT_ERR';
+}
+
+/**
+ * Marks an error of the parse or of validateInstance as data that the server cannot read:
+ * `failureReason` C000 (SQR-U5), unless the error already has a failureReason or the server
+ * caused it (isServerError). The STOW response uses 0110 for an error with no failureReason.
+ * @param {Error} error
+ * @returns {Error}
+ */
+function markDataError(error) {
+  const marked = error && typeof error === 'object' && error.failureReason !== undefined;
+  if (error && typeof error === 'object' && !marked && !isServerError(error)) {
+    error.failureReason = CANNOT_UNDERSTAND;
+  }
+  return error;
+}
+
+/**
+ * Returns a new error (code ABORTED) for a stream that the request stopped
+ * (`stream.abortedReason`). It keeps the failureReason of the reason: a body that ended too
+ * early gives C000, and a stop of the server gives none (0110 in the STOW response).
+ * @param {Object} stream
+ * @returns {Error}
+ */
+function abortedError(stream) {
+  const reason = stream.abortedReason;
+  const error = new Error(reason?.message ?? 'Request aborted');
+  error.code = 'ABORTED';
+  error.aborted = true;
+  if (Number.isInteger(reason?.failureReason)) {
+    error.failureReason = reason.failureReason;
+  }
+  return error;
 }
 
 /**

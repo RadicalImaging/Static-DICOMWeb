@@ -18,9 +18,12 @@ import { getLivelockDetectMs } from '../../util/livelockRegistry.mjs';
 import {
   createDatasetResponseFromUploadedFiles,
   getStowStatusCode,
+  isStorageOutage,
 } from '../../util/stowResponseBuilder.mjs';
 
 const maxFileSize = 4 * 1024 * 1024 * 1024;
+/** Retry-After of a 503 for an upload that a storage outage stopped (StorageUnavailableError) */
+const STORAGE_RETRY_AFTER_SECONDS = 10;
 const maxTotalFileSize = 10 * maxFileSize;
 
 // Track if handlers have been initialized
@@ -509,8 +512,12 @@ export const completePostController = async (req, res, next) => {
 
     // Create the dataset response (used for both JSON and XML)
     const datasetResponse = createDatasetResponseFromUploadedFiles(files, { logger: console });
-    // 200, 202 or 409 (PS3.18 Table 10.5.3-1)
-    const statusCode = getStowStatusCode(datasetResponse);
+    // 200, 202 or 409 (PS3.18 Table 10.5.3-1), or 503 for a storage outage (SQR-U5)
+    let statusCode = getStowStatusCode(datasetResponse);
+    if (isStorageOutage(files)) {
+      statusCode = 503;
+      res.setHeader('Retry-After', String(STORAGE_RETRY_AFTER_SECONDS));
+    }
 
     console.verbose('[streamPostController] Dataset response:', JSON.stringify(datasetResponse, null, 2));
 

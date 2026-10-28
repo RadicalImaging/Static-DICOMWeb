@@ -1,3 +1,9 @@
+import {
+  StorageUnavailableError,
+  isOutOfResourcesError,
+  toStorageError,
+} from '@radicalimaging/static-wado-util';
+
 const DEFAULT_FAILURE_REASON = 0xc000;
 const DEFAULT_STUDY_PATH_TEMPLATE = '/api/studies/{studyInstanceUID}';
 
@@ -160,15 +166,27 @@ export function getStowStatusCode(dataset, options = {}) {
   );
 }
 
-/** Codes of an error that means the storage or the server has no free space or resources */
-const OUT_OF_RESOURCES_CODES = new Set(['ENOSPC', 'EDQUOT', 'EMFILE', 'ENFILE', 'ENOMEM']);
+/** Failure Reasons of PS3.18 Table I.2-2 */
+const OUT_OF_RESOURCES = 0xa700;
+const PROCESSING_FAILURE = 0x0110;
+
+/**
+ * Returns true for a temporary storage error (a StorageUnavailableError of toStorageError).
+ * @param {Error} error
+ * @returns {boolean}
+ */
+function isStorageOutageError(error) {
+  return toStorageError('', error) instanceof StorageUnavailableError;
+}
 
 /**
  * Failure Reason (0008,1197) of a failed instance (PS3.18 Table I.2-2):
- * - error.failureReason, when a hook (for example validateInstance) sets a number;
- * - A700 (refused, out of resources) for OUT_OF_RESOURCES_CODES;
- * - 0110 (processing failure) for another error with an operating system code (`E...`);
- * - C000 (cannot understand) otherwise, for example a parse error.
+ * - error.failureReason, when it is set: instanceFromStream sets C000 for data that it cannot
+ *   read, and a validateInstance hook can set its own value;
+ * - A700 (refused, out of resources) for a temporary storage error (toStorageError) with no
+ *   free space or resources (isOutOfResourcesError);
+ * - 0110 (processing failure) for each other error, because the server caused it (another
+ *   storage error, a stopped instance, a timeout, a Node.js stream error).
  * @param {Error} error
  * @returns {number}
  */
@@ -176,14 +194,23 @@ export function stowFailureReason(error) {
   if (Number.isInteger(error?.failureReason)) {
     return error.failureReason;
   }
-  const code = error?.code ?? error?.cause?.code ?? '';
-  if (OUT_OF_RESOURCES_CODES.has(code)) {
-    return 0xa700;
+  if (isStorageOutageError(error) && isOutOfResourcesError(error)) {
+    return OUT_OF_RESOURCES;
   }
-  if (/^E[A-Z0-9]+$/.test(code)) {
-    return 0x0110;
-  }
-  return DEFAULT_FAILURE_REASON;
+  return PROCESSING_FAILURE;
+}
+
+/**
+ * Returns true when the files of an upload hold no stored instance, and each failure is a
+ * temporary storage error. The request then gets 503 with Retry-After (SQR-U3, SQR-U5).
+ * @param {Array<{ok: boolean, cause?: Error}>} files - Files of completePostController
+ * @returns {boolean}
+ */
+export function isStorageOutage(files = []) {
+  return (
+    files.length > 0 &&
+    files.every(file => !file.ok && file.cause && isStorageOutageError(file.cause))
+  );
 }
 
 function getSOPClassUID(information) {

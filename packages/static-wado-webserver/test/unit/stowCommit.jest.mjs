@@ -13,6 +13,7 @@ import {
   streamPostController,
   completePostController,
 } from '../../lib/controllers/server/streamPostController.mjs';
+import { stowFailureReason } from '../../lib/util/stowResponseBuilder.mjs';
 
 createVerboseLog(false, { quiet: true });
 
@@ -58,7 +59,11 @@ describe('the result of an upload', () => {
         Buffer.from(`--${BOUNDARY}--\r\n`),
       ]),
     });
-    return { status: response.status, body: await response.json() };
+    return {
+      status: response.status,
+      retryAfter: response.headers.get('retry-after'),
+      body: await response.json(),
+    };
   };
 
   /** The Failure Reason values of the response */
@@ -124,24 +129,41 @@ describe('the result of an upload', () => {
   });
 
   // Test 38. The user experience must have this: the status of the response and the Failure
-  // Reason of each failed instance obey PS3.18 (Table 10.5.3-1 and Table I.2-2)
-  it('answers 409 with A700 for a full storage, and 202 with C000 for a bad part', async () => {
+  // Reason of each failed instance obey SQR-U5 (PS3.18 Table 10.5.3-1 and Table I.2-2). A
+  // storage outage gives 503.
+  it.each([
+    ['ENOSPC', 503, 0xa700],
+    ['EIO', 503, 0x0110],
+    ['EISDIR', 409, 0x0110],
+  ])('answers an upload whose metadata open fails with %s', async (code, status, reason) => {
     jest.spyOn(console, 'warn').mockImplementation(() => {});
     const openSync = fs.openSync;
-    const spy = jest.spyOn(fs, 'openSync').mockImplementation((target, ...rest) => {
+    jest.spyOn(fs, 'openSync').mockImplementation((target, ...rest) => {
       if (String(target).endsWith('-metadata.gz')) {
-        throw Object.assign(new Error('no space'), { code: 'ENOSPC' });
+        throw Object.assign(new Error(code), { code });
       }
       return openSync(target, ...rest);
     });
-    const full = await upload();
-    expect(full.status).toBe(409);
-    expect(failureReasons(full.body)).toEqual([0xa700]);
-    spy.mockRestore();
+    const response = await upload();
+    expect(response.status).toBe(status);
+    expect(response.retryAfter).toBe(status === 503 ? '10' : null);
+    expect(failureReasons(response.body)).toEqual([reason]);
+  });
 
+  // Test 38 (continued). A part that is not DICOM gives C000, and the request gives 202
+  it('answers 202 with C000 for a part that is not DICOM', async () => {
     const mixed = await upload([fs.readFileSync(DICOM_FILE), Buffer.from('not a DICOM file')]);
     expect(mixed.status).toBe(202);
     expect(mixed.body['00081199'].Value).toHaveLength(1);
     expect(failureReasons(mixed.body)).toEqual([0xc000]);
+  });
+
+  // Test 44. The API must do this (SQR-U5): an error that the server causes never gives C000
+  it.each([
+    ['a stopped instance', Object.assign(new Error('stopped'), { code: 'ABORTED' })],
+    ['a drain timeout', new Error('Stream did not complete within 60000ms')],
+    ['a stream error', Object.assign(new Error('closed'), { code: 'ERR_STREAM_PREMATURE_CLOSE' })],
+  ])('gives 0110 for %s', (_, error) => {
+    expect(stowFailureReason(error)).toBe(0x0110);
   });
 });

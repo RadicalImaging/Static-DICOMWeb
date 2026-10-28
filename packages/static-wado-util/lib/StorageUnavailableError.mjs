@@ -79,3 +79,17 @@ export function toStorageError(path, error) {
   }
   return new StorageUnavailableError(path, error);
 }
+
+/** Codes of an I/O error that mean that the storage or the server has no free space or resources */
+const OUT_OF_RESOURCES_CODES = new Set(['ENOSPC', 'EDQUOT', 'EMFILE', 'ENFILE', 'ENOMEM']);
+
+/**
+ * Returns true when an error (or the cause of a StorageUnavailableError) means that the
+ * storage or the server has no free space or resources (`ENOSPC`, `EDQUOT`, `EMFILE`,
+ * `ENFILE`, `ENOMEM`). These are I/O errors (toStorageError), so a retry can succeed.
+ * @param {Error} error
+ * @returns {boolean}
+ */
+export function isOutOfResourcesError(error) {
+  return OUT_OF_RESOURCES_CODES.has(error?.code ?? error?.cause?.code);
+}
