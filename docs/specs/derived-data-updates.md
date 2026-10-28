@@ -74,7 +74,8 @@ does not change the user contract (SQR-U1).
   `Retry-After` header. A study metadata request can get this response also when it needs no
   update. A request for a stored file that the server sends as it is (for example a summary
   that is already stored, a frame or a bulk data item) gets a `5xx` response. Its status
-  code and headers are outside this specification.
+  code and headers are outside this specification. An upload that stored no instance because
+  of a storage outage also gets `503` with a `Retry-After` header (SQR-U5).
   After the storage recovers, the next request gets the correct result, with no upload and no
   restart. The one exception is a storage failure during an upload (see the exceptions to
   SQR-U1).
@@ -118,13 +119,29 @@ does not change the user contract (SQR-U1).
   - The HTTP status of the response obeys PS3.18 Table 10.5.3-1: `200` when the server stored
     all instances of the request, `202` when it stored some instances and others failed, and
     `409` when the request has instances and the server stored none of them.
-  - Each failed instance is in the Failed SOP Sequence `(0008,1198)`. Its Failure Reason
-    `(0008,1197)` obeys PS3.18 Table I.2-2: `A700` (refused, out of resources) when the
-    storage or the server has no free space or resources, `0110` (processing failure) for
-    another storage error, and `C000` (cannot understand) when the server cannot read the
-    instance.
+  - A storage outage (SQR-U3) is the exception to `409`. When the server stored no instance,
+    and each instance failed because of a temporary storage error, the request gets
+    `503 Service Unavailable` with a `Retry-After` header. The body still lists each failed
+    instance. After the storage recovers, the client can send the same request again.
+  - Each failed instance is in the Failed SOP Sequence `(0008,1198)`. The item has the SOP
+    Class UID `(0008,1150)` and the SOP Instance UID `(0008,1155)` of the instance when the
+    server read them before the failure. Its Failure Reason `(0008,1197)` obeys PS3.18 Table
+    I.2-2:
+    - `C000` (cannot understand) only when the server cannot read the data of the instance,
+      for example a part that is not a DICOM instance, a part that ends too early, or a
+      validation that rejects the instance;
+    - `A700` (refused, out of resources) for a temporary storage error when the storage or the
+      server has no free space or resources;
+    - `0110` (processing failure) for each other failure that the server causes, for example
+      another storage error, or an instance that the server stopped.
+  - A request body that ends without its closing boundary, after one or more complete parts,
+    gets a report of each instance: each stored instance as stored, and the incomplete part
+    as failed. The status obeys the rules above. A body in which no part is complete gets
+    `400 Bad Request`.
+  - After an upload, a thumbnail request for the series or an instance of the upload gives a
+    thumbnail of the stored data, and not `404`.
   - The `createdicomweb instance` and `create` commands exit with a code that is not `0`
-    when they did not store one or more files.
+    when they did not store one or more files, also when an input path does not exist.
 
 ## Known limitations
 
