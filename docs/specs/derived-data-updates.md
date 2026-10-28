@@ -8,7 +8,9 @@ The multi-node extension is not implemented.
 This specification states how the webserver keeps its derived files correct and available
 when new data arrives, when a file is missing, and when the process stops. The derived files
 are the files that the server makes from the stored DICOM instances, for example
-`studies/<studyUID>/series/index.json.gz`, the study-level series index.
+`studies/<studyUID>/series/index.json.gz`, the study-level series index. It also states the
+result that an upload reports for each instance (SQR-U5), because the derived files depend on
+the stored instances.
 
 The specification has two requirement sections. Each section has its own prefix and its own
 change rule:
@@ -105,6 +107,14 @@ does not change the user contract (SQR-U1).
   than the study. A query with `StudyInstanceUID` gives the current values of the study
   (SQR-U1). This is the exception to SQR-U1 for the studies list. A deployment can turn off
   the update of the studies list on upload (SQR-D17), so the helper is optional.
+- **SQR-U5. Correct upload result.** The response to an upload (STOW-RS) reports an instance
+  as stored only when the server stored all of the data of that instance: its metadata, its
+  frames and its bulk data. The response reports an instance as failed only when the server
+  did not store that instance. A failed upload of an instance keeps the data that the server
+  stored for that instance before the upload. When the server cannot know the result of each
+  instance before it answers, the request gets `503 Service Unavailable` with a `Retry-After`
+  header, and not `400`. The client can then send the instances again. An upload of a stored
+  instance replaces that instance. The section "Known limitations" gives one exception.
 
 ## Known limitations
 
@@ -117,6 +127,10 @@ later change can remove them:
   document), so the server does not build a missing summary file in that layout. A query, a
   metadata request or a studies list request whose summary file is missing gives `404`. This
   was the behaviour before the builds on demand.
+- **A rename that fails during the commit of an instance (issue #143).** The response reports
+  the instance as failed (SQR-U5). The files of the instance that moved before the failed
+  rename stay. For a new upload of a stored instance, the stored data can then be a mix of
+  the two uploads, until the next upload of that instance.
 
 ## § Design requirements
 
@@ -328,6 +342,15 @@ The next requirements use these terms:
   server parameter `disableSummary: true` stops the update messages of an upload, so no
   study build starts after an upload, and the file changes only after a query builds a
   study. Supports SQR-U4.
+- **SQR-D18. Commit an instance only when all of its writes succeeded.** An upload writes
+  each file of an instance to a temporary file. When one write fails, the upload of that
+  instance fails, and the upload moves no file of that instance. The upload changes no stored
+  file of the instance before the move. A stored file that the new instance replaces with a
+  different name (for example `1.mht.gz` that `1.mht` replaces) is deleted after the move.
+  After the move, the instance is stored: a failure of a later step (the deletion of SQR-D5,
+  or the Part 10 rendition) does not report the instance as failed. When the Part 10 rendition
+  of the instance fails, the upload deletes the stored rendition of an earlier upload, and
+  the server makes the rendition from the stored files on request. Supports SQR-U5.
 
 ### Multi-node extension requirements
 

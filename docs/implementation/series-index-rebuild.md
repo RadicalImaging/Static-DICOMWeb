@@ -1,6 +1,6 @@
 # Implementation: stop repeated rebuilds of a missing study-level series index
 
-Status: SQR-I1 to SQR-I6 implemented. SQR-I7 is a plan for a later change. Applies to
+Status: SQR-I1 to SQR-I6 and SQR-I8 implemented. SQR-I7 is a plan for a later change. Applies to
 create-dicomweb and static-wado-webserver 1.7.6 to 1.7.10.
 
 This document applies the design requirements of
@@ -82,6 +82,7 @@ does not add a new rule. If an item seems to need a new rule, add the rule to
 | SQR-D14 Reject new work when the queue is too long | SQR-I2 |
 | SQR-D15, SQR-D16 Multi-node extension | SQR-I7 (not in this fix) |
 | SQR-D17 Best-effort studies list | SQR-I1, SQR-I3 |
+| SQR-D18 Commit an instance only when all of its writes succeeded | SQR-I8 |
 
 ### SQR-I1. Share one "ensure the level" function for each level
 
@@ -482,6 +483,39 @@ design does not block the extension.
   `index.json.gz.generation`, that holds the value of the generation. That alternative costs one
   more file and one more read for each request, so the mtime is the recommended approach.
 
+### SQR-I8. Report the result of each instance of an upload correctly
+
+Applies SQR-D18 to `instanceFromStream`, the writers and the STOW middleware. Issue #144
+lists the defects that this item corrects.
+
+1. `instanceFromStream` throws when the `closeStream` of the instance `metadata` returns
+   `undefined`. After `drainOpenStreams`, it throws the first error that the writer recorded
+   (`getStreamErrors()`). The frame and bulk data filters only record their errors, so before
+   this change an instance with a failed frame write committed.
+2. `openFrameStream` no longer deletes `<n>.mht` and `<n>.mht.gz` when the stream opens. It
+   gives the other variant in the new stream option `replaces`. `FileDicomWebWriter` deletes
+   the files of `replaces` after the rename of the stream, or when `compareOnClose` finds an
+   identical file. The rename replaces a file with the same name.
+3. `instanceFromStream` calls `afterCommit` after the rollback `try`, and logs an error of
+   `afterCommit`. `FileDicomWebWriter.delete()` never throws: it logs a failed `rmSync` of an
+   old-layout metadata directory, as it logs a failed `unlink`. A failed delete is note 2 of
+   "Safety of each deployment".
+4. When the Part 10 rendition fails, `instanceFromStream` deletes `index.mht` and
+   `index.mht.gz` of the instance (`writer.delete`). The `part10Controller` then makes the
+   rendition from the stored files.
+5. `multipartStream` waits 5 minutes for the listeners after the last part. Then it marks
+   the part streams as aborted (`setAborted`), which stops each parse that still runs, and
+   waits 1 more minute. When all listeners settled, the request goes to
+   `completePostController`, which reports each instance. Otherwise the request gets `503`
+   with `Retry-After: 10`. Before this change, the request got `400`, and the listeners
+   continued and committed their instances. `TrackableReadBufferStream` keeps a handler on its
+   abort promise, so `setAborted` gives no unhandled rejection.
+6. `stowResponseBuilder` no longer reads `result.streamErrors`. No code set that property,
+   and item 1 makes a failed write a failed instance.
+
+The partial commit of issue #143 is not in this item. It is a known limitation of the
+specification.
+
 ### Changes from the proposal
 
 The first version of this document was a proposal. The implementation differs from the
@@ -639,6 +673,20 @@ These user-facing results also change:
   the send, gets the data of a build, and not `404`.
 - The STOW-RS upload stores the correct bytes when the request arrives in small chunks.
   Before this change, the server rejected some valid instances.
+- An upload reports an instance as failed when the write of its metadata, a frame or a bulk
+  data item fails (SQR-U5). Before this change, the upload reported success, and stored the
+  instance without that file. The `instance` command of the CLI now prints
+  `Couldn't process <file>` for such a file, and continues with the next file.
+- An upload reports an instance as stored when a delete of a derived file fails after the
+  commit. Before this change, the instance got a failure, or the full upload got `500`.
+- When the listeners of a STOW-RS request do not complete in 5 minutes after the last part,
+  the response reports each instance, or the request gets `503` with `Retry-After`. Before
+  this change, the request got `400`. This status code is new for a STOW-RS client.
+- A failed new upload of a stored instance keeps the stored frames. A failed Part 10
+  rendition deletes the stored rendition of the instance.
+- `openFrameStream` (create-dicomweb) no longer deletes the stored frame when it opens. A
+  caller of `DicomWebWriter` that does not use `FileDicomWebWriter` must remove the other
+  variant of a frame itself.
 
 ## Deployment guidance
 
@@ -734,10 +782,19 @@ The user experience must have this:
 31. Send a series query, and delete `series/index.json` after the check of the request and
     before the send: before the stat, and between the stat and the open. The response is
     `200` with all series, and has no `Content-Encoding` header (SQR-U1, SQR-D1).
-36. Store an instance, build its series and study files, and make the delete of an
-    old-layout series `metadata` directory fail. The upload reports the instance as stored,
-    and the other derived files are deleted (SQR-D5). The test has the number of pull request
-    #146, which adds tests 33 to 35 for other upload failures.
+33. Store an instance, and then upload it again with a `validateInstance` that rejects it.
+    The stored files of the instance do not change. A later upload that commits deletes the
+    other variant of a frame (SQR-U5, SQR-D18).
+34. Upload a new instance while the write of its `metadata`, and then of one frame, fails
+    with `ENOSPC`. The upload of the instance fails, and stores no file (SQR-U5, SQR-D18).
+35. Store a SEG, and then upload it again while the open of its Part 10 rendition fails. The
+    upload stores the instance, and deletes the old rendition (SQR-D18).
+36. Upload an instance again while the delete of the series `metadata` (older layout) fails
+    with `EIO`. The response reports the instance as stored, and the study files are deleted
+    (SQR-U5, SQR-D18).
+37. A STOW-RS listener completes 5.5 minutes after the last part. The request goes to the
+    report of each instance. A listener that does not complete gives `503` with
+    `Retry-After`. No case gives `400` (SQR-U5).
 
 The API must do this:
 
@@ -796,8 +853,12 @@ reliable in a unit test, so there is no such test. Tests 7 and 24 cover the earl
 `studySummary` and `seriesSummary`. There are no tests for each branch of the early returns.
 
 Tests 8, 12 and 25 are in `packages/static-wado-webserver/test/unit/buildJobManager.jest.mjs`.
-Test 13 is in `packages/static-wado-webserver/test/unit/stowAbort.jest.mjs`. The other
-numbered tests are in `packages/static-wado-webserver/test/unit/derivedDataBuild.jest.mjs`.
+Test 13 is in `packages/static-wado-webserver/test/unit/stowAbort.jest.mjs`. Tests 33 and 34
+are in `packages/create-dicomweb/test/writeWithRetryCleanup.jest.mjs`, test 35 is in
+`packages/create-dicomweb/test/rawPart10.jest.mjs`, test 36 is in
+`packages/static-wado-webserver/test/unit/stowCommit.jest.mjs`, and test 37 is in
+`packages/static-wado-webserver/test/unit/multipartStream.jest.mjs`. The other numbered tests
+are in `packages/static-wado-webserver/test/unit/derivedDataBuild.jest.mjs`.
 
 These tests have no number, and check one function each (the API must do this):
 
