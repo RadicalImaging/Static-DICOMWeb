@@ -246,7 +246,9 @@ The design has two parts:
 - **SQR-D5. Store the data, then change the generation, then delete.** An upload stores each
   new instance. Immediately after the commit of each instance, the upload changes the
   generation of its series and of its study. Then the upload deletes the derived files that the instance
-  affects: the files of its series and the study files. The upload does these steps for each
+  affects: the files of its series, the study files, the series `thumbnail` and the
+  `thumbnail` of the instance. The server makes a missing thumbnail on request. The upload
+  does not delete the `thumbnail-<n>` files that the CLI makes. The upload does these steps for each
   instance, so an upload that stops before its end leaves no stale derived file, except in
   the cases of notes 1 and 2 of "Safety of each deployment". The upload
   does the steps again for all affected series when it ends. The upload does not delete

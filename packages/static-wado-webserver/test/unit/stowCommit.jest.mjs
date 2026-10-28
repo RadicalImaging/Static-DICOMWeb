@@ -106,6 +106,23 @@ describe('the result of an upload', () => {
     expect(fs.existsSync(path.join(studiesDir, studyUID, 'index.json.gz'))).toBe(false);
   });
 
+  // Test 41. The user experience must have this: a new upload of an instance makes its stored
+  // instance thumbnail and the series thumbnail stale, so the server makes them again
+  it('deletes the instance and series thumbnails when an instance is stored again', async () => {
+    const first = await upload();
+    const sopInstanceUID = first.body['00081199'].Value[0]['00081155'].Value[0];
+    const { seriesRoot, seriesUID } = storedSeries();
+    const seriesThumbnail = path.join(seriesRoot, seriesUID, 'thumbnail');
+    const instanceDir = path.join(seriesRoot, seriesUID, 'instances', sopInstanceUID);
+    const instanceThumbnail = path.join(instanceDir, 'thumbnail');
+    fs.writeFileSync(seriesThumbnail, 'old');
+    fs.writeFileSync(instanceThumbnail, 'old');
+
+    expect((await upload()).status).toBe(200);
+    expect(fs.existsSync(seriesThumbnail)).toBe(false);
+    expect(fs.existsSync(instanceThumbnail)).toBe(false);
+  });
+
   // Test 38. The user experience must have this: the status of the response and the Failure
   // Reason of each failed instance obey PS3.18 (Table 10.5.3-1 and Table I.2-2)
   it('answers 409 with A700 when the storage is full, and 202 with C000 for a bad part', async () => {
