@@ -6,6 +6,7 @@ import { TrackableReadBufferStream } from '../../lib/controllers/server/Trackabl
 createVerboseLog(false, { quiet: true });
 
 const BOUNDARY = 'multipart-stream-test-boundary';
+const MINUTE = 60 * 1000;
 
 describe('multipartStream', () => {
   // The user experience must have this: the stored part has exactly the bytes of the upload,
@@ -42,5 +43,65 @@ describe('multipartStream', () => {
     const [{ stream }] = req.uploadStreams;
     expect(stream.size).toBe(payload.length);
     expect(Buffer.from(stream.getBuffer(0, stream.size)).equals(payload)).toBe(true);
+  });
+
+  // Test 37. The user experience must have this: after the 5-minute wait for the listeners, an
+  // instance that commits is reported as stored, and an unknown result gives 503, never 400
+  it.each([
+    ['reports each instance when the listener settles after the wait', 5.5 * MINUTE, 'next'],
+    ['answers 503 with Retry-After when the listener does not settle', 10 * MINUTE, 503],
+  ])('%s', async (_, listenerMs, expected) => {
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
+    const body = Buffer.concat([
+      Buffer.from(`--${BOUNDARY}\r\nContent-Type: application/dicom\r\n\r\n`),
+      Buffer.alloc(100),
+      Buffer.from(`\r\n--${BOUNDARY}--\r\n`),
+    ]);
+    const req = new PassThrough();
+    req.headers = { 'content-type': `multipart/related; boundary=${BOUNDARY}` };
+    const headers = {};
+    let resolveResult;
+    const result = new Promise(resolve => {
+      resolveResult = resolve;
+    });
+    const res = {
+      headersSent: false,
+      setHeader: (name, value) => (headers[name] = value),
+      status: code => {
+        resolveResult(code);
+        return res;
+      },
+      send: () => res,
+    };
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'trace').mockImplementation(() => {});
+    let timer;
+    const middleware = multipartStream({
+      listener: () =>
+        new Promise(resolve => {
+          timer = setTimeout(() => resolve('committed'), listenerMs);
+        }),
+      createBufferStream: () => new TrackableReadBufferStream(null, true, { noCopy: true }),
+    });
+
+    middleware(req, res, () => resolveResult('next'));
+    req.end(body);
+    // Let the parts complete, so that the wait for the listeners starts at time 0
+    for (let i = 0; i < 20; i++) await new Promise(resolve => setImmediate(resolve));
+    expect(timer).toBeDefined();
+    await jest.advanceTimersByTimeAsync(7 * MINUTE);
+
+    try {
+      expect(await result).toBe(expected);
+      if (expected === 'next') {
+        expect(await Promise.all(req.uploadListenerPromises)).toEqual(['committed']);
+      } else {
+        expect(headers['Retry-After']).toBe('10');
+      }
+    } finally {
+      clearTimeout(timer);
+      jest.useRealTimers();
+      jest.restoreAllMocks();
+    }
   });
 });

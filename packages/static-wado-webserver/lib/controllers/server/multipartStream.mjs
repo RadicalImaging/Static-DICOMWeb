@@ -3,6 +3,27 @@ import { randomUUID } from 'node:crypto';
 import { data } from 'dcmjs';
 import { parse as parseContentType } from 'content-type';
 
+const LISTENER_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
+const STOPPED_LISTENER_WAIT_MS = 60 * 1000;
+/** Retry-After (seconds) of a 503 for an upload whose result is unknown */
+const RETRY_AFTER_SECONDS = 10;
+
+/**
+ * Waits for a promise, an abort, or a timeout.
+ * @returns {Promise<boolean>} true when the promise settled first
+ */
+async function settlesWithin(promise, timeoutMs, abortPromise) {
+  let timeoutId;
+  const timeout = new Promise(resolve => {
+    timeoutId = setTimeout(() => resolve(false), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise.then(() => true), abortPromise.then(() => false), timeout]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 /**
  * Dicer-based multipart parser middleware for DICOMweb STOW-RS.
  *
@@ -20,6 +41,12 @@ import { parse as parseContentType } from 'content-type';
  * @param {(req: object, deltaBytes: number, totalBytes: number) => void} [opts.onBytes] Called when bytes are received
  * @param {(req: object, info: { partCount: number, totalBytes: number, totalTimeMs: number }) => void} [opts.onRequestEnd] Called when all parts are done and request is complete
  * @param {(req: object, err: Error) => void} [opts.onRequestAbort] Called when the request is aborted (client disconnect, kill, etc.) so the app can end status jobs
+ *
+ * After the last part, the middleware waits LISTENER_WAIT_TIMEOUT_MS for the listeners. After
+ * that, it stops the parts that still parse, and waits STOPPED_LISTENER_WAIT_MS more. The
+ * request then goes to next(), which reports each instance, so an instance that committed is
+ * reported as stored. When a listener still has not settled, its result is unknown, and the
+ * request gets 503 with Retry-After.
  */
 export function multipartStream(opts) {
   const {
@@ -114,15 +141,9 @@ export function multipartStream(opts) {
       abortResolve = resolve;
     });
 
-    const abort = err => {
-      if (aborted) return;
-      aborted = true;
-      console.trace('abort', err);
-      if (onRequestAbort) onRequestAbort(req, err);
-
-      // Mark all part streams (including any still being processed in checkAllPartsComplete) as aborted
-      const uploadStreams = req.uploadStreams || [];
-      for (const entry of uploadStreams) {
+    // Marks all part streams as aborted, so the listeners that still parse stop
+    const stopParts = err => {
+      for (const entry of req.uploadStreams || []) {
         const stream = entry?.stream;
         if (stream) {
           try {
@@ -136,6 +157,16 @@ export function multipartStream(opts) {
           }
         }
       }
+    };
+
+    const abort = err => {
+      if (aborted) return;
+      aborted = true;
+      console.trace('abort', err);
+      if (onRequestAbort) onRequestAbort(req, err);
+
+      // Mark all part streams (also those still in checkAllPartsComplete) as aborted
+      stopParts(err);
 
       // Let checkAllPartsComplete's race settle immediately so it doesn't wait on allSettled
       if (abortResolve) {
@@ -495,12 +526,9 @@ export function multipartStream(opts) {
           `[multipartStream] All parts completed. Total parts: ${partCount}, Completed: ${completedParts}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`
         );
 
-        // Wait for all listener promises to complete before calling next()
-        // Race with abortWhenCalled so if abort() is called we stop waiting immediately.
-        // Also enforce a 5-minute max wait, then abort so outstanding listeners get aborted.
+        // Wait for all listener promises to complete before calling next(). See
+        // the doc comment of multipartStream for what happens when they do not complete in time.
         if (req.uploadListenerPromises && req.uploadListenerPromises.length > 0) {
-          const WAIT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-          let waitTimeoutId = null;
           try {
             console.verbose(
               `[multipartStream] Waiting for ${req.uploadListenerPromises.length} listener promise(s) to complete...`
@@ -508,24 +536,34 @@ export function multipartStream(opts) {
             // While progress is being made, wait for it to complete
             let initialCount = req.streamWritePromiseTracker?.getSettledCount?.() ?? 0;
             while (req.streamWritePromiseTracker?.getUnsettledCount?.() > 0) {
-              await req.streamWritePromiseTracker.limitUnsettled(1, WAIT_TIMEOUT_MS);
+              await req.streamWritePromiseTracker.limitUnsettled(1, LISTENER_WAIT_TIMEOUT_MS);
               const currentSettled = req.streamWritePromiseTracker.getSettledCount();
               if (currentSettled === initialCount) {
                 break;
               }
               initialCount = currentSettled;
             }
-            waitTimeoutId = setTimeout(() => {
-              if (!aborted && !nextCalled) {
-                abort(new Error('STOW listener wait timeout (5 minutes)'));
+            const allSettled = Promise.allSettled(req.uploadListenerPromises);
+            if (!(await settlesWithin(allSettled, LISTENER_WAIT_TIMEOUT_MS, abortWhenCalled))) {
+              if (aborted) return;
+              stopParts(new Error(`STOW listener wait timeout (${LISTENER_WAIT_TIMEOUT_MS} ms)`));
+              if (!(await settlesWithin(allSettled, STOPPED_LISTENER_WAIT_MS, abortWhenCalled))) {
+                if (aborted || nextCalled) return;
+                // A listener can still commit its instance, so the result is unknown
+                nextCalled = true;
+                const err = new Error('STOW listeners did not complete, the result is unknown');
+                console.warn(`[multipartStream] ${err.message}`);
+                if (onRequestAbort) onRequestAbort(req, err);
+                if (!res.headersSent) {
+                  res.setHeader('Retry-After', String(RETRY_AFTER_SECONDS));
+                  res.status(503).send(`Service Unavailable: ${err.message}, retry later`);
+                }
+                return;
               }
-            }, WAIT_TIMEOUT_MS);
-            await Promise.race([Promise.allSettled(req.uploadListenerPromises), abortWhenCalled]);
-            if (waitTimeoutId) clearTimeout(waitTimeoutId);
+            }
             if (aborted) return;
             console.verbose(`[multipartStream] All listener promises completed`);
           } catch (err) {
-            if (waitTimeoutId) clearTimeout(waitTimeoutId);
             if (aborted) return;
             // Errors in individual promises are handled by completePostController
             console.warn(
