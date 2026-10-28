@@ -7,13 +7,14 @@ import {
   sendBuildPayload,
   seriesMetadataOf,
   handleBuildError,
+  serveStored,
 } from './indexOnDemandController.mjs';
 
 /**
  * seriesMetadataQueryController: for GET /studies/:studyUID/series/:seriesUID/metadata.
  * When the series metadata file is missing, builds the series level in the build job
- * manager (ensureSeriesLevel), then invokes otherJsonMap. When the build did not commit,
- * sends the data of the first round. When the build queue is full, or the storage cannot be
+ * manager (ensureSeriesLevel), then serves the stored file (serveStored). Each caller of a
+ * build sends the data of its round. When the build queue is full, or the storage cannot be
  * read, answers 503 (handleBuildError).
  *
  * @param {string} dir - Static files directory path (DICOMweb root)
@@ -29,27 +30,23 @@ export function seriesMetadataQueryController(dir, params = {}) {
     const createOnDemand = params.createIndexOnDemand !== false;
     const studyUID = req.params.studyUID;
     const seriesUID = req.params.seriesUID;
-
     const metadataPath = `${root}${req.staticWadoPath}.gz`;
+    const label = 'seriesMetadataQuery: failed to create series metadata';
+    const build = async () =>
+      seriesMetadataOf(
+        await ensureSeriesLevel(root, studyUID, seriesUID, { jobs: getBuildJobManager(params) })
+      );
 
-    try {
-      if (createOnDemand && !fs.existsSync(metadataPath)) {
-        const result = await ensureSeriesLevel(root, studyUID, seriesUID, {
-          jobs: getBuildJobManager(params),
-        });
-        const data = seriesMetadataOf(result);
-        if (data?.length && !fs.existsSync(metadataPath)) {
+    if (createOnDemand && !fs.existsSync(metadataPath)) {
+      try {
+        const data = await build();
+        if (data?.length) {
           return sendBuildPayload(res, data);
         }
+      } catch (err) {
+        return handleBuildError(err, res, next, label);
       }
-    } catch (err) {
-      return handleBuildError(
-        err,
-        res,
-        next,
-        'seriesMetadataQuery: failed to create series metadata'
-      );
     }
-    otherJsonMap(req, res, next);
+    serveStored(root, otherJsonMap, req, res, next, createOnDemand && build, label);
   };
 }

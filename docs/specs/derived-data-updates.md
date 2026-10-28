@@ -97,7 +97,10 @@ does not change the user contract (SQR-U1).
   system. It lists the stored studies. When the deployment updates the list on upload, a new
   study is in the list after the study build that follows its upload commits, or after the
   first query that builds that study. For a large study, that build can end minutes after
-  the response to the upload. A study with only corrupt data is not added to the list. The
+  the response to the upload. A study with only corrupt data is not added to the list. A
+  study that the server cannot read does not stop the list: the response leaves out that
+  study. When the cause is a storage outage (SQR-U3), the next request after the outage
+  gives the list with that study. The
   summary values of an entry, for example the counts of series and instances, can be older
   than the study. A query with `StudyInstanceUID` gives the current values of the study
   (SQR-U1). This is the exception to SQR-U1 for the studies list. A deployment can turn off
@@ -152,7 +155,10 @@ The design has two parts:
 ### Base design requirements
 
 - **SQR-D1. Serve the stored version.** A response comes from the stored file of its level.
-  When the file exists, the server does no other check. Supports SQR-U1 and SQR-U2.
+  When the file exists, the server does no other check. An upload can delete the file after
+  that check (SQR-D5). When the file is then missing at the time of the send, the server
+  builds the level one time (SQR-D2), and sends the data of that build. Supports SQR-U1 and
+  SQR-U2.
 - **SQR-D2. A missing file is always safe.** With builds on demand, a missing derived file
   of the series, study or studies level means "build this file". The server builds a missing
   file on the request path that needs it. Thus a lost update message or a stopped process
@@ -234,9 +240,14 @@ The design has two parts:
   round that the study round joined, SQR-D7) does not commit either, because its files
   would leave out that series. Its result for the waiting callers uses the data of that
   series round for the series, so the response does not leave out the series. The study
-  round starts again after a delay in the same way. Supports SQR-U1 and SQR-U3.
+  round starts again after a delay in the same way. When the generation of the study
+  changed during a study round, and the round finds a series with no stored files and no
+  series round, the round builds that series, so its result keeps that series. Supports
+  SQR-U1 and SQR-U3.
 - **SQR-D7. Respond after the first build.** A caller that waits for a build gets the result of
-  the first round of that build, also when the build must start again. The caller does not
+  the first round of that build, also when the build must start again. Each caller sends the
+  data of that round, also after a commit, so an upload that deletes the committed file does
+  not change the response. The caller does not
   wait for the next rounds. The next rounds continue in the background. A caller joins only
   a round that started at the generation that the caller read when it arrived, or at a later
   generation. For an older round, the caller waits until that round ends, and then joins or
@@ -278,7 +289,11 @@ The next requirements use these terms:
   starts a job, or waits for a job. Supports SQR-U2.
 - **SQR-D12. Limit the top-level jobs.** The server limits the number of top-level jobs that run
   at the same time. A top-level job above the limit waits in a queue. The limit is a
-  configuration value. Supports SQR-U3.
+  configuration value. A request job can also use a small number of extra slots that a
+  background job (SQR-D14) cannot use, and a request job in the queue starts before each
+  background job. A request that needs the job of a queued background job moves that job
+  to the request queue. Thus the background work of an upload does not delay a request.
+  Supports SQR-U2 and SQR-U3.
 - **SQR-D13. A started job always progresses.** A nested job does not wait for a slot of the
   top-level limit. A running job can always start at least one nested job, or wait for one,
   at a time. The job can do its nested jobs one after the other, in one thread of work. A job
@@ -288,7 +303,9 @@ The next requirements use these terms:
   configured number of request jobs, the server does not add a job for a new request. The
   request gets the `503` response of SQR-U3. A job of an upload message, or a next round of
   SQR-D6, is a background job. A background job is not rejected, and it does not count to the
-  limit, so an upload alone does not make other requests get `503`. Supports SQR-U3.
+  limit, so an upload alone does not make other requests get `503`. A request that moves a
+  queued background job to the request queue counts to the limit, and gets `503` when the
+  queue is full. Supports SQR-U3.
 
 - **SQR-D17. Keep the studies list as a best-effort list.** The studies list has no
   generation, and an upload does not delete it. When the server commits the study level of
@@ -296,7 +313,10 @@ The next requirements use these terms:
   `studies/index.json`. When the file lists the study, the server does not change the file.
   When the file does not list the study, the server adds the entry of the study, and saves
   the file. When the file is missing, a `GET /studies` request builds it from the study
-  level of each study (SQR-D2). A study whose round did not commit during that build is not
+  level of each study (SQR-D2). A study whose build fails is left out. After an I/O error of
+  a study, the server sends the list, and does not store it, so the next request builds the
+  list again. After any other error, the server stores the list without that study, and a
+  later commit of that study adds it. A study whose round did not commit during that build is not
   in the file at first. The next round of that study adds it, in the same way as after an
   upload. The updates of the file in one process run one after the
   other. The design gives no guarantee for updates from different processes. The server

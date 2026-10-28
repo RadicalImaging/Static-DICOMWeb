@@ -630,6 +630,13 @@ These user-facing results also change:
   `500`. Before this change, the build treated that file as missing data. A permanent error
   (`ELOOP`, `EISDIR`, `EINVAL`, `ENOTEMPTY`, `EEXIST`, `EXDEV`) gives `500`, and a name that
   is too long (`ENAMETOOLONG`, for example a long UID in a request) counts as a missing path.
+- `GET /studies` (the studies list) leaves out a study that the server cannot read, and gives
+  `200`. Before, one such study gave `503` or `500` for the full list. After an I/O error,
+  the list is sent and not stored.
+- A request job uses the new server param `requestJobSlots` (default 1): extra running
+  builds for requests only. A request job in the queue starts before the background jobs.
+- A query or a metadata request that finds its file, and then loses it to an upload before
+  the send, gets the data of a build, and not `404`.
 - The STOW-RS upload stores the correct bytes when the request arrives in small chunks.
   Before this change, the server rejected some valid instances.
 
@@ -642,8 +649,8 @@ This section is not a requirement of the code.
   the client. After the fix, a retry is cheap, but a retry still holds a connection.
 - A client or a proxy that gets `503` must wait for the time in `Retry-After` before it sends
   the request again.
-- The server params `maxRunningJobs` (default 2) and `maxQueuedJobs` (default 20) set the
-  limits of SQR-D12 and SQR-D14.
+- The server params `maxRunningJobs` (default 2), `requestJobSlots` (default 1) and
+  `maxQueuedJobs` (default 20) set the limits of SQR-D12 and SQR-D14.
 - With the base design, run one node. Or route all requests for one study to one node, for
   example with a hash of the Study Instance UID in the load balancer. Otherwise use SQR-I7.
 - Run a CLI build only while no upload to that study runs (SQR-D10). The recovery procedure
@@ -720,6 +727,12 @@ The user experience must have this:
     not commit. A study build that starts after the upload does not join that round. It waits
     for the round, builds the series again, and its response and its commit have the new
     instance count (SQR-U1, SQR-D7).
+30. Send a studies query while the series singleton of one study fails with `ESTALE`, and
+    again with `ELOOP`. The response is `200` without that study. After `ESTALE`, the list
+    is not stored, and the next request lists the study. After `ELOOP`, the list is stored
+    without the study (SQR-U4, SQR-D17).
+31. Send a series query, and delete `series/index.json` after the check of the request and
+    before the send. The response is `200` with all series (SQR-U1, SQR-D1).
 
 The API must do this:
 
@@ -763,6 +776,12 @@ The API must do this:
 28. A call with a `version` joins a running round of the same version. A call that arrives
     after the version changed waits for that round, and gets the result of a new round, for
     `run` and for `child` (SQR-D7).
+29. With background jobs in the queue, a request job uses a request slot, a queued request
+    job starts before the background jobs, a request moves a queued background job of its
+    key to the request queue, and a request above `maxQueued` gets `QueueFullError`
+    (SQR-D12, SQR-D14).
+32. An upload deletes the files of a series after `studyMain` checked them. The study round
+    does not commit, and its result has that series with the new instance (SQR-U1, SQR-D6).
 
 Tests 2 and 3 also cover SQR-U2 and SQR-U3, because the cost of a request does not increase
 with repeated or concurrent requests. A test of memory use or of response time is not

@@ -11,6 +11,7 @@ import {
 } from '@radicalimaging/create-dicomweb';
 import { studySingleMap, getDicomKey } from '../../adapters/requestAdapters.mjs';
 import { getBuildJobManager } from '../../util/buildJobManager.mjs';
+import { indexingStaticController } from './staticControllers.mjs';
 
 /**
  * Returns true if the request path is a query for the studies index (directory
@@ -205,10 +206,14 @@ export function addStudyToStudiesIndex(root, studyUID) {
  * ensures the study level of each study as a nested job (ensureStudyLevel), and then
  * builds the list from all study index files. Best effort: the studies list has no
  * generation, and the write is serialized with addStudyToStudiesIndex in this process only.
+ * A study whose build fails is left out (SQR-U4). After an I/O error of a study, the list
+ * is not written, so the next request builds it again with that study. After any other
+ * error, the list is written without that study, and a later build of the study adds it.
  *
  * @param {string} root - Resolved DICOMweb root directory
  * @param {Object} [options] - Same options as ensureSeriesLevel
- * @returns {Promise<{committed: boolean}|undefined>} - undefined when the list exists
+ * @returns {Promise<{committed: boolean, payload: string}|undefined>} - undefined when the
+ *   list exists; the payload is the JSON of the list
  */
 export async function ensureStudiesLevel(root, options = {}) {
   const reader = options.reader ?? createBuildReader(root);
@@ -217,13 +222,24 @@ export async function ensureStudiesLevel(root, options = {}) {
     return undefined;
   }
   return runJob(options, 'studies', needsBuild, async context => {
+    const failed = new Set();
+    let unavailable = false;
     for (const studyUID of await reader.listDirectories('studies')) {
       if (studyUID === 'temp') continue;
-      // A study round that does not commit adds the study itself when a later round commits
-      await ensureStudyLevel(root, studyUID, { reader, context, studyIndex: options.studyIndex });
+      try {
+        // A study round that does not commit adds the study itself when a later round commits
+        await ensureStudyLevel(root, studyUID, { reader, context, studyIndex: options.studyIndex });
+      } catch (err) {
+        console.warn(`ensureStudiesLevel: left out study ${studyUID}: ${err?.message || err}`);
+        failed.add(studyUID);
+        unavailable ||= err?.name === 'StorageUnavailableError';
+      }
     }
-    await serializeStudiesIndex(() => indexSummary(root, []));
-    return { committed: true };
+    const payload = await serializeStudiesIndex(() =>
+      indexSummary(root, [], { exclude: failed, write: !unavailable })
+    );
+    // No next round after an I/O error: the list is not stored, so the next request builds it
+    return { committed: true, payload };
   });
 }
 
@@ -248,6 +264,39 @@ export function sendBuildPayload(res, data) {
   res.status(200);
   res.setHeader('content-type', 'application/json; charset=utf-8');
   res.send(typeof data === 'string' ? data : JSON.stringify(data));
+}
+
+/** Root directory -> static handler of the stored derived files */
+const staticHandlers = new Map();
+
+/**
+ * Serves the stored file of a request. `map` points req.url at the file, and the static
+ * handler sends it. An upload can delete the file after the check of the caller (SQR-D5).
+ * When the static handler then finds no file, `build` runs one time, and its data is the
+ * response, so the request does not get 404 for stored data. With no data, or with no
+ * `build`, the request goes to the next handler.
+ * @param {string} root - Resolved DICOMweb root directory
+ * @param {Function} map - Request adapter, for example seriesSingleMap
+ * @param {(() => Promise<*>)|false} build - Returns the data of a build, or undefined
+ * @param {string} label - Label of the log message of a failed build
+ */
+export function serveStored(root, map, req, res, next, build, label) {
+  if (!staticHandlers.has(root)) {
+    staticHandlers.set(root, indexingStaticController(root));
+  }
+  map(req, res, () =>
+    staticHandlers.get(root)(req, res, async err => {
+      if (err || !build) {
+        return next(err);
+      }
+      try {
+        const data = await build();
+        return data?.length ? sendBuildPayload(res, data) : next();
+      } catch (buildErr) {
+        return handleBuildError(buildErr, res, next, label);
+      }
+    })
+  );
 }
 
 /** Error names that a request answers with 503, and the reason of the response */
@@ -292,19 +341,19 @@ export function studyQueryController(dir, params = {}) {
     const createOnDemand = params.createIndexOnDemand !== false;
     const hashStudyUidPath = params.hashStudyUidPath === true;
     const jobs = getBuildJobManager(params);
+    const label = 'indexOnDemand: failed to create studies index';
+    const buildStudy = async () => {
+      const result = await ensureStudyLevel(root, studyUID, { jobs, studyIndex: params.studyIndex });
+      return result?.payload?.studyQuery && [result.payload.studyQuery];
+    };
 
     try {
       if (studyUID) {
         if (createOnDemand && root) {
-          const reader = createBuildReader(root);
-          const result = await ensureStudyLevel(root, studyUID, {
-            reader,
-            jobs,
-            studyIndex: params.studyIndex,
-          });
-          const studyQuery = result?.payload?.studyQuery;
-          if (studyQuery && !reader.studyFileExists(studyUID, 'index.json')) {
-            return sendBuildPayload(res, [studyQuery]);
+          // Each caller of a build sends its data, also when an upload deleted the file since
+          const data = await buildStudy();
+          if (data) {
+            return sendBuildPayload(res, data);
           }
         }
         // Point staticWadoPath at the study so studySingleMap serves study/index.json.gz
@@ -320,11 +369,18 @@ export function studyQueryController(dir, params = {}) {
         }
       } else if (createOnDemand && root && !hashStudyUidPath) {
         // The builds use paths with no hash (Q3): they would list the hash directories
-        await ensureStudiesLevel(root, { jobs, studyIndex: params.studyIndex });
+        const result = await ensureStudiesLevel(root, { jobs, studyIndex: params.studyIndex });
+        if (result?.payload) {
+          return sendBuildPayload(res, result.payload);
+        }
       }
     } catch (err) {
-      return handleBuildError(err, res, next, 'indexOnDemand: failed to create studies index');
+      return handleBuildError(err, res, next, label);
     }
-    studySingleMap(req, res, next);
+    if (!root) {
+      return studySingleMap(req, res, next);
+    }
+    const build = studyUID && createOnDemand && !hashStudyUidPath && buildStudy;
+    serveStored(root, studySingleMap, req, res, next, build, label);
   };
 }

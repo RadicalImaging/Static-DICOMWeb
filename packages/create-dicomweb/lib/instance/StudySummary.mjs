@@ -34,13 +34,15 @@ async function getFirstInstanceMetadata(reader, studyUID, seriesUIDs) {
  * does not commit an index that leaves out the series (SQR-D3).
  * A series whose series-singleton.json was there at the check but gave no data (a corrupt
  * file that the read deleted, or a file that an upload deleted after the check) is in
- * `unreadSeries`, and the study files must not be stored without it.
+ * `unreadSeries`, and the study files must not be stored without it. A series with no stored
+ * series-singleton.json and no pending entry is in `missingSeries`: a series with no
+ * readable data, or a series whose files an upload deleted during the round (studyMain).
  * @param {FileDicomWebReader} reader
  * @param {string} studyUID
  * @param {Map<string, Object>} [pendingSeries] - Series query of each series whose round did not
  *   commit; used when the series has no stored series-singleton.json
  * @returns {Promise<{actualSeriesUIDs: Set<string>, seriesQueryArray: Object[], studyQuery: Object|null,
- *   unreadSeries: string[]}>}
+ *   unreadSeries: string[], missingSeries: string[]}>}
  */
 async function readStudyData(reader, studyUID, pendingSeries = new Map()) {
   const studyPath = reader.getStudyPath(studyUID);
@@ -54,6 +56,7 @@ async function readStudyData(reader, studyUID, pendingSeries = new Map()) {
   let firstSeriesSingleton = null;
   let totalInstances = 0;
   const unreadSeries = [];
+  const missingSeries = [];
 
   for (const seriesUID of actualSeriesUIDs) {
     const seriesSingletonPath = reader.getSeriesPath(studyUID, seriesUID);
@@ -82,6 +85,9 @@ async function readStudyData(reader, studyUID, pendingSeries = new Map()) {
       }
     } else {
       console.verbose('studySummary: series singleton file not found:', seriesSingletonPath);
+      if (!stored && !pendingSeries.has(seriesUID)) {
+        missingSeries.push(seriesUID);
+      }
     }
   }
 
@@ -125,7 +131,7 @@ async function readStudyData(reader, studyUID, pendingSeries = new Map()) {
     }
   }
 
-  return { actualSeriesUIDs, seriesQueryArray, studyQuery, unreadSeries };
+  return { actualSeriesUIDs, seriesQueryArray, studyQuery, unreadSeries, missingSeries };
 }
 
 /**

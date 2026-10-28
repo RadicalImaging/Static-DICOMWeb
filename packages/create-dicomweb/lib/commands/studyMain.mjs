@@ -9,7 +9,8 @@ import { generationTracker } from '../instance/generationTracker.mjs';
  * builds the study files. When the study build finds a corrupt series-singleton.json
  * (`unreadSeries`), builds those series, and builds the study files one more time. When the
  * file is still unreadable after that, and no upload changed the study, throws, so the job
- * fails and starts no next round. After an upload, returns `committed: false`.
+ * fails and starts no next round. After an upload, returns `committed: false`, and builds
+ * each series whose files the upload deleted during the round (`missingSeries`).
  * @param {string} studyUID - Study Instance UID
  * @param {Object} options - Options object
  * @param {string} [options.dicomdir] - Base directory path where DICOMweb structure is located
@@ -69,6 +70,13 @@ export async function studyMain(studyUID, options = {}) {
           `series-singleton.json of series ${result.payload.unreadSeries.join(', ')} stays unreadable`
         );
       }
+    }
+    // An upload deleted the files of a series after the check above: build that series, so
+    // the result for the waiting callers keeps it. The round does not commit (SQR-D6)
+    const missing = result.payload?.missingSeries ?? [];
+    if (missing.length && generationTracker.current(studyUID) !== studyGeneration) {
+      await build(missing);
+      result = await studySummary(dicomdir, studyUID, summaryOptions);
     }
     console.noQuiet(`Completed study ${studyUID}`);
     return result;

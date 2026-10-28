@@ -84,7 +84,11 @@ async function buildStudiesIndex(reader, studiesToProcess) {
  * @param {Object} [options]
  * @param {boolean} [options.onlyMissing] - Add only the studies that the existing index does not
  *   list, and write nothing when it lists all of them or when the index does not exist
- * @returns {Promise<void>}
+ * @param {Set<string>} [options.exclude] - Studies to leave out, for example studies whose
+ *   build failed
+ * @param {boolean} [options.write=true] - False: return the index, and write no file
+ * @returns {Promise<string|undefined>} - JSON of the studies index; undefined when nothing
+ *   was written for `onlyMissing`
  */
 export async function indexSummary(baseDir, studyUIDs = [], options = {}) {
   if (!baseDir) {
@@ -109,6 +113,13 @@ export async function indexSummary(baseDir, studyUIDs = [], options = {}) {
       studiesToProcess.add(studyUID);
     }
   }
+  for (const studyUID of options.exclude ?? []) {
+    studiesToProcess.delete(studyUID);
+  }
+
+  if (options.write === false) {
+    return buildStudiesIndex(reader, studiesToProcess);
+  }
 
   if (options.onlyMissing) {
     const existing = await reader.readJsonFile(studiesIndexPath, 'index.json', {
@@ -131,12 +142,17 @@ export async function indexSummary(baseDir, studyUIDs = [], options = {}) {
   console.noQuiet('indexSummary: writing updated studies index');
 
   // Use an empty informationProvider since we're writing at the root studies level
+  let data;
   await writeWithRetry({
     informationProvider: {},
     baseDir,
     openStream: writer =>
       writer.openStream(studiesIndexPath, 'index.json', { gzip: true, compareOnClose: true }),
-    generateData: () => buildStudiesIndex(reader, studiesToProcess),
+    generateData: async () => {
+      data = await buildStudiesIndex(reader, studiesToProcess);
+      return data;
+    },
     label: 'indexSummary studies/index.json',
   });
+  return data;
 }

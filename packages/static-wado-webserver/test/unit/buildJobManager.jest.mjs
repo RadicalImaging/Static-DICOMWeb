@@ -114,6 +114,39 @@ describe('createJobManager', () => {
 
   // Test 28. The API must do this (SQR-U1, SQR-D7): a call joins a round that started at its
   // version or later; for an older round, it waits, and gets the result of a newer round
+  // Test 29. The API must do this (SQR-D12, SQR-D14): a request job does not wait for the
+  // background jobs. It uses a request slot or starts first, a request moves a queued
+  // background job of its key to the request queue, and a full request queue gives 503
+  it('starts request jobs before background jobs, and rejects a request when the request queue is full', async () => {
+    const jobs = createJobManager({ maxRunning: 1, maxQueued: 2, requestSlots: 1 });
+    const hold = gate();
+    const order = [];
+    const job = name => async () => {
+      order.push(name);
+      await hold.promise;
+      return { committed: true };
+    };
+    const started = () => new Promise(resolve => setImmediate(resolve));
+
+    const background = ['b1', 'b2', 'b3'].map(key =>
+      jobs.run(key, () => true, job(key), { background: true })
+    );
+    const first = jobs.run('r1', () => true, job('r1'));
+    await started();
+    expect(order).toEqual(['b1', 'r1']);
+
+    const second = jobs.run('r2', () => true, job('r2'));
+    const promoted = jobs.run('b3', () => true, job('not used'));
+    await expect(jobs.run('r3', () => true, job('r3'))).rejects.toMatchObject({
+      name: 'QueueFullError',
+    });
+    hold.open();
+
+    await Promise.all([...background, first, second, promoted]);
+    expect(order).toEqual(['b1', 'r1', 'r2', 'b3', 'b2']);
+    await jobs.whenIdle();
+  });
+
   let parents = 0;
   it.each([
     ['run', (jobs, ...args) => jobs.run(...args)],

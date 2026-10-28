@@ -127,8 +127,8 @@ describe('builds of missing derived files', () => {
     return reads;
   }
 
-  /** Makes each read whose path includes `pathPart` fail with ESTALE until the returned function is called */
-  function failReadsWithEstale(pathPart) {
+  /** Makes each read whose path includes `pathPart` fail with `code` until the returned function is called */
+  function failReadsWithEstale(pathPart, code = 'ESTALE') {
     const original = FileDicomWebReader.prototype.openInputStream;
     const spy = jest
       .spyOn(FileDicomWebReader.prototype, 'openInputStream')
@@ -138,7 +138,7 @@ describe('builds of missing derived files', () => {
         }
         const stream = new PassThrough();
         setImmediate(() =>
-          stream.destroy(Object.assign(new Error('stale file handle'), { code: 'ESTALE' }))
+          stream.destroy(Object.assign(new Error('read failed'), { code }))
         );
         return stream;
       });
@@ -689,6 +689,91 @@ describe('builds of missing derived files', () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toHaveLength(SERIES.length * INSTANCES_PER_SERIES);
+  });
+
+  // Test 30. User experience (SQR-U4): a study that the server cannot read does not break the
+  // studies list. After an I/O error, the list is not stored, and the next request builds it
+  // with that study. After another error, the list is stored without that study
+  it.each([
+    ['an I/O error', 'ESTALE', false],
+    ['a permanent error', 'ELOOP', true],
+  ])('answers the studies list without a study that has %s', async (_, code, stored) => {
+    const otherStudy = '1.2.4';
+    const otherSeries = '1.2.4.1';
+    storeInstance(otherSeries, 1, otherStudy);
+    await seriesSummary(root, otherStudy, otherSeries);
+    fs.rmSync(path.join(root, 'studies', 'index.json.gz'));
+    await startServer(createJobManager());
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    const recover = failReadsWithEstale(`${otherSeries}/series-singleton.json`, code);
+    const studiesList = async () => {
+      const response = await fetch(`${baseUrl}/studies`);
+      expect(response.status).toBe(200);
+      return (await response.json()).map(study => study['0020000D'].Value[0]).sort();
+    };
+
+    expect(await studiesList()).toEqual([STUDY]);
+    expect(fs.existsSync(path.join(root, 'studies', 'index.json.gz'))).toBe(stored);
+
+    recover();
+    expect(await studiesList()).toEqual(stored ? [STUDY] : [STUDY, otherStudy]);
+  });
+
+  // Test 31. User experience (SQR-U1, SQR-D5): an upload that deletes the series index after
+  // the check of a request, and before the file is sent, does not give 404
+  it('builds the series index when an upload deletes it after the check of the request', async () => {
+    await startServer(createJobManager());
+    const stat = fs.stat;
+    let deleted = false;
+    jest.spyOn(fs, 'stat').mockImplementation((target, ...rest) => {
+      if (!deleted && path.resolve(String(target)) === path.resolve(seriesIndexPath())) {
+        deleted = true;
+        fs.rmSync(seriesIndexPath());
+      }
+      return stat(target, ...rest);
+    });
+
+    const response = await fetch(`${baseUrl}/studies/${STUDY}/series`);
+
+    expect(deleted).toBe(true);
+    expect(response.status).toBe(200);
+    expect(seriesUIDsOf(await response.json())).toEqual(SERIES);
+  });
+
+  // Test 32. The API must do this (SQR-U1, SQR-D3 rule 5): an upload that deletes the files of
+  // a series during a study round does not leave that series out of the result of the round
+  it('keeps a series in a study round when an upload deletes its files during the round', async () => {
+    const [series] = SERIES;
+    fs.rmSync(seriesIndexPath());
+    const readJsonFile = FileDicomWebReader.prototype.readJsonFile;
+    let uploaded = false;
+    jest
+      .spyOn(FileDicomWebReader.prototype, 'readJsonFile')
+      .mockImplementation(async function readJsonFileSpy(relativePath, filename, options) {
+        // studyMain checked the series files; the study round now reads the series index
+        if (!uploaded && filename === 'index.json' && relativePath.endsWith('/series')) {
+          uploaded = true;
+          storeInstance(series, INSTANCES_PER_SERIES + 1);
+          deleteStaleSummaries(root, new Map([[`${STUDY}&${series}`, {}]]));
+        }
+        return readJsonFile.call(this, relativePath, filename, options);
+      });
+
+    const result = await studyMain(STUDY, { dicomdir: root });
+
+    expect(uploaded).toBe(true);
+    expect(result.committed).toBe(false);
+    const counts = Object.fromEntries(
+      result.payload.seriesQueryArray.map(entry => [
+        entry[SERIES_INSTANCE_UID].Value[0],
+        entry[NUMBER_OF_SERIES_RELATED_INSTANCES].Value[0],
+      ])
+    );
+    expect(counts).toEqual({
+      [series]: INSTANCES_PER_SERIES + 1,
+      [SERIES[1]]: INSTANCES_PER_SERIES,
+    });
   });
 
   // Test 9. User experience (SQR-U3, SQR-D11, SQR-D14): a full queue rejects only

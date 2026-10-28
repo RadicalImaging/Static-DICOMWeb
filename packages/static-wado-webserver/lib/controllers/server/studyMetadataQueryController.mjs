@@ -107,7 +107,17 @@ export function studyMetadataQueryController(dir, params = {}) {
         const built = await buildSeriesMetadata(root, studyUID, missing, reader, params);
         for (const [index, seriesUID] of seriesUIDs.entries()) {
           if (!metadataBySeries[index]) {
-            metadataBySeries[index] = (await read(seriesUID)) ?? built.get(seriesUID) ?? [];
+            // No data when a build of another caller committed, and an upload deleted the file since
+            const data =
+              (await read(seriesUID)) ??
+              built.get(seriesUID) ??
+              seriesMetadataOf(
+                await ensureSeriesLevel(root, studyUID, seriesUID, {
+                  reader,
+                  jobs: getBuildJobManager(params),
+                })
+              );
+            metadataBySeries[index] = data ?? [];
           }
         }
       }

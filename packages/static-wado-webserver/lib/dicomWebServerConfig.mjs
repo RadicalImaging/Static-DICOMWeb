@@ -22,6 +22,8 @@ const { dicomWebServerConfig } = ConfigPoint.register({
     maxRunningJobs: 2,
     /** Maximum number of request builds in the queue (background builds, of upload messages and next rounds, do not count). A request that needs a build above this gets 503 with Retry-After. */
     maxQueuedJobs: 20,
+    /** Extra running builds for requests only, above maxRunningJobs, so a request does not wait for the background builds. */
+    requestJobSlots: 1,
     corsOptions: {
       enabled: true,
       origin: true,
