@@ -22,7 +22,11 @@ const { ReadBufferStream } = data;
  * @returns {boolean}
  */
 function isReadBufferStreamLike(stream) {
-  return stream && typeof stream.reset === 'function' && typeof stream.addBuffer === 'function';
+  return (
+    stream &&
+    typeof stream.reset === 'function' &&
+    typeof stream.addBuffer === 'function'
+  );
 }
 
 const PARSE_JOB_TYPE = 'stowInstanceParse';
@@ -445,13 +449,21 @@ export async function instanceFromStream(stream, options = {}) {
       console.verbose('Writing metadata to file', information.sopInstanceUid);
       const metadataStream = await writer.openInstanceStream('metadata', { gzip: true });
       metadataStream.stream.write(Buffer.from(JSON.stringify([dict])));
-      await writer.closeStream(metadataStream.streamKey);
+      // closeStream records a failure and resolves undefined rather than rejecting
+      if ((await writer.closeStream(metadataStream.streamKey)) === undefined) {
+        throw firstStreamError(writer) ?? new Error('Instance metadata stream failed to close');
+      }
     }
 
     // Wait for all frame/bulkdata writes to complete before returning. The filters close those
     // streams without awaiting, so this both flushes the in-flight closes and releases the
     // handle of anything that was never closed.
     await writer?.drainOpenStreams(options.drainOpenStreamsTimeoutMs);
+    // The filters only record a failed frame or bulkdata write
+    const streamError = writer && firstStreamError(writer);
+    if (streamError) {
+      throw streamError;
+    }
     console.verbose('Finished writing metadata to file', information.sopInstanceUid);
 
     result = { fmi, dict, writer, information: listener.information };
@@ -480,20 +492,46 @@ export async function instanceFromStream(stream, options = {}) {
 
   // After the commit above, because the rendition reads back the committed files
   if (writer && options.writeRawPart10 !== false && shouldStoreRawPart10(dict)) {
-    try {
-      await writeRawPart10(writer, dict, information.sopInstanceUid);
-      await writer.commitPendingMoves();
-    } catch (err) {
-      console.warn(
-        'Unable to store Part 10 rendition for',
-        information.sopInstanceUid,
-        err?.message ?? err
-      );
-      writer.rollbackPendingMoves();
-    }
+    await storeRawPart10(writer, dict, information.sopInstanceUid);
   }
 
   return result;
+}
+
+/**
+ * Returns the first error that the writer recorded for one of its streams, or undefined.
+ * @param {Object} writer - DicomWebWriter
+ * @returns {Error|undefined}
+ */
+function firstStreamError(writer) {
+  return writer.getStreamErrors?.().values().next().value;
+}
+
+/**
+ * Writes and commits the Part 10 rendition of a committed instance. Never throws: the
+ * instance is stored. When the rendition fails, deletes the stored rendition of an earlier
+ * upload, because it no longer matches the instance; the part10 controller then makes the
+ * rendition from the stored files.
+ * @param {Object} writer - DicomWebWriter of the instance
+ * @param {Object} dict - Parsed instance dataset
+ * @param {string} sopInstanceUID
+ */
+async function storeRawPart10(writer, dict, sopInstanceUID) {
+  try {
+    await writeRawPart10(writer, dict, sopInstanceUID);
+    await writer.commitPendingMoves();
+  } catch (err) {
+    console.warn('Unable to store Part 10 rendition for', sopInstanceUID, err?.message ?? err);
+    writer.rollbackPendingMoves();
+    try {
+      writer.delete(
+        `studies/${writer.getStudyUID()}/series/${writer.getSeriesUID()}/instances/${sopInstanceUID}`,
+        'index.mht'
+      );
+    } catch (deleteErr) {
+      console.warn('Unable to delete the old Part 10 rendition of', sopInstanceUID, deleteErr);
+    }
+  }
 }
 
 /**

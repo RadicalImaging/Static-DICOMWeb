@@ -173,6 +173,34 @@ describe('Part 10 rendition for SEG/SR instances', () => {
     expectRendition(dicomdir);
   });
 
+  // Test 35. The user experience must have this: a Part 10 request never gets the rendition of
+  // an earlier upload after a new upload of the instance
+  it('deletes the stored rendition when the rendition of a new upload fails', async () => {
+    const dicomdir = path.join(tempRoot, 'dicomweb');
+    const source = path.join(tempRoot, 'source.dcm');
+    fs.writeFileSync(source, part10);
+    await instanceFromStream(fs.createReadStream(source), { dicomdir });
+    expectRendition(dicomdir);
+
+    const openSync = fs.openSync;
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(fs, 'openSync').mockImplementation((target, ...rest) => {
+      if (String(target).endsWith('-index.mht.gz')) {
+        throw Object.assign(new Error('io'), { code: 'EIO' });
+      }
+      return openSync(target, ...rest);
+    });
+    try {
+      await instanceFromStream(fs.createReadStream(source), { dicomdir });
+    } finally {
+      jest.restoreAllMocks();
+    }
+
+    const instanceDir = path.join(dicomdir, 'studies', STUDY, 'series', SERIES, 'instances', SOP);
+    expect(fs.existsSync(path.join(instanceDir, 'index.mht.gz'))).toBe(false);
+    expect(fs.existsSync(path.join(instanceDir, 'metadata.gz'))).toBe(true);
+  });
+
   it('skips the rendition for modalities outside the selector', async () => {
     const dicomdir = path.join(tempRoot, 'dicomweb');
     const source = path.join(tempRoot, 'source.dcm');

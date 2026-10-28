@@ -154,9 +154,8 @@ export function createDatasetResponseFromUploadedFiles(files = [], options = {})
   for (const file of files) {
     const information = file.result?.information;
     const hasInformation = !!information;
-    const streamErrors = file.result?.streamErrors || [];
-    const hasStreamErrors = streamErrors.length > 0;
-    const isValidSuccess = file.ok && hasInformation && !hasStreamErrors;
+    // instanceFromStream throws on a failed stream write, so file.ok covers those errors
+    const isValidSuccess = file.ok && hasInformation;
     const sopClassUID = hasInformation ? getSOPClassUID(information) : null;
     const sopInstanceUID = hasInformation ? getSOPInstanceUID(information) : null;
 
@@ -184,13 +183,6 @@ export function createDatasetResponseFromUploadedFiles(files = [], options = {})
     if (isValidSuccess) {
       successItems.push(item);
     } else {
-      if (hasStreamErrors) {
-        const logger = options.logger ?? console;
-        logger.error(
-          `[STOW] Instance ${sopInstanceUID || 'unknown'} failed due to stream errors:`,
-          streamErrors.map(e => `${e.streamKey}: ${e.error?.message || e.error}`).join(', ')
-        );
-      }
       item['00081197'] = {
         vr: 'US',
         Value: [options.defaultFailureReason ?? DEFAULT_FAILURE_REASON],

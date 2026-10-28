@@ -340,4 +340,29 @@ describe('an upload of an instance after a failure', () => {
     expect(fs.existsSync(otherVariant)).toBe(false);
     expect(fs.existsSync(path.join(instanceDir, 'frames', '1.mht'))).toBe(true);
   });
+
+  // Test 34. The user experience must have this: an upload never reports success for an
+  // instance whose metadata or frame write failed, and commits no file of that instance
+  it.each([['metadata.gz'], ['1.mht']])(
+    'fails the instance, and commits nothing, when the write of %s fails',
+    async name => {
+      const closeStream = FileDicomWebWriter.prototype.closeStream;
+      jest
+        .spyOn(FileDicomWebWriter.prototype, 'closeStream')
+        .mockImplementation(async function closeStreamSpy(streamKey) {
+          if (this.openStreams.get(streamKey)?.filepath?.endsWith(name)) {
+            const error = Object.assign(new Error('no space'), { code: 'ENOSPC' });
+            this.recordStreamError(streamKey, error, true);
+          }
+          return closeStream.call(this, streamKey);
+        });
+
+      await expect(upload()).rejects.toMatchObject({ code: 'ENOSPC' });
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const stored = fs
+        .readdirSync(baseDir, { recursive: true, withFileTypes: true })
+        .filter(entry => entry.isFile());
+      expect(stored).toEqual([]);
+    }
+  );
 });
