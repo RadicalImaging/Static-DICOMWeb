@@ -134,6 +134,10 @@ export function multipartStream(opts) {
     let completedParts = 0; // Track how many parts have completed
     let dicerFinished = false; // Track if Dicer has finished parsing
     let nextCalled = false; // Prevent multiple calls to next()
+    let bodyEnded = false; // The body ended without its closing boundary (onBodyError)
+    let truncatedPart = 0; // Number of the part that the body error cut, or 0
+    let truncatedReason = null; // Abort reason of that part (failureReason C000)
+    let waiting = false; // waitForListeners runs once
 
     // Resolved when abort() is called so checkAllPartsComplete's Promise.race settles immediately
     let abortResolve = null;
@@ -197,6 +201,7 @@ export function multipartStream(opts) {
       }
 
       partCount += 1;
+      const partNumber = partCount;
       if (onPart) onPart(req, partCount);
       console.verbose(`[multipartStream] Part ${partCount} detected`);
 
@@ -214,6 +219,8 @@ export function multipartStream(opts) {
 
       // Pause the part stream until we have headers
       part.pause();
+      // Dicer can emit a part error before errorHandler is attached; onBodyError handles it
+      part.on('error', () => {});
 
       // Function to process the part once we have headers
       const processPart = () => {
@@ -476,8 +483,7 @@ export function multipartStream(opts) {
           try {
             // Mark this part's buffer stream as complete
             console.verbose(' Setting file complete');
-            readBufferStream.setComplete();
-            completedParts += 1;
+            completePart(partNumber, readBufferStream);
             console.verbose(
               `[multipartStream] Part ${partCount} completed. Completed: ${completedParts}/${partCount}`
             );
@@ -496,7 +502,12 @@ export function multipartStream(opts) {
           part.removeListener('end', endHandler);
           part.removeListener('error', errorHandler);
           if (onStreamError) onStreamError(err, fileInfo);
-          abort(err);
+          if (!bodyEnded) {
+            abort(err);
+            return;
+          }
+          completePart(partNumber, readBufferStream);
+          checkAllPartsComplete();
         };
 
         part.on('data', dataHandler);
@@ -505,7 +516,46 @@ export function multipartStream(opts) {
       }; // end of continuePartProcessing
     });
 
-    dicer.on('error', err => abort(err));
+    /**
+     * A Dicer error: the body ended without its closing boundary, or a part is malformed. Dicer
+     * reports it after it parsed the body, so the parts before the current part (dicer._part)
+     * are complete. When no part is complete, the request gets 400 (abort). Otherwise the
+     * complete parts continue, the cut part fails with C000 (completePart), and next() reports
+     * each instance (SQR-U5).
+     */
+    const onBodyError = err => {
+      if (aborted || bodyEnded || nextCalled) return;
+      const cut = dicer._part && !dicer._ignoreData ? partCount : 0;
+      if ((cut ? partCount - 1 : partCount) === 0) {
+        abort(err);
+        return;
+      }
+      bodyEnded = true;
+      truncatedPart = cut;
+      truncatedReason = Object.assign(new Error(err?.message ?? String(err)), {
+        failureReason: 0xc000,
+      });
+      console.warn(
+        `[multipartStream] Request body error after a complete part: ${err?.message ?? err}`
+      );
+      dicerFinished = true;
+      checkAllPartsComplete();
+    };
+
+    /**
+     * Marks the buffer stream of a part as complete, or as aborted with C000 when the body
+     * error cut that part, and counts the part as done.
+     */
+    const completePart = (partNumber, readBufferStream) => {
+      if (bodyEnded && partNumber === truncatedPart) {
+        readBufferStream.setAborted?.(truncatedReason);
+      } else {
+        readBufferStream.setComplete();
+      }
+      completedParts += 1;
+    };
+
+    dicer.on('error', onBodyError);
 
     // Function to check if all parts have completed and call next() if ready
     // This now waits for listener promises to ensure streams are fully processed
@@ -522,62 +572,72 @@ export function multipartStream(opts) {
 
       // Only proceed if Dicer has finished parsing AND all parts have completed
       if (dicerFinished && completedParts >= partCount && partCount > 0) {
-        console.verbose(
-          `[multipartStream] All parts completed. Total parts: ${partCount}, Completed: ${completedParts}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`
-        );
+        await waitForListeners();
+      }
+    };
 
-        // Wait for all listener promises to complete before calling next(). See
-        // the doc comment of multipartStream for what happens when they do not complete in time.
-        if (req.uploadListenerPromises && req.uploadListenerPromises.length > 0) {
-          try {
-            console.verbose(
-              `[multipartStream] Waiting for ${req.uploadListenerPromises.length} listener promise(s) to complete...`
-            );
-            // While progress is being made, wait for it to complete
-            let initialCount = req.streamWritePromiseTracker?.getSettledCount?.() ?? 0;
-            while (req.streamWritePromiseTracker?.getUnsettledCount?.() > 0) {
-              await req.streamWritePromiseTracker.limitUnsettled(1, LISTENER_WAIT_TIMEOUT_MS);
-              const currentSettled = req.streamWritePromiseTracker.getSettledCount();
-              if (currentSettled === initialCount) {
-                break;
-              }
-              initialCount = currentSettled;
+    /**
+     * Waits for the listeners, and then calls next() (see the doc comment of multipartStream
+     * for the timeout). Runs once.
+     */
+    const waitForListeners = async () => {
+      if (aborted || nextCalled || waiting) return;
+      waiting = true;
+      console.verbose(
+        `[multipartStream] All parts completed. Total parts: ${partCount}, Completed: ${completedParts}, uploadStreams: ${req.uploadStreams.length}, uploadListenerPromises: ${req.uploadListenerPromises.length}`
+      );
+
+      // Wait for all listener promises to complete before calling next(). See
+      // the doc comment of multipartStream for what happens when they do not complete in time.
+      if (req.uploadListenerPromises && req.uploadListenerPromises.length > 0) {
+        try {
+          console.verbose(
+            `[multipartStream] Waiting for ${req.uploadListenerPromises.length} listener promise(s) to complete...`
+          );
+          // While progress is being made, wait for it to complete
+          let initialCount = req.streamWritePromiseTracker?.getSettledCount?.() ?? 0;
+          while (req.streamWritePromiseTracker?.getUnsettledCount?.() > 0) {
+            await req.streamWritePromiseTracker.limitUnsettled(1, LISTENER_WAIT_TIMEOUT_MS);
+            const currentSettled = req.streamWritePromiseTracker.getSettledCount();
+            if (currentSettled === initialCount) {
+              break;
             }
-            const allSettled = Promise.allSettled(req.uploadListenerPromises);
-            if (!(await settlesWithin(allSettled, LISTENER_WAIT_TIMEOUT_MS, abortWhenCalled))) {
-              if (aborted) return;
-              stopParts(new Error(`STOW listener wait timeout (${LISTENER_WAIT_TIMEOUT_MS} ms)`));
-              if (!(await settlesWithin(allSettled, STOPPED_LISTENER_WAIT_MS, abortWhenCalled))) {
-                if (aborted || nextCalled) return;
-                // A listener can still commit its instance, so the result is unknown
-                nextCalled = true;
-                const err = new Error('STOW listeners did not complete, the result is unknown');
-                console.warn(`[multipartStream] ${err.message}`);
-                if (onRequestAbort) onRequestAbort(req, err);
-                if (!res.headersSent) {
-                  res.setHeader('Retry-After', String(RETRY_AFTER_SECONDS));
-                  res.status(503).send(`Service Unavailable: ${err.message}, retry later`);
-                }
-                return;
-              }
-            }
-            if (aborted) return;
-            console.verbose(`[multipartStream] All listener promises completed`);
-          } catch (err) {
-            if (aborted) return;
-            // Errors in individual promises are handled by completePostController
-            console.warn(
-              `[multipartStream] Some listener promises had errors (will be handled by completePostController)`
-            );
+            initialCount = currentSettled;
           }
+          const allSettled = Promise.allSettled(req.uploadListenerPromises);
+          if (!(await settlesWithin(allSettled, LISTENER_WAIT_TIMEOUT_MS, abortWhenCalled))) {
+            if (aborted) return;
+            stopParts(new Error(`STOW listener wait timeout (${LISTENER_WAIT_TIMEOUT_MS} ms)`));
+            if (!(await settlesWithin(allSettled, STOPPED_LISTENER_WAIT_MS, abortWhenCalled))) {
+              if (aborted || nextCalled) return;
+              // A listener can still commit its instance, so the result is unknown
+              nextCalled = true;
+              const err = new Error('STOW listeners did not complete, the result is unknown');
+              console.warn(`[multipartStream] ${err.message}`);
+              if (onRequestAbort) onRequestAbort(req, err);
+              if (!res.headersSent) {
+                res.setHeader('Retry-After', String(RETRY_AFTER_SECONDS));
+                res.status(503).send(`Service Unavailable: ${err.message}, retry later`);
+              }
+              return;
+            }
+          }
+          if (aborted) return;
+          console.verbose(`[multipartStream] All listener promises completed`);
+        } catch (err) {
+          if (aborted) return;
+          // Errors in individual promises are handled by completePostController
+          console.warn(
+            `[multipartStream] Some listener promises had errors (will be handled by completePostController)`
+          );
         }
+      }
 
-        if (!nextCalled) {
-          nextCalled = true;
-          const totalTimeMs = Date.now() - (req._statusMonitorStartTime ?? 0);
-          if (onRequestEnd) onRequestEnd(req, { partCount, totalBytes, totalTimeMs });
-          next();
-        }
+      if (!nextCalled) {
+        nextCalled = true;
+        const totalTimeMs = Date.now() - (req._statusMonitorStartTime ?? 0);
+        if (onRequestEnd) onRequestEnd(req, { partCount, totalBytes, totalTimeMs });
+        next();
       }
     };
 

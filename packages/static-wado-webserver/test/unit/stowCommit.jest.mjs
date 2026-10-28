@@ -160,6 +160,30 @@ describe('the result of an upload', () => {
     expect(failureReasons(mixed.body)).toEqual([0xc000]);
   });
 
+  // Test 45. The user experience must have this (SQR-U5): a body that ends without its closing
+  // boundary reports the stored instance as stored, and the incomplete part as failed (C000)
+  it('reports each instance when the body ends without its closing boundary', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const dicom = fs.readFileSync(DICOM_FILE);
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/studies`, {
+      method: 'POST',
+      headers: {
+        'content-type': `multipart/related; type="application/dicom"; boundary=${BOUNDARY}`,
+        accept: 'application/dicom+json',
+      },
+      body: Buffer.concat([
+        Buffer.from(`--${BOUNDARY}\r\nContent-Type: application/dicom\r\n\r\n`),
+        dicom,
+        Buffer.from(`\r\n--${BOUNDARY}\r\nContent-Type: application/dicom\r\n\r\n`),
+        dicom.subarray(0, 1000),
+      ]),
+    });
+    const body = await response.json();
+    expect(response.status).toBe(202);
+    expect(body['00081199'].Value).toHaveLength(1);
+    expect(failureReasons(body)).toEqual([0xc000]);
+  });
+
   // Test 44. The API must do this (SQR-U5): an error that the server causes never gives C000
   it.each([
     ['a stopped instance', Object.assign(new Error('stopped'), { code: 'ABORTED' })],
