@@ -633,7 +633,11 @@ throws, came with #141 (SQR-I3). This item depends on them, and does not change 
     item in the response. After the stop, the `aborted` event of the request does not call
     `abort`. This event comes when the server closes the connection after
     `keepAliveTimeout`, as after the `503` of SQR-I10. `stopRequest` does nothing after
-    `abort` or after `next()`.
+    `abort` or after `next()`. A probe on Node.js 24.20.0 (Windows 11, loopback, a body that
+    does not end) gave these results. The client got the `503` while it sent the body. The
+    server closed the connection about 6 s later. The client request then got `ECONNRESET`,
+    after the full response. `stowFiles` destroys its request at the end of the response
+    (item 14), so it does not get this error.
 
 The partial commit of issue #143 is not in this item. It is a known limitation of the
 specification. Item 3 makes its result safer for a new instance.
