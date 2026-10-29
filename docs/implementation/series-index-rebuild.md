@@ -606,12 +606,19 @@ throws, came with #141 (SQR-I3). This item depends on them, and does not change 
     - The command logs the failed instances of a `409` or `503` response, and prints the body
       of a failed response one time for each group. The error message of a file has the
       status only. After a `202`, `parseAndLogDicomJsonErrors` returns the items of the
-      Failed SOP Sequence, and the command counts each item as a failed file. A `202` body
-      with no such item (for example XML) counts one failed file.
-    - After a `202`, a file of the group that no item of the response names also counts as
-      failed. The command finds the name in the Content-Location tag `(0009,1001)` of each
-      item. An example is a file that the server did not start after the stop of item 15. A
-      response with no such tag in its items gives no such file.
+      Failed SOP Sequence, and the command counts each item as a failed file.
+    - Each part of the body has a unique `Content-Location`: the part number, a hyphen, and
+      the base name of the file (`partContentLocation`, for example `2-IM-0001.dcm`). The
+      server puts this value in the tag `(0009,1001)` of the item of each part. Thus two
+      files of a group with the same base name in different directories get different
+      values.
+    - After a `202`, `filesNotListedAsStored` counts each file that the response does not
+      list as stored as failed. The command counts a file as stored only when an item of the
+      Referenced SOP Sequence has its `Content-Location`. An example of a failed file is a part that the
+      server did not start after the stop of item 15. When a stored item has no such value
+      (a different server), the number of stored items gives the number of stored files, and
+      the failures name no file. A body that is not DICOM JSON (for example XML) lists no
+      stored file, so each file of the group fails.
     - The command sets `process.exitCode = 1` when a file failed, and counts an unreadable
       path as failed.
 15. The stop of SQR-D21. `multipartStream` has the option `stopOnError(err)`.
@@ -813,6 +820,10 @@ proposal in these items:
   (SQR-I10). The `stow` command sends the body with `stream.pipeline`. It closes the file of
   the body after an early response, and counts a group with a file that it cannot read as
   failed. After a `202`, it counts a file with no item in the response as failed.
+- **After the fifth review of pull request #146.** The `stow` command gives each part a
+  unique `Content-Location`. Before, two files of a group with the same base name could
+  count as one stored file. After a `202`, the command counts a file as stored only when the
+  response lists it as stored.
 
 ## Compatibility
 
@@ -915,7 +926,9 @@ These user-facing results also change:
 - The `stow` command counts a group with a file that it cannot open or read as failed, for
   example after `EACCES`. The command then continues with the other groups. Before, the
   command stopped with an unhandled `error` event, and printed no summary. After a `503`
-  before the end of the body, the command closes the file of the body at once.
+  before the end of the body, the command closes the file of the body at once. The
+  `Content-Location` of each part now has the part number in front of the base name of the
+  file, for example `2-IM-0001.dcm`.
 - A failed new upload of a stored instance keeps the stored frames. A new upload of a stored
   instance deletes its stored Part 10 rendition with the rename of the instance `metadata`.
   It deletes the frames above the new frame count after the commit. Until the upload stores the new
@@ -933,8 +946,9 @@ These user-facing results also change:
 
   A client that retries on `503` can send the upload again after a storage outage. The
   `stow` command of the CLI sends a group again after a `503`, up to 3 times. It counts the
-  group as failed after a `409` or after the last `503`. After a `202`, it counts each failed
-  item of the response as a failed file, and at least one file. It then exits with `1`.
+  group as failed after a `409` or after the last `503`. After a `202`, it counts each file
+  that the response does not list as stored as a failed file, and at least one file. It then
+  exits with `1`.
   Before this change, it exited with `0`, also when each group failed.
 
   The error of each file has the status only, and the command prints the body of the
@@ -943,14 +957,16 @@ These user-facing results also change:
   response can come before the end of the body, and the server does not read the rest of
   the body. The response is `503` with `Retry-After: 10` when the server stored no
   instance, and `202` otherwise. A part whose data did not arrive in full fails with `A700`
-  or `0110`. A later part gets no item, so it is not stored. Before, the server read the
-  whole body, and tried each instance.
+  or `0110`. A later part gets no item, and the server does not store it. Before, the server
+  read the whole body, and tried each instance.
 
   A client that reads the response only after it sent the whole body can get a connection
   reset after 5 s, and not the response. The result of the upload is then unknown, and the
   client can send all instances again. A request with a storage failure, a `C000` failure
   and no stored instance now gets `503`, and not `409`. After a `202`, the `stow` command
-  counts a file with no item in the response as failed.
+  counts a file as failed when the response does not list it as stored. With a body that is
+  not DICOM JSON (for example XML), each file of the group fails. Before, such a body
+  counted one failed file.
 - The Failure Reason of a failed instance is `C000` only for data that the server cannot
   read. A storage error with no free space or resources gives `A700`, and each
   other failure that the server causes gives `0110` (for example `EIO`, a permanent storage
@@ -1169,6 +1185,11 @@ The user experience must have this:
     (SQR-U5, SQR-D21).
 66. The `stow` command gets a `202` that names one file as stored and one file as failed, and
     has no item for a third file. The third file also counts as failed (SQR-U5).
+67. The `stow` command sends 4 files with the same base name from 4 directories in one
+    group. It gets a `202` that lists the first file as stored, the second file as failed,
+    and has no item for the other files. The command counts 1 stored file and 3 failed
+    files, and names the 3 failed files. A `202` with no `Content-Location` in its items
+    gives the same counts (SQR-U5).
 
 The API must do this:
 
