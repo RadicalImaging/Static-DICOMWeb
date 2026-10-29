@@ -85,6 +85,7 @@ does not add a new rule. If an item seems to need a new rule, add the rule to
 | SQR-D18 Commit an instance only when all of its writes succeeded | SQR-I8 |
 | SQR-D19 Remove the temporary files of a stopped process | SQR-I9 |
 | SQR-D20 Refuse a new upload while too much upload work is stalled | SQR-I10 |
+| SQR-D21 Stop an upload at the first instance that the storage cannot write | SQR-I8 |
 
 ### SQR-I1. Share one "ensure the level" function for each level
 
@@ -487,7 +488,8 @@ design does not block the extension.
 
 ### SQR-I8. Report the result of each instance of an upload correctly
 
-Applies SQR-D18 to `instanceFromStream`, the writers, the STOW middleware and the CLI. Issue
+Applies SQR-D18 and SQR-D21 to `instanceFromStream`, the writers, the STOW middleware and the
+CLI. Issue
 #144 and the reviews of pull request #146 list the defects that this item corrects. The
 `afterCommit` call after the rollback `try`, and a `FileDicomWebWriter.delete()` that never
 throws, came with #141 (SQR-I3). This item depends on them, and does not change them.
@@ -548,9 +550,10 @@ throws, came with #141 (SQR-I3). This item depends on them, and does not change 
    `completePostController` then owns the response. A part above `limits.parts` counts as
    complete when it ends, so the request does not wait for it.
 7. `completePostController` answers with `getStowStatusCode` of the response dataset: `200`,
-   `202` or `409`. When no instance was stored, and each failure is a
-   `StorageUnavailableError` of `toStorageError` (`isStorageOutage`), it answers `503` with
-   `Retry-After: 10`.
+   `202` or `409`. When no instance was stored, it answers `503` with `Retry-After: 10` in
+   two cases (`isStorageOutage`). In the first case, a storage error stopped the upload
+   (`req.uploadStopReason`, item 15). In the second case, each failure is a
+   `StorageUnavailableError` of `toStorageError`.
 8. `stowFailureReason` gives the Failure Reason of each failed instance: `error.failureReason`
    when it is set, then `A700` for a `StorageUnavailableError` that is out of resources
    (`isOutOfResourcesError` of static-wado-util: `ENOSPC`, `EDQUOT`, `EMFILE`, `ENFILE`,
@@ -596,8 +599,8 @@ throws, came with #141 (SQR-I3). This item depends on them, and does not change 
       `503` of SQR-I10), `stowFiles` destroys the request. Thus the file of the body closes at
       once, and not after `keepAliveTimeout` of the server. A retry does not keep the files
       of the earlier body open.
-    - A file that the command cannot open or read (for example `EACCES`, or a file that a
-      different process deleted after the scan) destroys the request. `runOneStow` counts
+    - A file that the command cannot open or read destroys the request. Examples are
+      `EACCES`, and a file that a different process deleted after the scan. `runOneStow` counts
       the group as failed, with no retry. Before, such a file stopped the command with an
       unhandled `error` event.
     - The command logs the failed instances of a `409` or `503` response, and prints the body
@@ -605,8 +608,32 @@ throws, came with #141 (SQR-I3). This item depends on them, and does not change 
       status only. After a `202`, `parseAndLogDicomJsonErrors` returns the items of the
       Failed SOP Sequence, and the command counts each item as a failed file. A `202` body
       with no such item (for example XML) counts one failed file.
+    - After a `202`, a file of the group that no item of the response names also counts as
+      failed. The command finds the name in the Content-Location tag `(0009,1001)` of each
+      item. An example is a file that the server did not start after the stop of item 15. A
+      response with no such tag in its items gives no such file.
     - The command sets `process.exitCode = 1` when a file failed, and counts an unreadable
       path as failed.
+15. The stop of SQR-D21. `multipartStream` has the option `stopOnError(err)`.
+    `streamPostController` passes `storageStopReason` of `stowResponseBuilder`. It gives a
+    stop reason for an error that `toStorageError` makes a `StorageUnavailableError`, and
+    `null` for each other error. The reason has `failureReason` A700 (`isOutOfResourcesError`)
+    or 0110. When the listener of a part rejects with such an error, `stopRequest` of
+    `multipartStream` does these steps one time:
+    - It sets `req.uploadStopReason`.
+    - It unpipes the request from Dicer and pauses the request, so the server reads no more
+      of the body.
+    - It marks each part stream that is not complete as aborted with the reason (`stopParts`
+      with `incompleteOnly`). `instanceFromStream` then throws an `ABORTED` error with the
+      `failureReason` of the reason (item 8). A part whose stream is complete continues, and
+      can commit.
+    - It starts `waitForListeners`, the three phases of item 5.
+
+    A new part, or a part that waits in `beforeProcessPart`, gets no listener, and thus no
+    item in the response. After the stop, the `aborted` event of the request does not call
+    `abort`. This event comes when the server closes the connection after
+    `keepAliveTimeout`, as after the `503` of SQR-I10. `stopRequest` does nothing after
+    `abort` or after `next()`.
 
 The partial commit of issue #143 is not in this item. It is a known limitation of the
 specification. Item 3 makes its result safer for a new instance.
@@ -651,8 +678,8 @@ the tests.
   while its write is stuck.
 - At the start of a multipart request, before Dicer reads the body, `multipartStream` calls
   `isFull()`. When the count is at the limit, the request gets `503` with `Retry-After: 60`
-  at once. The response has no `Connection: close`, because a close while the client still
-  sends the body resets the connection, and the client gets `ECONNRESET` and not the `503`.
+  at once. The response has no `Connection: close`. A close while the client still sends
+  the body resets the connection, and the client then gets `ECONNRESET` and not the `503`.
   After the response, Node.js does not read and discard the body. A probe on Node.js 24.20.0
   (Windows 11, loopback, `http` and `express`, a body of 50 MB and of 2000 MB) gave these
   results:
@@ -767,6 +794,12 @@ proposal in these items:
   `Connection: close` again, because a client that sends a body got `ECONNRESET` and not
   the `503`. The `stow` command retries a connection reset in the same way as a `503`, and
   does not stop the process.
+- **After the fourth review of pull request #146.** An upload stops at the first instance
+  that the storage cannot write (SQR-D21, item 15 of SQR-I8). A maintainer decided this.
+  The text about the read of the body after the early `503` is correct now (SQR-I10). The
+  `stow` command sends the body with `stream.pipeline`. It closes the file of the body after
+  an early response, and counts a group with a file that it cannot read as failed. After a
+  `202`, it counts a file with no item in the response as failed.
 
 ## Compatibility
 
@@ -866,10 +899,10 @@ These user-facing results also change:
 - The `stow` command of the CLI retries a connection reset (`ECONNRESET`, `EPIPE`) of a
   group, up to 3 times, and then counts the group as failed. Before this change, the
   command stopped all groups with exit code `1` at the first connection reset.
-- The `stow` command counts a group with a file that it cannot open or read (for example
-  `EACCES`) as failed, and continues with the other groups. Before, the command stopped with
-  an unhandled `error` event, and printed no summary. After a `503` before the end of the
-  body, the command closes the file of the body at once.
+- The `stow` command counts a group with a file that it cannot open or read as failed, for
+  example after `EACCES`. The command then continues with the other groups. Before, the
+  command stopped with an unhandled `error` event, and printed no summary. After a `503`
+  before the end of the body, the command closes the file of the body at once.
 - A failed new upload of a stored instance keeps the stored frames. A new upload of a stored
   instance deletes its stored Part 10 rendition with the rename of the instance `metadata`.
   It deletes the frames above the new frame count after the commit. Until the upload stores the new
@@ -878,8 +911,9 @@ These user-facing results also change:
   caller of `DicomWebWriter` that does not use `FileDicomWebWriter` must remove the other
   variant of a frame itself.
 - A STOW-RS response now has the status `202` when some instances failed, and `409` when no
-  instance was stored. When no instance was stored because of a temporary storage error (a
-  storage outage), the response is `503` with `Retry-After: 10`, and not `409`. Before this
+  instance was stored. When the server cannot write to its storage, and no instance was
+  stored (a storage outage), the response is `503` with `Retry-After: 10`, and not `409`.
+  Before this
   change, each response had `200`. A client that accepts only `200` now reports an error for
   these uploads. The `dicomweb-client` library (used by OHIF) resolves `200`, `202` and `204`,
   and rejects `409` and `503`, so an OHIF upload that stored nothing now shows an error. A
@@ -889,8 +923,16 @@ These user-facing results also change:
   of the response as a failed file, and at least one file. It then exits with `1`. Before this
   change, it exited with `0`, also when each group failed. The error of each file has the
   status only, and the command prints the body of the response one time for each group.
+- An upload stops at the first instance that the storage cannot write (SQR-D21). The
+  response can come before the end of the body, and the server does not read the rest of
+  the body. The response is `503` with `Retry-After: 10` when no instance was stored, and
+  `202` otherwise. A part whose data did not arrive in full fails with `A700` or `0110`. A
+  later part gets no item, so a client must not count a missing item as stored. Before,
+  the server read the whole body, and tried each instance. A request with a storage failure,
+  a `C000` failure and no stored instance now gets `503`, and not `409`. After a `202`, the
+  `stow` command counts a file with no item in the response as failed.
 - The Failure Reason of a failed instance is `C000` only for data that the server cannot
-  read. A temporary storage error with no free space or resources gives `A700`, and each
+  read. A storage error with no free space or resources gives `A700`, and each
   other failure that the server causes gives `0110` (for example `EIO`, a permanent storage
   error, an instance that the server stopped, or a drain timeout). Before, each failed
   instance had `C000`. A `TypeError`, a `RangeError` or a `ReferenceError` of the parse or of
@@ -1090,6 +1132,22 @@ The user experience must have this:
     `keepAliveTimeout` (SQR-U5, SQR-D20).
 62. The `stow` command sends each file alone, and cannot open one file (`EACCES`). That file
     counts as failed, the other file is stored, and the command does not stop (SQR-U5).
+63. Send one complete part and the first half of a second part, and hold the rest of the
+    body. The `metadata` open of the first instance fails with `EIO`. The response comes
+    before the end of the body: `503` with `Retry-After: 10`, and two failed items with
+    `0110`. The third part gets no item, and no file opens after the response (SQR-U5,
+    SQR-D21).
+64. Send two complete parts and the first half of a third part. The first instance is
+    stored, and the `metadata` open of the second instance fails with `EIO`. The response
+    comes before the end of the body: `202`, with the first instance as stored, and the
+    second and the third instances as failed with `0110`. No file opens after the response
+    (SQR-U5, SQR-D21).
+65. A real HTTP client sends a body that does not end. The listener of the first part fails
+    with `EIO`, and the stop cuts the second part with its reason. The client gets the
+    response while it still sends the body, and the server read less than the client sent
+    (SQR-U5, SQR-D21).
+66. The `stow` command gets a `202` that names one file as stored and one file as failed, and
+    has no item for a third file. The third file also counts as failed (SQR-U5).
 
 The API must do this:
 
@@ -1177,13 +1235,15 @@ The numbered tests are in these files:
 
 - `packages/static-wado-webserver/test/unit/buildJobManager.jest.mjs`: 8, 12, 25, 28, 29, 43.
 - `packages/static-wado-webserver/test/unit/stowAbort.jest.mjs`: 13.
-- `packages/static-wado-webserver/test/unit/stowCommit.jest.mjs`: 36, 38, 41, 44, 45, 47, 51.
-- `packages/static-wado-webserver/test/unit/multipartStream.jest.mjs`: 37, 49, 50, 56, 58, 60.
+- `packages/static-wado-webserver/test/unit/stowCommit.jest.mjs`: 36, 38, 41, 44, 45, 47, 51,
+  63, 64.
+- `packages/static-wado-webserver/test/unit/multipartStream.jest.mjs`: 37, 49, 50, 56, 58, 60,
+  65.
 - `packages/create-dicomweb/test/writeWithRetryCleanup.jest.mjs`: 33, 34, 39, 40, 42, 46, 48,
   52, 57.
 - `packages/static-wado-creator/test/unit/processFiles.jest.js`: 59.
 - `packages/create-dicomweb/test/rawPart10.jest.mjs`: 35, 53.
-- `packages/create-dicomweb/test/stowMain.jest.mjs`: 55, 61, 62.
+- `packages/create-dicomweb/test/stowMain.jest.mjs`: 55, 61, 62, 66.
 - `packages/static-wado-util/test/unit/dirScanner.jest.mjs`: 54.
 - `packages/static-wado-webserver/test/unit/derivedDataBuild.jest.mjs`: the other numbered
   tests.

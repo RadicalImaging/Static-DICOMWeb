@@ -75,8 +75,8 @@ does not change the user contract (SQR-U1).
   update. A request for a stored file that the server sends as it is (for example a summary
   that is already stored, a frame or a bulk data item) gets a `5xx` response. Its status
   code and headers are outside this specification. An upload also gets `503` with a
-  `Retry-After` header in one more case. The server stored no instance of the upload, and
-  each instance failed because of a temporary storage error (SQR-U5).
+  `Retry-After` header in one more case: the server cannot write to its storage, and it
+  stored no instance of the upload (SQR-U5).
   After the storage recovers, the next request gets the correct result, with no upload and no
   restart. The one exception is a storage failure during an upload (see the exceptions to
   SQR-U1).
@@ -144,10 +144,17 @@ does not change the user contract (SQR-U1).
     `409` when the request has instances and the server stored none of them. The section
     "Known limitations" gives the cases of a request with no DICOM part, and of a media type
     that the server does not support.
-  - A storage outage (SQR-U3) is the exception to `409`. When the server stored no instance,
-    and each instance failed because of a temporary storage error, the request gets
-    `503 Service Unavailable` with a `Retry-After` header. The body still lists each failed
-    instance. After the storage recovers, the client can send the same request again.
+  - When the server cannot write to its storage, the upload stops at the first instance
+    that the server cannot write. The response can come before the client sent the whole
+    body. The server reports each instance that it started:
+    - `503 Service Unavailable` with a `Retry-After` header when it stored no instance. This
+      is the exception to `409` for a storage outage (SQR-U3);
+    - `202` with the failed instances when it stored some instances.
+
+    The body lists each failed instance. An instance whose data did not arrive in full before
+    the stop is a failed instance. An instance that the server did not start gets no item, so
+    a client must not count a missing item as stored. After the storage recovers, the client
+    can send each instance that the server did not store again. SQR-D21 gives the design.
   - Each failed instance is in the Failed SOP Sequence `(0008,1198)`. The item has the SOP
     Class UID `(0008,1150)` and the SOP Instance UID `(0008,1155)` of the instance when the
     server read them before the failure. The item has no UID that the server did not read.
@@ -157,10 +164,13 @@ does not change the user contract (SQR-U1).
     - `C000` (cannot understand) only when the server cannot read the data of the instance,
       for example a part that is not a DICOM instance, a part that ends too early, or a
       validation that rejects the instance;
-    - `A700` (refused, out of resources) for a temporary storage error when the storage or the
-      server has no free space or resources;
+    - `A700` (refused, out of resources) when the server cannot write to its storage because
+      the storage or the server has no free space or resources;
     - `0110` (processing failure) for each other failure that the server causes, for example
       another storage error, or an instance that the server stopped.
+
+    An instance that the stop after a storage failure cuts gets the Failure Reason of that
+    failure, `A700` or `0110`.
   - A request body that ends without its closing boundary, after one or more complete parts,
     gets a report of each instance: each stored instance as stored, and the incomplete part
     as failed. The status obeys the rules above. A body in which no part is complete gets
@@ -172,7 +182,7 @@ does not change the user contract (SQR-U1).
   - The `createdicomweb instance`, `create` and `stow` commands exit with a code that is not
     `0` when they did not store one or more files. An input path that does not exist, or that
     the command cannot read, is a file that the command did not store. When the `stow`
-    command cannot read a file of a group, all files of that group are failed files, and the
+    command cannot read a file of a group, all files of that group are failed files. The
     command continues with the other groups. The server can have stored some files of that
     group.
   - The `stow` command sends a group of files again after a `503` response or a connection
@@ -491,7 +501,7 @@ The next requirements use these terms:
 
   When the count reaches a configured limit, the server answers a new upload with `503` and
   a `Retry-After` header before it reads the body. SQR-D14 does the same for builds. The
-  response has no `Connection: close`, because a close before the end of the body resets the
+  response has no `Connection: close`. A close before the end of the body resets the
   connection, and the client then does not get the `503`. After the response, Node.js stops
   the read of the body after some hundred KB at most. It closes the connection after the
   `keepAliveTimeout` of the server (5 s).
@@ -503,6 +513,28 @@ The next requirements use these terms:
   `readdirSync`, `renameSync` and `unlinkSync`. A storage that does not answer such a call
   blocks the whole server, which then cannot send the `503` (Known limitations). Supports
   SQR-U3 and SQR-U5.
+- **SQR-D21. Stop an upload at the first instance that the storage cannot write.** When the
+  work of an instance fails with an I/O error of the storage, the server stops the upload at
+  once. Examples of such an error are `EIO`, `ENOSPC`, `EACCES` and `EROFS` (SQR-D3). The
+  stop has these steps:
+  - It stops the read of the body, and starts no new part.
+  - A part whose body did not arrive in full stops. It fails with the Failure Reason of the
+    I/O error: `A700` for no free space or resources, and `0110` for each other I/O error.
+    It never gets `C000`.
+  - A part whose body arrived in full continues. It can still commit, and the response then
+    reports it as stored.
+
+  The server waits for the started instances as after the last part (SQR-U5), and then
+  reports each of them. The response has `503` and a `Retry-After` header when no instance
+  is stored, and `202` otherwise. An error that is not an I/O error (for example `C000`)
+  does not stop the upload. Supports SQR-U3 and SQR-U5.
+
+  After the stop, the server does not read the rest of the body. As after the `503` of
+  SQR-D20, Node.js closes the connection after `keepAliveTimeout` (5 s). A client that reads
+  the response while it sends the body gets the response. Reason for the change in
+  pull request #146: each later instance needs the same storage, and a body can be some GB.
+  Before this requirement, the server read the whole body, and tried each instance, before
+  it sent the response.
 
 ### Multi-node extension requirements
 
