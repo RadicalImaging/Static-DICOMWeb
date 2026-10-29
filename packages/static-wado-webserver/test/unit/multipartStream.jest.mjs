@@ -251,4 +251,23 @@ describe('multipartStream', () => {
       jest.restoreAllMocks();
     }
   });
+
+  // Test 58. The API must do this: a part above limits.parts counts as complete, so the
+  // request goes on with the parts below the limit, and does not wait forever
+  it('goes on after a part above limits.parts', async () => {
+    const listened = [];
+    const middleware = multipartStream({
+      listener: async fileInfo => listened.push(fileInfo.fieldname),
+      createBufferStream: () => new TrackableReadBufferStream(null, true, { noCopy: true }),
+      limits: { parts: 1 },
+    });
+    const req = newRequest();
+    const res = createResponse();
+
+    middleware(req, res, () => res.resolveResult('next'));
+    req.end(Buffer.concat([dicomPart(), dicomPart(), Buffer.from(`--${BOUNDARY}--\r\n`)]));
+
+    expect(await res.result).toBe('next');
+    expect(listened).toEqual(['part-1']);
+  });
 });
