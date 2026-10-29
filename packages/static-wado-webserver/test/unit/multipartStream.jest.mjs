@@ -1,4 +1,7 @@
-import { PassThrough } from 'stream';
+import { PassThrough, Readable } from 'stream';
+import http from 'node:http';
+import { once } from 'events';
+import express from 'express';
 import { createVerboseLog } from '@radicalimaging/static-wado-util';
 import { multipartStream } from '../../lib/controllers/server/multipartStream.mjs';
 import { TrackableReadBufferStream } from '../../lib/controllers/server/TrackableReadBufferStream.mjs';
@@ -200,7 +203,7 @@ describe('multipartStream', () => {
       middleware(second, res, () => res.resolveResult('next'));
       expect(await res.result).toBe(503);
       expect(res.headers['Retry-After']).toBe('60');
-      expect(res.headers.Connection).toBe('close');
+      expect(res.headers.Connection).toBeUndefined();
       expect(second.readableFlowing).toBe(null);
 
       commit('committed');
@@ -248,6 +251,70 @@ describe('multipartStream', () => {
       await new Promise(resolve => setImmediate(resolve));
       expect(stalledListeners.count()).toBe(0);
     } finally {
+      jest.restoreAllMocks();
+    }
+  });
+
+  // Test 60. The user experience must have this (SQR-U5): a real client that sends a body of
+  // some MB gets the 503 of a full stalled count and its Retry-After, not a connection reset
+  it('gives the 503 of a full count to an HTTP client that sends a body', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const stalledListeners = createStalledStowListeners({ maxStalled: 1 });
+    stalledListeners.add([new Promise(() => {})]);
+    const app = express();
+    app.post(
+      '/studies',
+      multipartStream({
+        listener: async () => undefined,
+        createBufferStream: () => new TrackableReadBufferStream(null, true, { noCopy: true }),
+        stalledListeners,
+      }),
+      (req, res) => res.status(200).end()
+    );
+    const server = http.createServer(app);
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+
+    // The client code of stowFiles: resolve on the response end, reject on a request error
+    const post = () => {
+      const total = 20 * 1024 * 1024;
+      const chunk = Buffer.alloc(64 * 1024);
+      let sent = 0;
+      const body = new Readable({
+        read() {
+          sent += chunk.length;
+          this.push(sent > total ? null : chunk);
+        },
+      });
+      return new Promise((resolve, reject) => {
+        const req = http.request(
+          {
+            method: 'POST',
+            hostname: '127.0.0.1',
+            port: server.address().port,
+            path: '/studies',
+            headers: {
+              'Content-Type': `multipart/related; type="application/dicom"; boundary=${BOUNDARY}`,
+              'Content-Length': String(total),
+            },
+          },
+          res => {
+            res.resume();
+            res.on('end', () => resolve(res));
+          }
+        );
+        req.on('error', reject);
+        body.pipe(req);
+      });
+    };
+
+    try {
+      const res = await post();
+      expect(res.statusCode).toBe(503);
+      expect(res.headers['retry-after']).toBe('60');
+    } finally {
+      server.closeAllConnections();
+      await new Promise(resolve => server.close(resolve));
       jest.restoreAllMocks();
     }
   });

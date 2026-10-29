@@ -58,8 +58,10 @@ async function settlesWithin(promise, timeoutMs, abortPromise) {
  * request gets 503 with Retry-After. An aborted request also counts its listeners in
  * opts.stalledListeners.
  *
- * When opts.stalledListeners is full, a new request gets 503 with Retry-After and
- * `Connection: close` at once, before the middleware reads its body (SQR-D20).
+ * When opts.stalledListeners is full, a new request gets 503 with Retry-After at once, before
+ * the middleware reads its body (SQR-D20). The response has no `Connection: close`: after the
+ * response, Node.js reads and discards the body, and the client gets the 503. A close while
+ * the client still sends the body resets the connection, and the client gets ECONNRESET.
  */
 export function multipartStream(opts) {
   const {
@@ -116,8 +118,7 @@ export function multipartStream(opts) {
     if (stalledListeners?.isFull()) {
       console.warn('[multipartStream] Too many stalled STOW listeners, the request is refused');
       res.setHeader('Retry-After', String(stalledListeners.retryAfterSeconds));
-      // Close the connection, so the client does not send the body that nobody reads
-      res.setHeader('Connection', 'close');
+      // No Connection: close (see the doc comment), so the client gets the 503
       res.status(503).send('Service Unavailable: too many stalled uploads, retry later');
       return;
     }
