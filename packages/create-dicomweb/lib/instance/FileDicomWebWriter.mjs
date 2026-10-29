@@ -106,6 +106,27 @@ export class FileDicomWebWriter extends DicomWebWriter {
     this.deferFinalMove = options?.deferFinalMove ?? false;
     /** @type {Array<Object>} Stream info objects awaiting final rename */
     this.pendingMoves = [];
+    /** @type {Array<fs.WriteStream>} File streams that recordStreamError destroyed */
+    this._destroyedFileStreams = [];
+  }
+
+  /**
+   * Returns a promise that resolves when each file stream that this writer destroyed has
+   * closed, or null when all of them closed already. A destroyed fs.WriteStream closes only
+   * after its pending file operation returns, so the promise stays pending while that
+   * operation is stuck in the storage (SQR-D20).
+   * @returns {Promise<void>|null}
+   */
+  whenDestroyedStreamsClosed() {
+    const open = this._destroyedFileStreams.filter(stream => !stream.closed);
+    this._destroyedFileStreams = open;
+    if (open.length === 0) {
+      return null;
+    }
+    // Not events.once: it settles on the 'error' of destroy(error), before the close
+    return Promise.all(
+      open.map(stream => new Promise(resolve => stream.once('close', resolve)))
+    ).then(() => undefined);
   }
 
   /**
@@ -509,6 +530,10 @@ export class FileDicomWebWriter extends DicomWebWriter {
     const tempFilepath = streamInfo?.tempFilepath;
 
     super.recordStreamError(streamKey, error, skipPromiseReject);
+
+    if (streamInfo?.fileStream && !streamInfo.fileStream.closed) {
+      this._destroyedFileStreams.push(streamInfo.fileStream);
+    }
 
     // Clean up temp file after the stream has been destroyed
     if (tempFilepath) {

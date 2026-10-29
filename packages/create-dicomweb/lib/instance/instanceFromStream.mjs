@@ -203,6 +203,10 @@ function createProgressFilter(parentJob, parseJob, throttleMs) {
  * @param {number} [options.progressThrottleMs=50] - Min ms between progress updates when statusMonitorJob is set.
  * @param {Function} [options.afterCommit] - (result) => void. Called synchronously right after the
  *   instance files are committed, for example to mark the derived files of the series as stale.
+ * @param {(closed: Promise<void>) => void} [options.onStuckWrites] - Called once, before the
+ *   call throws, when the instance failed and the writer destroyed file streams that did not
+ *   close yet. `closed` resolves when the last of them closes, so a caller can count the
+ *   instance while its file operations are stuck (SQR-D20).
  * @returns {Promise<{meta, dict, writer, informationFilter}>} - Parsed metadata and optional writer/filter instances
  */
 export async function instanceFromStream(stream, options = {}) {
@@ -412,6 +416,7 @@ export async function instanceFromStream(stream, options = {}) {
     parseError = err;
     writer?.abort(err);
     writer?.rollbackPendingMoves();
+    reportStuckWrites(writer, options);
     const error = streamForAbort?.abortedReason ? abortedError(streamForAbort) : markDataError(err);
     throw withInformation(error, listener.information);
   } finally {
@@ -488,6 +493,7 @@ export async function instanceFromStream(stream, options = {}) {
     writer?.abort(err);
     await writer?.drainOpenStreams(options.drainOpenStreamsTimeoutMs).catch(() => {});
     writer?.rollbackPendingMoves();
+    reportStuckWrites(writer, options);
     throw withInformation(err, listener.information);
   }
 
@@ -506,6 +512,18 @@ export async function instanceFromStream(stream, options = {}) {
   }
 
   return result;
+}
+
+/** Gives the close of the destroyed file streams of a failed instance to options.onStuckWrites */
+function reportStuckWrites(writer, options) {
+  const closed = options.onStuckWrites && writer?.whenDestroyedStreamsClosed?.();
+  if (closed) {
+    try {
+      options.onStuckWrites(closed);
+    } catch (err) {
+      console.warn('onStuckWrites failed:', err?.message ?? err);
+    }
+  }
 }
 
 /** Failure Reason C000 (cannot understand) of PS3.18 Table I.2-2 */

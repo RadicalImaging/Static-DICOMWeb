@@ -171,6 +171,7 @@ export function streamPostController(params) {
   const backpressureWaitMs = params.backpressureWaitMs ?? 100;
   const backpressureMaxBytes = params.backpressureMaxBytes ?? 128 * 1024;
   const showProgress = params.progress === true;
+  const stalledListeners = getStalledStowListeners(params);
 
   return multipartStream({
     onRequestStart: req => {
@@ -331,6 +332,8 @@ export function streamPostController(params) {
           validateInstance: validateInstance ? validateInstance.bind(null, req) : undefined,
           // An upload that aborts later must not leave stale derived files
           afterCommit: result => markSeriesStale(dicomdir, result),
+          // A failed instance counts as stalled until its destroyed file streams close (SQR-D20)
+          onStuckWrites: closed => stalledListeners.add([closed]),
           statusMonitorJob:
             req?.statusMonitorInstancesJobId != null
               ? { typeId: 'stowInstances', jobId: req.statusMonitorInstancesJobId }
@@ -368,7 +371,7 @@ export function streamPostController(params) {
       }
     },
     limits: { files: 1_000, fileSize: 250 * 1_000_000_000 }, // 250GB, 1000 files
-    stalledListeners: getStalledStowListeners(params),
+    stalledListeners,
   });
 }
 

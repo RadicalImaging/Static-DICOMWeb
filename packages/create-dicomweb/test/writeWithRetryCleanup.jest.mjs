@@ -1,6 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { EventEmitter } from 'events';
 import { writeWithRetry, writeMultipleWithRetry } from '../lib/instance/writeWithRetry.mjs';
 import { FileDicomWebWriter } from '../lib/instance/FileDicomWebWriter.mjs';
 import { instanceFromStream } from '../lib/instance/instanceFromStream.mjs';
@@ -369,6 +370,42 @@ describe('an upload of an instance after a failure', () => {
       expect(await storedFiles()).toEqual([]);
     }
   );
+
+  // Test 57. The API must do this (SQR-D20): a failed instance whose destroyed file stream
+  // did not close (a stuck file operation) goes to onStuckWrites until that stream closes
+  it('gives a failed instance to onStuckWrites until its destroyed file stream closes', async () => {
+    const stuck = Object.assign(new EventEmitter(), { closed: false, destroy: () => {} });
+    const closeStream = FileDicomWebWriter.prototype.closeStream;
+    jest
+      .spyOn(FileDicomWebWriter.prototype, 'closeStream')
+      .mockImplementation(async function stuckFrame(streamKey) {
+        const streamInfo = this.openStreams.get(streamKey);
+        if (streamInfo?.filepath?.endsWith('1.mht')) {
+          streamInfo.fileStream.destroy();
+          // A file stream whose pending file operation does not return
+          streamInfo.fileStream = stuck;
+          this.recordStreamError(
+            streamKey,
+            Object.assign(new Error('stuck'), { code: 'EIO' }),
+            true
+          );
+        }
+        return closeStream.call(this, streamKey);
+      });
+    const stuckWrites = [];
+
+    await expect(
+      upload({ onStuckWrites: closed => stuckWrites.push(closed) })
+    ).rejects.toMatchObject({ code: 'EIO' });
+    expect(stuckWrites).toHaveLength(1);
+    let settled = false;
+    stuckWrites[0].then(() => (settled = true));
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(settled).toBe(false);
+
+    stuck.emit('close');
+    await stuckWrites[0];
+  });
 
   // Test 39. The user experience must have this: the CLI (instanceFromFile, no writer
   // options) commits no file of an instance whose frame write failed
