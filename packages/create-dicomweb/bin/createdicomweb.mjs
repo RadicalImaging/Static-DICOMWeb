@@ -230,7 +230,11 @@ program
     stowOptions.quiet = opts.quiet;
     stowOptions.verbose = opts.verbose;
 
-    await stowMain(fileNames, stowOptions);
+    const { failed } = await stowMain(fileNames, stowOptions);
+    // As the instance and create commands: a file that was not stored gives exit code 1
+    if (failed > 0) {
+      process.exitCode = 1;
+    }
   });
 
 /**

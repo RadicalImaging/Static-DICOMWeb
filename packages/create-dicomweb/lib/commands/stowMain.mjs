@@ -15,6 +15,11 @@ import { parseAndLogDicomJsonErrors } from './parseDicomJsonErrors.mjs';
 const LIMIT_UNSETTLED_TIMEOUT_MS = 30 * 60 * 1000;
 /** Timeout for "wait for all" when using parallel (24 hours) */
 const WAIT_ALL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+/** Number of times a group is sent again after a 503 response */
+const MAX_UNAVAILABLE_RETRIES = 3;
+/** Wait before a retry after a 503 with no Retry-After header, and the longest wait (seconds) */
+const DEFAULT_RETRY_AFTER_SECONDS = 10;
+const MAX_RETRY_AFTER_SECONDS = 10 * 60;
 /** File extensions skipped when filenameCheck is on (lowercase, no dot) */
 const SKIP_EXTENSIONS = new Set([
   'gz',
@@ -92,6 +97,8 @@ export async function stowMain(fileNames, options = {}) {
     let count = 0;
     await dirScanner(fileNames, {
       recursive: true,
+      // The scan of the upload counts the unreadable paths
+      onError: () => {},
       callback: async filename => {
         if (filenameCheck) {
           const ext = path.extname(filename).slice(1).toLowerCase();
@@ -128,7 +135,7 @@ export async function stowMain(fileNames, options = {}) {
 
   const runOneStow = async (group, requestTimeoutMs) => {
     try {
-      await stowFiles(group, url, headers, xmlResponse, requestTimeoutMs);
+      await stowFilesWithRetry(group, url, headers, xmlResponse, requestTimeoutMs);
       results.success += group.length;
       console.verbose(`Stored group of ${group.length} file(s)`);
       progressReporter.addProcessed(group.length);
@@ -153,9 +160,13 @@ export async function stowMain(fileNames, options = {}) {
 
       results.failed += group.length;
       progressReporter.addProcessed(group.length);
+      // The response body once for the group, and only the status for each file
+      console.error(`Failed to store a group of ${group.length} file(s): ${error.message}`);
+      if (error.responseText) {
+        console.error(error.responseText);
+      }
       group.forEach(({ filePath }) => {
         results.errors.push({ file: filePath, error: error.message });
-        console.error(`Failed to store ${filePath}: ${error.message}`);
       });
     }
   };
@@ -174,6 +185,10 @@ export async function stowMain(fileNames, options = {}) {
   await dirScanner(fileNames, {
     ...options,
     recursive: true,
+    onError: (filename, error) => {
+      results.failed++;
+      results.errors.push({ file: filename, error: error.message });
+    },
     callback: async filename => {
       try {
         if (filenameCheck) {
@@ -331,19 +346,63 @@ export async function stowFiles(
   }
 
   if (!responseLike.ok) {
-    // 409: no instance stored; the body still lists each failed instance (PS3.18 10.5.3)
-    if (res.statusCode === 409) {
+    // 409 or 503: no instance stored; the body still lists each failed instance (PS3.18 10.5.3)
+    if (res.statusCode === 409 || res.statusCode === 503) {
       await parseAndLogDicomJsonErrors(responseLike, responseText, files);
     }
-    throw new Error(
-      `HTTP ${res.statusCode} ${res.statusMessage || ''}: ${responseText}`
-    );
+    throw Object.assign(new Error(`HTTP ${res.statusCode} ${res.statusMessage || ''}`.trim()), {
+      status: res.statusCode,
+      retryAfter: responseLike.headers.get('retry-after'),
+      responseText,
+    });
   }
 
   // Parse JSON DICOM response if applicable and log errors
   await parseAndLogDicomJsonErrors(responseLike, responseText, files);
 
   return responseLike;
+}
+
+/**
+ * Returns the wait (ms) of a Retry-After header: seconds, or an HTTP date. Bounded to
+ * MAX_RETRY_AFTER_SECONDS, with DEFAULT_RETRY_AFTER_SECONDS for a missing or invalid value.
+ * @param {string|null} value
+ * @returns {number}
+ */
+function retryAfterMs(value) {
+  let seconds = Number(value);
+  if (value == null || value === '' || !Number.isFinite(seconds)) {
+    const date = Date.parse(value ?? '');
+    seconds = Number.isNaN(date) ? DEFAULT_RETRY_AFTER_SECONDS : (date - Date.now()) / 1000;
+  }
+  return Math.min(Math.max(seconds, 0), MAX_RETRY_AFTER_SECONDS) * 1000;
+}
+
+/**
+ * stowFiles, and up to MAX_UNAVAILABLE_RETRIES more times after a 503 response, each after the
+ * wait of its Retry-After header. A 503 means that the server stored no instance, because of
+ * a storage outage or too much stalled work, so the same group can be sent again.
+ * Same parameters as stowFiles.
+ */
+export async function stowFilesWithRetry(
+  files,
+  endpointUrl,
+  additionalHeaders,
+  xmlResponse,
+  timeoutMs
+) {
+  for (let retry = 0; ; retry++) {
+    try {
+      return await stowFiles(files, endpointUrl, additionalHeaders, xmlResponse, timeoutMs);
+    } catch (error) {
+      if (error.status !== 503 || retry >= MAX_UNAVAILABLE_RETRIES) throw error;
+      const waitMs = retryAfterMs(error.retryAfter);
+      console.warn(
+        `HTTP 503 for a group of ${files.length} file(s), retry ${retry + 1} of ${MAX_UNAVAILABLE_RETRIES} in ${waitMs / 1000} s`
+      );
+      await new Promise(resolve => setTimeout(resolve, waitMs));
+    }
+  }
 }
 
 /**
