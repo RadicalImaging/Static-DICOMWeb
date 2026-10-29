@@ -20,12 +20,19 @@ export const DEFAULT_TEMP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
  *
  * @param {string} dicomdir - DICOMweb root directory
  * @param {Object} [options]
- * @param {number} [options.maxAgeMs=DEFAULT_TEMP_MAX_AGE_MS]
+ * A temp directory that is a symbolic link is not followed.
+ *
+ * @param {number} [options.maxAgeMs=DEFAULT_TEMP_MAX_AGE_MS] - Must be a finite number above 0
  * @param {number} [options.now=Date.now()]
  * @returns {Promise<number>} - The number of removed files
+ * @throws {RangeError} - For a maxAgeMs that is not above 0, because 0 would remove the files
+ *   of each running upload
  */
 export async function removeOrphanTempFiles(dicomdir, options = {}) {
   const maxAgeMs = options.maxAgeMs ?? DEFAULT_TEMP_MAX_AGE_MS;
+  if (!Number.isFinite(maxAgeMs) || maxAgeMs <= 0) {
+    throw new RangeError(`removeOrphanTempFiles: maxAgeMs must be above 0, got ${maxAgeMs}`);
+  }
   const oldest = (options.now ?? Date.now()) - maxAgeMs;
   const studiesDir = path.join(dicomdir, 'studies');
   let removed = 0;
@@ -51,6 +58,14 @@ export async function removeOrphanTempFiles(dicomdir, options = {}) {
     );
 
   for (const tempDir of tempDirs) {
+    try {
+      if (!(await fs.promises.lstat(tempDir)).isDirectory()) continue;
+    } catch (err) {
+      if (err?.code !== 'ENOENT') {
+        console.warn(`[removeOrphanTempFiles] Could not stat ${tempDir}:`, err?.message || err);
+      }
+      continue;
+    }
     for (const entry of await listDir(tempDir)) {
       if (!entry.isFile() || !TEMP_FILE_NAME_RE.test(entry.name)) continue;
       const file = path.join(tempDir, entry.name);

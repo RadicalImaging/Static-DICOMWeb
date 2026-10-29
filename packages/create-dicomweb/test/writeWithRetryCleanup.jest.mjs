@@ -484,6 +484,10 @@ describe('removeOrphanTempFiles', () => {
       fs.utimesSync(file, new Date(mtime), new Date(mtime));
     }
 
+    // An age of 0 would remove the temp files of each running upload
+    for (const maxAgeMs of [0, -1, NaN]) {
+      await expect(removeOrphanTempFiles(baseDir, { maxAgeMs, now })).rejects.toThrow(RangeError);
+    }
     expect(await removeOrphanTempFiles(baseDir, { maxAgeMs: 24 * hour, now })).toBe(2);
 
     const kept = Object.keys(files).filter(name => fs.existsSync(path.join(baseDir, name)));
