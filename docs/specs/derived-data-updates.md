@@ -171,7 +171,10 @@ does not change the user contract (SQR-U1).
     instance of the upload does not give `404`. It gives a thumbnail of the stored data.
   - The `createdicomweb instance`, `create` and `stow` commands exit with a code that is not
     `0` when they did not store one or more files. An input path that does not exist, or that
-    the command cannot read, is a file that the command did not store.
+    the command cannot read, is a file that the command did not store. When the `stow`
+    command cannot read a file of a group, all files of that group are failed files, and the
+    command continues with the other groups. The server can have stored some files of that
+    group.
   - The `stow` command sends a group of files again after a `503` response or a connection
     reset, up to 3 times for each group. Before a retry after a `503`, the command waits for
     the time of the `Retry-After` header. Before a retry after a reset, the command waits

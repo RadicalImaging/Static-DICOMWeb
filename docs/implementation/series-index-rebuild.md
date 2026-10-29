@@ -584,20 +584,29 @@ throws, came with #141 (SQR-I3). This item depends on them, and does not change 
     `openFrameStream` records the highest frame number. `FileDicomWebWriter` deletes each
     `<n>.mht` and `<n>.mht.gz` of the instance with `n` above that number, so a new upload
     with fewer frames leaves no old frame. The call never throws.
-14. The `stow` command of the CLI (`stowMain`) sends a group again after a `503` response,
-    up to 3 times (`stowFilesWithRetry`). It waits for the `Retry-After` value (seconds or an
-    HTTP date, 10 s when the header is not there, at most 10 minutes). A connection reset
-    (`ECONNRESET` or `EPIPE`) uses the same retries, with a wait of 10 s. After the last
-    retry, `runOneStow` counts the group as failed, and the other groups continue. Only
-    `ECONNREFUSED`, `ENOTFOUND` and `ETIMEDOUT` stop the command at once with
-    `process.exit(1)`. The request error destroys the body stream, so a retry does not keep
-    the files of the earlier body open. The command logs the failed
-    instances of a `409` or `503` response, and prints the body of a failed response one time
-    for each group. The error message of a file has the status only. After a `202`,
-    `parseAndLogDicomJsonErrors` returns the items of the Failed SOP Sequence, and the
-    command counts each item as a failed file. A `202` body with no such item (for example
-    XML) counts one failed file. The command sets `process.exitCode = 1` when a file failed,
-    and counts an unreadable path as failed.
+14. The `stow` command of the CLI (`stowMain`):
+    - It sends a group again after a `503` response, up to 3 times (`stowFilesWithRetry`). It
+      waits for the `Retry-After` value (seconds or an HTTP date, 10 s when the header is not
+      there, at most 10 minutes). A connection reset (`ECONNRESET` or `EPIPE`) uses the same
+      retries, with a wait of 10 s. After the last retry, `runOneStow` counts the group as
+      failed, and the other groups continue. Only `ECONNREFUSED`, `ENOTFOUND` and
+      `ETIMEDOUT` stop the command at once with `process.exit(1)`.
+    - `stowFiles` sends the body with `stream.pipeline`, which destroys the body stream when
+      the request fails or closes. When the response ends before the end of the body (the
+      `503` of SQR-I10), `stowFiles` destroys the request. Thus the file of the body closes at
+      once, and not after `keepAliveTimeout` of the server. A retry does not keep the files
+      of the earlier body open.
+    - A file that the command cannot open or read (for example `EACCES`, or a file that a
+      different process deleted after the scan) destroys the request. `runOneStow` counts
+      the group as failed, with no retry. Before, such a file stopped the command with an
+      unhandled `error` event.
+    - The command logs the failed instances of a `409` or `503` response, and prints the body
+      of a failed response one time for each group. The error message of a file has the
+      status only. After a `202`, `parseAndLogDicomJsonErrors` returns the items of the
+      Failed SOP Sequence, and the command counts each item as a failed file. A `202` body
+      with no such item (for example XML) counts one failed file.
+    - The command sets `process.exitCode = 1` when a file failed, and counts an unreadable
+      path as failed.
 
 The partial commit of issue #143 is not in this item. It is a known limitation of the
 specification. Item 3 makes its result safer for a new instance.
@@ -857,6 +866,10 @@ These user-facing results also change:
 - The `stow` command of the CLI retries a connection reset (`ECONNRESET`, `EPIPE`) of a
   group, up to 3 times, and then counts the group as failed. Before this change, the
   command stopped all groups with exit code `1` at the first connection reset.
+- The `stow` command counts a group with a file that it cannot open or read (for example
+  `EACCES`) as failed, and continues with the other groups. Before, the command stopped with
+  an unhandled `error` event, and printed no summary. After a `503` before the end of the
+  body, the command closes the file of the body at once.
 - A failed new upload of a stored instance keeps the stored frames. A new upload of a stored
   instance deletes its stored Part 10 rendition with the rename of the instance `metadata`.
   It deletes the frames above the new frame count after the commit. Until the upload stores the new
@@ -1072,6 +1085,11 @@ The user experience must have this:
 60. The stalled count is full. A real HTTP client sends a body of 20 MB with the client code
     of `stowFiles`. The client gets `503` with `Retry-After: 60`, and not `ECONNRESET`
     (SQR-U5, SQR-D20).
+61. `stowFiles` sends a body of 8 MB to a server that answers `503` before it reads the body.
+    The file of the body closes within 2 s, and not at the close of the connection after
+    `keepAliveTimeout` (SQR-U5, SQR-D20).
+62. The `stow` command sends each file alone, and cannot open one file (`EACCES`). That file
+    counts as failed, the other file is stored, and the command does not stop (SQR-U5).
 
 The API must do this:
 
@@ -1165,7 +1183,7 @@ The numbered tests are in these files:
   52, 57.
 - `packages/static-wado-creator/test/unit/processFiles.jest.js`: 59.
 - `packages/create-dicomweb/test/rawPart10.jest.mjs`: 35, 53.
-- `packages/create-dicomweb/test/stowMain.jest.mjs`: 55.
+- `packages/create-dicomweb/test/stowMain.jest.mjs`: 55, 61, 62.
 - `packages/static-wado-util/test/unit/dirScanner.jest.mjs`: 54.
 - `packages/static-wado-webserver/test/unit/derivedDataBuild.jest.mjs`: the other numbered
   tests.
