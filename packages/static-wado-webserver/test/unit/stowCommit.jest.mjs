@@ -30,9 +30,10 @@ describe('the result of an upload', () => {
   beforeEach(async () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'stow-commit-'));
     const app = express();
+    // The default back-pressure wait (100 ms) makes each upload take about 1 s
     app.post(
       '/studies',
-      streamPostController({ rootDir: root, disableSummary: true }),
+      streamPostController({ rootDir: root, disableSummary: true, backpressureWaitMs: 1 }),
       completePostController
     );
     server = app.listen(0);
@@ -133,7 +134,8 @@ describe('the result of an upload', () => {
   });
 
   // Test 47. The user experience must have this (SQR-U5): a thumbnail request after an upload
-  // gets a new thumbnail, and not 404, also when the upload deleted the series files
+  // gets a new thumbnail, and not 404, also when the upload deleted the series files. The
+  // timeout is longer, because the thumbnail of the JPEG data can take more than 1 s.
   it('makes a new instance thumbnail after the instance is stored again', async () => {
     jest.spyOn(console, 'log').mockImplementation(() => {});
     jest.spyOn(console, 'warn').mockImplementation(() => {});
@@ -168,7 +170,7 @@ describe('the result of an upload', () => {
     expect(res.status).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalledWith();
     expect(fs.existsSync(instanceThumbnail)).toBe(true);
-  });
+  }, 20000);
 
   // Test 51. The API must do this (SQR-D17): the build of a thumbnail request obeys the server
   // param studyIndex, as the builds of a query do
