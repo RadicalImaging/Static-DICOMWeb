@@ -74,8 +74,9 @@ does not change the user contract (SQR-U1).
   `Retry-After` header. A study metadata request can get this response also when it needs no
   update. A request for a stored file that the server sends as it is (for example a summary
   that is already stored, a frame or a bulk data item) gets a `5xx` response. Its status
-  code and headers are outside this specification. An upload that stored no instance because
-  of a storage outage also gets `503` with a `Retry-After` header (SQR-U5).
+  code and headers are outside this specification. An upload also gets `503` with a
+  `Retry-After` header when the server stored no instance of it, and each instance failed
+  because of a temporary storage error (SQR-U5).
   After the storage recovers, the next request gets the correct result, with no upload and no
   restart. The one exception is a storage failure during an upload (see the exceptions to
   SQR-U1).
@@ -86,7 +87,8 @@ does not change the user contract (SQR-U1).
   - a storage outage (SQR-U3);
   - the studies list of SQR-U4;
   - a deployment that turns off the builds on demand (`createIndexOnDemand: false`): a
-    query or a metadata request whose summary file is missing then gives `404`;
+    query or a metadata request whose summary file is missing then gives `404`. A thumbnail
+    request after an upload also gives `404`, until the series files exist again;
   - a process stop or a storage failure during an upload: the responses can then leave out
     the instances of that upload, or give older summary values, until the next upload to
     that series, or until an operator does the recovery procedure of the section "Safety of
@@ -112,21 +114,35 @@ does not change the user contract (SQR-U1).
   as stored only when the server stored all of the data of that instance: its metadata, its
   frames and its bulk data. The response reports an instance as failed only when the server
   did not store that instance. A failed upload of an instance keeps the data that the server
-  stored for that instance before the upload. When the server cannot know the result of each
-  instance before it answers, the request gets `503 Service Unavailable` with a `Retry-After`
-  header, and not `400`. The client can then send the instances again. An upload of a stored
-  instance replaces that instance. The section "Known limitations" gives one exception.
+  stored for that instance before the upload. An upload of a stored instance replaces that
+  instance: its metadata, its frames, and its Part 10 rendition. The frames above the frame
+  count of the new upload are deleted. The section "Known limitations" gives the exceptions.
+  - The server cannot know the result of each instance when the processing of an instance
+    (the writes, the validation or the commit) did not end about 6 minutes after the last
+    part of the body. The usual cause is a storage that does not respond. The request then
+    gets `503 Service Unavailable` with a `Retry-After` header of some minutes, and not
+    `400`. An instance of that request can still be stored after this response. The client
+    can send all instances of the request again, because a new upload of a stored instance
+    replaces it. A proxy in front of the server must wait longer than this time. Otherwise
+    the client gets the error of the proxy (for example `504`), with no `Retry-After`.
+  - When too many instances of earlier uploads did not end in that time, the server answers
+    a new upload at once with `503 Service Unavailable` and a `Retry-After` header. The server
+    does not read the body of that request, and stores none of its instances.
   - The HTTP status of the response obeys PS3.18 Table 10.5.3-1: `200` when the server stored
     all instances of the request, `202` when it stored some instances and others failed, and
-    `409` when the request has instances and the server stored none of them.
+    `409` when the request has instances and the server stored none of them. The section
+    "Known limitations" gives the cases of a request with no DICOM part, and of a media type
+    that the server does not support.
   - A storage outage (SQR-U3) is the exception to `409`. When the server stored no instance,
     and each instance failed because of a temporary storage error, the request gets
     `503 Service Unavailable` with a `Retry-After` header. The body still lists each failed
     instance. After the storage recovers, the client can send the same request again.
   - Each failed instance is in the Failed SOP Sequence `(0008,1198)`. The item has the SOP
     Class UID `(0008,1150)` and the SOP Instance UID `(0008,1155)` of the instance when the
-    server read them before the failure. Its Failure Reason `(0008,1197)` obeys PS3.18 Table
-    I.2-2:
+    server read them before the failure. The item has no UID that the server did not read.
+    This is a deliberate deviation from PS3.3: the SOP Instance Reference Macro makes both
+    UIDs Type 1, but the server cannot get them from data that it cannot read. Its Failure
+    Reason `(0008,1197)` obeys PS3.18 Table I.2-2:
     - `C000` (cannot understand) only when the server cannot read the data of the instance,
       for example a part that is not a DICOM instance, a part that ends too early, or a
       validation that rejects the instance;
@@ -137,11 +153,15 @@ does not change the user contract (SQR-U1).
   - A request body that ends without its closing boundary, after one or more complete parts,
     gets a report of each instance: each stored instance as stored, and the incomplete part
     as failed. The status obeys the rules above. A body in which no part is complete gets
-    `400 Bad Request`.
-  - After an upload, a thumbnail request for the series or an instance of the upload gives a
-    thumbnail of the stored data, and not `404`.
-  - The `createdicomweb instance` and `create` commands exit with a code that is not `0`
-    when they did not store one or more files, also when an input path does not exist.
+    `400 Bad Request`. A part header that the server cannot parse, before the end of the
+    body, also gets `400 Bad Request`, because the server cannot read the later parts. The
+    instances of the earlier parts can be stored, and the client can send the request again.
+  - After an upload, with builds on demand, a thumbnail request for the series or an instance
+    of the upload gives a thumbnail of the stored data, and not `404`.
+  - The `createdicomweb instance`, `create` and `stow` commands exit with a code that is not
+    `0` when they did not store one or more files, also when an input path does not exist or
+    cannot be read. The `stow` command sends a group of files again after a `503` response,
+    after the time of its `Retry-After` header, up to 3 times.
 
 ## Known limitations
 
@@ -157,7 +177,28 @@ later change can remove them:
 - **A rename that fails during the commit of an instance (issue #143).** The response reports
   the instance as failed (SQR-U5). The files of the instance that moved before the failed
   rename stay. For a new upload of a stored instance, the stored data can then be a mix of
-  the two uploads, until the next upload of that instance.
+  the two uploads, until the next upload of that instance. The commit renames the instance
+  `metadata` last (SQR-D18), so the builds do not see a new instance whose rename failed.
+- **A thumbnail request during an upload.** A thumbnail request that reads the stored data
+  of an instance before its commit can store the old thumbnail again after the upload
+  deleted it. The old thumbnail then stays until the next upload of that instance. An upload
+  does not delete the `rendered` files, or the `thumbnail-<n>` files that the CLI makes.
+- **The `503` of an unknown result does not list the stored instances.** The body is plain
+  text, so a client sends all instances of the request again, also the instances that the
+  server stored. A new upload of a stored instance replaces it, so the result is correct,
+  but the storage does the work again.
+- **A request with no DICOM part, and the media types.** The server stores Part 10 instances
+  only. A request with no DICOM part gets `200` with an empty response. The server does not
+  answer `415 Unsupported Media Type` for `application/dicom+json` or `application/dicom+xml`.
+  It reads such a part as a Part 10 instance, so the part fails with `C000`, and a request
+  with only such parts gets `409`.
+- **A `TypeError`, `RangeError` or `ReferenceError` gives `0110`.** The server cannot tell
+  such an error of corrupt data from an error of the program. Thus corrupt data that causes
+  such an error gets `0110`, and not `C000`.
+- **The removal of temporary files on several nodes.** A node that starts removes the old
+  temporary files of each study on the storage, also of a study whose uploads run on a
+  different node. The safety of that removal depends on the configured age and on the clocks
+  (SQR-D19).
 
 ## § Design requirements
 
@@ -270,6 +311,9 @@ The design has two parts:
   the cases of notes 1 and 2 of "Safety of each deployment". The upload
   does the steps again for all affected series when it ends. The upload does not delete
   `studies/index.json` (SQR-D17). Supports SQR-U1.
+  Reason for the change in pull request #146: the server makes a thumbnail from the stored
+  instances, so a thumbnail is a derived file. Before the change, an upload kept the
+  thumbnails, and a thumbnail request after the upload got the image of the old data.
 - **SQR-D6. Commit only a build of the current generation.** A build reads the generation
   of its level (its series, or its study) before it reads any data. The build writes its files to temporary files. The build moves a
   temporary file to its final name only when the generation did not change. After the move,
@@ -376,10 +420,12 @@ The next requirements use these terms:
   instance fails, and the upload moves no file of that instance. The upload changes no stored
   file of the instance before the move. A stored file that the new instance replaces with a
   different name (for example `1.mht.gz` that `1.mht` replaces) is deleted after the move.
-  After the move, the instance is stored: a failure of a later step (the deletion of SQR-D5,
-  or the Part 10 rendition) does not report the instance as failed. When the Part 10 rendition
-  of the instance fails, the upload deletes the stored rendition of an earlier upload, and
-  the server makes the rendition from the stored files on request. Supports SQR-U5.
+  The stored Part 10 rendition of an earlier upload is deleted with the move of the instance
+  `metadata`, and the stored frames above the frame count of the new upload are deleted
+  after the move. After the move, the instance is stored: a failure of a later step (the
+  deletions of this requirement and of SQR-D5, or the new Part 10 rendition) does not report
+  the instance as failed. Until the upload stores the new rendition, the server makes the
+  rendition from the stored files on request. Supports SQR-U5.
 - **SQR-D19. Remove the temporary files of a stopped process.** A process that stops during a
   write leaves its temporary files. The server removes a temporary file only when all of these
   conditions are true: the file is in a temporary directory of the writer, its name is a
@@ -396,6 +442,13 @@ The next requirements use these terms:
   write. The default age (24 hours) obeys them for the usual uploads and clocks. The server
   keeps the temporary directories, because a writer can open a file in them at any time.
   Supports SQR-U3.
+- **SQR-D20. Refuse a new upload while too much upload work is stalled.** An instance whose
+  processing did not end in the wait of its upload (SQR-U5) still holds its buffers, its
+  files and its threads, and the server does not stop it. The server counts these stalled
+  instances of all uploads, until each one ends. When the count reaches a configured limit,
+  the server answers a new upload with `503` and a `Retry-After` header before it reads the
+  body, in the same way as SQR-D14 for builds. Thus the retries of clients on a stuck
+  storage do not add work until the server has no memory. Supports SQR-U3 and SQR-U5.
 
 ### Multi-node extension requirements
 
@@ -427,9 +480,9 @@ generation shows that.
 | Deployment | Safe while all nodes run | Safe when a node stops |
 | --- | --- | --- |
 | One node, base design | yes, except note 2 | yes, except a stop in the short time between the commit of an instance and the deletion of its derived files (note 1) |
-| Several nodes, all work for one study on one node, base design | yes, except note 2 | yes, with the exception of note 1 |
-| Several nodes, any routing, SQR-D15 | yes, except note 2 | no, a stale file can stay until the next upload |
-| Several nodes, any routing, SQR-D15 and SQR-D16 | yes, except note 2 | yes |
+| Several nodes, all work for one study on one node, base design | yes, except notes 2 and 3 | yes, with the exceptions of notes 1 and 3 |
+| Several nodes, any routing, SQR-D15 | yes, except notes 2 and 3 | no, a stale file can stay until the next upload |
+| Several nodes, any routing, SQR-D15 and SQR-D16 | yes, except notes 2 and 3 | yes, except note 3 |
 
 Note 1: in that short time, the process can stop after the instance is stored and before its
 derived files are deleted. The old derived files then stay until the next upload to that series,
@@ -440,19 +493,28 @@ needs a storage failure:
 
 - The storage refuses the deletion of a derived file during an upload with an I/O error (the
   server logs the error).
-- The commit of an instance fails after it moved some of the files of that instance, and the
-  upload then does not delete the derived files.
+- The commit of an instance fails after it moved some of the files of that instance (issue
+  #143), and the upload then does not delete the derived files. The commit renames the
+  instance `metadata` last (SQR-D18). Thus for a new instance, the old derived files stay
+  correct, because the builds do not see the instance. For a new upload of a stored
+  instance, the old derived files stay.
 - A rename of a build commit fails, and the storage refuses the deletion of the new files
   that moved and of all old files of that round (the server logs the error).
+
+Note 3: a node that starts removes the old temporary files of each study on the shared
+storage, also of a study whose uploads run on a different node (SQR-D19). The removal is
+safe only when the configured age is longer than the upload of one instance, and much
+longer than the difference between the clocks of the nodes and of the storage.
 
 Recovery procedure for notes 1 and 2, after the storage recovers. Do one of these:
 
 - Delete the series files (the series `metadata`, `series-singleton.json` and
   `instances/index.json`) of each affected series, and the study files (`series/index.json`
-  and the study `index.json`). With builds on demand, the next request builds them
-  (SQR-D2).
+  and the study `index.json`). Also delete the series `thumbnail` of each affected series,
+  and the `thumbnail` of each affected instance. With builds on demand, the next request
+  builds them (SQR-D2), and the next thumbnail request makes the thumbnails.
 - Stop the uploads to that study. Run `series --force` for each affected series, and then
-  `study --force` for the study (SQR-D10).
+  `study --force` for the study (SQR-D10). Delete the thumbnails as in the item above.
 
 The table applies to the series level and the study level. The studies list (SQR-D17) is
 safe on one node only, and only to the level of SQR-U4.
