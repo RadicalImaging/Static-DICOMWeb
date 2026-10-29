@@ -1287,14 +1287,13 @@ The numbered tests are in these files:
 - `packages/static-wado-webserver/test/unit/buildJobManager.jest.mjs`: 8, 12, 25, 28, 29, 43.
 - `packages/static-wado-webserver/test/unit/stowAbort.jest.mjs`: 13.
 - `packages/static-wado-webserver/test/unit/stowCommit.jest.mjs`: 36, 38, 41, 44, 45, 47, 51,
-  63, 64.
-- `packages/static-wado-webserver/test/unit/multipartStream.jest.mjs`: 37, 49, 50, 56, 58, 60,
-  65.
+  63, 64, 68.
+- `packages/static-wado-webserver/test/unit/multipartStream.jest.mjs`: 37, 49, 50, 56, 58, 60.
 - `packages/create-dicomweb/test/writeWithRetryCleanup.jest.mjs`: 33, 34, 39, 40, 42, 46, 48,
   52, 57.
 - `packages/static-wado-creator/test/unit/processFiles.jest.js`: 59.
 - `packages/create-dicomweb/test/rawPart10.jest.mjs`: 35, 53.
-- `packages/create-dicomweb/test/stowMain.jest.mjs`: 55, 61, 62, 66.
+- `packages/create-dicomweb/test/stowMain.jest.mjs`: 55, 61, 62, 66, 67.
 - `packages/static-wado-util/test/unit/dirScanner.jest.mjs`: 54.
 - `packages/static-wado-webserver/test/unit/derivedDataBuild.jest.mjs`: the other numbered
   tests.
