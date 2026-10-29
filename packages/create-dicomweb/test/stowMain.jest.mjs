@@ -3,7 +3,8 @@ import os from 'os';
 import path from 'path';
 import http from 'node:http';
 import { once } from 'events';
-import { stowMain } from '../lib/commands/stowMain.mjs';
+import { Readable } from 'stream';
+import { stowMain, stowFiles } from '../lib/commands/stowMain.mjs';
 
 /** The stow command and the status codes of SQR-U5 */
 describe('stowMain', () => {
@@ -18,6 +19,12 @@ describe('stowMain', () => {
     fs.writeFileSync(path.join(dir, 'a.dcm'), 'data');
     requests = 0;
     server = http.createServer((req, res) => {
+      // The 503 of a full stalled count (SQR-D20): the answer comes before the read of the body
+      if (statuses[0] === 'early') {
+        requests += 1;
+        res.writeHead(503, { 'retry-after': '0' }).end('busy');
+        return;
+      }
       req.resume();
       req.on('end', () => {
         const status = statuses[Math.min(requests, statuses.length - 1)];
@@ -92,5 +99,65 @@ describe('stowMain', () => {
     expect(requests).toBe(1);
     expect(results).toMatchObject({ success: 1, failed: 1 });
     expect(results.errors.map(({ file }) => path.basename(file))).toEqual(['b.dcm']);
+  });
+
+  /** Records each file stream of a body; `fail` gives the name of a file that cannot open */
+  const recordFileStreams = (fail = null) => {
+    const streams = [];
+    const createReadStream = fs.createReadStream;
+    jest.spyOn(fs, 'createReadStream').mockImplementation((file, ...rest) => {
+      const stream =
+        path.basename(file) === fail
+          ? new Readable({
+              read() {
+                this.destroy(
+                  Object.assign(new Error(`EACCES: open '${file}'`), { code: 'EACCES' })
+                );
+              },
+            })
+          : createReadStream(file, ...rest);
+      streams.push(stream);
+      return stream;
+    });
+    return streams;
+  };
+
+  // Test 61. The user experience must have this (SQR-D20): after a 503 that comes before the
+  // end of the body, the stow command closes the file of the body at once, and not when the
+  // server closes the connection (keepAliveTimeout, 5 s)
+  it('closes the file of the body after a 503 before the end of the body', async () => {
+    const file = path.join(dir, 'big.dcm');
+    fs.writeFileSync(file, Buffer.alloc(8 * 1024 * 1024));
+    statuses = ['early'];
+    const streams = recordFileStreams();
+
+    await expect(
+      stowFiles(
+        [{ filePath: file, fileSize: 8 * 1024 * 1024 }],
+        `http://127.0.0.1:${server.address().port}/studies`
+      )
+    ).rejects.toMatchObject({ status: 503 });
+    expect(streams).toHaveLength(1);
+    for (let i = 0; i < 100 && !streams[0].closed; i++) {
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    expect(streams[0].closed).toBe(true);
+  });
+
+  // Test 62. The user experience must have this (SQR-U5): a file that the stow command cannot
+  // open fails its group, and the command continues with the other groups, with no crash
+  it('counts a group with a file that cannot open as failed', async () => {
+    fs.writeFileSync(path.join(dir, 'b.dcm'), 'data');
+    statuses = [200];
+    recordFileStreams('b.dcm');
+    const results = await stowMain([dir], {
+      url: `http://127.0.0.1:${server.address().port}/studies`,
+      quiet: true,
+      sendAsSingleFiles: true,
+    });
+    expect(results).toMatchObject({ success: 1, failed: 1 });
+    expect(results.errors.map(({ file }) => path.basename(file))).toEqual(['b.dcm']);
+    expect(results.errors[0].error).toContain('EACCES');
+    expect(process.exit).not.toHaveBeenCalled();
   });
 });

@@ -3,7 +3,7 @@ import path from "path";
 import http from "node:http";
 import https from "node:https";
 import { randomUUID } from "node:crypto";
-import { Readable } from "node:stream";
+import { Readable, pipeline } from "node:stream";
 import {
   dirScanner,
   createPromiseTracker,
@@ -346,15 +346,13 @@ export async function stowFiles(
           },
         };
         resolve({ responseLike, responseText, res });
+        // A response before the end of the body (an early 503): stop the send of the body
+        if (!req.writableFinished) req.destroy();
       });
       res.on('error', reject);
     });
 
-    req.on('error', error => {
-      // Close the file of the body, because a retry reads the files again
-      bodyStream.destroy();
-      reject(error);
-    });
+    req.on('error', reject);
 
     if (effectiveTimeoutMs > 0) {
       req.setTimeout(effectiveTimeoutMs, () => {
@@ -362,7 +360,11 @@ export async function stowFiles(
       });
     }
 
-    bodyStream.pipe(req);
+    // pipeline closes the file of the body when the request fails or closes, because a retry
+    // reads the files again. A file that cannot be read destroys the request.
+    pipeline(bodyStream, req, error => {
+      if (error) reject(error);
+    });
   });
 
   const { responseLike, responseText, res } = response;
