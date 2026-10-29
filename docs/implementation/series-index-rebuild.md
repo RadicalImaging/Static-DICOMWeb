@@ -550,10 +550,10 @@ throws, came with #141 (SQR-I3). This item depends on them, and does not change 
    `completePostController` then owns the response. A part above `limits.parts` counts as
    complete when it ends, so the request does not wait for it.
 7. `completePostController` answers with `getStowStatusCode` of the response dataset: `200`,
-   `202` or `409`. When no instance was stored, it answers `503` with `Retry-After: 10` in
-   two cases (`isStorageOutage`). In the first case, a storage error stopped the upload
-   (`req.uploadStopReason`, item 15). In the second case, each failure is a
-   `StorageUnavailableError` of `toStorageError`.
+   `202` or `409`. When the server stored no instance, it answers `503` with
+   `Retry-After: 10` in two cases (`isStorageOutage`). In the first case, a storage error
+   stopped the upload (`req.uploadStopReason`, item 15). In the second case, each failure is
+   a `StorageUnavailableError` of `toStorageError`.
 8. `stowFailureReason` gives the Failure Reason of each failed instance: `error.failureReason`
    when it is set, then `A700` for a `StorageUnavailableError` that is out of resources
    (`isOutOfResourcesError` of static-wado-util: `ENOSPC`, `EDQUOT`, `EMFILE`, `ENFILE`,
@@ -633,11 +633,19 @@ throws, came with #141 (SQR-I3). This item depends on them, and does not change 
     item in the response. After the stop, the `aborted` event of the request does not call
     `abort`. This event comes when the server closes the connection after
     `keepAliveTimeout`, as after the `503` of SQR-I10. `stopRequest` does nothing after
-    `abort` or after `next()`. A probe on Node.js 24.20.0 (Windows 11, loopback, a body that
-    does not end) gave these results. The client got the `503` while it sent the body. The
-    server closed the connection about 6 s later. The client request then got `ECONNRESET`,
-    after the full response. `stowFiles` destroys its request at the end of the response
-    (item 14), so it does not get this error.
+    `abort` or after `next()`.
+
+    A probe on Node.js 24.20.0 (Windows 11, loopback, a body that does not end) gave these
+    results:
+    - The client got the `503` after about 1 s, while it sent the body. The back-pressure
+      wait of 100 ms (`backpressureWaitMs`) causes most of this time.
+    - The server closed the connection about 6 s later. The client request then got
+      `ECONNRESET`, after the full response.
+    - No temporary file stayed.
+
+    `stowFiles` destroys its request at the end of the response (item 14), so it does not
+    get this error. A client that reads the response only after it sent the whole body gets
+    the `ECONNRESET`, and no response.
 
 The partial commit of issue #143 is not in this item. It is a known limitation of the
 specification. Item 3 makes its result safer for a new instance.
@@ -798,12 +806,13 @@ proposal in these items:
   `Connection: close` again, because a client that sends a body got `ECONNRESET` and not
   the `503`. The `stow` command retries a connection reset in the same way as a `503`, and
   does not stop the process.
-- **After the fourth review of pull request #146.** An upload stops at the first instance
-  that the storage cannot write (SQR-D21, item 15 of SQR-I8). A maintainer decided this.
-  The text about the read of the body after the early `503` is correct now (SQR-I10). The
-  `stow` command sends the body with `stream.pipeline`. It closes the file of the body after
-  an early response, and counts a group with a file that it cannot read as failed. After a
-  `202`, it counts a file with no item in the response as failed.
+- **After the fourth review of pull request #146.** A maintainer decided that an upload
+  stops at the first instance that the storage cannot write (SQR-D21, item 15 of SQR-I8).
+  Before, the server read the whole body, and tried each instance, before it sent the
+  response. The text about the read of the body after the early `503` is correct now
+  (SQR-I10). The `stow` command sends the body with `stream.pipeline`. It closes the file of
+  the body after an early response, and counts a group with a file that it cannot read as
+  failed. After a `202`, it counts a file with no item in the response as failed.
 
 ## Compatibility
 
@@ -914,27 +923,34 @@ These user-facing results also change:
 - `openFrameStream` (create-dicomweb) no longer deletes the stored frame when it opens. A
   caller of `DicomWebWriter` that does not use `FileDicomWebWriter` must remove the other
   variant of a frame itself.
-- A STOW-RS response now has the status `202` when some instances failed, and `409` when no
-  instance was stored. When the server cannot write to its storage, and no instance was
-  stored (a storage outage), the response is `503` with `Retry-After: 10`, and not `409`.
-  Before this
-  change, each response had `200`. A client that accepts only `200` now reports an error for
-  these uploads. The `dicomweb-client` library (used by OHIF) resolves `200`, `202` and `204`,
-  and rejects `409` and `503`, so an OHIF upload that stored nothing now shows an error. A
-  client that retries on `503` can send the upload again after a storage outage. The `stow`
-  command of the CLI sends a group again after a `503`, up to 3 times. It counts the group
-  as failed after a `409` or after the last `503`. After a `202`, it counts each failed item
-  of the response as a failed file, and at least one file. It then exits with `1`. Before this
-  change, it exited with `0`, also when each group failed. The error of each file has the
-  status only, and the command prints the body of the response one time for each group.
+- A STOW-RS response now has the status `202` when some instances failed, and `409` when the
+  server stored no instance. When the server cannot write to its storage, and stored no
+  instance (a storage outage), the response is `503` with `Retry-After: 10`, and not `409`.
+  Before this change, each response had `200`. A client that accepts only `200` now reports
+  an error for these uploads. The `dicomweb-client` library of OHIF resolves `200`, `202`
+  and `204`, and rejects `409` and `503`. Thus an OHIF upload that stored nothing now shows
+  an error.
+
+  A client that retries on `503` can send the upload again after a storage outage. The
+  `stow` command of the CLI sends a group again after a `503`, up to 3 times. It counts the
+  group as failed after a `409` or after the last `503`. After a `202`, it counts each failed
+  item of the response as a failed file, and at least one file. It then exits with `1`.
+  Before this change, it exited with `0`, also when each group failed.
+
+  The error of each file has the status only, and the command prints the body of the
+  response one time for each group.
 - An upload stops at the first instance that the storage cannot write (SQR-D21). The
   response can come before the end of the body, and the server does not read the rest of
-  the body. The response is `503` with `Retry-After: 10` when no instance was stored, and
-  `202` otherwise. A part whose data did not arrive in full fails with `A700` or `0110`. A
-  later part gets no item, so a client must not count a missing item as stored. Before,
-  the server read the whole body, and tried each instance. A request with a storage failure,
-  a `C000` failure and no stored instance now gets `503`, and not `409`. After a `202`, the
-  `stow` command counts a file with no item in the response as failed.
+  the body. The response is `503` with `Retry-After: 10` when the server stored no
+  instance, and `202` otherwise. A part whose data did not arrive in full fails with `A700`
+  or `0110`. A later part gets no item, so it is not stored. Before, the server read the
+  whole body, and tried each instance.
+
+  A client that reads the response only after it sent the whole body can get a connection
+  reset after 5 s, and not the response. The result of the upload is then unknown, and the
+  client can send all instances again. A request with a storage failure, a `C000` failure
+  and no stored instance now gets `503`, and not `409`. After a `202`, the `stow` command
+  counts a file with no item in the response as failed.
 - The Failure Reason of a failed instance is `C000` only for data that the server cannot
   read. A storage error with no free space or resources gives `A700`, and each
   other failure that the server causes gives `0110` (for example `EIO`, a permanent storage
@@ -1135,7 +1151,8 @@ The user experience must have this:
     The file of the body closes within 2 s, and not at the close of the connection after
     `keepAliveTimeout` (SQR-U5, SQR-D20).
 62. The `stow` command sends each file alone, and cannot open one file (`EACCES`). That file
-    counts as failed, the other file is stored, and the command does not stop (SQR-U5).
+    counts as failed, the server stores the other file, and the command does not stop
+    (SQR-U5).
 63. Send one complete part and the first half of a second part, and hold the rest of the
     body. The `metadata` open of the first instance fails with `EIO`. The response comes
     before the end of the body: `503` with `Retry-After: 10`, and two failed items with

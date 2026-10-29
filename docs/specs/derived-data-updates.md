@@ -151,10 +151,14 @@ does not change the user contract (SQR-U1).
       is the exception to `409` for a storage outage (SQR-U3);
     - `202` with the failed instances when it stored some instances.
 
-    The body lists each failed instance. An instance whose data did not arrive in full before
-    the stop is a failed instance. An instance that the server did not start gets no item, so
-    a client must not count a missing item as stored. After the storage recovers, the client
-    can send each instance that the server did not store again. SQR-D21 gives the design.
+    The body lists each failed instance. Each instance that the response does not list in the
+    Referenced SOP Sequence `(0008,1199)` is not stored. After the storage recovers, the
+    client can send each instance that is not stored again. SQR-D21 gives the design.
+
+    A client that reads the response while it sends the body gets this response. A different
+    client can get a connection reset in place of the response. The result of the upload is
+    then unknown. The client can send all instances of the request again, because a new
+    upload of a stored instance replaces it.
   - Each failed instance is in the Failed SOP Sequence `(0008,1198)`. The item has the SOP
     Class UID `(0008,1150)` and the SOP Instance UID `(0008,1155)` of the instance when the
     server read them before the failure. The item has no UID that the server did not read.
@@ -525,16 +529,15 @@ The next requirements use these terms:
     reports it as stored.
 
   The server waits for the started instances as after the last part (SQR-U5), and then
-  reports each of them. The response has `503` and a `Retry-After` header when no instance
-  is stored, and `202` otherwise. An error that is not an I/O error (for example `C000`)
-  does not stop the upload. Supports SQR-U3 and SQR-U5.
+  reports each of them. The response has `503` and a `Retry-After` header when the server
+  stored no instance, and `202` otherwise. An error that is not an I/O error (for example
+  `C000`) does not stop the upload. Supports SQR-U3 and SQR-U5.
 
-  After the stop, the server does not read the rest of the body. As after the `503` of
-  SQR-D20, Node.js closes the connection after `keepAliveTimeout` (5 s). A client that reads
-  the response while it sends the body gets the response. Reason for the change in
-  pull request #146: each later instance needs the same storage, and a body can be some GB.
-  Before this requirement, the server read the whole body, and tried each instance, before
-  it sent the response.
+  After the stop, the server does not read the rest of the body. Each later instance needs
+  the same storage, and a body can be some GB. As after the `503` of SQR-D20, Node.js closes
+  the connection after `keepAliveTimeout` (5 s). A client that reads the response while it
+  sends the body gets the response. A client that reads the response only after it sent the
+  whole body can get a connection reset after 5 s, and not the response.
 
 ### Multi-node extension requirements
 
