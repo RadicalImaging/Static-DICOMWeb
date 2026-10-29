@@ -14,7 +14,7 @@ import {
  * first builds those files in the build job manager: the series level for an instance
  * thumbnail, and the study level for a series thumbnail. A build error gives 503 or 500
  * (handleBuildError), as for a query.
- * @param {Object} options - Server params (dir, createIndexOnDemand, and the job limits)
+ * @param {Object} options - Server params (dir, createIndexOnDemand, studyIndex, and the job limits)
  */
 export default function createMissingThumbnail(options) {
   const { dir } = options;
@@ -42,7 +42,7 @@ export default function createMissingThumbnail(options) {
 
     if (createOnDemand) {
       try {
-        const jobOptions = { jobs: getBuildJobManager(options) };
+        const jobOptions = { jobs: getBuildJobManager(options), studyIndex: options.studyIndex };
         if (instanceUID && seriesUID) {
           await ensureSeriesLevel(baseDir, studyUID, seriesUID, jobOptions);
         } else {

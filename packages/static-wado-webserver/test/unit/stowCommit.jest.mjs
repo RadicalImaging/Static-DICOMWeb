@@ -5,6 +5,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import zlib from 'zlib';
 import { once } from 'events';
 import express from 'express';
 import { createVerboseLog } from '@radicalimaging/static-wado-util';
@@ -165,6 +166,31 @@ describe('the result of an upload', () => {
     expect(res.status).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalledWith();
     expect(fs.existsSync(instanceThumbnail)).toBe(true);
+  });
+
+  // Test 51. The API must do this (SQR-D17): the build of a thumbnail request obeys the server
+  // param studyIndex, as the builds of a query do
+  it('does not add the study to the studies list for a series thumbnail with studyIndex false', async () => {
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await upload();
+    const { studiesDir, studyUID, seriesRoot, seriesUID } = storedSeries();
+    const studiesIndex = path.join(studiesDir, 'index.json.gz');
+    fs.writeFileSync(studiesIndex, zlib.gzipSync('[]'));
+    const seriesThumbnail = path.join(seriesRoot, seriesUID, 'thumbnail');
+
+    const req = {
+      params: { studyUID, seriesUID },
+      staticWadoPath: `/${path.relative(root, seriesThumbnail).split(path.sep).join('/')}`,
+    };
+    const res = { headersSent: false, status: jest.fn(() => res), json: jest.fn() };
+    res.setHeader = jest.fn();
+    const next = jest.fn();
+    await createMissingThumbnail({ dir: root, studyIndex: false })(req, res, next);
+
+    expect(next).toHaveBeenCalledWith();
+    expect(fs.existsSync(path.join(studiesDir, studyUID, 'index.json.gz'))).toBe(true);
+    expect(JSON.parse(zlib.gunzipSync(fs.readFileSync(studiesIndex)))).toEqual([]);
   });
 
   // Test 38. The user experience must have this: the status of the response and the Failure
