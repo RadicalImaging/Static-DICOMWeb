@@ -9,7 +9,11 @@ import {
   createPromiseTracker,
   createProgressReporter,
 } from '@radicalimaging/static-wado-util';
-import { parseAndLogDicomJsonErrors } from './parseDicomJsonErrors.mjs';
+import {
+  parseAndLogDicomJsonErrors,
+  filesNotListedAsStored,
+  partContentLocation,
+} from './parseDicomJsonErrors.mjs';
 
 /** Timeout for createPromiseTracker limitUnsettled when waiting for the next storage slot (at least 30 minutes) */
 const LIMIT_UNSETTLED_TIMEOUT_MS = 30 * 60 * 1000;
@@ -145,8 +149,8 @@ export async function stowMain(fileNames, options = {}) {
         requestTimeoutMs,
         retryWait
       );
-      // 202: the server stored some instances only (SQR-U5). A body with no readable Failed
-      // SOP Sequence (for example XML) still counts one file as failed.
+      // 202: the server stored some instances only (SQR-U5). A file that the response does
+      // not list as stored is failed (stowFiles); a 202 still counts at least one file.
       let failures = [];
       if (response?.status === 202) {
         failures = response.failures?.length
@@ -294,9 +298,14 @@ export async function stowFiles(
 
   const boundary = `StaticWadoBoundary${randomUUID()}`;
   const contentType = `multipart/related; type="application/dicom"; boundary=${boundary}`;
+  // The server echoes the Content-Location of each part in its response items (0009,1001)
+  const parts = files.map((file, i) => ({
+    ...file,
+    contentLocation: partContentLocation(i, file.filePath),
+  }));
 
   // Create streaming multipart body with multiple files
-  const { bodyStream, contentLength } = createMultipartBodyStreamMultiple(files, boundary);
+  const { bodyStream, contentLength } = createMultipartBodyStreamMultiple(parts, boundary);
 
   // Prepare headers
   const requestHeaders = {
@@ -378,7 +387,7 @@ export async function stowFiles(
     // 409 or 503: the body lists each failed instance (PS3.18 10.5.3). The 503 of an unknown
     // result has a plain text body, and can come after some instances were stored (SQR-U5).
     if (res.statusCode === 409 || res.statusCode === 503) {
-      await parseAndLogDicomJsonErrors(responseLike, responseText, files);
+      await parseAndLogDicomJsonErrors(responseLike, responseText, parts);
     }
     throw Object.assign(new Error(`HTTP ${res.statusCode} ${res.statusMessage || ''}`.trim()), {
       status: res.statusCode,
@@ -388,37 +397,13 @@ export async function stowFiles(
   }
 
   // Parse JSON DICOM response if applicable and log errors; a 202 lists the failed instances
-  responseLike.failures = await parseAndLogDicomJsonErrors(responseLike, responseText, files);
+  const failures = await parseAndLogDicomJsonErrors(responseLike, responseText, parts);
   if (res.statusCode === 202) {
-    for (const { filePath } of filesWithNoItem(files, responseText)) {
-      responseLike.failures.push({ file: filePath, error: 'HTTP 202, no item in the response' });
-    }
+    failures.push(...filesNotListedAsStored(responseLike, responseText, parts, failures.length));
   }
+  responseLike.failures = failures;
 
   return responseLike;
-}
-
-/**
- * Returns the files that no item of a STOW-RS response names in its Content-Location tag
- * (0009,1001), for example the files that the server did not start after a storage error
- * stopped the upload (SQR-D21). Empty when no item has the tag, or the body is not DICOM JSON.
- * @param {Array<{filePath: string}>} files
- * @param {string} responseText
- * @returns {Array<{filePath: string}>}
- */
-function filesWithNoItem(files, responseText) {
-  let body;
-  try {
-    body = JSON.parse(responseText);
-  } catch {
-    return [];
-  }
-  const items = [...(body?.['00081199']?.Value ?? []), ...(body?.['00081198']?.Value ?? [])];
-  const named = new Set(items.map(item => item?.['00091001']?.Value?.[0]).filter(Boolean));
-  if (named.size === 0) {
-    return [];
-  }
-  return files.filter(({ filePath }) => !named.has(path.basename(filePath)));
 }
 
 /**
@@ -476,7 +461,7 @@ export async function stowFilesWithRetry(
 
 /**
  * Creates a multipart/related body for STOW-RS request with multiple files
- * @param {Array<{filePath: string, fileSize: number}>} files - Array of file objects
+ * @param {Array<{filePath: string, fileSize: number, contentLocation: string}>} files - Array of file objects
  * @param {string} boundary - Multipart boundary
  * @returns {Promise<Buffer>} Complete multipart body as buffer
  */
@@ -487,21 +472,19 @@ function createMultipartBodyStreamMultiple(files, boundary) {
     let contentLength = footerLen;
 
     for (let i = 0; i < files.length; i++) {
-        const { filePath, fileSize } = files[i];
-        const fileName = path.basename(filePath);
-        const headerStr = multipartPartHeader(boundary, fileName, i === 0);
+        const { fileSize, contentLocation } = files[i];
+        const headerStr = multipartPartHeader(boundary, contentLocation, i === 0);
         const headerLen = Buffer.byteLength(headerStr, 'utf-8');
         contentLength += headerLen + fileSize;
     }
 
     async function* gen() {
         for (let i = 0; i < files.length; i++) {
-            const { filePath } = files[i];
-            const fileName = path.basename(filePath);
+            const { filePath, contentLocation } = files[i];
 
             console.verbose(`Reading file: ${filePath}`);
 
-            yield Buffer.from(multipartPartHeader(boundary, fileName, i === 0), 'utf-8');
+            yield Buffer.from(multipartPartHeader(boundary, contentLocation, i === 0), 'utf-8');
 
             const fileStream = fs.createReadStream(filePath);
             for await (const chunk of fileStream) {
@@ -515,13 +498,13 @@ function createMultipartBodyStreamMultiple(files, boundary) {
     return { bodyStream: Readable.from(gen()), contentLength };
 }
 
-function multipartPartHeader(boundary, fileName, isFirstPart) {
+function multipartPartHeader(boundary, contentLocation, isFirstPart) {
     // First part starts with --boundary, subsequent parts need \r\n before --boundary
     const boundaryPrefix = isFirstPart ? '' : '\r\n';
     return [
         `${boundaryPrefix}--${boundary}\r\n`,
         `Content-Type: application/dicom\r\n`,
-        `Content-Location: ${fileName}\r\n`,
+        `Content-Location: ${contentLocation}\r\n`,
         `\r\n`,
     ].join('');
 }

@@ -13,11 +13,13 @@ describe('stowMain', () => {
   let statuses;
   let requests;
   let waits;
+  let echoLocation;
 
   beforeEach(async () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stow-main-'));
     fs.writeFileSync(path.join(dir, 'a.dcm'), 'data');
     requests = 0;
+    echoLocation = true;
     server = http.createServer((req, res) => {
       // The 503 of a full stalled count (SQR-D20): the answer comes before the read of the body
       if (statuses[0] === 'early') {
@@ -25,7 +27,8 @@ describe('stowMain', () => {
         res.writeHead(503, { 'retry-after': '0' }).end('busy');
         return;
       }
-      req.resume();
+      const chunks = [];
+      req.on('data', chunk => chunks.push(chunk));
       req.on('end', () => {
         const status = statuses[Math.min(requests, statuses.length - 1)];
         requests += 1;
@@ -33,12 +36,14 @@ describe('stowMain', () => {
         if (status === 'reset') return req.socket.destroy();
         if (status === 503) res.setHeader('Retry-After', '0');
         if (status === 202) {
-          // a.dcm stored, and b.dcm failed, matched by the Content-Location tag of the server
-          const stored = { '00091001': { vr: 'LO', Value: ['a.dcm'] } };
-          const failed = {
-            '00091001': { vr: 'LO', Value: ['b.dcm'] },
-            '00081197': { vr: 'US', Value: [0xc000] },
-          };
+          // The first part stored, the second part failed, and no item for the other parts.
+          // The items echo the Content-Location of the part, as the webserver does.
+          const body = Buffer.concat(chunks).toString('latin1');
+          const locations = [...body.matchAll(/Content-Location: (.*)\r\n/g)].map(m => m[1]);
+          const echo = location =>
+            echoLocation ? { '00091001': { vr: 'LO', Value: [location] } } : {};
+          const stored = echo(locations[0]);
+          const failed = { ...echo(locations[1]), '00081197': { vr: 'US', Value: [0xc000] } };
           res.writeHead(202, { 'content-type': 'application/dicom+json' }).end(
             JSON.stringify({
               '00081199': { vr: 'SQ', Value: [stored] },
@@ -115,6 +120,29 @@ describe('stowMain', () => {
     expect(requests).toBe(1);
     expect(results).toMatchObject({ success: 1, failed: 2 });
     expect(results.errors.map(({ file }) => path.basename(file))).toEqual(['b.dcm', 'c.dcm']);
+  });
+
+  // Test 67. The user experience must have this (SQR-U5): files with the same base name in
+  // different directories count as stored only when the 202 lists them. With no
+  // Content-Location in the items (a different server), the number of items decides.
+  it.each([
+    ['with', true],
+    ['without', false],
+  ])('counts files with the same base name %s a Content-Location in the 202', async (_, echo) => {
+    fs.rmSync(path.join(dir, 'a.dcm'));
+    const files = ['s0', 's1', 's2', 's3'].map(sub => {
+      fs.mkdirSync(path.join(dir, sub));
+      fs.writeFileSync(path.join(dir, sub, 'a.dcm'), 'data');
+      return path.join(dir, sub, 'a.dcm');
+    });
+    echoLocation = echo;
+    statuses = [202];
+    const results = await stow();
+    expect(requests).toBe(1);
+    expect(results).toMatchObject({ success: 1, failed: 3 });
+    if (echo) {
+      expect(results.errors.map(({ file }) => path.resolve(file))).toEqual(files.slice(1));
+    }
   });
 
   /** Records each file stream of a body; `fail` gives the name of a file that cannot open */
