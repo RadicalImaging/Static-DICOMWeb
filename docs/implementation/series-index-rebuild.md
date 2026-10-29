@@ -1,6 +1,6 @@
 # Implementation: stop repeated rebuilds of a missing study-level series index
 
-Status: SQR-I1 to SQR-I6, SQR-I8 and SQR-I9 implemented. SQR-I7 is a plan for a later change.
+Status: SQR-I1 to SQR-I6, and SQR-I8 to SQR-I10 implemented. SQR-I7 is a plan for a later change.
 Applies to create-dicomweb and static-wado-webserver 1.7.6 to 1.7.10.
 
 This document applies the design requirements of
@@ -84,6 +84,7 @@ does not add a new rule. If an item seems to need a new rule, add the rule to
 | SQR-D17 Best-effort studies list | SQR-I1, SQR-I3 |
 | SQR-D18 Commit an instance only when all of its writes succeeded | SQR-I8 |
 | SQR-D19 Remove the temporary files of a stopped process | SQR-I9 |
+| SQR-D20 Refuse a new upload while too much upload work is stalled | SQR-I10 |
 
 ### SQR-I1. Share one "ensure the level" function for each level
 
@@ -502,22 +503,35 @@ throws, came with #141 (SQR-I3). This item depends on them, and does not change 
 3. The instance `metadata` stream has the new stream option `commitLast: true`.
    `commitPendingMoves` renames it after all other pending files, also when a frame closes
    after the metadata. Thus a failed rename (issue #143) or a process stop never shows a new
-   instance without some of its frames.
+   instance without some of its frames. The `metadata` stream also has
+   `replaces: ['index.mht', 'index.mht.gz']`, so the writer deletes the Part 10 rendition of
+   an earlier upload directly after the rename of the `metadata`, in the same synchronous
+   step. Thus no request gets the old rendition with the new metadata, also when the
+   instance is no longer a SEG, SR or parametric map, and when the process stops before the
+   commit of the new rendition.
 4. When the Part 10 rendition fails, `instanceFromStream` deletes `index.mht` and
    `index.mht.gz` of the instance (`writer.delete`). The `part10Controller` then makes the
-   rendition from the stored files.
+   rendition from the stored files, as it does before the commit of the new rendition.
 5. `multipartStream` waits for the listeners after the last part: first while stream writes
-   settle, then 5 more minutes. Then it marks the part streams as aborted (`setAborted`),
-   which stops each parse that still runs, and waits 1 more minute. When all listeners
-   settled, the request goes to `completePostController`, which reports each instance.
-   Otherwise the request gets `503` with `Retry-After: 10`. `TrackableReadBufferStream` keeps
-   a handler on its abort promise, so `setAborted` gives no unhandled rejection.
-6. A Dicer error (`onBodyError`, for example a body with no closing boundary) gives `400` only
-   when no part is complete. Dicer reports the error after it parsed the body, so each part
-   before the current part (`dicer._part`) is complete. Otherwise the complete parts continue,
-   the cut part fails with `failureReason` C000, and `waitForListeners` sends the request to
-   `completePostController`. Each part gets a no-op `error` listener when it arrives, because
-   Dicer can emit the part error before `errorHandler` is attached.
+   settle, then 5 more minutes. Then it adds the listener promises to the count of SQR-I10,
+   marks the part streams as aborted (`setAborted`), which stops each parse that still runs,
+   and waits 1 more minute. When all listeners settled, the request goes to
+   `completePostController`, which reports each instance. Otherwise the request gets `503`
+   with `Retry-After: 300`, because the storage did not respond for at least 6 minutes.
+   `TrackableReadBufferStream` keeps a handler on its abort promise, so `setAborted` gives
+   no unhandled rejection.
+6. A Dicer error (`onBodyError`) gives the report of each instance only when the request body
+   ended (`req.readableEnded`) and a part is complete. Only "Unexpected end of multipart
+   data" (a body with no closing boundary) comes after the end of the body. Then each part
+   before the current part (`dicer._part`) is complete, the complete parts continue, the cut
+   part fails with `failureReason` C000, and `waitForListeners` sends the request to
+   `completePostController`. Each other Dicer error (a folded first header line, or a header
+   above 64 KB) comes while the body arrives. The pipe from the request to Dicer then stops,
+   so the later parts are lost, and the request gets `400` (`abort`). Each part gets a no-op
+   `error` listener when it arrives, because Dicer can emit the part error before
+   `errorHandler` is attached. `abort` sends no response after `next()`, because
+   `completePostController` then owns the response. A part above `limits.parts` counts as
+   complete when it ends, so the request does not wait for it.
 7. `completePostController` answers with `getStowStatusCode` of the response dataset: `200`,
    `202` or `409`. When no instance was stored, and each failure is a
    `StorageUnavailableError` of `toStorageError` (`isStorageOutage`), it answers `503` with
@@ -527,7 +541,9 @@ throws, came with #141 (SQR-I3). This item depends on them, and does not change 
    (`isOutOfResourcesError` of static-wado-util: `ENOSPC`, `EDQUOT`, `EMFILE`, `ENFILE`,
    `ENOMEM`), then `0110`. `instanceFromStream` sets `failureReason` C000 only on a parse
    error or a `validateInstance` rejection that has no operating system code, no
-   `ERR_STREAM_*` code and no `ABORT_ERR` code. A stopped stream gives a new `ABORTED` error
+   `ERR_STREAM_*` code and no `ABORT_ERR` code, and that is not a `TypeError`, a `RangeError`
+   or a `ReferenceError` (a program error, or "Array buffer allocation failed"). A stopped
+   stream gives a new `ABORTED` error
    with the `failureReason` of the stop reason (C000 for a cut part, none for a stop of the
    server). `stowResponseBuilder` no longer reads `result.streamErrors`, which no code set.
 9. `instanceFromStream` puts the UIDs that the parse read on its error
@@ -539,13 +555,26 @@ throws, came with #141 (SQR-I3). This item depends on them, and does not change 
     keeps its return value. `createMain` returns `{ failedFiles }`. The `instance` and
     `create` commands set `process.exitCode = 1` when a file was not stored. `dirScanner`
     (static-wado-util) uses `lstatSync`: a missing path (`isMissingPathError`) calls the new
-    option `onMissing`, which `storeInstanceFiles` counts, and any other error throws. The
-    `stow` command of the CLI logs the failed instances of a `409` response.
+    option `onMissing`. Any other error of the stat or of the directory listing calls the new
+    option `onError(path, error)`, and the scan continues; without `onError`, the error
+    throws. `storeInstanceFiles` counts both. The bulk imports of `static-wado-creator`
+    (`StaticWado.js`) and `healthlake` (`leiMain.mjs`) pass `onError`, and count the path as
+    failed, so one unreadable entry does not stop the import.
 12. `deleteStaleSummaries` also deletes the series `thumbnail`, and the `thumbnail` of each
     instance whose info has a `sopInstanceUid` (SQR-D5). With builds on demand,
     `createMissingThumbnail` first runs `ensureSeriesLevel` (instance thumbnail) or
-    `ensureStudyLevel` (series thumbnail) in the build job manager, and answers a build error
-    with `handleBuildError`.
+    `ensureStudyLevel` (series thumbnail) in the build job manager, with the `studyIndex`
+    server param, and answers a build error with `handleBuildError`.
+13. After the commit, `instanceFromStream` calls `writer.removeFramesAbove(writer.frameCount)`.
+    `openFrameStream` records the highest frame number. `FileDicomWebWriter` deletes each
+    `<n>.mht` and `<n>.mht.gz` of the instance with `n` above that number, so a new upload
+    with fewer frames leaves no old frame. The call never throws.
+14. The `stow` command of the CLI (`stowMain`) sends a group again after a `503` response,
+    up to 3 times (`stowFilesWithRetry`). It waits for the `Retry-After` value (seconds or an
+    HTTP date, 10 s when it is missing, at most 10 minutes). It logs the failed instances of
+    a `409` or `503` response, and prints the body of a failed response one time for each
+    group. The error message of a file has the status only. The command sets
+    `process.exitCode = 1` when a group failed, and counts an unreadable path as failed.
 
 The partial commit of issue #143 is not in this item. It is a known limitation of the
 specification. Item 3 makes its result safer for a new instance.
@@ -560,7 +589,28 @@ other, logs each error, and returns the number of removed files.
 
 The webserver calls it in the background after `listen`, with the server param
 `tempMaxAgeHours` (default 24; `0` turns it off). A process makes orphan files only when it
-stops, so the next start is the correct time for the removal.
+stops, so the next start is the correct time for the removal. The function throws a
+`RangeError` for a `maxAgeMs` that is not a finite number above 0, because such a value
+removes the files of each running upload. It does not follow a temp directory that is a
+symbolic link (`lstat`).
+
+### SQR-I10. Count the stalled STOW-RS listeners of the server
+
+Applies SQR-D20. `createStalledStowListeners({ maxStalled, retryAfterSeconds })`
+(`packages/static-wado-webserver/lib/util/stalledStowListeners.mjs`) keeps one count for the
+server. `getStalledStowListeners(params)` returns the shared instance, in the same way as
+`getBuildJobManager`. It reads the server param `maxStalledStowListeners` (default 8; `0`
+turns the limit off). `params.stalledStowListeners` replaces it in the tests.
+
+- `multipartStream` calls `add(req.uploadListenerPromises)` when the first wait of item 5 of
+  SQR-I8 ends. Each promise counts until it settles. A promise that already settled leaves
+  the count in a microtask, so before the server reads the next request.
+- At the start of a multipart request, before Dicer reads the body, `multipartStream` calls
+  `isFull()`. When the count is at the limit, the request gets `503` with `Retry-After: 60`.
+
+The count holds only listeners past their wait, so a slow upload that still progresses does
+not refuse other uploads. The limits `maxUnsettledReceives` and `maxUnsettledStreamWrites`
+are for one request only.
 
 ### Changes from the proposal
 
@@ -636,6 +686,15 @@ proposal in these items:
   bulkdata streams before the rollback, so no temporary file of the instance stays.
   `writeWithRetry` also gives a `StorageUnavailableError` for a failed open and a failed
   rename.
+- **After the review of pull request #146 by a maintainer.** A Dicer error gives the report
+  of each instance only after the end of the body; a malformed part header gives `400`,
+  because the later parts are lost. The server counts the stalled STOW-RS listeners
+  (SQR-I10), and the `503` of an unknown result has `Retry-After: 300`. The `metadata` of an
+  instance replaces the old Part 10 rendition, and the commit deletes the frames above the
+  new count. `dirScanner` has `onError`, so a bulk import continues after an unreadable
+  path. The `stow` command retries a `503`, and exits with `1` for a failed group.
+  `createMissingThumbnail` passes `studyIndex`. A program error never gives `C000`.
+  `removeOrphanTempFiles` rejects an age that is not above 0.
 
 ## Compatibility
 
@@ -724,10 +783,15 @@ These user-facing results also change:
   instance without that file. The `instance` command of the CLI now prints
   `Couldn't process <file>` for such a file, and continues with the next file.
 - When the listeners of a STOW-RS request do not complete in 5 minutes after the last part,
-  the response reports each instance, or the request gets `503` with `Retry-After`. Before
-  this change, the request got `400`. This status code is new for a STOW-RS client.
-- A failed new upload of a stored instance keeps the stored frames. A failed Part 10
-  rendition deletes the stored rendition of the instance.
+  the response reports each instance, or the request gets `503` with `Retry-After: 300`.
+  Before this change, the request got `400`. This status code is new for a STOW-RS client.
+- When `maxStalledStowListeners` (default 8) instances of earlier uploads did not complete
+  in that wait, a new STOW-RS request gets `503` with `Retry-After: 60` at once, and the
+  server does not store its instances. Set `0` to turn the limit off.
+- A failed new upload of a stored instance keeps the stored frames. A new upload of a stored
+  instance deletes its stored Part 10 rendition with the rename of the instance `metadata`,
+  and the frames above the new frame count after the commit. Until the upload stores the new
+  rendition, a Part 10 request gets a rendition that the server makes from the stored files.
 - `openFrameStream` (create-dicomweb) no longer deletes the stored frame when it opens. A
   caller of `DicomWebWriter` that does not use `FileDicomWebWriter` must remove the other
   variant of a frame itself.
@@ -738,25 +802,33 @@ These user-facing results also change:
   these uploads. The `dicomweb-client` library (used by OHIF) resolves `200`, `202` and `204`,
   and rejects `409` and `503`, so an OHIF upload that stored nothing now shows an error. A
   client that retries on `503` can send the upload again after a storage outage. The `stow`
-  command of the CLI throws for `409` and `503`, as for each status that is not `2xx`.
+  command of the CLI sends a group again after a `503`, up to 3 times, and counts the group
+  as failed after a `409` or after the last `503`. It then exits with `1`. Before this
+  change, it exited with `0`, also when each group failed. The error of each file has the
+  status only, and the command prints the body of the response one time for each group.
 - The Failure Reason of a failed instance is `C000` only for data that the server cannot
   read. A temporary storage error with no free space or resources gives `A700`, and each
   other failure that the server causes gives `0110` (for example `EIO`, a permanent storage
   error, an instance that the server stopped, or a drain timeout). Before, each failed
-  instance had `C000`. A failed item now has its SOP Class UID and SOP Instance UID when the
-  parse read them.
+  instance had `C000`. A `TypeError`, a `RangeError` or a `ReferenceError` of the parse or of
+  `validateInstance` gives `0110`. A failed item now has its SOP Class UID and SOP Instance
+  UID when the parse read them.
 - A STOW-RS body that ends without its closing boundary, after one or more complete parts,
   gets the report of each instance (`200`, `202` or `409`), with the cut part as failed with
   `C000`. Before, the request got `400`, also for stored instances. A body with no complete
-  part still gets `400`.
+  part still gets `400`, and so does a part header that the server cannot parse before the
+  end of the body.
 - The writer of `instanceFromStream` defers the moves by default. A caller that read the
   final files before `instanceFromStream` resolved must pass `deferFinalMove: false`.
 - The `instance` and `create` commands exit with `1` when a file was not stored, also when
   an input path does not exist. A directory with a file that is not a DICOM instance (for
   example a `DICOMDIR` or a text file) now gives exit code `1`. The other files are still
-  stored, and `create` still builds their series and studies. `dirScanner`
-  (static-wado-util) now throws when the stat of a path fails with an error that is not a
-  missing path (for example `EACCES`). Before, it skipped such a path as missing.
+  stored, and `create` still builds their series and studies. A path that the command
+  cannot read (for example `EACCES`) is a file that was not stored. `dirScanner`
+  (static-wado-util) now gives such a path to the new option `onError`, and throws without
+  that option. Before, it skipped such a path as missing. The bulk imports of
+  `static-wado-creator` and `healthlake` pass `onError`: they report the path as failed, and
+  continue with the next path.
 - An upload deletes the stored series thumbnail and the stored thumbnail of each instance of
   the upload. With builds on demand, the next thumbnail request first builds the series files
   (or the study files for a series thumbnail) that the upload deleted, and then makes the
@@ -767,7 +839,11 @@ These user-facing results also change:
 - At start, the webserver removes the temporary files older than `tempMaxAgeHours` (default
   24). An upload of one instance that takes longer than that age can lose its temporary
   files when the server starts again during the upload. Set a larger value, or `0`, for such
-  uploads.
+  uploads. `removeOrphanTempFiles` (create-dicomweb) throws a `RangeError` for a `maxAgeMs`
+  that is not above 0.
+- A thumbnail request uses the `studyIndex` server param for its build, so with
+  `studyIndex: false` a series thumbnail request does not add the study to
+  `studies/index.json`.
 
 ## Deployment guidance
 
@@ -778,6 +854,12 @@ This section is not a requirement of the code.
   the client. After the fix, a retry is cheap, but a retry still holds a connection.
 - A client or a proxy that gets `503` must wait for the time in `Retry-After` before it sends
   the request again.
+- A proxy in front of the server must wait for a STOW-RS response longer than the upload
+  takes, plus about 6 minutes (the wait of item 5 of SQR-I8). Otherwise the client gets the
+  error of the proxy, for example `504` from nginx (its default `proxy_read_timeout` is
+  60 s), with no `Retry-After`, and it can send the upload again while the server still
+  works on the first upload.
+- The server param `maxStalledStowListeners` (default 8) sets the limit of SQR-D20.
 - The server params `maxRunningJobs` (default 2), `requestJobSlots` (default 1) and
   `maxQueuedJobs` (default 20) set the limits of SQR-D12 and SQR-D14.
 - With the base design, run one node. Or route all requests for one study to one node, for
@@ -875,7 +957,7 @@ The user experience must have this:
     (SQR-U5, SQR-D18).
 37. A STOW-RS listener completes 5.5 minutes after the last part. The request goes to the
     report of each instance. A listener that does not complete gives `503` with
-    `Retry-After`. No case gives `400` (SQR-U5).
+    `Retry-After: 300`. No case gives `400` (SQR-U5).
 38. Upload one instance while its `metadata` cannot open. With `ENOSPC` the response is `503`
     with `Retry-After` and Failure Reason `A700`, with `EIO` it is `503` with `0110`, and with
     `EISDIR` (a permanent error) it is `409` with `0110`. The failed item has the SOP Instance
@@ -893,6 +975,14 @@ The user experience must have this:
 47. Store an instance, build its series, and store the instance again. A request for the
     instance thumbnail then builds the series files, and makes the thumbnail, and does not get
     `404` (SQR-U5, SQR-D5).
+49. Send a complete part, then a part whose first header line is folded, and then more parts
+    before the end of the body. The response is `400`, and not a report that leaves out the
+    later parts (SQR-U5).
+53. Store a SEG with 4 frames, and then upload a CT with the same SOP Instance UID and 1
+    frame. The old Part 10 rendition and the frames 2 to 4 are deleted (SQR-U5, SQR-D18).
+55. The `stow` command sends a group again after two `503` responses, and stores it. After
+    the last `503` retry, or after a `409`, the group counts as failed, so the command exits
+    with `1` (SQR-U5).
 
 The API must do this:
 
@@ -948,11 +1038,20 @@ The API must do this:
     one study and the failed file. The CLI uses the failed files for its exit code (SQR-U5).
 42. `removeOrphanTempFiles` removes only the temp files of the writer that are older than the
     limit. It keeps a recent temp file, a file with another name, and the stored files
-    (SQR-D19).
+    (SQR-D19). An age that is not above 0 throws a `RangeError`.
 44. `stowFailureReason` gives `0110`, and not `C000`, for a stopped instance (`ABORTED`), a
     drain timeout and a Node.js stream error (SQR-U5).
 48. A frame closes after the instance `metadata`. The commit still renames the `metadata`
     last (SQR-D18, note 2 of "Safety of each deployment").
+50. A listener stays unsettled after the wait of its request. A new upload then gets `503`
+    with `Retry-After` at once, and its body is not read. After the listener settles, the
+    count is 0 (SQR-D20).
+51. With `studyIndex: false`, a series thumbnail request builds the study files, and does
+    not add the study to `studies/index.json` (SQR-D17).
+52. A `validateInstance` rejection gives `C000`. A `TypeError` or a `RangeError` of
+    `validateInstance` gives no `failureReason`, so the response gives `0110` (SQR-U5).
+54. `dirScanner` gives a path whose stat fails with `EACCES` to `onError`, and scans the next
+    path. Without `onError`, the error throws (SQR-U5).
 
 Tests 2 and 3 also cover SQR-U2 and SQR-U3, because the cost of a request does not increase
 with repeated or concurrent requests. A test of memory use or of response time is not
@@ -963,10 +1062,13 @@ The numbered tests are in these files:
 
 - `packages/static-wado-webserver/test/unit/buildJobManager.jest.mjs`: 8, 12, 25, 28, 29, 43.
 - `packages/static-wado-webserver/test/unit/stowAbort.jest.mjs`: 13.
-- `packages/static-wado-webserver/test/unit/stowCommit.jest.mjs`: 36, 38, 41, 44, 45, 47.
-- `packages/static-wado-webserver/test/unit/multipartStream.jest.mjs`: 37.
-- `packages/create-dicomweb/test/writeWithRetryCleanup.jest.mjs`: 33, 34, 39, 40, 42, 46, 48.
-- `packages/create-dicomweb/test/rawPart10.jest.mjs`: 35.
+- `packages/static-wado-webserver/test/unit/stowCommit.jest.mjs`: 36, 38, 41, 44, 45, 47, 51.
+- `packages/static-wado-webserver/test/unit/multipartStream.jest.mjs`: 37, 49, 50.
+- `packages/create-dicomweb/test/writeWithRetryCleanup.jest.mjs`: 33, 34, 39, 40, 42, 46, 48,
+  52.
+- `packages/create-dicomweb/test/rawPart10.jest.mjs`: 35, 53.
+- `packages/create-dicomweb/test/stowMain.jest.mjs`: 55.
+- `packages/static-wado-util/test/unit/dirScanner.jest.mjs`: 54.
 - `packages/static-wado-webserver/test/unit/derivedDataBuild.jest.mjs`: the other numbered
   tests.
 
