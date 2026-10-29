@@ -33,14 +33,18 @@ describe('stowMain', () => {
         if (status === 'reset') return req.socket.destroy();
         if (status === 503) res.setHeader('Retry-After', '0');
         if (status === 202) {
-          // One failed item, matched to its file by the Content-Location tag of the server
+          // a.dcm stored, and b.dcm failed, matched by the Content-Location tag of the server
+          const stored = { '00091001': { vr: 'LO', Value: ['a.dcm'] } };
           const failed = {
             '00091001': { vr: 'LO', Value: ['b.dcm'] },
             '00081197': { vr: 'US', Value: [0xc000] },
           };
-          res
-            .writeHead(202, { 'content-type': 'application/dicom+json' })
-            .end(JSON.stringify({ '00081198': { vr: 'SQ', Value: [failed] } }));
+          res.writeHead(202, { 'content-type': 'application/dicom+json' }).end(
+            JSON.stringify({
+              '00081199': { vr: 'SQ', Value: [stored] },
+              '00081198': { vr: 'SQ', Value: [failed] },
+            })
+          );
           return;
         }
         res.writeHead(status, { 'content-type': 'text/plain' }).end('body');
@@ -99,6 +103,18 @@ describe('stowMain', () => {
     expect(requests).toBe(1);
     expect(results).toMatchObject({ success: 1, failed: 1 });
     expect(results.errors.map(({ file }) => path.basename(file))).toEqual(['b.dcm']);
+  });
+
+  // Test 66. The user experience must have this (SQR-U5, SQR-D21): after a 202, a file with
+  // no item in the response (a part that the server did not start) counts as failed
+  it('counts a file with no item in a 202 as failed', async () => {
+    fs.writeFileSync(path.join(dir, 'b.dcm'), 'data');
+    fs.writeFileSync(path.join(dir, 'c.dcm'), 'data');
+    statuses = [202];
+    const results = await stow();
+    expect(requests).toBe(1);
+    expect(results).toMatchObject({ success: 1, failed: 2 });
+    expect(results.errors.map(({ file }) => path.basename(file))).toEqual(['b.dcm', 'c.dcm']);
   });
 
   /** Records each file stream of a body; `fail` gives the name of a file that cannot open */

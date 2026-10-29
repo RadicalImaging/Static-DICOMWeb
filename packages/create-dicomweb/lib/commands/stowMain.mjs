@@ -389,8 +389,36 @@ export async function stowFiles(
 
   // Parse JSON DICOM response if applicable and log errors; a 202 lists the failed instances
   responseLike.failures = await parseAndLogDicomJsonErrors(responseLike, responseText, files);
+  if (res.statusCode === 202) {
+    for (const { filePath } of filesWithNoItem(files, responseText)) {
+      responseLike.failures.push({ file: filePath, error: 'HTTP 202, no item in the response' });
+    }
+  }
 
   return responseLike;
+}
+
+/**
+ * Returns the files that no item of a STOW-RS response names in its Content-Location tag
+ * (0009,1001), for example the files that the server did not start after a storage error
+ * stopped the upload (SQR-D21). Empty when no item has the tag, or the body is not DICOM JSON.
+ * @param {Array<{filePath: string}>} files
+ * @param {string} responseText
+ * @returns {Array<{filePath: string}>}
+ */
+function filesWithNoItem(files, responseText) {
+  let body;
+  try {
+    body = JSON.parse(responseText);
+  } catch {
+    return [];
+  }
+  const items = [...(body?.['00081199']?.Value ?? []), ...(body?.['00081198']?.Value ?? [])];
+  const named = new Set(items.map(item => item?.['00091001']?.Value?.[0]).filter(Boolean));
+  if (named.size === 0) {
+    return [];
+  }
+  return files.filter(({ filePath }) => !named.has(path.basename(filePath)));
 }
 
 /**
