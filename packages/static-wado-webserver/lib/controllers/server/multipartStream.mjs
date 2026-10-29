@@ -46,15 +46,20 @@ async function settlesWithin(promise, timeoutMs, abortPromise) {
  * @param {(req: object, err: Error) => void} [opts.onRequestAbort] Called when the request is aborted (client disconnect, kill, etc.) so the app can end status jobs
  * @param {ReturnType<import('../../util/stalledStowListeners.mjs').createStalledStowListeners>} [opts.stalledListeners] Server-wide count of the listeners that did not settle within the wait
  *
- * After the last part, the middleware waits while stream writes progress, and then
- * LISTENER_WAIT_TIMEOUT_MS for the listeners. After that, it counts the listeners that did not
- * settle in opts.stalledListeners, stops the parts that still parse, and waits
- * STOPPED_LISTENER_WAIT_MS more. The request then goes to next(), which reports each instance,
- * so an instance that committed is reported as stored. When a listener still has not settled,
- * its result is unknown, and the request gets 503 with Retry-After.
+ * After the last part, the middleware waits in three phases:
+ * 1. While stream writes settle. Each round waits up to LISTENER_WAIT_TIMEOUT_MS, and the
+ *    phase ends after a round in which no write settled. Thus the phase has no limit while
+ *    the writes progress, and ends one or two rounds after the last write that settled.
+ * 2. LISTENER_WAIT_TIMEOUT_MS for the listeners. Then it counts the listeners in
+ *    opts.stalledListeners, and stops the parts that still parse.
+ * 3. STOPPED_LISTENER_WAIT_MS more.
+ * The request then goes to next(), which reports each instance, so an instance that committed
+ * is reported as stored. When a listener still has not settled, its result is unknown, and the
+ * request gets 503 with Retry-After. An aborted request also counts its listeners in
+ * opts.stalledListeners.
  *
- * When opts.stalledListeners is full, a new request gets 503 with Retry-After at once, before
- * the middleware reads its body (SQR-D20).
+ * When opts.stalledListeners is full, a new request gets 503 with Retry-After and
+ * `Connection: close` at once, before the middleware reads its body (SQR-D20).
  */
 export function multipartStream(opts) {
   const {
@@ -111,6 +116,8 @@ export function multipartStream(opts) {
     if (stalledListeners?.isFull()) {
       console.warn('[multipartStream] Too many stalled STOW listeners, the request is refused');
       res.setHeader('Retry-After', String(stalledListeners.retryAfterSeconds));
+      // Close the connection, so the client does not send the body that nobody reads
+      res.setHeader('Connection', 'close');
       res.status(503).send('Service Unavailable: too many stalled uploads, retry later');
       return;
     }
@@ -154,6 +161,14 @@ export function multipartStream(opts) {
     let truncatedPart = 0; // Number of the part that the body error cut, or 0
     let truncatedReason = null; // Abort reason of that part (failureReason C000)
     let waiting = false; // waitForListeners runs once
+    let counted = false; // The listener promises go to stalledListeners once
+
+    // Counts the listeners that did not settle yet in the server-wide stalled count
+    const countStalled = () => {
+      if (counted) return;
+      counted = true;
+      stalledListeners?.add(req.uploadListenerPromises);
+    };
 
     // Resolved when abort() is called so checkAllPartsComplete's Promise.race settles immediately
     let abortResolve = null;
@@ -187,6 +202,8 @@ export function multipartStream(opts) {
 
       // Mark all part streams (also those still in checkAllPartsComplete) as aborted
       stopParts(err);
+      // The listeners can still hold their writes, and nothing waits for them now
+      countStalled();
 
       // Let checkAllPartsComplete's race settle immediately so it doesn't wait on allSettled
       if (abortResolve) {
@@ -632,7 +649,7 @@ export function multipartStream(opts) {
           if (!(await settlesWithin(allSettled, LISTENER_WAIT_TIMEOUT_MS, abortWhenCalled))) {
             if (aborted) return;
             // Past their deadline: a new request is refused while too many such listeners run
-            stalledListeners?.add(req.uploadListenerPromises);
+            countStalled();
             stopParts(new Error(`STOW listener wait timeout (${LISTENER_WAIT_TIMEOUT_MS} ms)`));
             if (!(await settlesWithin(allSettled, STOPPED_LISTENER_WAIT_MS, abortWhenCalled))) {
               if (aborted || nextCalled) return;

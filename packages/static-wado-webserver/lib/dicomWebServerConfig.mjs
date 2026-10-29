@@ -1,6 +1,7 @@
 import ConfigPoint from 'config-point';
 import '@radicalimaging/static-wado-plugins';
 import { staticWadoConfig } from '@radicalimaging/static-wado-util';
+import { DEFAULT_MAX_STALLED_STOW_LISTENERS } from './util/stalledStowListeners.mjs';
 
 /**
  * Defines the basic configuration values for the dicomwebserver component.  See the README for more details.
@@ -26,8 +27,8 @@ const { dicomWebServerConfig } = ConfigPoint.register({
     requestJobSlots: 1,
     /** At start, remove the temp files of studies/<studyUID>/temp older than this (hours). One upload of an instance must take less time. 0 turns the removal off. */
     tempMaxAgeHours: 24,
-    /** When this number of STOW-RS instances did not complete within the wait of their upload (usually stuck storage), a new upload gets 503 with Retry-After at once. 0 turns the limit off. */
-    maxStalledStowListeners: 8,
+    /** When this number of STOW-RS instances is stalled (SQR-D20: past the wait of their upload, in an aborted upload, or with stuck file writes), a new upload gets 503 with Retry-After at once. The unit is one instance, so one upload with this number of instances can reach the limit. 0 turns the limit off. */
+    maxStalledStowListeners: DEFAULT_MAX_STALLED_STOW_LISTENERS,
     corsOptions: {
       enabled: true,
       origin: true,

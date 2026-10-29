@@ -135,6 +135,12 @@ describe('multipartStream', () => {
       Buffer.from('\r\n'),
     ]);
 
+  const newRequest = () => {
+    const req = new PassThrough();
+    req.headers = { 'content-type': `multipart/related; boundary=${BOUNDARY}` };
+    return req;
+  };
+
   // Test 49. The user experience must have this (SQR-U5): a malformed part header in the
   // middle of the body gives 400, and never a report that leaves out the later parts
   it('answers 400 for a malformed part header before the body ends', async () => {
@@ -180,11 +186,6 @@ describe('multipartStream', () => {
       createBufferStream: () => new TrackableReadBufferStream(null, true, { noCopy: true }),
       stalledListeners,
     });
-    const newRequest = () => {
-      const req = new PassThrough();
-      req.headers = { 'content-type': `multipart/related; boundary=${BOUNDARY}` };
-      return req;
-    };
 
     try {
       const first = newRequest();
@@ -199,15 +200,54 @@ describe('multipartStream', () => {
       middleware(second, res, () => res.resolveResult('next'));
       expect(await res.result).toBe(503);
       expect(res.headers['Retry-After']).toBe('60');
+      expect(res.headers.Connection).toBe('close');
       expect(second.readableFlowing).toBe(null);
 
       commit('committed');
-      await Promise.resolve();
-      await Promise.resolve();
+      await new Promise(resolve => setImmediate(resolve));
       expect(stalledListeners.count()).toBe(0);
       expect(stalledListeners.isFull()).toBe(false);
     } finally {
       jest.useRealTimers();
+      jest.restoreAllMocks();
+    }
+  });
+
+  // Test 56. The API must do this (SQR-D20): the listeners of an aborted request count as
+  // stalled until they settle, so the retries of a client do not add stuck work
+  it('counts the listeners of an aborted request', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'trace').mockImplementation(() => {});
+    const stalledListeners = createStalledStowListeners({ maxStalled: 1 });
+    let commit;
+    const middleware = multipartStream({
+      listener: () =>
+        new Promise(resolve => {
+          commit = resolve;
+        }),
+      createBufferStream: () => new TrackableReadBufferStream(null, true, { noCopy: true }),
+      stalledListeners,
+    });
+
+    try {
+      const first = newRequest();
+      const firstRes = createResponse();
+      middleware(first, firstRes, () => firstRes.resolveResult('next'));
+      first.write(dicomPart());
+      for (let i = 0; i < 20 && !commit; i++) await new Promise(resolve => setImmediate(resolve));
+      expect(commit).toBeDefined();
+      first.emit('aborted');
+      expect(await firstRes.result).toBe(400);
+      expect(stalledListeners.count()).toBe(1);
+
+      const res = createResponse();
+      middleware(newRequest(), res, () => res.resolveResult('next'));
+      expect(await res.result).toBe(503);
+
+      commit('committed');
+      await new Promise(resolve => setImmediate(resolve));
+      expect(stalledListeners.count()).toBe(0);
+    } finally {
       jest.restoreAllMocks();
     }
   });
