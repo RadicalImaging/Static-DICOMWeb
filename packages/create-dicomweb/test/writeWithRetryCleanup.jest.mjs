@@ -343,6 +343,22 @@ describe('an upload of an instance after a failure', () => {
     expect(fs.existsSync(path.join(instanceDir, 'frames', '1.mht'))).toBe(true);
   });
 
+  // Test 52. The API must do this (SQR-U5): a validation that rejects the instance gives C000,
+  // and a program error (TypeError, RangeError) is never reported as data that cannot be read
+  it.each([
+    ['a rejection', new Error('rejected'), 0xc000],
+    ['a TypeError', new TypeError('bug'), undefined],
+    ['a RangeError', new RangeError('Array buffer allocation failed'), undefined],
+  ])('marks %s of validateInstance', async (_, error, failureReason) => {
+    const failed = await upload({
+      validateInstance: async () => {
+        throw error;
+      },
+    }).catch(err => err);
+    expect(failed).toBe(error);
+    expect(failed.failureReason).toBe(failureReason);
+  });
+
   // Test 34. The user experience must have this: an upload never reports success for an
   // instance whose metadata or frame write failed, and commits no file of that instance
   it.each([['metadata.gz'], ['1.mht']])(

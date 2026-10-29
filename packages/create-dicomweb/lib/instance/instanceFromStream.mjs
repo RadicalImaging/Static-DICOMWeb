@@ -506,15 +506,25 @@ export async function instanceFromStream(stream, options = {}) {
 /** Failure Reason C000 (cannot understand) of PS3.18 Table I.2-2 */
 const CANNOT_UNDERSTAND = 0xc000;
 
+/** JavaScript errors of a program defect or of the memory, for example "Array buffer allocation failed" */
+const PROGRAM_ERROR_TYPES = [TypeError, RangeError, ReferenceError];
+
 /**
  * Returns true for an error that the server causes, and not the data: an operating system
- * error (`E...`), a Node.js stream error (`ERR_STREAM_*`), or an abort (`ABORT_ERR`).
+ * error (`E...`), a Node.js stream error (`ERR_STREAM_*`), an abort (`ABORT_ERR`), or a
+ * `TypeError`, `RangeError` or `ReferenceError`. The server cannot tell such an error of
+ * corrupt data from a program error, so it never reports it as data that it cannot read.
  * @param {Error} error
  * @returns {boolean}
  */
 function isServerError(error) {
   const code = typeof error?.code === 'string' ? error.code : '';
-  return /^E[A-Z0-9]+$/.test(code) || code.startsWith('ERR_STREAM') || code === 'ABORT_ERR';
+  return (
+    /^E[A-Z0-9]+$/.test(code) ||
+    code.startsWith('ERR_STREAM') ||
+    code === 'ABORT_ERR' ||
+    PROGRAM_ERROR_TYPES.some(type => error instanceof type)
+  );
 }
 
 /**
