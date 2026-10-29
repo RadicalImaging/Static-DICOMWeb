@@ -6,6 +6,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import zlib from 'zlib';
+import http from 'node:http';
 import { once } from 'events';
 import express from 'express';
 import { createVerboseLog } from '@radicalimaging/static-wado-util';
@@ -40,6 +41,7 @@ describe('the result of an upload', () => {
 
   afterEach(async () => {
     jest.restoreAllMocks();
+    server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));
     fs.rmSync(root, { recursive: true, force: true });
   });
@@ -247,6 +249,139 @@ describe('the result of an upload', () => {
     expect(response.status).toBe(202);
     expect(body['00081199'].Value).toHaveLength(1);
     expect(failureReasons(body)).toEqual([0xc000]);
+  });
+
+  /** One part of a STOW-RS body, with the data of the DICOM file or a part of it */
+  const part = (data = fs.readFileSync(DICOM_FILE)) =>
+    Buffer.concat([
+      Buffer.from(`--${BOUNDARY}\r\nContent-Type: application/dicom\r\n\r\n`),
+      data,
+      Buffer.from('\r\n'),
+    ]);
+
+  /**
+   * A body of `complete` parts and a part that arrives in two halves: `start` ends in the
+   * middle of the last part, and `rest` has the rest of it, one more part, and the end
+   */
+  const bodyInTwo = complete => {
+    const dicom = fs.readFileSync(DICOM_FILE);
+    const half = dicom.length >> 1;
+    return {
+      start: Buffer.concat([
+        ...Array(complete).fill(part()),
+        part(dicom.subarray(0, half)),
+      ]).subarray(0, -2),
+      rest: Buffer.concat([
+        dicom.subarray(half),
+        Buffer.from('\r\n'),
+        part(),
+        Buffer.from(`--${BOUNDARY}--\r\n`),
+      ]),
+    };
+  };
+
+  /**
+   * Fails the open of the metadata file of an instance with EIO, after `okCount` opens that
+   * succeed, and records the path of each open
+   */
+  const failMetadataOpen = (okCount = 0) => {
+    const opened = [];
+    let metadataOpens = 0;
+    const openSync = fs.openSync;
+    jest.spyOn(fs, 'openSync').mockImplementation((target, ...rest) => {
+      opened.push(String(target));
+      if (String(target).endsWith('-metadata.gz') && metadataOpens++ >= okCount) {
+        throw Object.assign(new Error('EIO'), { code: 'EIO' });
+      }
+      return openSync(target, ...rest);
+    });
+    return opened;
+  };
+
+  /**
+   * Sends `start`, and holds the rest of the body until the response comes. Then sends `rest`,
+   * and waits 300 ms. Gives the response, the body state at the response, and the number of
+   * file opens at the response.
+   */
+  const uploadUntilResponse = (start, rest, opened) =>
+    new Promise((resolve, reject) => {
+      const req = http.request(
+        {
+          method: 'POST',
+          hostname: '127.0.0.1',
+          port: server.address().port,
+          path: '/studies',
+          headers: {
+            'content-type': `multipart/related; type="application/dicom"; boundary=${BOUNDARY}`,
+            accept: 'application/dicom+json',
+          },
+        },
+        res => {
+          const chunks = [];
+          res.on('data', chunk => chunks.push(chunk));
+          res.on('end', () => {
+            const bodyEnded = req.writableEnded;
+            const opensAtResponse = opened.length;
+            req.end(rest);
+            setTimeout(() => {
+              req.destroy();
+              resolve({
+                status: res.statusCode,
+                retryAfter: res.headers['retry-after'],
+                body: JSON.parse(Buffer.concat(chunks).toString()),
+                bodyEnded,
+                opensAtResponse,
+              });
+            }, 300);
+          });
+        }
+      );
+      req.on('error', reject);
+      req.write(start);
+    });
+
+  // Test 63. The user experience must have this (SQR-U5, SQR-D21): when the storage cannot
+  // write the first instance, the upload gets 503 with Retry-After before the end of the
+  // body. The part that the stop cuts fails with 0110, a part that did not arrive gets no
+  // item, and no later part writes a file.
+  it('stops the upload at the first instance that the storage cannot write', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const opened = failMetadataOpen();
+    const { start, rest } = bodyInTwo(1);
+
+    const response = await uploadUntilResponse(start, rest, opened);
+
+    expect(response.bodyEnded).toBe(false);
+    expect(response.status).toBe(503);
+    expect(response.retryAfter).toBe('10');
+    expect(response.body['00081199']).toBeUndefined();
+    expect(failureReasons(response.body)).toEqual([0x0110, 0x0110]);
+    expect(opened).toHaveLength(response.opensAtResponse);
+  });
+
+  // Test 64. The user experience must have this (SQR-U5, SQR-D21): an instance that the storage
+  // stored before the stop is reported as stored, and the upload gets 202 with the failed
+  // instances. The later parts are not written.
+  it('answers 202 when the storage fails after an instance was stored', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const opened = failMetadataOpen(1);
+    const { start, rest } = bodyInTwo(2);
+
+    const response = await uploadUntilResponse(start, rest, opened);
+
+    expect(response.bodyEnded).toBe(false);
+    expect(response.status).toBe(202);
+    expect(response.retryAfter).toBeUndefined();
+    const [stored] = response.body['00081199'].Value;
+    expect(stored['00081155'].Value[0]).toMatch(/^1\.3\.12\./);
+    expect(failureReasons(response.body)).toEqual([0x0110, 0x0110]);
+    expect(opened).toHaveLength(response.opensAtResponse);
+    const { seriesRoot, seriesUID } = storedSeries();
+    expect(
+      fs.existsSync(
+        path.join(seriesRoot, seriesUID, 'instances', stored['00081155'].Value[0], 'metadata.gz')
+      )
+    ).toBe(true);
   });
 
   // Test 44. The API must do this (SQR-U5): an error that the server causes never gives C000

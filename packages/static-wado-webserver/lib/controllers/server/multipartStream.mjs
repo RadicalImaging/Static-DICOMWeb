@@ -45,6 +45,7 @@ async function settlesWithin(promise, timeoutMs, abortPromise) {
  * @param {(req: object, info: { partCount: number, totalBytes: number, totalTimeMs: number }) => void} [opts.onRequestEnd] Called when all parts are done and request is complete
  * @param {(req: object, err: Error) => void} [opts.onRequestAbort] Called when the request is aborted (client disconnect, kill, etc.) so the app can end status jobs
  * @param {ReturnType<import('../../util/stalledStowListeners.mjs').createStalledStowListeners>} [opts.stalledListeners] Server-wide count of the listeners that did not settle within the wait
+ * @param {(err: Error) => Error|null} [opts.stopOnError] Gives the stop reason for the error of a listener, or null to let the other parts continue (see the stop below)
  *
  * After the last part, the middleware waits in three phases:
  * 1. While stream writes settle. Each round waits up to LISTENER_WAIT_TIMEOUT_MS. The phase
@@ -64,6 +65,13 @@ async function settlesWithin(promise, timeoutMs, abortPromise) {
  * ECONNRESET and not the 503. After the response, Node.js (24.20.0) stops the read of the body
  * after some 64 to 128 KB, and closes the connection after the keepAliveTimeout of the server
  * (5 s). A client that reads the response while it sends the body thus gets the 503.
+ *
+ * When opts.stopOnError gives a reason for the error of a listener (on the server: the storage
+ * cannot be written, SQR-D21), the request stops at once. The middleware stops the read of the
+ * body (unpipe and pause), and starts no new part. Each part whose body did not arrive in full
+ * stops with that reason (setAborted). A part whose body arrived settles as usual, so it can
+ * still commit. The request then waits for the listeners in the three phases above, and goes
+ * to next() with req.uploadStopReason. The read of the body ends as after the 503 above.
  */
 export function multipartStream(opts) {
   const {
@@ -78,6 +86,7 @@ export function multipartStream(opts) {
     onRequestEnd,
     onRequestAbort,
     stalledListeners,
+    stopOnError,
   } = opts;
 
   if (typeof listener !== 'function') {
@@ -165,6 +174,7 @@ export function multipartStream(opts) {
     let truncatedReason = null; // Abort reason of that part (failureReason C000)
     let waiting = false; // waitForListeners runs once
     let counted = false; // The listener promises go to stalledListeners once
+    let stopped = false; // stopOnError stopped the request (stopRequest)
 
     // Counts the listeners that did not settle yet in the server-wide stalled count
     const countStalled = () => {
@@ -179,11 +189,12 @@ export function multipartStream(opts) {
       abortResolve = resolve;
     });
 
-    // Marks all part streams as aborted, so the listeners that still parse stop
-    const stopParts = err => {
+    // Marks the part streams as aborted, so the listeners that still parse stop. With
+    // incompleteOnly, only the parts whose body did not arrive in full.
+    const stopParts = (err, incompleteOnly = false) => {
       for (const entry of req.uploadStreams || []) {
         const stream = entry?.stream;
-        if (stream) {
+        if (stream && !(incompleteOnly && stream.isComplete)) {
           try {
             if (typeof stream.setAborted === 'function') {
               stream.setAborted(err);
@@ -231,8 +242,22 @@ export function multipartStream(opts) {
       }
     };
 
+    /** Stops the request after a listener error (opts.stopOnError, see the doc comment) */
+    const stopRequest = reason => {
+      if (aborted || stopped || nextCalled) return;
+      stopped = true;
+      req.uploadStopReason = reason;
+      console.warn(`[multipartStream] The upload stops: ${reason?.message ?? reason}`);
+      try {
+        req.unpipe(dicer);
+        req.pause();
+      } catch {}
+      stopParts(reason, true);
+      waitForListeners();
+    };
+
     dicer.on('part', part => {
-      if (aborted) {
+      if (aborted || stopped) {
         part.resume();
         return;
       }
@@ -266,7 +291,7 @@ export function multipartStream(opts) {
 
       // Function to process the part once we have headers
       const processPart = () => {
-        if (aborted || partProcessed) {
+        if (aborted || stopped || partProcessed) {
           part.resume();
           return;
         }
@@ -320,7 +345,8 @@ export function multipartStream(opts) {
         if (beforeProcessPart) {
           await beforeProcessPart(req);
         }
-        if (aborted) {
+        // A part that the stop cut before its listener gets no item
+        if (aborted || stopped) {
           part.resume();
           return;
         }
@@ -437,6 +463,8 @@ export function multipartStream(opts) {
             // Resume part so it drains and emits 'end' – otherwise a paused part never completes
             // and blocks subsequent parts from being processed (e.g. good file after bad one).
             part.resume();
+            const reason = stopOnError?.(err);
+            if (reason) stopRequest(reason);
           });
           req.uploadListenerPromises.push(p);
           console.verbose(
@@ -703,7 +731,8 @@ export function multipartStream(opts) {
     // are marked complete/aborted and instanceFromStream's ensureAvailable rejects.
     req.on('aborted', () => {
       console.noQuiet('Request aborted');
-      if (!aborted) abort(new Error('Request aborted by req.aborted'));
+      // After a stop, the server closes the connection of the body that it did not read
+      if (!aborted && !stopped) abort(new Error('Request aborted by req.aborted'));
     });
     req.on('close', () => {
       console.verbose('client closed connection');

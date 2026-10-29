@@ -319,6 +319,98 @@ describe('multipartStream', () => {
     }
   });
 
+  // Test 65. The user experience must have this (SQR-U5, SQR-D21): a real client that still
+  // sends a large body gets the response of an upload that a listener error stopped, and the
+  // stop cuts the part that arrives with the stop reason
+  it('gives the response of a stopped upload to an HTTP client that still sends the body', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const stopReason = Object.assign(new Error('stopped'), { failureReason: 0x0110 });
+    const listened = [];
+    let cutReason;
+    let serverRead;
+    let secondPartStarted;
+    const secondPart = new Promise(resolve => {
+      secondPartStarted = resolve;
+    });
+    const app = express();
+    app.post(
+      '/studies',
+      multipartStream({
+        listener: (fileInfo, stream) => {
+          listened.push(fileInfo.fieldname);
+          // Part 1 fails when part 2 arrives, so the stop cuts part 2
+          if (fileInfo.fieldname === 'part-1') {
+            return secondPart.then(() => {
+              throw Object.assign(new Error('EIO'), { code: 'EIO' });
+            });
+          }
+          secondPartStarted();
+          // The listener of a later part ends 300 ms after the stop cuts it, so the client
+          // fills the buffers of the connection before the response
+          return new Promise((_, reject) => {
+            const timer = setInterval(() => {
+              if (!stream.abortedReason) return;
+              clearInterval(timer);
+              cutReason = stream.abortedReason;
+              setTimeout(() => reject(cutReason), 300);
+            }, 5);
+          });
+        },
+        createBufferStream: () => new TrackableReadBufferStream(null, true, { noCopy: true }),
+        stopOnError: err => (err.code === 'EIO' ? stopReason : null),
+      }),
+      (req, res) => {
+        serverRead = req.socket.bytesRead;
+        res.status(req.uploadStopReason ? 503 : 200).end();
+      }
+    );
+    const server = http.createServer(app);
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+
+    // Part 1, and then the data of part 2 until the response comes (at most 1 GB)
+    let responded = false;
+    let sent = 0;
+    const body = new Readable({
+      read() {
+        if (sent === 0) {
+          sent = 1;
+          this.push(Buffer.concat([dicomPart(), dicomPart(0).subarray(0, -2)]));
+          return;
+        }
+        sent += 64 * 1024;
+        this.push(responded || sent > 1024 * 1024 * 1024 ? null : Buffer.alloc(64 * 1024));
+      },
+    });
+    const req = http.request({
+      method: 'POST',
+      hostname: '127.0.0.1',
+      port: server.address().port,
+      path: '/studies',
+      headers: { 'Content-Type': `multipart/related; boundary=${BOUNDARY}` },
+    });
+
+    try {
+      const res = await new Promise((resolve, reject) => {
+        req.on('response', resolve);
+        req.on('error', reject);
+        body.pipe(req);
+      });
+      responded = true;
+      expect(res.statusCode).toBe(503);
+      expect(req.writableEnded).toBe(false);
+      // The client still sends: it gave more data to the connection than the server read
+      expect(sent).toBeGreaterThan(serverRead);
+      expect(listened).toEqual(['part-1', 'part-2']);
+      expect(cutReason).toBe(stopReason);
+    } finally {
+      req.destroy();
+      server.closeAllConnections();
+      await new Promise(resolve => server.close(resolve));
+      jest.restoreAllMocks();
+    }
+  });
+
   // Test 58. The API must do this: a part above limits.parts counts as complete, so the
   // request goes on with the parts below the limit, and does not wait forever
   it('goes on after a part above limits.parts', async () => {

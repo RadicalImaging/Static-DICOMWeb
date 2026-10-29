@@ -171,7 +171,8 @@ const OUT_OF_RESOURCES = 0xa700;
 const PROCESSING_FAILURE = 0x0110;
 
 /**
- * Returns true for a temporary storage error (a StorageUnavailableError of toStorageError).
+ * Returns true when the server cannot write to its storage: a StorageUnavailableError of
+ * toStorageError (an I/O error, for example `EIO`, `ENOSPC` or `EACCES`).
  * @param {Error} error
  * @returns {boolean}
  */
@@ -183,8 +184,8 @@ function isStorageOutageError(error) {
  * Failure Reason (0008,1197) of a failed instance (PS3.18 Table I.2-2):
  * - error.failureReason, when it is set: instanceFromStream sets C000 for data that it cannot
  *   read, and a validateInstance hook can set its own value;
- * - A700 (refused, out of resources) for a temporary storage error (toStorageError) with no
- *   free space or resources (isOutOfResourcesError);
+ * - A700 (refused, out of resources) for a storage error (toStorageError) with no free space
+ *   or resources (isOutOfResourcesError);
  * - 0110 (processing failure) for each other error, because the server caused it (another
  *   storage error, a stopped instance, a timeout, a Node.js stream error).
  * @param {Error} error
@@ -201,16 +202,36 @@ export function stowFailureReason(error) {
 }
 
 /**
- * Returns true when the files of an upload hold no stored instance, and each failure is a
- * temporary storage error. The request then gets 503 with Retry-After (SQR-U3, SQR-U5).
+ * Returns the reason to stop the other parts of an upload after the error of one instance
+ * (the stopOnError option of multipartStream), or null to let them continue. Only a storage
+ * error stops an upload (SQR-D21). The reason has the Failure Reason of that error, A700 or
+ * 0110, and never C000, so each part that the stop cuts gets that value.
+ * @param {Error} error - The error of the listener of a part
+ * @returns {Error|null}
+ */
+export function storageStopReason(error) {
+  if (!isStorageOutageError(error)) {
+    return null;
+  }
+  return Object.assign(new Error(`Upload stopped after a storage error: ${error.message}`), {
+    failureReason: isOutOfResourcesError(error) ? OUT_OF_RESOURCES : PROCESSING_FAILURE,
+  });
+}
+
+/**
+ * Returns true when the files of an upload hold no stored instance, and the server could not
+ * write to its storage: a storage error stopped the upload (`stopped`, storageStopReason), or
+ * each failure is a storage error. The request then gets 503 with Retry-After (SQR-U3,
+ * SQR-U5).
  * @param {Array<{ok: boolean, cause?: Error}>} files - Files of completePostController
+ * @param {{stopped?: boolean}} [options]
  * @returns {boolean}
  */
-export function isStorageOutage(files = []) {
-  return (
-    files.length > 0 &&
-    files.every(file => !file.ok && file.cause && isStorageOutageError(file.cause))
-  );
+export function isStorageOutage(files = [], { stopped = false } = {}) {
+  if (files.length === 0 || files.some(file => file.ok)) {
+    return false;
+  }
+  return stopped || files.every(file => file.cause && isStorageOutageError(file.cause));
 }
 
 function getSOPClassUID(information) {

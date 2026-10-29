@@ -20,10 +20,11 @@ import {
   createDatasetResponseFromUploadedFiles,
   getStowStatusCode,
   isStorageOutage,
+  storageStopReason,
 } from '../../util/stowResponseBuilder.mjs';
 
 const maxFileSize = 4 * 1024 * 1024 * 1024;
-/** Retry-After of a 503 for an upload that a storage outage stopped (StorageUnavailableError) */
+/** Retry-After of a 503 for an upload that a storage error stopped (StorageUnavailableError) */
 const STORAGE_RETRY_AFTER_SECONDS = 10;
 const maxTotalFileSize = 10 * maxFileSize;
 
@@ -372,6 +373,8 @@ export function streamPostController(params) {
     },
     limits: { files: 1_000, fileSize: 250 * 1_000_000_000 }, // 250GB, 1000 files
     stalledListeners,
+    // The first instance that the storage cannot write stops the upload (SQR-D21)
+    stopOnError: storageStopReason,
   });
 }
 
@@ -519,7 +522,7 @@ export const completePostController = async (req, res, next) => {
     const datasetResponse = createDatasetResponseFromUploadedFiles(files, { logger: console });
     // 200, 202 or 409 (PS3.18 Table 10.5.3-1), or 503 for a storage outage (SQR-U5)
     let statusCode = getStowStatusCode(datasetResponse);
-    if (isStorageOutage(files)) {
+    if (isStorageOutage(files, { stopped: !!req.uploadStopReason })) {
       statusCode = 503;
       res.setHeader('Retry-After', String(STORAGE_RETRY_AFTER_SECONDS));
     }
