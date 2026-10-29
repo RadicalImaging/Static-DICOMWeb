@@ -71,6 +71,39 @@ function buildPart10() {
 }
 
 /**
+ * Builds a single-frame CT with the SOP Instance UID of the SEG of buildPart10.
+ * @returns {Buffer}
+ */
+function buildCtPart10() {
+  const ctDict = new DicomDict(
+    DicomMetaDictionary.denaturalizeDataset({
+      MediaStorageSOPClassUID: '1.2.840.10008.5.1.4.1.1.2',
+      MediaStorageSOPInstanceUID: SOP,
+      TransferSyntaxUID: EXPLICIT_LITTLE_ENDIAN,
+      ImplementationClassUID: '2.25.1',
+      FileMetaInformationVersion: new Uint8Array([0, 1]).buffer,
+    })
+  );
+  ctDict.dict = {
+    '00080016': { vr: 'UI', Value: ['1.2.840.10008.5.1.4.1.1.2'] },
+    '00080018': { vr: 'UI', Value: [SOP] },
+    '00080060': { vr: 'CS', Value: ['CT'] },
+    '0020000D': { vr: 'UI', Value: [STUDY] },
+    '0020000E': { vr: 'UI', Value: [SERIES] },
+    '00280002': { vr: 'US', Value: [1] },
+    '00280004': { vr: 'CS', Value: ['MONOCHROME2'] },
+    '00280010': { vr: 'US', Value: [ROWS] },
+    '00280011': { vr: 'US', Value: [COLS] },
+    '00280100': { vr: 'US', Value: [8] },
+    '00280101': { vr: 'US', Value: [8] },
+    '00280102': { vr: 'US', Value: [7] },
+    '00280103': { vr: 'US', Value: [0] },
+    '7FE00010': { vr: 'OW', Value: [pixelBytes.slice(0, ROWS * COLS).buffer] },
+  };
+  return Buffer.from(ctDict.write());
+}
+
+/**
  * Extracts the single part of a (gzipped) multipart/related file.
  * @param {string} filePath
  * @returns {{ payload: Buffer, boundary: string, headers: string }}
@@ -201,35 +234,37 @@ describe('Part 10 rendition for SEG/SR instances', () => {
     expect(fs.existsSync(path.join(instanceDir, 'metadata.gz'))).toBe(true);
   });
 
+  // Test 53. The user experience must have this (SQR-U5): a new upload replaces the instance,
+  // also when it is no longer a SEG and has fewer frames
+  it('deletes the old rendition and the frames above the new count on a new upload', async () => {
+    const dicomdir = path.join(tempRoot, 'dicomweb');
+    const source = path.join(tempRoot, 'source.dcm');
+    fs.writeFileSync(source, part10);
+    await instanceFromStream(fs.createReadStream(source), { dicomdir });
+    expectRendition(dicomdir);
+    const framesDir = path.join(
+      dicomdir,
+      'studies',
+      STUDY,
+      'series',
+      SERIES,
+      'instances',
+      SOP,
+      'frames'
+    );
+    expect(fs.readdirSync(framesDir)).toHaveLength(FRAMES);
+
+    fs.writeFileSync(source, buildCtPart10());
+    await instanceFromStream(fs.createReadStream(source), { dicomdir });
+
+    expect(fs.existsSync(path.join(framesDir, '..', 'index.mht.gz'))).toBe(false);
+    expect(fs.readdirSync(framesDir).map(name => name.split('.')[0])).toEqual(['1']);
+  });
+
   it('skips the rendition for modalities outside the selector', async () => {
     const dicomdir = path.join(tempRoot, 'dicomweb');
     const source = path.join(tempRoot, 'source.dcm');
-    const ctDict = new DicomDict(
-      DicomMetaDictionary.denaturalizeDataset({
-        MediaStorageSOPClassUID: '1.2.840.10008.5.1.4.1.1.2',
-        MediaStorageSOPInstanceUID: SOP,
-        TransferSyntaxUID: EXPLICIT_LITTLE_ENDIAN,
-        ImplementationClassUID: '2.25.1',
-        FileMetaInformationVersion: new Uint8Array([0, 1]).buffer,
-      })
-    );
-    ctDict.dict = {
-      '00080016': { vr: 'UI', Value: ['1.2.840.10008.5.1.4.1.1.2'] },
-      '00080018': { vr: 'UI', Value: [SOP] },
-      '00080060': { vr: 'CS', Value: ['CT'] },
-      '0020000D': { vr: 'UI', Value: [STUDY] },
-      '0020000E': { vr: 'UI', Value: [SERIES] },
-      '00280002': { vr: 'US', Value: [1] },
-      '00280004': { vr: 'CS', Value: ['MONOCHROME2'] },
-      '00280010': { vr: 'US', Value: [ROWS] },
-      '00280011': { vr: 'US', Value: [COLS] },
-      '00280100': { vr: 'US', Value: [8] },
-      '00280101': { vr: 'US', Value: [8] },
-      '00280102': { vr: 'US', Value: [7] },
-      '00280103': { vr: 'US', Value: [0] },
-      '7FE00010': { vr: 'OW', Value: [pixelBytes.slice(0, ROWS * COLS).buffer] },
-    };
-    fs.writeFileSync(source, Buffer.from(ctDict.write()));
+    fs.writeFileSync(source, buildCtPart10());
 
     await instanceFromStream(fs.createReadStream(source), { dicomdir });
 

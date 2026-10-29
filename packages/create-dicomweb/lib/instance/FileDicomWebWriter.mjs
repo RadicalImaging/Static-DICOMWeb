@@ -138,6 +138,37 @@ export class FileDicomWebWriter extends DicomWebWriter {
   }
 
   /**
+   * Deletes the frames `<n>.mht` and `<n>.mht.gz` of the instance with n above frameCount.
+   * Never throws: the instance is stored, so it logs each error.
+   * @param {number} frameCount
+   */
+  removeFramesAbove(frameCount) {
+    const framesDir = path.join(
+      this.options.baseDir,
+      `studies/${this.getStudyUID()}/series/${this.getSeriesUID()}/instances/${this.getSOPInstanceUID()}/frames`
+    );
+    let names;
+    try {
+      names = fs.readdirSync(framesDir);
+    } catch (err) {
+      if (err?.code !== 'ENOENT') {
+        console.warn(`[FileDicomWebWriter] Could not list ${framesDir}:`, err?.message || err);
+      }
+      return;
+    }
+    for (const name of names) {
+      const frameNumber = Number(/^(\d+)\.mht(\.gz)?$/.exec(name)?.[1]);
+      if (frameNumber > frameCount) {
+        try {
+          fs.unlinkSync(path.join(framesDir, name));
+        } catch (err) {
+          console.warn(`[FileDicomWebWriter] Could not delete ${name}:`, err?.message || err);
+        }
+      }
+    }
+  }
+
+  /**
    * Protected method to create the actual stream implementation.
    * Writes to a temp file and records original file metadata for safe replacement.
    * @param {string} relativePath - The relative path within baseDir

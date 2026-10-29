@@ -444,10 +444,13 @@ export async function instanceFromStream(stream, options = {}) {
 
     if (writer) {
       console.verbose('Writing metadata to file', information.sopInstanceUid);
-      // commitLast: the builds see the instance only after its frames moved
+      // commitLast: the builds see the instance only after its frames moved. replaces: the
+      // stored Part 10 rendition of an earlier upload goes with the old metadata, and
+      // storeRawPart10 or the part10 controller makes it again from the new files.
       const metadataStream = await writer.openInstanceStream('metadata', {
         gzip: true,
         commitLast: true,
+        replaces: ['index.mht', 'index.mht.gz'],
       });
       metadataStream.stream.write(Buffer.from(JSON.stringify([dict])));
       // closeStream records a failure and resolves undefined rather than rejecting
@@ -489,6 +492,8 @@ export async function instanceFromStream(stream, options = {}) {
   }
 
   // The instance is stored from here on, so nothing below reports it as failed
+  // The frames of an earlier upload with more frames are stale
+  writer?.removeFramesAbove?.(writer.frameCount ?? 0);
   try {
     options.afterCommit?.(result);
   } catch (err) {

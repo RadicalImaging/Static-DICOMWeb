@@ -263,6 +263,16 @@ export class DicomWebWriter {
   }
 
   /**
+   * Deletes the stored frames of the instance whose number is above frameCount, for example
+   * after a new upload of the instance with fewer frames. Call after the commit.
+   * No-op in the base class.
+   * @param {number} frameCount - The highest frame number of this writer (`this.frameCount`)
+   */
+  removeFramesAbove(frameCount) {
+    // No-op: base class stores no files
+  }
+
+  /**
    * Deletes a file and its .gz counterpart if present (e.g. index.json and index.json.gz).
    * Must be implemented by subclasses that support deletion.
    * @param {string} relativePath - Relative path within baseDir
@@ -452,6 +462,8 @@ export class DicomWebWriter {
       );
     }
     const path = `studies/${studyUID}/series/${seriesUID}/instances/${sopUID}/frames`;
+    // The highest frame number of the instance, for removeFramesAbove
+    this.frameCount = Math.max(this.frameCount ?? 0, frameNumber);
 
     const rawTsUID = this.getTransferSyntaxUID();
     const tsUID = normalizeEquivalentUncompressedTransferSyntaxUid(rawTsUID);
