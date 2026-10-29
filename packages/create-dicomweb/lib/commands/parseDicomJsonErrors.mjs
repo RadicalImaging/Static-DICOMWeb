@@ -12,12 +12,15 @@ const CONTENT_LOCATION_TAG = '00091001';
  * Returns the Content-Location of part `index` of a STOW-RS request: the base name of the
  * file with the part number in front. It is unique in the request, also for files with the
  * same base name in different directories, so the response can name each file.
+ *
+ * The base name is encoded with encodeURIComponent, so the value is ASCII. The server reads
+ * the part headers as Latin-1, and a name that is not ASCII would then not match its echo.
  * @param {number} index - The index of the part, from 0
  * @param {string} filePath
  * @returns {string}
  */
 export function partContentLocation(index, filePath) {
-    return `${index + 1}-${path.basename(filePath)}`;
+    return `${index + 1}-${encodeURIComponent(path.basename(filePath))}`;
 }
 
 /**
