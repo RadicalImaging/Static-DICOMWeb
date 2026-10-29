@@ -240,12 +240,11 @@ later change can remove them:
   different node. The safety of that removal depends on the configured age and on the clocks
   (SQR-D19).
 - **A storage that does not answer a synchronous file call.** The writer uses synchronous
-  file calls: `openSync`, `statSync`, `existsSync`, `mkdirSync`, `readdirSync`, `renameSync`
-  and `unlinkSync`. When the storage does not answer such a call, the call stops the whole
-  server. The server
-  then answers no request until the storage answers. Thus it sends no `503` (SQR-U5,
-  SQR-D20), no status page and no health check. A proxy then gives its own error, for
-  example `504`.
+  file calls: `openSync`, `statSync`, `existsSync`, `mkdirSync`, `readdirSync`, `renameSync`,
+  `unlinkSync` and `rmSync`. When the storage does not answer such a call, the call stops
+  the whole server. The server then answers no request until the storage answers. Thus it
+  sends no `503` (SQR-U5, SQR-D20), no status page and no health check. A proxy then gives
+  its own error, for example `504`.
 
 ## § Design requirements
 
@@ -515,9 +514,9 @@ The next requirements use these terms:
   that reads the response only after it sent the whole body can get a connection reset after
   5 s, and not the `503`. The count applies only while asynchronous file calls stall. The
   writer also uses synchronous file calls: `openSync`, `statSync`, `existsSync`, `mkdirSync`,
-  `readdirSync`, `renameSync` and `unlinkSync`. A storage that does not answer such a call
-  blocks the whole server, which then cannot send the `503` (Known limitations). Supports
-  SQR-U3 and SQR-U5.
+  `readdirSync`, `renameSync`, `unlinkSync` and `rmSync`. A storage that does not answer
+  such a call blocks the whole server, which then cannot send the `503` (Known limitations).
+  Supports SQR-U3 and SQR-U5.
 - **SQR-D21. Stop an upload at the first instance that the storage cannot write.** When the
   work of an instance fails with an I/O error of the storage, the server stops the upload at
   once. Examples of such an error are `EIO`, `ENOSPC`, `EACCES` and `EROFS` (SQR-D3). The
