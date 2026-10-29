@@ -14,14 +14,13 @@ export const DEFAULT_TEMP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
  * keeps the temp files of its instance until the commit of that instance, so maxAgeMs must be
  * longer than the upload of one instance; another process on the same storage is safe with the
  * same rule. The temp directories stay, because a writer can open a file in them at any time.
+ * A temp directory that is a symbolic link is not followed.
  *
- * Asynchronous and sequential, so a large store does not block the event loop. Never throws:
- * logs each error, and continues.
+ * Asynchronous and sequential, so a large store does not block the event loop. Throws only the
+ * RangeError below: it logs each file system error, and continues.
  *
  * @param {string} dicomdir - DICOMweb root directory
  * @param {Object} [options]
- * A temp directory that is a symbolic link is not followed.
- *
  * @param {number} [options.maxAgeMs=DEFAULT_TEMP_MAX_AGE_MS] - Must be a finite number above 0
  * @param {number} [options.now=Date.now()]
  * @returns {Promise<number>} - The number of removed files
