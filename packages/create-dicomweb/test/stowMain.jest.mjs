@@ -45,13 +45,7 @@ describe('stowMain', () => {
     jest.spyOn(console, 'warn').mockImplementation(() => {});
     jest.spyOn(console, 'error').mockImplementation(() => {});
     jest.spyOn(process, 'exit').mockImplementation(() => {});
-    // The retry after a reset waits DEFAULT_RETRY_AFTER_SECONDS (10 s); the test does not wait
     waits = [];
-    const realSetTimeout = global.setTimeout;
-    jest.spyOn(global, 'setTimeout').mockImplementation((fn, ms, ...args) => {
-      if (ms === 10000) waits.push(ms);
-      return realSetTimeout(fn, ms === 10000 ? 0 : ms, ...args);
-    });
   });
 
   afterEach(async () => {
@@ -60,8 +54,15 @@ describe('stowMain', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
+  // The retry wait records its time, and does not wait
   const stow = () =>
-    stowMain([dir], { url: `http://127.0.0.1:${server.address().port}/studies`, quiet: true });
+    stowMain([dir], {
+      url: `http://127.0.0.1:${server.address().port}/studies`,
+      quiet: true,
+      retryWait: async ms => {
+        waits.push(ms);
+      },
+    });
 
   // Test 55. The user experience must have this (SQR-U5): the stow command sends a group again
   // after a 503 or a connection reset, and gives a failed group to its exit code (the failed
@@ -78,7 +79,8 @@ describe('stowMain', () => {
     expect(requests).toBe(requestCount);
     expect(results.failed).toBe(failed);
     expect(process.exit).not.toHaveBeenCalled();
-    expect(waits).toHaveLength(codes[0] === 'reset' ? requestCount - 1 : 0);
+    // Retry-After: 0 of the 503, and 10 s (DEFAULT_RETRY_AFTER_SECONDS) after a reset
+    expect(waits).toEqual(Array(requestCount - 1).fill(codes[0] === 'reset' ? 10000 : 0));
   });
 
   // Test 55, 202 case: the failed instances of a 202 count as failed, so the command exits

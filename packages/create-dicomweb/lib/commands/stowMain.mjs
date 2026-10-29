@@ -70,6 +70,7 @@ const SKIP_EXTENSIONS = new Set([
  * @param {boolean} [options.progress] - If true, show progress with instance count as files are stored
  * @param {boolean} [options.quiet] - If true, suppress progress and non-error output
  * @param {boolean} [options.verbose] - If true, show per-group storage messages
+ * @param {(ms: number) => Promise<void>} [options.retryWait] - Wait before a retry (see stowFilesWithRetry)
  */
 export async function stowMain(fileNames, options = {}) {
   const {
@@ -84,6 +85,7 @@ export async function stowMain(fileNames, options = {}) {
     progress = false,
     quiet = false,
     verbose = false,
+    retryWait,
   } = options; // Default 10MB
 
   const showProgress = progress && !quiet;
@@ -135,7 +137,14 @@ export async function stowMain(fileNames, options = {}) {
 
   const runOneStow = async (group, requestTimeoutMs) => {
     try {
-      const response = await stowFilesWithRetry(group, url, headers, xmlResponse, requestTimeoutMs);
+      const response = await stowFilesWithRetry(
+        group,
+        url,
+        headers,
+        xmlResponse,
+        requestTimeoutMs,
+        retryWait
+      );
       // 202: the server stored some instances only (SQR-U5). A body with no readable Failed
       // SOP Sequence (for example XML) still counts one file as failed.
       let failures = [];
@@ -408,14 +417,16 @@ const CONNECTION_RESET_CODES = new Set(['ECONNRESET', 'EPIPE']);
  * replaces it. A connection reset (ECONNRESET, EPIPE) uses the same retries, with the wait of
  * DEFAULT_RETRY_AFTER_SECONDS: a server or a proxy that refuses a request before it reads the
  * body can close the connection. After the last retry, the error goes to the caller, which
- * counts the group as failed. Same parameters as stowFiles.
+ * counts the group as failed. Same parameters as stowFiles, and `wait`, which waits the given
+ * ms before a retry (a test gives its own function).
  */
 export async function stowFilesWithRetry(
   files,
   endpointUrl,
   additionalHeaders,
   xmlResponse,
-  timeoutMs
+  timeoutMs,
+  wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 ) {
   for (let retry = 0; ; retry++) {
     try {
@@ -428,7 +439,7 @@ export async function stowFilesWithRetry(
       console.warn(
         `${reason} for a group of ${files.length} file(s), retry ${retry + 1} of ${MAX_UNAVAILABLE_RETRIES} in ${waitMs / 1000} s`
       );
-      await new Promise(resolve => setTimeout(resolve, waitMs));
+      await wait(waitMs);
     }
   }
 }
