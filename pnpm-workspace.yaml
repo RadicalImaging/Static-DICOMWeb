@@ -28,6 +28,7 @@ overrides:
   '@isaacs/brace-expansion': 5.0.1
   adm-zip: 0.6.1
   axios: 1.20.0
+  'body-parser@>=2.0.0 <2.4.0': 2.4.0
   'brace-expansion@<1.1.20': 1.1.20
   'brace-expansion@>=2.0.0 <2.1.6': 2.1.6
   'brace-expansion@>=3.0.0 <3.0.6': 3.0.6
