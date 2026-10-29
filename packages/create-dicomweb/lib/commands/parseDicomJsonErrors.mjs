@@ -13,11 +13,14 @@ const CONTENT_LOCATION_TAG = '00091001';
  * @param {Response} response - The fetch response object
  * @param {string} responseText - The response text content
  * @param {Array<{filePath: string, fileSize: number}>} files - Array of uploaded files
+ * @returns {Promise<Array<{file: string, error: string}>>} One entry for each item of the
+ *   Failed SOP Sequence, with the matched file path. Empty when the body is not DICOM JSON.
  */
 export async function parseAndLogDicomJsonErrors(response, responseText, files) {
+    const failures = [];
     // Only process if we have response text
     if (!responseText) {
-        return;
+        return failures;
     }
 
     // Check content type to determine if it's parseable JSON DICOM response
@@ -27,12 +30,12 @@ export async function parseAndLogDicomJsonErrors(response, responseText, files) 
     
     // Skip XML responses
     if (isXmlDicom) {
-        return;
+        return failures;
     }
-    
+
     // Only process JSON DICOM responses
     if (!isJsonDicom) {
-        return;
+        return failures;
     }
 
     try {
@@ -41,16 +44,16 @@ export async function parseAndLogDicomJsonErrors(response, responseText, files) 
         
         // Check if it's a valid DICOM JSON response (should be an object with sequences)
         if (typeof jsonResponse !== 'object' || Array.isArray(jsonResponse)) {
-            return;
+            return failures;
         }
 
         // Extract FailedSOPSequence (00081198) if present
         const failedSequence = jsonResponse['00081198'];
         const failedItems = failedSequence?.Value || [];
-        
+
         // If no failed items, nothing to log
         if (failedItems.length === 0) {
-            return;
+            return failures;
         }
 
         // Extract SOP Instance UIDs from uploaded files using AsyncDicomReader
@@ -130,9 +133,14 @@ export async function parseAndLogDicomJsonErrors(response, responseText, files) 
           } else {
             console.noQuiet(`Warning for uploaded file (index ${i}): ${warningMessage}`);
           }
+          failures.push({
+            file: matchedFile?.filePath ?? `uploaded file (index ${i})`,
+            error: warningMessage,
+          });
         }
     } catch (error) {
         // If parsing fails, silently ignore (response might not be JSON DICOM format)
         // The response body is already logged above
     }
+    return failures;
 }

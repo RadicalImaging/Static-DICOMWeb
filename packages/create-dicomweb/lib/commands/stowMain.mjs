@@ -135,9 +135,25 @@ export async function stowMain(fileNames, options = {}) {
 
   const runOneStow = async (group, requestTimeoutMs) => {
     try {
-      await stowFilesWithRetry(group, url, headers, xmlResponse, requestTimeoutMs);
-      results.success += group.length;
-      console.verbose(`Stored group of ${group.length} file(s)`);
+      const response = await stowFilesWithRetry(group, url, headers, xmlResponse, requestTimeoutMs);
+      // 202: the server stored some instances only (SQR-U5). A body with no readable Failed
+      // SOP Sequence (for example XML) still counts one file as failed.
+      let failures = [];
+      if (response?.status === 202) {
+        failures = response.failures?.length
+          ? response.failures
+          : [
+              {
+                file: `a group of ${group.length} file(s)`,
+                error: 'HTTP 202, some instances failed',
+              },
+            ];
+      }
+      const failed = Math.min(failures.length, group.length);
+      results.success += group.length - failed;
+      results.failed += failed;
+      results.errors.push(...failures);
+      console.verbose(`Stored group of ${group.length - failed} of ${group.length} file(s)`);
       progressReporter.addProcessed(group.length);
     } catch (error) {
       const isConnectionError =
@@ -346,7 +362,8 @@ export async function stowFiles(
   }
 
   if (!responseLike.ok) {
-    // 409 or 503: no instance stored; the body still lists each failed instance (PS3.18 10.5.3)
+    // 409 or 503: the body lists each failed instance (PS3.18 10.5.3). The 503 of an unknown
+    // result has a plain text body, and can come after some instances were stored (SQR-U5).
     if (res.statusCode === 409 || res.statusCode === 503) {
       await parseAndLogDicomJsonErrors(responseLike, responseText, files);
     }
@@ -357,8 +374,8 @@ export async function stowFiles(
     });
   }
 
-  // Parse JSON DICOM response if applicable and log errors
-  await parseAndLogDicomJsonErrors(responseLike, responseText, files);
+  // Parse JSON DICOM response if applicable and log errors; a 202 lists the failed instances
+  responseLike.failures = await parseAndLogDicomJsonErrors(responseLike, responseText, files);
 
   return responseLike;
 }
@@ -380,9 +397,10 @@ function retryAfterMs(value) {
 
 /**
  * stowFiles, and up to MAX_UNAVAILABLE_RETRIES more times after a 503 response, each after the
- * wait of its Retry-After header. A 503 means that the server stored no instance, because of
- * a storage outage or too much stalled work, so the same group can be sent again.
- * Same parameters as stowFiles.
+ * wait of its Retry-After header. A 503 comes from a storage outage, from too much stalled
+ * work, or from an unknown result. In the last case the server can have stored some instances
+ * (SQR-U5). The same group can still be sent again, because a new upload of a stored instance
+ * replaces it. Same parameters as stowFiles.
  */
 export async function stowFilesWithRetry(
   files,

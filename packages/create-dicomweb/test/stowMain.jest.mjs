@@ -22,6 +22,17 @@ describe('stowMain', () => {
         const status = statuses[Math.min(requests, statuses.length - 1)];
         requests += 1;
         if (status === 503) res.setHeader('Retry-After', '0');
+        if (status === 202) {
+          // One failed item, matched to its file by the Content-Location tag of the server
+          const failed = {
+            '00091001': { vr: 'LO', Value: ['b.dcm'] },
+            '00081197': { vr: 'US', Value: [0xc000] },
+          };
+          res
+            .writeHead(202, { 'content-type': 'application/dicom+json' })
+            .end(JSON.stringify({ '00081198': { vr: 'SQ', Value: [failed] } }));
+          return;
+        }
         res.writeHead(status, { 'content-type': 'text/plain' }).end('body');
       });
     });
@@ -52,5 +63,16 @@ describe('stowMain', () => {
     const results = await stow();
     expect(requests).toBe(requestCount);
     expect(results.failed).toBe(failed);
+  });
+
+  // Test 55, 202 case: the failed instances of a 202 count as failed, so the command exits
+  // with 1, and the stored instances count as stored
+  it('counts the failed instances of a 202 as failed', async () => {
+    fs.writeFileSync(path.join(dir, 'b.dcm'), 'data');
+    statuses = [202];
+    const results = await stow();
+    expect(requests).toBe(1);
+    expect(results).toMatchObject({ success: 1, failed: 1 });
+    expect(results.errors.map(({ file }) => path.basename(file))).toEqual(['b.dcm']);
   });
 });
