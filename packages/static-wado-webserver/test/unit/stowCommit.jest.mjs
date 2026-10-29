@@ -386,6 +386,49 @@ describe('the result of an upload', () => {
     ).toBe(true);
   });
 
+  // Test 68. The user experience must have this (SQR-U5, SQR-D21): a failure with C000 (data
+  // that the server cannot read) does not stop the upload, so a later part is stored
+  it('stores a later part after a part that is not DICOM', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const dicom = fs.readFileSync(DICOM_FILE);
+    const half = dicom.length >> 1;
+    // The part that is not DICOM is complete, and fails, while the DICOM part is incomplete
+    const start = Buffer.concat([
+      part(Buffer.from('not a DICOM file')),
+      part(dicom.subarray(0, half)),
+    ]).subarray(0, -2);
+    const rest = Buffer.concat([dicom.subarray(half), Buffer.from(`\r\n--${BOUNDARY}--\r\n`)]);
+
+    const response = await new Promise((resolve, reject) => {
+      const req = http.request(
+        {
+          method: 'POST',
+          hostname: '127.0.0.1',
+          port: server.address().port,
+          path: '/studies',
+          headers: {
+            'content-type': `multipart/related; type="application/dicom"; boundary=${BOUNDARY}`,
+            accept: 'application/dicom+json',
+          },
+        },
+        res => {
+          const chunks = [];
+          res.on('data', chunk => chunks.push(chunk));
+          res.on('end', () =>
+            resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks)) })
+          );
+        }
+      );
+      req.on('error', reject);
+      req.write(start);
+      setTimeout(() => req.end(rest), 300);
+    });
+
+    expect(response.status).toBe(202);
+    expect(response.body['00081199'].Value).toHaveLength(1);
+    expect(failureReasons(response.body)).toEqual([0xc000]);
+  });
+
   // Test 44. The API must do this (SQR-U5): an error that the server causes never gives C000
   it.each([
     ['a stopped instance', Object.assign(new Error('stopped'), { code: 'ABORTED' })],
