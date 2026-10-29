@@ -608,17 +608,18 @@ throws, came with #141 (SQR-I3). This item depends on them, and does not change 
       status only. After a `202`, `parseAndLogDicomJsonErrors` returns the items of the
       Failed SOP Sequence, and the command counts each item as a failed file.
     - Each part of the body has a unique `Content-Location`: the part number, a hyphen, and
-      the base name of the file (`partContentLocation`, for example `2-IM-0001.dcm`). The
-      server puts this value in the tag `(0009,1001)` of the item of each part. Thus two
-      files of a group with the same base name in different directories get different
-      values.
+      the base name of the file with `encodeURIComponent` (`partContentLocation`, for example
+      `2-IM-0001.dcm`, or `1-%C3%A4.dcm` for `ä.dcm`). The server puts this value in the tag
+      `(0009,1001)` of the item of each part. Thus two files of a group with the same base
+      name in different directories get different values. The encoded value is ASCII, so the
+      echo matches also when the server reads the part headers as Latin-1.
     - After a `202`, `filesNotListedAsStored` counts each file that the response does not
-      list as stored as failed. The command counts a file as stored only when an item of the
-      Referenced SOP Sequence has its `Content-Location`. An example of a failed file is a part that the
-      server did not start after the stop of item 15. When a stored item has no such value
-      (a different server), the number of stored items gives the number of stored files, and
-      the failures name no file. A body that is not DICOM JSON (for example XML) lists no
-      stored file, so each file of the group fails.
+      list as stored as failed. The command counts a file as stored only when an item of
+      the Referenced SOP Sequence has its `Content-Location`. An example of a failed file is
+      a part that the server did not start after the stop of item 15. When a stored item has
+      no such value (a different server), the number of stored items gives the number of
+      stored files, and the failures name no file. A body that is not DICOM JSON (for
+      example XML) lists no stored file, so each file of the group fails.
     - The command sets `process.exitCode = 1` when a file failed, and counts an unreadable
       path as failed.
 15. The stop of SQR-D21. `multipartStream` has the option `stopOnError(err)`.
@@ -826,6 +827,10 @@ proposal in these items:
   response lists it as stored. The upload tests use `backpressureWaitMs: 1`, so test 47 does
   not time out. Test 65 repeated test 63, and the change removes it. Test 68 shows that a
   `C000` failure does not stop an upload.
+- **After the sixth review of pull request #146.** The `stow` command encodes the base name
+  in the `Content-Location` of a part with `encodeURIComponent`. Before, the server read the
+  part header as Latin-1, so a file name that is not ASCII did not match its echo, and the
+  command could name a stored file as failed.
 
 ## Compatibility
 
@@ -930,7 +935,8 @@ These user-facing results also change:
   command stopped with an unhandled `error` event, and printed no summary. After a `503`
   before the end of the body, the command closes the file of the body at once. The
   `Content-Location` of each part now has the part number in front of the base name of the
-  file, for example `2-IM-0001.dcm`.
+  file, for example `2-IM-0001.dcm`. The command encodes the base name with
+  `encodeURIComponent`, for example `1-%C3%A4.dcm` for `ä.dcm`.
 - A failed new upload of a stored instance keeps the stored frames. A new upload of a stored
   instance deletes its stored Part 10 rendition with the rename of the instance `metadata`.
   It deletes the frames above the new frame count after the commit. Until the upload stores the new
@@ -1188,7 +1194,8 @@ The user experience must have this:
     group. It gets a `202` that lists the first file as stored, the second file as failed,
     and has no item for the other files. The command counts 1 stored file and 3 failed
     files, and names the 3 failed files. A `202` with no `Content-Location` in its items
-    gives the same counts (SQR-U5).
+    gives the same counts, and names no file for the 2 files with no item. Files with the
+    base name `ä.dcm` give the same counts and names (SQR-U5).
 68. Send a part that is not DICOM, and then a DICOM part. The response is `202`: the first
     part fails with `C000`, and the server stores the second instance. A `C000` failure does
     not stop the upload (SQR-U5, SQR-D21).
