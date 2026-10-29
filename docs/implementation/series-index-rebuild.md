@@ -823,7 +823,9 @@ proposal in these items:
 - **After the fifth review of pull request #146.** The `stow` command gives each part a
   unique `Content-Location`. Before, two files of a group with the same base name could
   count as one stored file. After a `202`, the command counts a file as stored only when the
-  response lists it as stored.
+  response lists it as stored. The upload tests use `backpressureWaitMs: 1`, so test 47 does
+  not time out. Test 65 repeated test 63, and the change removes it. Test 68 shows that a
+  `C000` failure does not stop an upload.
 
 ## Compatibility
 
@@ -1179,10 +1181,7 @@ The user experience must have this:
     comes before the end of the body: `202`, with the first instance as stored, and the
     second and the third instances as failed with `0110`. No file opens after the response
     (SQR-U5, SQR-D21).
-65. A real HTTP client sends a body that does not end. The listener of the first part fails
-    with `EIO`, and the stop cuts the second part with its reason. The client gets the
-    response while it still sends the body, and the server read less than the client sent
-    (SQR-U5, SQR-D21).
+65. Removed: repeated test 63.
 66. The `stow` command gets a `202` that names one file as stored and one file as failed, and
     has no item for a third file. The third file also counts as failed (SQR-U5).
 67. The `stow` command sends 4 files with the same base name from 4 directories in one
@@ -1190,6 +1189,9 @@ The user experience must have this:
     and has no item for the other files. The command counts 1 stored file and 3 failed
     files, and names the 3 failed files. A `202` with no `Content-Location` in its items
     gives the same counts (SQR-U5).
+68. Send a part that is not DICOM, and then a DICOM part. The response is `202`: the first
+    part fails with `C000`, and the server stores the second instance. A `C000` failure does
+    not stop the upload (SQR-U5, SQR-D21).
 
 The API must do this:
 
