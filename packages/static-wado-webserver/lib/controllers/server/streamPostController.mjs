@@ -10,6 +10,7 @@ import { instanceFromStream } from '@radicalimaging/create-dicomweb';
 import { SagaBusMessaging } from './SagaBusMessaging.mjs';
 import { ensureSeriesLevel, ensureStudyLevel } from './indexOnDemandController.mjs';
 import { getBuildJobManager } from '../../util/buildJobManager.mjs';
+import { getStalledStowListeners } from '../../util/stalledStowListeners.mjs';
 
 import { multipartStream } from './multipartStream.mjs';
 import { TrackableReadBufferStream } from './TrackableReadBufferStream.mjs';
@@ -367,6 +368,7 @@ export function streamPostController(params) {
       }
     },
     limits: { files: 1_000, fileSize: 250 * 1_000_000_000 }, // 250GB, 1000 files
+    stalledListeners: getStalledStowListeners(params),
   });
 }
 

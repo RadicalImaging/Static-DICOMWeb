@@ -26,6 +26,8 @@ const { dicomWebServerConfig } = ConfigPoint.register({
     requestJobSlots: 1,
     /** At start, remove the temp files of studies/<studyUID>/temp older than this (hours). One upload of an instance must take less time. 0 turns the removal off. */
     tempMaxAgeHours: 24,
+    /** When this number of STOW-RS instances did not complete within the wait of their upload (usually stuck storage), a new upload gets 503 with Retry-After at once. 0 turns the limit off. */
+    maxStalledStowListeners: 8,
     corsOptions: {
       enabled: true,
       origin: true,

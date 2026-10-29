@@ -5,8 +5,11 @@ import { parse as parseContentType } from 'content-type';
 
 const LISTENER_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
 const STOPPED_LISTENER_WAIT_MS = 60 * 1000;
-/** Retry-After (seconds) of a 503 for an upload whose result is unknown */
-const RETRY_AFTER_SECONDS = 10;
+/**
+ * Retry-After (seconds) of a 503 for an upload whose result is unknown. The storage was stuck
+ * for at least the wait above, so a retry after a few seconds only adds load.
+ */
+const RETRY_AFTER_SECONDS = 5 * 60;
 
 /**
  * Waits for a promise, an abort, or a timeout.
@@ -41,12 +44,17 @@ async function settlesWithin(promise, timeoutMs, abortPromise) {
  * @param {(req: object, deltaBytes: number, totalBytes: number) => void} [opts.onBytes] Called when bytes are received
  * @param {(req: object, info: { partCount: number, totalBytes: number, totalTimeMs: number }) => void} [opts.onRequestEnd] Called when all parts are done and request is complete
  * @param {(req: object, err: Error) => void} [opts.onRequestAbort] Called when the request is aborted (client disconnect, kill, etc.) so the app can end status jobs
+ * @param {ReturnType<import('../../util/stalledStowListeners.mjs').createStalledStowListeners>} [opts.stalledListeners] Server-wide count of the listeners that did not settle within the wait
  *
- * After the last part, the middleware waits LISTENER_WAIT_TIMEOUT_MS for the listeners. After
- * that, it stops the parts that still parse, and waits STOPPED_LISTENER_WAIT_MS more. The
- * request then goes to next(), which reports each instance, so an instance that committed is
- * reported as stored. When a listener still has not settled, its result is unknown, and the
- * request gets 503 with Retry-After.
+ * After the last part, the middleware waits while stream writes progress, and then
+ * LISTENER_WAIT_TIMEOUT_MS for the listeners. After that, it counts the listeners that did not
+ * settle in opts.stalledListeners, stops the parts that still parse, and waits
+ * STOPPED_LISTENER_WAIT_MS more. The request then goes to next(), which reports each instance,
+ * so an instance that committed is reported as stored. When a listener still has not settled,
+ * its result is unknown, and the request gets 503 with Retry-After.
+ *
+ * When opts.stalledListeners is full, a new request gets 503 with Retry-After at once, before
+ * the middleware reads its body (SQR-D20).
  */
 export function multipartStream(opts) {
   const {
@@ -60,6 +68,7 @@ export function multipartStream(opts) {
     onBytes,
     onRequestEnd,
     onRequestAbort,
+    stalledListeners,
   } = opts;
 
   if (typeof listener !== 'function') {
@@ -96,6 +105,13 @@ export function multipartStream(opts) {
 
     if (!boundary) {
       res.status(400).send('Multipart request missing boundary parameter');
+      return;
+    }
+
+    if (stalledListeners?.isFull()) {
+      console.warn('[multipartStream] Too many stalled STOW listeners, the request is refused');
+      res.setHeader('Retry-After', String(stalledListeners.retryAfterSeconds));
+      res.status(503).send('Service Unavailable: too many stalled uploads, retry later');
       return;
     }
 
@@ -615,6 +631,8 @@ export function multipartStream(opts) {
           const allSettled = Promise.allSettled(req.uploadListenerPromises);
           if (!(await settlesWithin(allSettled, LISTENER_WAIT_TIMEOUT_MS, abortWhenCalled))) {
             if (aborted) return;
+            // Past their deadline: a new request is refused while too many such listeners run
+            stalledListeners?.add(req.uploadListenerPromises);
             stopParts(new Error(`STOW listener wait timeout (${LISTENER_WAIT_TIMEOUT_MS} ms)`));
             if (!(await settlesWithin(allSettled, STOPPED_LISTENER_WAIT_MS, abortWhenCalled))) {
               if (aborted || nextCalled) return;

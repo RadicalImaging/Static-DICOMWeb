@@ -2,6 +2,7 @@ import { PassThrough } from 'stream';
 import { createVerboseLog } from '@radicalimaging/static-wado-util';
 import { multipartStream } from '../../lib/controllers/server/multipartStream.mjs';
 import { TrackableReadBufferStream } from '../../lib/controllers/server/TrackableReadBufferStream.mjs';
+import { createStalledStowListeners } from '../../lib/util/stalledStowListeners.mjs';
 
 createVerboseLog(false, { quiet: true });
 
@@ -96,7 +97,7 @@ describe('multipartStream', () => {
       if (expected === 'next') {
         expect(await Promise.all(req.uploadListenerPromises)).toEqual(['committed']);
       } else {
-        expect(headers['Retry-After']).toBe('10');
+        expect(headers['Retry-After']).toBe('300');
       }
     } finally {
       clearTimeout(timer);
@@ -160,6 +161,53 @@ describe('multipartStream', () => {
 
       expect(await res.result).toBe(400);
     } finally {
+      jest.restoreAllMocks();
+    }
+  });
+
+  // Test 50. The API must do this (SQR-D20): while a listener stays unsettled after the wait of
+  // its request, a new upload gets 503 with Retry-After at once, before its body is read
+  it('refuses a new upload while too many listeners are past their wait', async () => {
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const stalledListeners = createStalledStowListeners({ maxStalled: 1 });
+    let commit;
+    const middleware = multipartStream({
+      listener: () =>
+        new Promise(resolve => {
+          commit = resolve;
+        }),
+      createBufferStream: () => new TrackableReadBufferStream(null, true, { noCopy: true }),
+      stalledListeners,
+    });
+    const newRequest = () => {
+      const req = new PassThrough();
+      req.headers = { 'content-type': `multipart/related; boundary=${BOUNDARY}` };
+      return req;
+    };
+
+    try {
+      const first = newRequest();
+      middleware(first, createResponse(), () => {});
+      first.end(Buffer.concat([dicomPart(), Buffer.from(`--${BOUNDARY}--\r\n`)]));
+      for (let i = 0; i < 20; i++) await new Promise(resolve => setImmediate(resolve));
+      await jest.advanceTimersByTimeAsync(5.5 * MINUTE);
+      expect(stalledListeners.count()).toBe(1);
+
+      const second = newRequest();
+      const res = createResponse();
+      middleware(second, res, () => res.resolveResult('next'));
+      expect(await res.result).toBe(503);
+      expect(res.headers['Retry-After']).toBe('60');
+      expect(second.readableFlowing).toBe(null);
+
+      commit('committed');
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(stalledListeners.count()).toBe(0);
+      expect(stalledListeners.isFull()).toBe(false);
+    } finally {
+      jest.useRealTimers();
       jest.restoreAllMocks();
     }
   });
