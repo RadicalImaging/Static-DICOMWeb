@@ -1,24 +1,12 @@
-/**
- * Codes of a file system error that mean that the path does not exist. No stored path has a
- * name that is too long, so `ENAMETOOLONG` (for example a long UID in a request) is missing.
- */
-const MISSING_PATH_CODES = new Set(['ENOENT', 'ENOTDIR', 'ENAMETOOLONG']);
+import isMissingPathError from './isMissingPathError.js';
+
+export { isMissingPathError };
 
 /**
  * Codes of a file system error that a retry after the storage recovers does not change: the
  * layout of the files or the request is wrong. These are not I/O errors.
  */
 const PERMANENT_CODES = new Set(['ELOOP', 'EISDIR', 'EINVAL', 'ENOTEMPTY', 'EEXIST', 'EXDEV']);
-
-/**
- * Returns true when a file system error means that the path does not exist (`ENOENT`,
- * `ENOTDIR`, `ENAMETOOLONG`): a missing path. Compare isCorruptFileError and toStorageError.
- * @param {Error} error
- * @returns {boolean}
- */
-export function isMissingPathError(error) {
-  return MISSING_PATH_CODES.has(error?.code);
-}
 
 /**
  * Returns true when a read error shows that the file content is corrupt: the gunzip

@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { isMissingPathError } = require('../StorageUnavailableError.mjs');
+const isMissingPathError = require('../isMissingPathError');
 
 /**
  * Executes a given callback on the scanned list of names, OR matches up the names present
