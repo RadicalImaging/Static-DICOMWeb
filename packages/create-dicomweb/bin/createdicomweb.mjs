@@ -164,7 +164,10 @@ program
     '10m'
   )
   .option('--send-as-single-files', 'Send each file individually instead of grouping')
-  .option('--xml-response', 'Request XML response format instead of JSON')
+  .option(
+    '--xml-response',
+    'Request XML response format instead of JSON. After a 202 with an XML body, every file of the group counts as failed'
+  )
   .option(
     '--timeout <duration>',
     'Request timeout: hours (10h), minutes (10m), or seconds (3600 or 3600s)'
