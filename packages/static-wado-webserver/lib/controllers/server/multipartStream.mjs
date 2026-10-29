@@ -47,9 +47,9 @@ async function settlesWithin(promise, timeoutMs, abortPromise) {
  * @param {ReturnType<import('../../util/stalledStowListeners.mjs').createStalledStowListeners>} [opts.stalledListeners] Server-wide count of the listeners that did not settle within the wait
  *
  * After the last part, the middleware waits in three phases:
- * 1. While stream writes settle. Each round waits up to LISTENER_WAIT_TIMEOUT_MS, and the
- *    phase ends after a round in which no write settled. Thus the phase has no limit while
- *    the writes progress, and ends one or two rounds after the last write that settled.
+ * 1. While stream writes settle. Each round waits up to LISTENER_WAIT_TIMEOUT_MS. The phase
+ *    ends when no write is open, or after a round in which no write settled. Thus it has no
+ *    limit while the writes progress, and ends at once when the last open write settles.
  * 2. LISTENER_WAIT_TIMEOUT_MS for the listeners. Then it counts the listeners in
  *    opts.stalledListeners, and stops the parts that still parse.
  * 3. STOPPED_LISTENER_WAIT_MS more.
@@ -59,9 +59,11 @@ async function settlesWithin(promise, timeoutMs, abortPromise) {
  * opts.stalledListeners.
  *
  * When opts.stalledListeners is full, a new request gets 503 with Retry-After at once, before
- * the middleware reads its body (SQR-D20). The response has no `Connection: close`: after the
- * response, Node.js reads and discards the body, and the client gets the 503. A close while
- * the client still sends the body resets the connection, and the client gets ECONNRESET.
+ * the middleware reads its body (SQR-D20). The response has no `Connection: close`, because
+ * a close while the client still sends the body resets the connection, and the client gets
+ * ECONNRESET and not the 503. After the response, Node.js (24.20.0) stops the read of the body
+ * after some 64 to 128 KB, and closes the connection after the keepAliveTimeout of the server
+ * (5 s). A client that reads the response while it sends the body thus gets the 503.
  */
 export function multipartStream(opts) {
   const {

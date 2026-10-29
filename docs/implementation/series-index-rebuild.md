@@ -642,9 +642,16 @@ the tests.
   while its write is stuck.
 - At the start of a multipart request, before Dicer reads the body, `multipartStream` calls
   `isFull()`. When the count is at the limit, the request gets `503` with `Retry-After: 60`
-  at once. The response has no `Connection: close`. Node.js reads and discards the body
-  after the response, and keeps the connection. A close while the client still sends the
-  body resets the connection, and the client gets `ECONNRESET` and not the `503`.
+  at once. The response has no `Connection: close`, because a close while the client still
+  sends the body resets the connection, and the client gets `ECONNRESET` and not the `503`.
+  After the response, Node.js does not read and discard the body. A probe on Node.js 24.20.0
+  (Windows 11, loopback, `http` and `express`, a body of 50 MB and of 2000 MB) gave these
+  results:
+  - The client got the `503` within 20 ms.
+  - The server read 64 KB to 128 KB of the body (`socket.bytesRead`), and then stopped the
+    read.
+  - The server closed the connection after `keepAliveTimeout` (5 s). The client `req` then
+    emitted `close`, with no `error`.
 - While the count is above 0, `StatusMonitor` shows a job of type `stowStalled`, with the
   count (`stalled`) and the limit (`maxStalled`).
 
@@ -782,9 +789,9 @@ option, `readJsonFile` gets the `throwIfNotDeleted` option, and the reader gets
 `directoryExists` and `listDirectories`. `FileDicomWebWriter` gets the `canCommit` option and
 the `whenDestroyedStreamsClosed()` method, and `commitPendingMoves` cleans up after a failed
 rename. create-dicomweb exports `createBuildReader`, `seriesFilesExist`, `studyFilesExist`,
-`generationTracker`, `createGenerationTracker` and `seriesGenerationKey`. `@radicalimaging/static-wado-util`
-exports `createJobManager`, `QueueFullError`, `StorageUnavailableError`,
-`isMissingPathError`, `isCorruptFileError` and `toStorageError`.
+`generationTracker`, `createGenerationTracker` and `seriesGenerationKey`.
+`@radicalimaging/static-wado-util` exports `createJobManager`, `QueueFullError`,
+`StorageUnavailableError`, `isMissingPathError`, `isCorruptFileError` and `toStorageError`.
 
 These user-facing results also change:
 
@@ -843,8 +850,10 @@ These user-facing results also change:
   a STOW-RS client.
 - The server param `maxStalledStowListeners` (default 8) limits the stalled instances of
   SQR-D20. At the limit, a new STOW-RS request gets `503` with `Retry-After: 60` at once.
-  The server does not store its instances, and discards the body. One upload with 8 or more
-  instances can reach the limit. Set `0` to turn the limit off.
+  The server does not store its instances. It stops the read of the body, and closes the
+  connection after `keepAliveTimeout` (5 s). A client that reads the response only after it
+  sent the whole body can get a connection reset, and not the `503`. One upload with 8 or
+  more instances can reach the limit. Set `0` to turn the limit off.
 - The `stow` command of the CLI retries a connection reset (`ECONNRESET`, `EPIPE`) of a
   group, up to 3 times, and then counts the group as failed. Before this change, the
   command stopped all groups with exit code `1` at the first connection reset.
