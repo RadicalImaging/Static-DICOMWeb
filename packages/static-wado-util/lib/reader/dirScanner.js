@@ -7,8 +7,10 @@ const { isMissingPathError } = require('../StorageUnavailableError.mjs');
  * in the actual directory with the specified list.
  *
  * A path that does not exist (isMissingPathError) is logged and skipped, and
- * options.onMissing(path) is called. Any other error of the stat (for example EACCES or EIO)
- * throws, so that a caller never counts an unreadable path as missing.
+ * options.onMissing(path) is called. Any other error of the stat or of the directory listing
+ * (for example EACCES or EIO) calls options.onError(path, error), and the scan continues with
+ * the next path. Without onError, the error throws, so that a caller never counts an
+ * unreadable path as missing.
  */
 async function dirScanner(input, options) {
   let files = input;
@@ -30,13 +32,22 @@ async function dirScanner(input, options) {
     try {
       stat = fs.lstatSync(file);
     } catch (err) {
-      if (!isMissingPathError(err)) throw err;
+      if (!isMissingPathError(err)) {
+        failPath(file, err, options);
+        continue;
+      }
       console.warn('File does not exist', file);
       options?.onMissing?.(file);
       continue;
     }
     if (stat.isDirectory()) {
-      const names = await fs.promises.readdir(file);
+      let names;
+      try {
+        names = await fs.promises.readdir(file);
+      } catch (err) {
+        failPath(file, err, options);
+        continue;
+      }
       const filtered = names.filter(
         (name) => name !== '__MACOSX' && !name.startsWith('.')
       );
@@ -67,6 +78,13 @@ async function dirScanner(input, options) {
       }
     }
   }
+}
+
+/** Gives an unreadable path to options.onError, or throws the error without onError */
+function failPath(file, err, options) {
+  if (!options?.onError) throw err;
+  console.error("Couldn't read", file, err?.message ?? err);
+  options.onError(file, err);
 }
 
 module.exports = dirScanner;

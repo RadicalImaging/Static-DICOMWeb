@@ -197,6 +197,16 @@ class StaticWado {
     let filesProcessed = 0;
     const result = await dirScanner(files, {
       ...params,
+      // An unreadable path (for example EACCES or EIO) fails, and the import continues
+      onError: (file, e) => {
+        this.updateProgress();
+        const message = {
+          FailedSOPSequence: [
+            { FailureReason: 0xd000, TextValue: 'File not readable', StorageURL: file },
+          ],
+        };
+        this.callback.failure('Not readable', message, file, e);
+      },
       callback: async file => {
         try {
           const dicomp10stream = fs.createReadStream(file);
