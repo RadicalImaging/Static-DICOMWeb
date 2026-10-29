@@ -15,7 +15,7 @@ import { parseAndLogDicomJsonErrors } from './parseDicomJsonErrors.mjs';
 const LIMIT_UNSETTLED_TIMEOUT_MS = 30 * 60 * 1000;
 /** Timeout for "wait for all" when using parallel (24 hours) */
 const WAIT_ALL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
-/** Number of times a group is sent again after a 503 response */
+/** Number of times a group is sent again after a 503 response or a connection reset */
 const MAX_UNAVAILABLE_RETRIES = 3;
 /** Wait before a retry after a 503 with no Retry-After header, and the longest wait (seconds) */
 const DEFAULT_RETRY_AFTER_SECONDS = 10;
@@ -162,11 +162,9 @@ export async function stowMain(fileNames, options = {}) {
         error.message.includes('ECONNREFUSED') ||
         error.message.includes('ENOTFOUND') ||
         error.message.includes('ETIMEDOUT') ||
-        error.message.includes('ECONNRESET') ||
         error.cause?.code === 'ECONNREFUSED' ||
         error.cause?.code === 'ENOTFOUND' ||
-        error.cause?.code === 'ETIMEDOUT' ||
-        error.cause?.code === 'ECONNRESET';
+        error.cause?.code === 'ETIMEDOUT';
 
       if (isConnectionError) {
         console.error(`Failed to connect to endpoint ${url}: ${error.message}`);
@@ -343,7 +341,11 @@ export async function stowFiles(
       res.on('error', reject);
     });
 
-    req.on('error', reject);
+    req.on('error', error => {
+      // Close the file of the body, because a retry reads the files again
+      bodyStream.destroy();
+      reject(error);
+    });
 
     if (effectiveTimeoutMs > 0) {
       req.setTimeout(effectiveTimeoutMs, () => {
@@ -395,12 +397,18 @@ function retryAfterMs(value) {
   return Math.min(Math.max(seconds, 0), MAX_RETRY_AFTER_SECONDS) * 1000;
 }
 
+/** Error codes of a connection that the server or a proxy closed during the request */
+const CONNECTION_RESET_CODES = new Set(['ECONNRESET', 'EPIPE']);
+
 /**
  * stowFiles, and up to MAX_UNAVAILABLE_RETRIES more times after a 503 response, each after the
  * wait of its Retry-After header. A 503 comes from a storage outage, from too much stalled
  * work, or from an unknown result. In the last case the server can have stored some instances
  * (SQR-U5). The same group can still be sent again, because a new upload of a stored instance
- * replaces it. Same parameters as stowFiles.
+ * replaces it. A connection reset (ECONNRESET, EPIPE) uses the same retries, with the wait of
+ * DEFAULT_RETRY_AFTER_SECONDS: a server or a proxy that refuses a request before it reads the
+ * body can close the connection. After the last retry, the error goes to the caller, which
+ * counts the group as failed. Same parameters as stowFiles.
  */
 export async function stowFilesWithRetry(
   files,
@@ -413,10 +421,12 @@ export async function stowFilesWithRetry(
     try {
       return await stowFiles(files, endpointUrl, additionalHeaders, xmlResponse, timeoutMs);
     } catch (error) {
-      if (error.status !== 503 || retry >= MAX_UNAVAILABLE_RETRIES) throw error;
+      const reset = CONNECTION_RESET_CODES.has(error.code ?? error.cause?.code);
+      if ((error.status !== 503 && !reset) || retry >= MAX_UNAVAILABLE_RETRIES) throw error;
       const waitMs = retryAfterMs(error.retryAfter);
+      const reason = reset ? `Connection reset (${error.code ?? error.cause?.code})` : 'HTTP 503';
       console.warn(
-        `HTTP 503 for a group of ${files.length} file(s), retry ${retry + 1} of ${MAX_UNAVAILABLE_RETRIES} in ${waitMs / 1000} s`
+        `${reason} for a group of ${files.length} file(s), retry ${retry + 1} of ${MAX_UNAVAILABLE_RETRIES} in ${waitMs / 1000} s`
       );
       await new Promise(resolve => setTimeout(resolve, waitMs));
     }
