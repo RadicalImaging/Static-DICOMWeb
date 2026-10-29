@@ -122,27 +122,40 @@ describe('stowMain', () => {
     expect(results.errors.map(({ file }) => path.basename(file))).toEqual(['b.dcm', 'c.dcm']);
   });
 
-  // Test 67. The user experience must have this (SQR-U5): files with the same base name in
-  // different directories count as stored only when the 202 lists them. With no
-  // Content-Location in the items (a different server), the number of items decides.
-  it.each([
-    ['with', true],
-    ['without', false],
-  ])('counts files with the same base name %s a Content-Location in the 202', async (_, echo) => {
+  /** Writes the file `name` in 4 directories, and returns the 4 paths */
+  const sameBaseName = name => {
     fs.rmSync(path.join(dir, 'a.dcm'));
-    const files = ['s0', 's1', 's2', 's3'].map(sub => {
+    return ['s0', 's1', 's2', 's3'].map(sub => {
       fs.mkdirSync(path.join(dir, sub));
-      fs.writeFileSync(path.join(dir, sub, 'a.dcm'), 'data');
-      return path.join(dir, sub, 'a.dcm');
+      fs.writeFileSync(path.join(dir, sub, name), 'data');
+      return path.join(dir, sub, name);
     });
-    echoLocation = echo;
+  };
+
+  // Test 67. The user experience must have this (SQR-U5): files with the same base name in
+  // different directories count as stored only when the 202 lists them. The mock server reads
+  // the part headers as Latin-1, as the webserver does, so `ä.dcm` checks a name that is not
+  // ASCII.
+  it.each(['a.dcm', 'ä.dcm'])('counts files with the same base name %s in a 202', async name => {
+    const files = sameBaseName(name);
     statuses = [202];
     const results = await stow();
     expect(requests).toBe(1);
     expect(results).toMatchObject({ success: 1, failed: 3 });
-    if (echo) {
-      expect(results.errors.map(({ file }) => path.resolve(file))).toEqual(files.slice(1));
-    }
+    expect(results.errors.map(({ file }) => path.resolve(file))).toEqual(files.slice(1));
+  });
+
+  // Test 67, a different server: with no Content-Location in the items, the number of stored
+  // items decides, and the files with no item get no file name
+  it('counts files by the number of items of a 202 with no Content-Location', async () => {
+    sameBaseName('a.dcm');
+    echoLocation = false;
+    statuses = [202];
+    const results = await stow();
+    expect(requests).toBe(1);
+    expect(results).toMatchObject({ success: 1, failed: 3 });
+    const generic = results.errors.filter(({ file }) => file === 'a file of a group of 4 file(s)');
+    expect(generic).toHaveLength(2);
   });
 
   /** Records each file stream of a body; `fail` gives the name of a file that cannot open */
