@@ -104,4 +104,63 @@ describe('multipartStream', () => {
       jest.restoreAllMocks();
     }
   });
+
+  /** A response mock that resolves `result` with the first status code */
+  const createResponse = () => {
+    const headers = {};
+    let resolveResult;
+    const result = new Promise(resolve => {
+      resolveResult = resolve;
+    });
+    const res = {
+      headersSent: false,
+      headers,
+      result,
+      resolveResult,
+      setHeader: (name, value) => (headers[name] = value),
+      status: code => {
+        resolveResult(code);
+        return res;
+      },
+      send: () => res,
+    };
+    return res;
+  };
+
+  const dicomPart = (bytes = 100) =>
+    Buffer.concat([
+      Buffer.from(`--${BOUNDARY}\r\nContent-Type: application/dicom\r\n\r\n`),
+      Buffer.alloc(bytes),
+      Buffer.from('\r\n'),
+    ]);
+
+  // Test 49. The user experience must have this (SQR-U5): a malformed part header in the
+  // middle of the body gives 400, and never a report that leaves out the later parts
+  it('answers 400 for a malformed part header before the body ends', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'trace').mockImplementation(() => {});
+    const req = new PassThrough();
+    req.headers = { 'content-type': `multipart/related; boundary=${BOUNDARY}` };
+    const res = createResponse();
+    const listened = [];
+    const middleware = multipartStream({
+      listener: async fileInfo => listened.push(fileInfo.fieldname),
+      createBufferStream: () => new TrackableReadBufferStream(null, true, { noCopy: true }),
+    });
+
+    try {
+      middleware(req, res, () => res.resolveResult('next'));
+      req.write(dicomPart());
+      // A folded first header line. Dicer parses a header only when body bytes follow it.
+      req.write(
+        Buffer.from(`--${BOUNDARY}\r\n Content-Type: application/dicom\r\n\r\n${'x'.repeat(100)}`)
+      );
+      await new Promise(resolve => setTimeout(resolve, 50));
+      if (!req.destroyed) req.end(Buffer.concat([dicomPart(), Buffer.from(`--${BOUNDARY}--\r\n`)]));
+
+      expect(await res.result).toBe(400);
+    } finally {
+      jest.restoreAllMocks();
+    }
+  });
 });

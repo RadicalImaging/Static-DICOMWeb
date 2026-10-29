@@ -189,7 +189,8 @@ export function multipartStream(opts) {
         dicer.removeAllListeners();
       } catch {}
 
-      if (!res.headersSent) {
+      // After next(), completePostController owns the response
+      if (!res.headersSent && !nextCalled) {
         res.status(400).send(err?.message ?? String(err));
       }
     };
@@ -204,8 +205,15 @@ export function multipartStream(opts) {
       const partNumber = partCount;
       if (onPart) onPart(req, partCount);
       console.verbose(`[multipartStream] Part ${partCount} detected`);
+      // Dicer can emit a part error before errorHandler is attached; onBodyError handles it
+      part.on('error', () => {});
 
       if (limits?.parts && partCount > limits.parts) {
+        // Count the drained part as done, or checkAllPartsComplete never calls next()
+        part.on('end', () => {
+          completedParts += 1;
+          checkAllPartsComplete();
+        });
         part.resume();
         return;
       }
@@ -219,8 +227,6 @@ export function multipartStream(opts) {
 
       // Pause the part stream until we have headers
       part.pause();
-      // Dicer can emit a part error before errorHandler is attached; onBodyError handles it
-      part.on('error', () => {});
 
       // Function to process the part once we have headers
       const processPart = () => {
@@ -517,16 +523,18 @@ export function multipartStream(opts) {
     });
 
     /**
-     * A Dicer error: the body ended without its closing boundary, or a part is malformed. Dicer
-     * reports it after it parsed the body, so the parts before the current part (dicer._part)
-     * are complete. When no part is complete, the request gets 400 (abort). Otherwise the
-     * complete parts continue, the cut part fails with C000 (completePart), and next() reports
-     * each instance (SQR-U5).
+     * A Dicer error. Only "Unexpected end of multipart data" comes after the request body ended
+     * (req.readableEnded): the body ended without its closing boundary, so the parts before the
+     * current part (dicer._part) are complete. Then, when a part is complete, those parts
+     * continue, the cut part fails with C000 (completePart), and next() reports each instance
+     * (SQR-U5). Each other error (a malformed part header) comes while the body still arrives,
+     * and the pipe to Dicer stops, so the later parts are lost: the request gets 400 (abort),
+     * as does a body with no complete part.
      */
     const onBodyError = err => {
       if (aborted || bodyEnded || nextCalled) return;
       const cut = dicer._part && !dicer._ignoreData ? partCount : 0;
-      if ((cut ? partCount - 1 : partCount) === 0) {
+      if (!req.readableEnded || (cut ? partCount - 1 : partCount) === 0) {
         abort(err);
         return;
       }
