@@ -514,20 +514,27 @@ throws, came with #141 (SQR-I3). This item depends on them, and does not change 
    rendition from the stored files, as it does before the commit of the new rendition.
 5. `multipartStream` waits for the listeners after the last part, in three phases:
    - Phase 1 waits while the stream writes of the request settle. Each round waits up to
-     5 minutes (`limitUnsettled`). The phase ends after a round in which no write settled.
-     Thus the phase has no limit while the writes progress. It takes no time when no write
-     is open. When a write is stuck, it takes 5 minutes. When a write settled during the
-     phase, the phase ends 5 to 10 minutes after the last write that settled.
+     5 minutes (`limitUnsettled`). The phase ends when no write is open, or after a round in
+     which no write settled. Thus the phase has no limit while the writes progress. It takes
+     no time when no write is open, and it ends at once when the last open write settles.
+     When a write does not progress, `drainOpenStreams` of the instance stops that write
+     60 s after the last completed write of the instance (`DEFAULT_DRAIN_TIMEOUT_MS`). The
+     write promise rejects, and the phase ends. The listener then fails, phase 2 ends at
+     once, and the request gets a report of each instance (`409` or `202`), not `503`.
+     The drain runs after the parse of the instance. Work that the drain does not stop, for
+     example a parse that waits or a slow `validateInstance`, keeps a write open. Then the
+     phase ends 5 to 10 minutes after the last write that settled.
    - Phase 2 waits 5 minutes for the listeners. Then `multipartStream` adds the listener
      promises to the count of SQR-I10. It marks the part streams as aborted (`setAborted`),
      which stops each parse that still runs.
    - Phase 3 waits 1 more minute.
 
    When all listeners settled, the request goes to `completePostController`, which reports
-   each instance. Otherwise the request gets `503` with `Retry-After: 300`. The total wait
-   after the last part is at least 6 minutes. When a write is stuck, the total wait is at
-   least 11 minutes. `TrackableReadBufferStream` keeps a handler
-   on its abort promise, so `setAborted` gives no unhandled rejection.
+   each instance. Otherwise the request gets `503` with `Retry-After: 300`. Before this
+   `503`, the total wait after the last part is at least 6 minutes. When work that the drain
+   does not stop keeps a write open, the total wait is at least 11 minutes.
+   `TrackableReadBufferStream` keeps a handler on its abort promise, so `setAborted` gives
+   no unhandled rejection.
 6. A Dicer error (`onBodyError`) gives the report of each instance only when the request body
    ended (`req.readableEnded`) and a part is complete. Only "Unexpected end of multipart
    data" (a body with no closing boundary) comes after the end of the body. Then each part
@@ -579,7 +586,12 @@ throws, came with #141 (SQR-I3). This item depends on them, and does not change 
     with fewer frames leaves no old frame. The call never throws.
 14. The `stow` command of the CLI (`stowMain`) sends a group again after a `503` response,
     up to 3 times (`stowFilesWithRetry`). It waits for the `Retry-After` value (seconds or an
-    HTTP date, 10 s when the header is not there, at most 10 minutes). It logs the failed
+    HTTP date, 10 s when the header is not there, at most 10 minutes). A connection reset
+    (`ECONNRESET` or `EPIPE`) uses the same retries, with a wait of 10 s. After the last
+    retry, `runOneStow` counts the group as failed, and the other groups continue. Only
+    `ECONNREFUSED`, `ENOTFOUND` and `ETIMEDOUT` stop the command at once with
+    `process.exit(1)`. The request error destroys the body stream, so a retry does not keep
+    the files of the earlier body open. The command logs the failed
     instances of a `409` or `503` response, and prints the body of a failed response one time
     for each group. The error message of a file has the status only. After a `202`,
     `parseAndLogDicomJsonErrors` returns the items of the Failed SOP Sequence, and the
@@ -630,7 +642,9 @@ the tests.
   while its write is stuck.
 - At the start of a multipart request, before Dicer reads the body, `multipartStream` calls
   `isFull()`. When the count is at the limit, the request gets `503` with `Retry-After: 60`
-  and `Connection: close`. Node.js then closes the connection after the response.
+  at once. The response has no `Connection: close`. Node.js reads and discards the body
+  after the response, and keeps the connection. A close while the client still sends the
+  body resets the connection, and the client gets `ECONNRESET` and not the `503`.
 - While the count is above 0, `StatusMonitor` shows a job of type `stowStalled`, with the
   count (`stalled`) and the limit (`maxStalled`).
 
@@ -733,6 +747,10 @@ proposal in these items:
   an aborted request, and a failed instance with a stuck file write (`onStuckWrites`). The
   `503` of a full count has `Connection: close`. The `stow` command counts the failed
   instances of a `202` as failed.
+- **After the third review of pull request #146.** The `503` of a full count has no
+  `Connection: close` again, because a client that sends a body got `ECONNRESET` and not
+  the `503`. The `stow` command retries a connection reset in the same way as a `503`, and
+  does not stop the process.
 
 ## Compatibility
 
@@ -758,15 +776,13 @@ The other changes of the exported functions add to the earlier behaviour:
 `seriesSummary` and `studyMain` return `{ committed, payload }`, `seriesMain` returns
 `{ committed }`, and `seriesSummary` (`force`, `generation`), `seriesMain` (`force`),
 `studyMain` (`force`, `generation`, `buildSeries`), `indexSummary` (`onlyMissing`) and
-`instanceFromStream` (`afterCommit`, `onStuckWrites`) get new options. `studySummary` is internal, and is not
-exported. The `FileDicomWebReader` constructor gets the `throwOnIoError` option,
-`readJsonFile` gets the `throwIfNotDeleted` option, and the reader gets `directoryExists` and
-`listDirectories`.
-`FileDicomWebWriter` gets the
-`canCommit` option and the `whenDestroyedStreamsClosed()` method, and `commitPendingMoves`
-cleans up after a failed rename. create-dicomweb
-exports `createBuildReader`, `seriesFilesExist`, `studyFilesExist`, `generationTracker`,
-`createGenerationTracker` and `seriesGenerationKey`. `@radicalimaging/static-wado-util`
+`instanceFromStream` (`afterCommit`, `onStuckWrites`) get new options. `studySummary` is
+internal, and is not exported. The `FileDicomWebReader` constructor gets the `throwOnIoError`
+option, `readJsonFile` gets the `throwIfNotDeleted` option, and the reader gets
+`directoryExists` and `listDirectories`. `FileDicomWebWriter` gets the `canCommit` option and
+the `whenDestroyedStreamsClosed()` method, and `commitPendingMoves` cleans up after a failed
+rename. create-dicomweb exports `createBuildReader`, `seriesFilesExist`, `studyFilesExist`,
+`generationTracker`, `createGenerationTracker` and `seriesGenerationKey`. `@radicalimaging/static-wado-util`
 exports `createJobManager`, `QueueFullError`, `StorageUnavailableError`,
 `isMissingPathError`, `isCorruptFileError` and `toStorageError`.
 
@@ -826,9 +842,12 @@ These user-facing results also change:
   `Retry-After: 300`. Before this change, the request got `400`. This status code is new for
   a STOW-RS client.
 - The server param `maxStalledStowListeners` (default 8) limits the stalled instances of
-  SQR-D20. At the limit, a new STOW-RS request gets `503` with `Retry-After: 60` and
-  `Connection: close` at once. The server does not store its instances. One upload with 8 or
-  more instances can reach the limit. Set `0` to turn the limit off.
+  SQR-D20. At the limit, a new STOW-RS request gets `503` with `Retry-After: 60` at once.
+  The server does not store its instances, and discards the body. One upload with 8 or more
+  instances can reach the limit. Set `0` to turn the limit off.
+- The `stow` command of the CLI retries a connection reset (`ECONNRESET`, `EPIPE`) of a
+  group, up to 3 times, and then counts the group as failed. Before this change, the
+  command stopped all groups with exit code `1` at the first connection reset.
 - A failed new upload of a stored instance keeps the stored frames. A new upload of a stored
   instance deletes its stored Part 10 rendition with the rename of the instance `metadata`.
   It deletes the frames above the new frame count after the commit. Until the upload stores the new
@@ -899,8 +918,10 @@ This section is not a requirement of the code.
 - A proxy in front of the server must wait for a STOW-RS response longer than the upload
   takes. It must also wait for the time of item 5 of SQR-I8 after the last part:
   - at least 6 minutes;
-  - at least 11 minutes when a write of the request is stuck. The wait ends at most
-    16 minutes after the last write that completed in the wait;
+  - at least 11 minutes when work that `drainOpenStreams` does not stop keeps a write open.
+    The wait ends at most 16 minutes after the last write that completed in the wait. In
+    the usual case, the drain stops a write that does not progress after 60 s, and the
+    request gets a report of each instance;
   - no limit while the writes of the request continue to complete. No proxy timeout covers
     this case.
 
@@ -1034,9 +1055,14 @@ The user experience must have this:
 55. The `stow` command sends a group again after two `503` responses, and stores it. After
     the last `503` retry, or after a `409`, the group counts as failed, so the command exits
     with `1`. After a `202` with one failed item, that file counts as failed, and the other
-    file as stored (SQR-U5).
+    file as stored (SQR-U5). After a connection reset, the command sends the group again
+    and stores it. After the last reset retry, the group counts as failed. A reset does not
+    stop the command (no `process.exit`).
 59. A bulk import of `static-wado-creator` (`StaticWado.processFiles`) reports a path whose
     stat fails with `EACCES` as failed, and imports the next path (SQR-U5).
+60. The stalled count is full. A real HTTP client sends a body of 20 MB with the client code
+    of `stowFiles`. The client gets `503` with `Retry-After: 60`, and not `ECONNRESET`
+    (SQR-U5, SQR-D20).
 
 The API must do this:
 
@@ -1098,7 +1124,7 @@ The API must do this:
 48. A frame closes after the instance `metadata`. The commit still renames the `metadata`
     last (SQR-D18, note 2 of "Safety of each deployment").
 50. A listener stays unsettled after the wait of its request. A new upload then gets `503`
-    with `Retry-After` and `Connection: close` at once, and its body is not read. After the
+    with `Retry-After` and no `Connection: close` at once, and its body is not read. After the
     listener settles, the count is 0 (SQR-D20).
 51. With `studyIndex: false`, a series thumbnail request builds the study files, and does
     not add the study to `studies/index.json` (SQR-D17).
@@ -1125,7 +1151,7 @@ The numbered tests are in these files:
 - `packages/static-wado-webserver/test/unit/buildJobManager.jest.mjs`: 8, 12, 25, 28, 29, 43.
 - `packages/static-wado-webserver/test/unit/stowAbort.jest.mjs`: 13.
 - `packages/static-wado-webserver/test/unit/stowCommit.jest.mjs`: 36, 38, 41, 44, 45, 47, 51.
-- `packages/static-wado-webserver/test/unit/multipartStream.jest.mjs`: 37, 49, 50, 56, 58.
+- `packages/static-wado-webserver/test/unit/multipartStream.jest.mjs`: 37, 49, 50, 56, 58, 60.
 - `packages/create-dicomweb/test/writeWithRetryCleanup.jest.mjs`: 33, 34, 39, 40, 42, 46, 48,
   52, 57.
 - `packages/static-wado-creator/test/unit/processFiles.jest.js`: 59.

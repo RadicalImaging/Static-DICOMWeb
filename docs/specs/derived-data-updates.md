@@ -128,11 +128,18 @@ does not change the user contract (SQR-U1).
     instance of that request can still be stored after this response. The client can send
     all instances of the request again, because a new upload of a stored instance replaces
     it.
-  - When too many instances of earlier uploads are stalled (SQR-D20), the server answers a
-    new upload at once with `503 Service Unavailable`, a `Retry-After` header and
-    `Connection: close`. The server stores none of the instances of that request. It closes
-    the connection after the response, so it does not receive the rest of the body. The
-    instances of one large upload can be enough to cause this response.
+  - When too many instances of earlier uploads are stalled, the server answers a new upload
+    at once with `503 Service Unavailable` and a `Retry-After` header. An instance is stalled
+    in these cases:
+    - its work did not end in the wait above;
+    - its upload stopped before the end of the body, and its work did not end;
+    - its work failed, and a file write of that work does not return.
+
+    The usual cause is a storage that does not respond. The server stores none of the
+    instances of that request. The client gets the response also while it sends the body,
+    because the server reads the rest of the body and discards it. The instances of one
+    large upload can be enough to cause this response. SQR-D20 gives the design. The section
+    "Known limitations" gives a case in which the server cannot send this response.
   - The HTTP status of the response obeys PS3.18 Table 10.5.3-1: `200` when the server stored
     all instances of the request, `202` when it stored some instances and others failed, and
     `409` when the request has instances and the server stored none of them. The section
@@ -165,8 +172,12 @@ does not change the user contract (SQR-U1).
     instance of the upload does not give `404`. It gives a thumbnail of the stored data.
   - The `createdicomweb instance`, `create` and `stow` commands exit with a code that is not
     `0` when they did not store one or more files. An input path that does not exist, or that
-    the command cannot read, is a file that the command did not store. The `stow` command sends a group of files again after a `503` response,
-    after the time of its `Retry-After` header, up to 3 times.
+    the command cannot read, is a file that the command did not store.
+  - The `stow` command sends a group of files again after a `503` response or a connection
+    reset, up to 3 times for each group. Before a retry after a `503`, it waits for the time
+    of the `Retry-After` header. Before a retry after a reset, it waits 10 seconds. After
+    the last retry, the files of that group are failed files, and the command continues
+    with the other groups.
 
 ## Known limitations
 
@@ -187,11 +198,14 @@ later change can remove them:
   The deletion of the frames above the new frame count comes after the commit, in a
   different step. A process stop between the two steps keeps those old frames. An upload of
   the same instance on a different node at that time can also keep them. The metadata of
-  the instance is correct, and the old frames are only extra files.
+  the instance is correct. A client that follows the metadata does not request the old
+  frames. A request for such a frame number gets the old pixel data, and not `404`, until
+  the next upload of that instance.
 - **A thumbnail request during an upload.** A thumbnail request can read the stored data of
   an instance before the commit of that instance. The request can then store the old
-  thumbnail again after the upload deleted it. The old thumbnail then stays until the next upload of that instance. An upload
-  does not delete the `rendered` files, or the `thumbnail-<n>` files that the CLI makes.
+  thumbnail again after the upload deleted it. The old thumbnail then stays until the next
+  upload of that instance. An upload does not delete the `rendered` files, or the
+  `thumbnail-<n>` files that the CLI makes.
 - **The `503` of an unknown result does not list the stored instances.** The body is plain
   text. Thus a client sends all instances of the request again, also the instances that the
   server stored. A new upload of a stored instance replaces it, so the result is correct,
@@ -208,6 +222,12 @@ later change can remove them:
   temporary files of each study on the storage. This includes a study whose uploads run on a
   different node. The safety of that removal depends on the configured age and on the clocks
   (SQR-D19).
+- **A storage that does not answer a synchronous file call.** The writer uses synchronous
+  file calls to open, rename and delete a file (`openSync`, `renameSync`, `unlinkSync`).
+  When the storage does not answer such a call, the call stops the whole server. The server
+  then answers no request until the storage answers. Thus it sends no `503` (SQR-U5,
+  SQR-D20), no status page and no health check. A proxy then gives its own error, for
+  example `504`.
 
 ## § Design requirements
 
@@ -456,18 +476,22 @@ The next requirements use these terms:
   - Its work did not end in the wait of its upload (SQR-U5), or its upload stopped before
     the end of the body. The instance stays in the count until its work ends. Until then,
     the work holds its buffers and its files, and the server does not stop it.
-  - Its work failed, and a file write that the server stopped did not close. A file system
-    call holds a thread of the server until the call returns, also after the server stops
-    the write. The instance stays in the count until each such write closes.
+  - Its work failed, and a file write that the server stopped did not close. An asynchronous
+    file system call holds a thread of the server until the call returns, also after the
+    server stops the write. The instance stays in the count until each such write closes.
 
   The count holds the work that the server waits for. It does not measure the memory or the
   threads. The other file system calls of an instance (for example a delete) are not in the
   count. When the count reaches a configured limit, the server answers a new upload with
   `503` and a `Retry-After` header before it reads the body. SQR-D14 does the same for
-  builds. The server also closes the connection of that request. The limit counts
-  instances, and not uploads, so the instances of one upload can reach the limit. Thus the
-  retries of clients on a stuck storage do not add work until the server has no memory.
-  Supports SQR-U3 and SQR-U5.
+  builds. The server keeps the connection open, and reads and discards the body after the
+  response. A close before the end of the body resets the connection, and the client then
+  does not get the `503`. The limit counts instances, and not uploads, so the instances of
+  one upload can reach the limit. Thus the retries of clients on a stuck storage do not add
+  work until the server has no memory. The count applies only while asynchronous file calls
+  stall. The writer also uses synchronous file calls (`openSync`, `renameSync`,
+  `unlinkSync`). A storage that does not answer such a call blocks the whole server, which
+  then cannot send the `503` (Known limitations). Supports SQR-U3 and SQR-U5.
 
 ### Multi-node extension requirements
 
