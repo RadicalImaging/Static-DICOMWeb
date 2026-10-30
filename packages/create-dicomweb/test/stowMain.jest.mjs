@@ -14,13 +14,16 @@ describe('stowMain', () => {
   let requests;
   let waits;
   let echoLocation;
+  let connections;
 
   beforeEach(async () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stow-main-'));
     fs.writeFileSync(path.join(dir, 'a.dcm'), 'data');
     requests = 0;
     echoLocation = true;
+    connections = [];
     server = http.createServer((req, res) => {
+      connections.push(req.headers.connection);
       // The 503 of a full stalled count (SQR-D20): the answer comes before the read of the body
       if (statuses[0] === 'early') {
         requests += 1;
@@ -181,7 +184,9 @@ describe('stowMain', () => {
 
   // Test 61. The user experience must have this (SQR-D20): after a 503 that comes before the
   // end of the body, the stow command closes the file of the body at once, and not when the
-  // server closes the connection (keepAliveTimeout, 5 s)
+  // server closes the connection (keepAliveTimeout, 5 s). Under node, the request does not
+  // send Connection: close, because the server then closes the socket and the client gets a
+  // reset, not the 503.
   it('closes the file of the body after a 503 before the end of the body', async () => {
     const file = path.join(dir, 'big.dcm');
     fs.writeFileSync(file, Buffer.alloc(8 * 1024 * 1024));
@@ -194,6 +199,7 @@ describe('stowMain', () => {
         `http://127.0.0.1:${server.address().port}/studies`
       )
     ).rejects.toMatchObject({ status: 503 });
+    expect(connections).not.toContain('close');
     expect(streams).toHaveLength(1);
     for (let i = 0; i < 100 && !streams[0].closed; i++) {
       await new Promise(resolve => setTimeout(resolve, 20));
