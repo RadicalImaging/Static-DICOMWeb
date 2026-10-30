@@ -13,7 +13,7 @@ export async function leiConvert(sourcePath, config, name, options, deployer) {
     fs.mkdirSync(destPath, { recursive: true });
   }
 
-  n = 0;
+  let n = 0;
   let failed = 0;
   // Now, iterate over files in sourcePath
   await dirScanner(sourcePath, {
@@ -23,17 +23,26 @@ export async function leiConvert(sourcePath, config, name, options, deployer) {
       failed += 1;
     },
     callback: async file => {
-      // Capture instanceUID
-      const sopUID = await extractSop(file);
-      if (!sopUID) return;
-      const destFileName = path.join(destPath, `${sopUID}.dcm`);
-      // Execute dcm2dcm <sourcePath> <destPath>/<dirName>/<uid>.dcm
-      execFileSync('dcm2dcm.bat', [file, destFileName], { stdio: 'inherit' });
-      n += 1;
+      try {
+        // Capture instanceUID
+        const sopUID = await extractSop(file);
+        if (!sopUID) return;
+        const destFileName = path.join(destPath, `${sopUID}.dcm`);
+        // Execute dcm2dcm <sourcePath> <destPath>/<dirName>/<uid>.dcm
+        execFileSync('dcm2dcm.bat', [file, destFileName], { stdio: 'inherit' });
+        n += 1;
+      } catch (e) {
+        failed += 1;
+        console.error("Couldn't convert", file, e?.message ?? e);
+      }
     },
   });
   console.log('Converted', n, 'files');
-  if (failed > 0) console.error(failed, 'path(s) could not be read');
+  if (failed > 0) {
+    console.error(failed, 'path(s) failed');
+    // A path that failed gives a non-zero exit code (CLI-U1)
+    process.exitCode = 1;
+  }
   return destPath;
 }
 

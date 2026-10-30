@@ -400,6 +400,8 @@ class StaticWado {
     }
     await this.close();
     this.callback.writeResults();
+    // An input that failed gives a non-zero exit code (CLI-U1)
+    if (this.callback.failure.count) process.exitCode = 1;
   }
 
   async close() {
