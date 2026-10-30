@@ -643,8 +643,9 @@ throws, came with #141 (SQR-I3). This item depends on them, and does not change 
     `keepAliveTimeout`, as after the `503` of SQR-I10. `stopRequest` does nothing after
     `abort` or after `next()`.
 
-    A probe on Node.js 24.20.0 (Windows 11, loopback, a body that does not end) gave these
-    results:
+    Under bun, the server reads the rest of the body, and does not close the connection
+    (SQR-I10). A probe on Node.js 24.20.0 (Windows 11, loopback, a body that does not end)
+    gave these results:
     - The client got the `503` after about 1 s, while it sent the body. The back-pressure
       wait of 100 ms (`backpressureWaitMs`) causes most of this time.
     - The server closed the connection about 6 s later. The client request then got
@@ -708,8 +709,14 @@ the tests.
     read.
   - The server closed the connection after `keepAliveTimeout` (5 s). The client `req` then
     emitted `close`, with no `error`.
+
+  The production runtime is bun (the bins, and the Docker image `oven/bun:1.3.13`). Under
+  bun 1.3.5, the server reads the rest of the body after the response, and keeps the
+  connection open. A request after a body of 200 KB on the same connection got its own
+  response (probe in the re-review of #146).
 - While the count is above 0, `StatusMonitor` shows a job of type `stowStalled`, with the
-  count (`stalled`) and the limit (`maxStalled`).
+  count (`stalled`) and the limit (`maxStalled`). The count goes down only when each counted
+  promise settles. A write that never closes stays in the count until the server restarts.
 
 The count holds only these promises:
 
@@ -923,9 +930,10 @@ These user-facing results also change:
   a STOW-RS client.
 - The server param `maxStalledStowListeners` (default 8) limits the stalled instances of
   SQR-D20. At the limit, a new STOW-RS request gets `503` with `Retry-After: 60` at once.
-  The server does not store its instances. It stops the read of the body, and closes the
-  connection after `keepAliveTimeout` (5 s). A client that reads the response only after it
-  sent the whole body can get a connection reset, and not the `503`. One upload with 8 or
+  The server does not store its instances. Under Node.js, it stops the read of the body, and
+  closes the connection after `keepAliveTimeout` (5 s). A client that reads the response
+  only after it sent the whole body can then get a connection reset, and not the `503`.
+  Under bun, the server reads the rest of the body (SQR-I10). One upload with 8 or
   more instances can reach the limit. Set `0` to turn the limit off.
 - The `stow` command of the CLI retries a connection reset (`ECONNRESET`, `EPIPE`) of a
   group, up to 3 times, and then counts the group as failed. Before this change, the
@@ -1037,9 +1045,22 @@ This section is not a requirement of the code.
   `Retry-After`. An example is `504` from nginx, whose default `proxy_read_timeout` is 60 s.
   The client can then send the upload again while the server still works on the first
   upload.
+- A proxy in front of the server needs these settings for `POST /studies`. The examples are
+  for nginx, and nobody tested them with this server:
+  - Turn off the buffering of the request body (`proxy_request_buffering off`). nginx
+    buffers the body by default. A buffering proxy sends the body to the server only after
+    the client sent all of it. Thus the client gets the `503` of SQR-D20 and the response of
+    the early stop of SQR-D21 only after it sent the whole body.
+  - Set the response timeout above 16 minutes, for example `proxy_read_timeout 20m`. For
+    nginx, this timeout starts after the proxy sent the request body. A proxy with one
+    timeout for the whole request needs the transfer time of the largest upload plus 16
+    minutes.
+  - Set the body limit above the largest upload, for example `client_max_body_size 0`. The
+    nginx default is 1 MB.
 - The server param `maxStalledStowListeners` (default 8) sets the limit of SQR-D20. The
   limit counts instances, so one upload with 8 or more instances can reach it. The default
-  is for a storage that does not get uploads of high volume.
+  is for a storage that does not get uploads of high volume. A change of the param needs a
+  restart, because `getStalledStowListeners` reads it one time.
 - The server params `maxRunningJobs` (default 2), `requestJobSlots` (default 1) and
   `maxQueuedJobs` (default 20) set the limits of SQR-D12 and SQR-D14.
 - With the base design, run one node. Or route all requests for one study to one node, for

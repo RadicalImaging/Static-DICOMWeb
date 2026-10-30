@@ -67,16 +67,21 @@ does not change the user contract (SQR-U1).
   to work. When the server has too much update work in its queue, the server answers a new
   request that needs an update with `503 Service Unavailable` and a `Retry-After` header. A
   request that needs no update does not get this response. The client can send the request
-  again later.
+  again later. An upload (STOW-RS) never gets this response, also when its data needs
+  updates (SQR-D14). The next query for the data of that upload can get this response.
   A storage outage is outside SQR-U1. When the server cannot read, list or write stored data
   because of an I/O error, and builds on demand are on, a request that needs an update (a
   query, or a series or study metadata request) gets `503 Service Unavailable` with a
   `Retry-After` header. A study metadata request can get this response also when it needs no
   update. A request for a stored file that the server sends as it is (for example a summary
   that is already stored, a frame or a bulk data item) gets a `5xx` response. Its status
-  code and headers are outside this specification. An upload also gets `503` with a
-  `Retry-After` header in one more case: the server cannot write to its storage, and it
-  stored no instance of the upload (SQR-U5).
+  code and headers are outside this specification. An upload gets `503` with a
+  `Retry-After` header in three cases. SQR-U5 gives the details:
+  - the server cannot write to its storage, and it stored no instance of the upload;
+  - the work of an instance did not end in the wait after the last part, so the result is
+    unknown;
+  - too many instances of earlier uploads are stalled (SQR-D20).
+
   After the storage recovers, the next request gets the correct result, with no upload and no
   restart. The one exception is a storage failure during an upload (see the exceptions to
   SQR-U1).
@@ -87,8 +92,10 @@ does not change the user contract (SQR-U1).
   - a storage outage (SQR-U3);
   - the studies list of SQR-U4;
   - a deployment that turns off the builds on demand (`createIndexOnDemand: false`): a
-    query or a metadata request whose summary file does not exist then gives `404`. A thumbnail
-    request after an upload also gives `404`, until the series files exist again;
+    query or a metadata request whose summary file does not exist then gives `404`;
+  - a thumbnail request after an upload, in a deployment with `createIndexOnDemand: false`:
+    the request gives `404` until the summary files that the thumbnail needs exist again.
+    The `createdicomweb series` and `study` commands make these files (SQR-D10);
   - a process stop or a storage failure during an upload: the responses can then leave out
     the instances of that upload, or give older summary values, until the next upload to
     that series, or until an operator does the recovery procedure of the section "Safety of
@@ -115,45 +122,48 @@ does not change the user contract (SQR-U1).
   frames and its bulk data. The response reports an instance as failed only when the server
   did not store that instance. A failed upload of an instance keeps the data that the server
   stored for that instance before the upload. An upload of a stored instance replaces that
-  instance: its metadata, its frames, and its Part 10 rendition. The frames above the frame
-  count of the new upload are deleted. The section "Known limitations" gives the exceptions,
-  for example a process stop between the commit and the deletion of the old frames.
+  instance. After the upload, no response gives data of the earlier upload of that instance,
+  for example a frame above the new frame count. The section "Known limitations" gives the
+  exceptions, for example the `rendered` files, and a process stop between the commit and the
+  deletion of the old frames.
   - After the last part of the body, the server waits for the work of each instance: the
     writes, the validation and the commit. The wait is at least 6 minutes. It has no limit
     while the writes of the request continue to complete. The section "Deployment guidance"
     of the implementation document gives the values for a proxy. When the work of an
     instance did not end in this wait, the server cannot know the result of each instance.
     The usual cause is a storage that does not respond. The request then gets
-    `503 Service Unavailable` with a `Retry-After` header of some minutes, and not `400`. An
+    `503 Service Unavailable` with a `Retry-After` header of 300 seconds, and not `400`. An
     instance of that request can still be stored after this response. The client can send
     all instances of the request again, because a new upload of a stored instance replaces
     it.
   - When too many instances of earlier uploads are stalled, the server answers a new upload
-    at once with `503 Service Unavailable` and a `Retry-After` header. An instance is stalled
+    at once with `503 Service Unavailable` and a `Retry-After` header of 60 seconds. An
+    instance is stalled
     in these cases:
     - its work did not end in the wait above;
     - its upload stopped before the end of the body, and its work did not end;
     - its work failed, and a file write of that work does not return.
 
     The usual cause is a storage that does not respond. The server stores none of the
-    instances of that request. The instances of one large upload can be enough to cause this
-    response. SQR-D20 gives the design. The section "Known limitations" gives a case in which
-    the server cannot send this response.
+    instances of that request. SQR-D20 gives the design. The section "Known limitations"
+    gives a case in which the server cannot send this response.
   - The HTTP status of the response obeys PS3.18 Table 10.5.3-1: `200` when the server stored
     all instances of the request, `202` when it stored some instances and others failed, and
-    `409` when the request has instances and the server stored none of them. The section
-    "Known limitations" gives the cases of a request with no DICOM part, and of a media type
-    that the server does not support.
+    `409` when the request has instances and the server stored none of them. SQR-U6 gives the
+    cases of a request with no DICOM part, and of a media type that the server does not
+    support.
   - When the server cannot write to its storage, the upload stops at the first instance
     that the server cannot write. The response can come before the client sent the whole
     body. The server reports each instance that it started:
-    - `503 Service Unavailable` with a `Retry-After` header when it stored no instance. This
+    - `503 Service Unavailable` with a `Retry-After` header of 10 seconds when it stored no
+      instance. This
       is the exception to `409` for a storage outage (SQR-U3);
     - `202` with the failed instances when it stored some instances.
 
     The body lists each failed instance. Each instance that the response does not list in the
-    Referenced SOP Sequence `(0008,1199)` is not stored. After the storage recovers, the
-    client can send each instance that is not stored again. SQR-D21 gives the design.
+    Referenced SOP Sequence `(0008,1199)` is not stored. The response has no item for an
+    instance that the server did not start (SQR-U6). After the storage recovers, the client
+    can send each instance that is not stored again. SQR-D21 gives the design.
 
     A client that reads the response while it sends the body gets this response. A different
     client can get a connection reset in place of the response. The result of the upload is
@@ -162,8 +172,7 @@ does not change the user contract (SQR-U1).
   - Each failed instance is in the Failed SOP Sequence `(0008,1198)`. The item has the SOP
     Class UID `(0008,1150)` and the SOP Instance UID `(0008,1155)` of the instance when the
     server read them before the failure. The item has no UID that the server did not read.
-    This is a deliberate deviation from PS3.3. The SOP Instance Reference Macro makes both
-    UIDs Type 1, but the server cannot get them from data that it cannot read. Its Failure
+    This is a deviation from PS3.3 (SQR-U6). Its Failure
     Reason `(0008,1197)` obeys PS3.18 Table I.2-2:
     - `C000` (cannot understand) only when the server cannot read the data of the instance,
       for example a part that is not a DICOM instance, a part that ends too early, or a
@@ -180,7 +189,8 @@ does not change the user contract (SQR-U1).
     as failed. The status obeys the rules above. A body in which no part is complete gets
     `400 Bad Request`. A part header that the server cannot parse, before the end of the
     body, also gets `400 Bad Request`, because the server cannot read the later parts. The
-    instances of the earlier parts can be stored, and the client can send the request again.
+    instances of the earlier parts can be stored, and the client can send the request again
+    (SQR-U6).
   - After an upload, with builds on demand, a thumbnail request for the series or for an
     instance of the upload does not give `404`. It gives a thumbnail of the stored data.
   - The `createdicomweb instance`, `create` and `stow` commands exit with a code that is not
@@ -197,18 +207,38 @@ does not change the user contract (SQR-U1).
     the time of the `Retry-After` header. Before a retry after a reset, the command waits
     10 seconds. After the last retry, the files of that group are failed files, and the
     command continues with the other groups.
+- **SQR-U6. Deliberate deviations from the DICOM standard.** The STOW-RS responses deviate
+  from PS3.18 and PS3.3 only in these cases. Each case gives its reason:
+  - A failed item has no UID that the server did not read. The SOP Instance Reference Macro
+    of PS3.3 makes the SOP Class UID and the SOP Instance UID Type 1. The server cannot get
+    them from data that it cannot read.
+  - After the stop of SQR-D21, the response has no item for an instance that the server did
+    not start. PS3.18 expects an item for each instance. Each later instance needs the same
+    storage, and a body can be several GB. Thus the server does not read the rest of the
+    body.
+  - A storage outage gives `503`, and not `409`, when the server stored no instance (SQR-U3).
+    The `503` tells the client to send the request again after the storage recovers.
+  - A part header that the server cannot parse gives `400`, also when the server stored the
+    instances of the earlier parts. PS3.18 expects `202` when the server stored some
+    instances. The server cannot read the later parts, so it cannot report them.
+  - A request with no DICOM part gets `200` with an empty response.
+  - The server does not answer `415 Unsupported Media Type` for a part of
+    `application/dicom+json` or `application/dicom+xml`. The server stores Part 10 instances
+    only, and reads such a part as a Part 10 instance. The part fails with `C000`, and a
+    request with only such parts gets `409`.
 
 ## Known limitations
 
 These limits come from the current implementation. They are not user requirements, and a
 later change can remove them:
 
-- **A file that the server cannot parse for a reason other than corruption.** For example, a
-  stored file that is too large to parse gives `500` to a request that needs an update.
-- **`hashStudyUidPath`.** The builds use paths with no hash (Q3 of the implementation
-  document), so the server does not build a missing summary file in that layout. A query, a
-  metadata request or a studies list request whose summary file is missing gives `404`. This
-  was the behaviour before the builds on demand.
+- **A file that the server cannot parse for a reason other than corruption (issue #152).**
+  For example, a stored file that is too large to parse gives `500` to a request that needs
+  an update.
+- **`hashStudyUidPath` (issue #145).** The builds use paths with no hash (Q3 of the
+  implementation document), so the server does not build a missing summary file in that
+  layout. A query, a metadata request or a studies list request whose summary file is
+  missing gives `404`. This was the behaviour before the builds on demand.
 - **A rename that fails during the commit of an instance (issue #143).** The response reports
   the instance as failed (SQR-U5). The files of the instance that moved before the failed
   rename stay. For a new upload of a stored instance, the stored data can then be a mix of
@@ -220,33 +250,29 @@ later change can remove them:
   the instance is correct. A client that follows the metadata does not request the old
   frames. A request for such a frame number gets the old pixel data, and not `404`, until
   the next upload of that instance.
-- **A thumbnail request during an upload.** A thumbnail request can read the stored data of
-  an instance before the commit of that instance. The request can then store the old
+- **A thumbnail request during an upload, and the `rendered` files (issue #153).** A
+  thumbnail request can read the stored data of an instance before the commit of that
+  instance. The request can then store the old
   thumbnail again after the upload deleted it. The old thumbnail then stays until the next
   upload of that instance. An upload does not delete the `rendered` files, or the
   `thumbnail-<n>` files that the CLI makes.
-- **The `503` of an unknown result does not list the stored instances.** The body is plain
-  text. Thus a client sends all instances of the request again, also the instances that the
-  server stored. A new upload of a stored instance replaces it, so the result is correct,
-  but the storage does the work again.
-- **A request with no DICOM part, and the media types.** The server stores Part 10 instances
-  only. A request with no DICOM part gets `200` with an empty response. The server does not
-  answer `415 Unsupported Media Type` for `application/dicom+json` or `application/dicom+xml`.
-  It reads such a part as a Part 10 instance, so the part fails with `C000`, and a request
-  with only such parts gets `409`.
-- **A `TypeError`, `RangeError` or `ReferenceError` gives `0110`.** The server cannot tell
-  such an error of corrupt data from an error of the program. Thus corrupt data that causes
-  such an error gets `0110`, and not `C000`.
-- **The removal of temporary files on several nodes.** A node that starts removes the old
-  temporary files of each study on the storage. This includes a study whose uploads run on a
-  different node. The safety of that removal depends on the configured age and on the clocks
-  (SQR-D19).
-- **A storage that does not answer a synchronous file call.** The writer uses synchronous
-  file calls: `openSync`, `statSync`, `existsSync`, `mkdirSync`, `readdirSync`, `renameSync`,
-  `unlinkSync` and `rmSync`. When the storage does not answer such a call, the call stops
-  the whole server. The server then answers no request until the storage answers. Thus it
-  sends no `503` (SQR-U5, SQR-D20), no status page and no health check. A proxy then gives
-  its own error, for example `504`.
+- **The `503` of an unknown result does not list the stored instances (issue #154).** The
+  body is plain text. Thus a client sends all instances of the request again, also the
+  instances that the server stored. A new upload of a stored instance replaces it, so the
+  result is correct, but the storage does the work again.
+- **A `TypeError`, `RangeError` or `ReferenceError` gives `0110` (issue #155).** The server
+  cannot tell such an error of corrupt data from an error of the program. Thus corrupt data
+  that causes such an error gets `0110`, and not `C000`.
+- **The removal of temporary files on several nodes (issue #156).** A node that starts
+  removes the old temporary files of each study on the storage. This includes a study whose
+  uploads run on a different node, or in a CLI that writes to the same storage. The safety
+  of that removal depends on the configured age and on the clocks (SQR-D19).
+- **A storage that does not answer a synchronous file call (issue #151).** The writer uses
+  synchronous file calls: `openSync`, `statSync`, `existsSync`, `mkdirSync`, `readdirSync`,
+  `renameSync`, `unlinkSync` and `rmSync`. When the storage does not answer such a call, the
+  call stops the whole server. The server then answers no request until the storage
+  answers. Thus it sends no `503` (SQR-U5, SQR-D20), no status page and no health check. A
+  proxy then gives its own error, for example `504`. This limit violates SQR-U3.
 
 ## § Design requirements
 
@@ -443,7 +469,10 @@ The next requirements use these terms:
   SQR-D6, is a background job. A background job is not rejected, and it does not count to the
   limit, so an upload alone does not make other requests get `503`. A request that moves a
   queued background job to the request queue counts to the limit, and gets `503` when the
-  queue is full. Supports SQR-U3.
+  queue is full. A STOW-RS request starts only background jobs, so a full queue never gives
+  an upload `503`. The `Retry-After` header of this response is 10 seconds. Reason for the
+  change in pull request #146: the requirement now states a decision that it only implied
+  before. Supports SQR-U3.
 
 - **SQR-D17. Keep the studies list as a best-effort list.** The studies list has no
   generation, and an upload does not delete it. When the server commits the study level of
@@ -466,14 +495,19 @@ The next requirements use these terms:
 - **SQR-D18. Commit an instance only when all of its writes succeeded.** An upload writes
   each file of an instance to a temporary file. When one write fails, the upload of that
   instance fails, and the upload moves no file of that instance. The upload changes no stored
-  file of the instance before the move. A stored file that the new instance replaces with a
-  different name (for example `1.mht.gz` that `1.mht` replaces) is deleted after the move.
-  The upload deletes the stored Part 10 rendition of an earlier upload with the move of the
-  instance `metadata`. It deletes the stored frames above the frame count of the new upload
-  after the move. After the move, the instance is stored. A failure of a later step does not
-  report the instance as failed. The later steps are the deletions of this requirement and
-  of SQR-D5, and the new Part 10 rendition. Until the upload stores the new rendition, the server makes the
-  rendition from the stored files on request. Supports SQR-U5.
+  file of the instance before the move. The upload deletes a stored file that the new
+  instance replaces with a different name (for example `1.mht.gz` that `1.mht` replaces)
+  after the move. The upload moves the instance `metadata` last, after all other files of the
+  instance. Thus a build never sees a new instance whose other files did not move (issue
+  #143). The upload deletes the stored Part 10 rendition of an earlier upload with the move
+  of the instance `metadata`. It deletes the stored frames above the frame count of the new
+  upload after the move. After the move, the instance is stored. A failure of a later step
+  does not report the instance as failed. The later steps are the deletions of this
+  requirement and of SQR-D5, and the new Part 10 rendition. Until the upload stores the new
+  rendition, the server makes the rendition from the stored files on request.
+  Reason for the requirement in pull request #146 (issue #144): the old frames above the new
+  frame count and the old Part 10 rendition are data of the earlier upload. Without their
+  deletion, a response can mix the data of two uploads (SQR-U5). Supports SQR-U5.
 - **SQR-D19. Remove the temporary files of a stopped process.** A process that stops during a
   write leaves its temporary files. The server removes a temporary file only when all of these
   conditions are true: the file is in a temporary directory of the writer, its name is a
@@ -506,23 +540,33 @@ The next requirements use these terms:
   server has no memory.
 
   When the count reaches a configured limit, the server answers a new upload with `503` and
-  a `Retry-After` header before it reads the body. SQR-D14 does the same for builds. The
-  response has no `Connection: close`. A close before the end of the body resets the
-  connection, and the client then does not get the `503`. After the response, Node.js stops
-  the read of the body after some hundred KB at most. It closes the connection after the
-  `keepAliveTimeout` of the server (5 s).
+  a `Retry-After` header of 60 seconds before it reads the body. SQR-D14 does the same for
+  builds. The response has no `Connection: close`. A close before the end of the body resets
+  the connection, and the client then does not get the `503`. The server does not parse or
+  store the body of a refused upload. The runtime decides if it reads the rest of the body,
+  and when it closes the connection (SQR-I10):
+  - Under bun, the runtime of the bins and of the Docker image, the server reads the rest of
+    the body, and keeps the connection.
+  - Under Node.js, the server stops the read of the body after some hundred KB at most. It
+    closes the connection after the `keepAliveTimeout` of the server (5 s). A client that
+    reads the response only after it sent the whole body can then get a connection reset,
+    and not the `503`.
 
-  Thus a client that reads the response while it sends the body gets the `503`. A client
-  that reads the response only after it sent the whole body can get a connection reset after
-  5 s, and not the `503`. The count applies only while asynchronous file calls stall. The
-  writer also uses synchronous file calls: `openSync`, `statSync`, `existsSync`, `mkdirSync`,
-  `readdirSync`, `renameSync`, `unlinkSync` and `rmSync`. A storage that does not answer
-  such a call blocks the whole server, which then cannot send the `503` (Known limitations).
+  A client that reads the response while it sends the body gets the `503`. A proxy that
+  buffers the request body sends the `503` to the client only after the whole body
+  ("Deployment guidance" of the implementation document). An instance whose file write never
+  closes stays in the count until the server restarts. The count applies only while
+  asynchronous file calls stall. The writer also uses synchronous file calls: `openSync`,
+  `statSync`, `existsSync`, `mkdirSync`, `readdirSync`, `renameSync`, `unlinkSync` and
+  `rmSync`. A storage that does not answer such a call blocks the whole server, which then
+  cannot send the `503` (Known limitations, issue #151).
   Supports SQR-U3 and SQR-U5.
 - **SQR-D21. Stop an upload at the first instance that the storage cannot write.** When the
   work of an instance fails with an I/O error of the storage, the server stops the upload at
-  once. Examples of such an error are `EIO`, `ENOSPC`, `EACCES` and `EROFS` (SQR-D3). The
-  stop has these steps:
+  once. Examples of such an error are `EIO`, `ENOSPC`, `EACCES` and `EROFS` (SQR-D3). An I/O
+  error can need an operator, for example `EACCES` or `EROFS` after a change of a mount. The
+  server cannot tell such an error from a short outage, so it gives the same response for
+  each I/O error. The stop has these steps:
   - It stops the read of the body, and starts no new part.
   - A part whose body did not arrive in full stops. It fails with the Failure Reason of the
     I/O error: `A700` for no free space or resources, and `0110` for each other I/O error.
@@ -531,15 +575,15 @@ The next requirements use these terms:
     reports it as stored.
 
   The server waits for the started instances as after the last part (SQR-U5), and then
-  reports each of them. The response has `503` and a `Retry-After` header when the server
-  stored no instance, and `202` otherwise. An error that is not an I/O error (for example
-  `C000`) does not stop the upload. Supports SQR-U3 and SQR-U5.
+  reports each of them. The response has `503` and a `Retry-After` header of 10 seconds when
+  the server stored no instance, and `202` otherwise. An error that is not an I/O error (for
+  example `C000`) does not stop the upload. Supports SQR-U3 and SQR-U5.
 
-  After the stop, the server does not read the rest of the body. Each later instance needs
-  the same storage, and a body can be some GB. As after the `503` of SQR-D20, Node.js closes
-  the connection after `keepAliveTimeout` (5 s). A client that reads the response while it
-  sends the body gets the response. A client that reads the response only after it sent the
-  whole body can get a connection reset after 5 s, and not the response.
+  After the stop, the server does not parse or store the rest of the body. Each later
+  instance needs the same storage, and a body can be several GB. The response has no
+  `Connection: close`. The connection behaviour after the response depends on the runtime,
+  as after the `503` of SQR-D20 (SQR-I10). A client that reads the response while it sends
+  the body gets the response.
 
 ### Multi-node extension requirements
 
@@ -570,7 +614,7 @@ generation shows that.
 
 | Deployment | Safe while all nodes run | Safe when a node stops |
 | --- | --- | --- |
-| One node, base design | yes, except note 2 | yes, except a stop in the short time between the commit of an instance and the deletion of its derived files (note 1) |
+| One node, base design | yes, except note 2, and note 3 when a CLI writes to the same storage | yes, except a stop in the short time between the commit of an instance and the deletion of its derived files (note 1) |
 | Several nodes, all work for one study on one node, base design | yes, except notes 2 and 3 | yes, with the exceptions of notes 1 and 3 |
 | Several nodes, any routing, SQR-D15 | yes, except notes 2 and 3 | no, a stale file can stay until the next upload |
 | Several nodes, any routing, SQR-D15 and SQR-D16 | yes, except notes 2 and 3 | yes, except note 3 |
@@ -596,6 +640,7 @@ Note 3: a node that starts removes the old temporary files of each study on the 
 storage (SQR-D19). This includes a study whose uploads run on a different node. The removal
 is safe only when the configured age is longer than the upload of one instance. The age must
 also be much longer than the difference between the clocks of the nodes and of the storage.
+A CLI that writes to the same storage as the server has the same conditions.
 
 Recovery procedure for notes 1 and 2, after the storage recovers. Do one of these:
 
@@ -606,6 +651,9 @@ Recovery procedure for notes 1 and 2, after the storage recovers. Do one of thes
   builds them (SQR-D2), and the next thumbnail request makes the thumbnails.
 - Stop the uploads to that study. Run `series --force` for each affected series, and then
   `study --force` for the study (SQR-D10). Delete the thumbnails as in the item above.
+
+The procedure does not cover the `rendered` files and the `thumbnail-<n>` files, because the
+server does not make them (Known limitations). Make them again with the CLI.
 
 The table applies to the series level and the study level. The studies list (SQR-D17) is
 safe on one node only, and only to the level of SQR-U4.
