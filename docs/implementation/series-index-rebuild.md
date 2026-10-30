@@ -599,6 +599,11 @@ throws, came with #141 (SQR-I3). This item depends on them, and does not change 
       `503` of SQR-I10), `stowFiles` destroys the request. Thus the file of the body closes at
       once, and not after `keepAliveTimeout` of the server. A retry does not keep the files
       of the earlier body open.
+    - Under bun, `stowFiles` sends `Connection: close`. Bun 1.3 puts the socket of a
+      destroyed request back in its keep-alive pool. The next group then goes out on that
+      socket, the server reads it as the rest of the old body, and the group gets `400` with
+      no retry. Under node, `stowFiles` does not send `Connection: close`: a node server then
+      closes the socket after the early `503`, and the client gets `ECONNRESET`.
     - A file that the command cannot open or read destroys the request. Examples are
       `EACCES`, and a file that a different process deleted after the scan. `runOneStow` counts
       the group as failed, with no retry. Before, such a file stopped the command with an
@@ -1173,7 +1178,8 @@ The user experience must have this:
     (SQR-U5, SQR-D20).
 61. `stowFiles` sends a body of 8 MB to a server that answers `503` before it reads the body.
     The file of the body closes within 2 s, and not at the close of the connection after
-    `keepAliveTimeout` (SQR-U5, SQR-D20).
+    `keepAliveTimeout` (SQR-U5, SQR-D20). Under node, the request has no
+    `Connection: close` (item 14).
 62. The `stow` command sends each file alone, and cannot open one file (`EACCES`). That file
     counts as failed, the server stores the other file, and the command does not stop
     (SQR-U5).

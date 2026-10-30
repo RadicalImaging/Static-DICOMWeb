@@ -313,6 +313,10 @@ export async function stowFiles(
     'Content-Length': contentLength.toString(),
     Accept: xmlResponse ? 'application/dicom+xml' : 'application/dicom+json',
     ...additionalHeaders,
+    // After an early response (SQR-D20), bun 1.3 puts the socket of the cut body back in its
+    // keep-alive pool, and the next group then gets 400. Not under node: a node server then
+    // closes the socket after the early response, and the client gets a reset.
+    ...(process.versions.bun ? { Connection: 'close' } : {}),
   };
 
   // Timeout: when timeoutMs is omitted, use 24h so long uploads don't fail. node:http allows this.
