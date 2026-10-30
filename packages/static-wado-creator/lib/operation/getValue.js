@@ -15,13 +15,13 @@ const getValueInlineString = (dataSet, attr, options) => [
 const getStrings = (dataSet, attr, options) => {
   const ret = dataSet.string(attr.tag);
   if (ret) {
-    return ret.split(/\\/).map(decodeUtf8, options);
+    return ret.split(/\\/).map(s => decodeUtf8(s, options));
   }
   return undefined;
 };
 
-const getValuePatientName = (dataSet, attr) => {
-  const strings = getStrings(dataSet, attr);
+const getValuePatientName = (dataSet, attr, options) => {
+  const strings = getStrings(dataSet, attr, options);
   return (strings && strings.map(item => ({ Alphabetic: item }))) || undefined;
 };
 
@@ -125,7 +125,7 @@ const getValueInline = (dataSet, attr, vr, options) => {
     case 'OW':
       return getValueInlineBinary(dataSet, attr);
     case 'PN':
-      return getValuePatientName(dataSet, attr);
+      return getValuePatientName(dataSet, attr, options);
     case 'SH':
       return getValueInlineString(dataSet, attr, options);
     case 'SL':
