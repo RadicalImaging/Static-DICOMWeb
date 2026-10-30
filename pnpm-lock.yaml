@@ -175,7 +175,7 @@ overrides:
   brace-expansion@>=3.0.0 <3.0.6: 3.0.6
   brace-expansion@>=4.0.0 <5.0.11: 5.0.11
   canvas: 3.1.0
-  dcmjs: 0.52.0
+  dcmjs: npm:@dcmjs-org/dcmjs@1.0.0-beta.5
   fast-uri: 3.1.8
   fast-xml-builder: 1.2.0
   fast-xml-parser: 5.7.2
@@ -205,8 +205,8 @@ importers:
         specifier: 3.1.0
         version: 3.1.0
       dcmjs:
-        specifier: 0.52.0
-        version: 0.52.0
+        specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.5
+        version: '@dcmjs-org/dcmjs@1.0.0-beta.5'
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -317,8 +317,8 @@ importers:
         specifier: 0.8.0
         version: 0.8.0(@babel/core@7.28.6(supports-color@8.1.1))(@types/babel__core@7.20.5)(supports-color@8.1.1)
       dcmjs:
-        specifier: 0.52.0
-        version: 0.52.0
+        specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.5
+        version: '@dcmjs-org/dcmjs@1.0.0-beta.5'
       dicom-parser:
         specifier: 1.8.21
         version: 1.8.21
@@ -351,8 +351,8 @@ importers:
         specifier: 3.1.0
         version: 3.1.0
       dcmjs:
-        specifier: 0.52.0
-        version: 0.52.0
+        specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.5
+        version: '@dcmjs-org/dcmjs@1.0.0-beta.5'
       jsdom:
         specifier: 26.1.0
         version: 26.1.0(canvas@3.1.0)(supports-color@8.1.1)
@@ -388,8 +388,8 @@ importers:
         specifier: 7.0.3
         version: 7.0.3
       dcmjs:
-        specifier: 0.52.0
-        version: 0.52.0
+        specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.5
+        version: '@dcmjs-org/dcmjs@1.0.0-beta.5'
       dicom-parser:
         specifier: 1.8.21
         version: 1.8.21
@@ -450,8 +450,8 @@ importers:
         specifier: 0.8.0
         version: 0.8.0(@babel/core@7.28.6(supports-color@8.1.1))(@types/babel__core@7.20.5)(supports-color@8.1.1)
       dcmjs:
-        specifier: 0.52.0
-        version: 0.52.0
+        specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.5
+        version: '@dcmjs-org/dcmjs@1.0.0-beta.5'
       dicom-parser:
         specifier: 1.8.21
         version: 1.8.21
@@ -528,8 +528,8 @@ importers:
         specifier: 0.8.0
         version: 0.8.0(@babel/core@7.28.6(supports-color@8.1.1))(@types/babel__core@7.20.5)(supports-color@8.1.1)
       dcmjs:
-        specifier: 0.52.0
-        version: 0.52.0
+        specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.5
+        version: '@dcmjs-org/dcmjs@1.0.0-beta.5'
       dcmjs-dimse:
         specifier: 0.1.31
         version: 0.1.31
@@ -556,8 +556,8 @@ importers:
         specifier: 0.8.0
         version: 0.8.0(@babel/core@7.28.6(supports-color@8.1.1))(@types/babel__core@7.20.5)(supports-color@8.1.1)
       dcmjs:
-        specifier: 0.52.0
-        version: 0.52.0
+        specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.5
+        version: '@dcmjs-org/dcmjs@1.0.0-beta.5'
       imurmurhash:
         specifier: 0.1.4
         version: 0.1.4
@@ -604,8 +604,8 @@ importers:
         specifier: 2.8.6
         version: 2.8.6
       dcmjs:
-        specifier: 0.52.0
-        version: 0.52.0
+        specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.5
+        version: '@dcmjs-org/dcmjs@1.0.0-beta.5'
       dcmjs-dimse:
         specifier: 0.1.31
         version: 0.1.31
@@ -1543,6 +1543,31 @@ packages:
 
   '@dabh/diagnostics@2.0.9':
     resolution: {integrity: sha512-R6siwR65Hm+3yfgP7o8DKhNvputQAwfoz9zTc3kyDudnomj2/BcLmD+uGQQPICjuFUp8ounPBU+jmKsocwVVAg==}
+
+  '@dcmjs-org/core@1.0.0-beta.5':
+    resolution: {integrity: sha512-AYn+tyoU9pI3Aq16W8HpC5ApcqA90sE1HcffajKttHu8Tox0JYw+YTQMVkzJNaTX45GeRP1IYFY9r6pfA5QiHw==}
+
+  '@dcmjs-org/dcmjs@1.0.0-beta.5':
+    resolution: {integrity: sha512-8EG6K36RXw0W11Kryi/kJZVBZ1UZEQY/S5waBfgdWMzaWbALRe7vgtIJR5qZLNnyrO4ab5PjFU9+64tQhSquOw==}
+    engines: {node: '>=22.13'}
+
+  '@dcmjs-org/dicomdir@1.0.0-beta.5':
+    resolution: {integrity: sha512-JdqbsixDdE2hOB4jWCSVWkYjTZ69w0W0/02xeye3ZMREwwVkgomjxqH+ez/WJsafg1PvXL1FBdm/ZKp0DTxaUQ==}
+
+  '@dcmjs-org/encapsulated@1.0.0-beta.5':
+    resolution: {integrity: sha512-PlVp+SKT56ID/IFKWaQtL4SEHFGYZHxTQOxjgZzgN2DY3pmoqJ/1UmdYcLobggVvChlQQxgDM1mOsW9iKqsGkQ==}
+
+  '@dcmjs-org/imaging@1.0.0-beta.5':
+    resolution: {integrity: sha512-4AxuX39KfHhubag3DOGlvEIHOBLBsiX83qOpazBmmNRdR111ioI19gEfg77b+qkzPr+y/nQpzcUTVZ6/bdFzGQ==}
+
+  '@dcmjs-org/media@1.0.0-beta.5':
+    resolution: {integrity: sha512-IMHXZbDKnggNW+Ag4/uWBf/tOefuhdqZmoLMzbVKaI2bR/19I7Ye7K8GDbohfp8e2Enjz39canBGQZ5lL21FNw==}
+
+  '@dcmjs-org/parser@1.0.0-beta.5':
+    resolution: {integrity: sha512-2aLtw5zNC9IadZZPkCB18GhGBBKlxgQqY1LA8ff2xHW/Ga3VxFuUzvWy2wE2eTrLr3QwyeYse75iVqr8Br3U7w==}
+
+  '@dcmjs-org/video@1.0.0-beta.5':
+    resolution: {integrity: sha512-EnrkQ6d+KBJa4d9+3C5FlYYsXPrt6pbpchxBhhtsqz2+iXjzbEE/dk5m3f2cBkmVdhtrG43C3bRqaSMXQs9Rkg==}
 
   '@discoveryjs/json-ext@0.5.7':
     resolution: {integrity: sha512-dBVuXR082gk3jsFp7Rd/JI4kytwGHecnCoTtXFb7DB6CNHp4rg5k1bhg0nWdLGLnOV71lmDzGQaLMy8iPLY0pw==}
@@ -2742,10 +2767,6 @@ packages:
 
   dcmjs-dimse@0.1.31:
     resolution: {integrity: sha512-77rTn3LpZCVyA4a3fCVcXVGVh9FjcJtCZScYhi1l/U0fPMGScVSagEGCEdtakmgZT0CM3aPRgFM38MxMw8fz3Q==}
-
-  dcmjs@0.52.0:
-    resolution: {integrity: sha512-0/mT9NACKnwnOnkUx7JAqmWxRcUr7HiCoptw1KhN2StNYE0Hy6+tmpI7CU+lJuBc4rFpcMCalvI8QO6JkJ+7Fg==}
-    engines: {node: '>=22.13'}
 
   debug@2.6.9:
     resolution: {integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==}
@@ -5931,12 +5952,12 @@ snapshots:
     dependencies:
       '@cornerstonejs/calculate-suv': 1.0.3
       '@cornerstonejs/utils': 5.11.5
-      dcmjs: 0.52.0
+      dcmjs: '@dcmjs-org/dcmjs@1.0.0-beta.5'
       gl-matrix: 3.4.3
 
   '@cornerstonejs/utils@5.11.5':
     dependencies:
-      dcmjs: 0.52.0
+      dcmjs: '@dcmjs-org/dcmjs@1.0.0-beta.5'
 
   '@csstools/color-helpers@5.1.0': {}
 
@@ -5963,6 +5984,57 @@ snapshots:
       '@so-ric/colorspace': 1.1.6
       enabled: 2.0.0
       kuler: 2.0.0
+
+  '@dcmjs-org/core@1.0.0-beta.5':
+    dependencies:
+      loglevel: 1.9.2
+      pako: 2.1.0
+
+  '@dcmjs-org/dcmjs@1.0.0-beta.5':
+    dependencies:
+      '@babel/runtime-corejs3': 7.29.2
+      '@dcmjs-org/core': 1.0.0-beta.5
+      '@dcmjs-org/encapsulated': 1.0.0-beta.5
+      '@dcmjs-org/imaging': 1.0.0-beta.5
+      '@dcmjs-org/media': 1.0.0-beta.5
+      '@dcmjs-org/parser': 1.0.0-beta.5
+      '@dcmjs-org/video': 1.0.0-beta.5
+      adm-zip: 0.6.1
+      gl-matrix: 3.4.4
+      lodash.clonedeep: 4.5.0
+      loglevel: 1.9.2
+      ndarray: 1.0.19
+      pako: 2.1.0
+
+  '@dcmjs-org/dicomdir@1.0.0-beta.5':
+    dependencies:
+      '@dcmjs-org/core': 1.0.0-beta.5
+
+  '@dcmjs-org/encapsulated@1.0.0-beta.5':
+    dependencies:
+      '@dcmjs-org/core': 1.0.0-beta.5
+
+  '@dcmjs-org/imaging@1.0.0-beta.5':
+    dependencies:
+      '@dcmjs-org/core': 1.0.0-beta.5
+
+  '@dcmjs-org/media@1.0.0-beta.5':
+    dependencies:
+      '@dcmjs-org/dicomdir': 1.0.0-beta.5
+      '@dcmjs-org/encapsulated': 1.0.0-beta.5
+      '@dcmjs-org/imaging': 1.0.0-beta.5
+      '@dcmjs-org/video': 1.0.0-beta.5
+
+  '@dcmjs-org/parser@1.0.0-beta.5':
+    dependencies:
+      '@dcmjs-org/core': 1.0.0-beta.5
+      pako: 2.1.0
+
+  '@dcmjs-org/video@1.0.0-beta.5':
+    dependencies:
+      '@dcmjs-org/core': 1.0.0-beta.5
+      '@dcmjs-org/imaging': 1.0.0-beta.5
+      '@dcmjs-org/parser': 1.0.0-beta.5
 
   '@discoveryjs/json-ext@0.5.7': {}
 
@@ -7301,20 +7373,10 @@ snapshots:
   dcmjs-dimse@0.1.31:
     dependencies:
       async-eventemitter: 0.2.4
-      dcmjs: 0.52.0
+      dcmjs: '@dcmjs-org/dcmjs@1.0.0-beta.5'
       smart-buffer: 4.2.0
       ts-mixer: 6.0.4
       winston: 3.19.0
-
-  dcmjs@0.52.0:
-    dependencies:
-      '@babel/runtime-corejs3': 7.29.2
-      adm-zip: 0.6.1
-      gl-matrix: 3.4.4
-      lodash.clonedeep: 4.5.0
-      loglevel: 1.9.2
-      ndarray: 1.0.19
-      pako: 2.1.0
 
   debug@2.6.9(supports-color@8.1.1):
     dependencies:

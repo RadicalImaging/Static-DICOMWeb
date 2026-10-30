@@ -61,7 +61,7 @@
     "@cornerstonejs/dicom-codec": "1.1.6",
     "commander": "10.0.1",
     "config-point": "0.8.0",
-    "dcmjs": "0.52.0",
+    "dcmjs": "npm:@dcmjs-org/dcmjs@1.0.0-beta.5",
     "imurmurhash": "0.1.4",
     "jpeg-lossless-decoder-js": "2.1.2",
     "json5": "2.2.3",

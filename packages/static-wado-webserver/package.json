@@ -72,7 +72,7 @@
     "config-point": "0.8.0",
     "content-type": "1.0.5",
     "cors": "2.8.6",
-    "dcmjs": "0.52.0",
+    "dcmjs": "npm:@dcmjs-org/dcmjs@1.0.0-beta.5",
     "dcmjs-dimse": "0.1.31",
     "express": "5.2.1",
     "formidable": "3.5.4",

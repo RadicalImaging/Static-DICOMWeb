@@ -62,7 +62,7 @@
     "@radicalimaging/static-wado-util": ">=1.7.11",
     "config-point": "0.8.0",
     "cross-env": "7.0.3",
-    "dcmjs": "0.52.0",
+    "dcmjs": "npm:@dcmjs-org/dcmjs@1.0.0-beta.5",
     "dicom-parser": "1.8.21",
     "node-object-hash": "3.1.1"
   },
