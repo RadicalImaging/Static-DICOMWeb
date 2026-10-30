@@ -54,6 +54,8 @@ export class TrackableReadBufferStream extends ReadBufferStream {
     this._abortPromise = new Promise((_, rej) => {
       this._abortReject = rej;
     });
+    // A parse that never waited for data has no handler on this promise
+    this._abortPromise.catch(() => undefined);
 
     // Log tracker ID for debugging
     if (this._streamWritePromiseTracker) {

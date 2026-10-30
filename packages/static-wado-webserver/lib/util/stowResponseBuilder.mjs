@@ -1,3 +1,9 @@
+import {
+  StorageUnavailableError,
+  isOutOfResourcesError,
+  toStorageError,
+} from '@radicalimaging/static-wado-util';
+
 const DEFAULT_FAILURE_REASON = 0xc000;
 const DEFAULT_STUDY_PATH_TEMPLATE = '/api/studies/{studyInstanceUID}';
 
@@ -128,14 +134,104 @@ export function createDatasetResponseFromInstances(
     }
   }
 
-  let statusCode = options.successStatusCode ?? 200;
-  if (failedItems.length > 0 && successItems.length > 0) {
-    statusCode = options.partialSuccessStatusCode ?? 202;
-  } else if (failedItems.length > 0 && successItems.length === 0) {
-    statusCode = options.failureStatusCode ?? 409;
-  }
-
+  const statusCode = stowStatusCode(successItems.length, failedItems.length, options);
   return { statusCode, dataset: response };
+}
+
+/**
+ * HTTP status of a STOW-RS response (PS3.18 Table 10.5.3-1): 200 when all instances are
+ * stored, 202 when some failed, 409 when the request has instances and none is stored.
+ * Options: successStatusCode, partialSuccessStatusCode, failureStatusCode.
+ * @returns {number}
+ */
+function stowStatusCode(successCount, failedCount, options = {}) {
+  if (failedCount === 0) {
+    return options.successStatusCode ?? 200;
+  }
+  return successCount > 0
+    ? (options.partialSuccessStatusCode ?? 202)
+    : (options.failureStatusCode ?? 409);
+}
+
+/**
+ * HTTP status for a dataset of createDatasetResponseFromUploadedFiles (see stowStatusCode).
+ * @param {Object} dataset
+ * @returns {number}
+ */
+export function getStowStatusCode(dataset, options = {}) {
+  return stowStatusCode(
+    dataset?.['00081199']?.Value?.length ?? 0,
+    dataset?.['00081198']?.Value?.length ?? 0,
+    options
+  );
+}
+
+/** Failure Reasons of PS3.18 Table I.2-2 */
+const OUT_OF_RESOURCES = 0xa700;
+const PROCESSING_FAILURE = 0x0110;
+
+/**
+ * Returns true when the server cannot write to its storage: a StorageUnavailableError of
+ * toStorageError (an I/O error, for example `EIO`, `ENOSPC` or `EACCES`).
+ * @param {Error} error
+ * @returns {boolean}
+ */
+function isStorageOutageError(error) {
+  return toStorageError('', error) instanceof StorageUnavailableError;
+}
+
+/**
+ * Failure Reason (0008,1197) of a failed instance (PS3.18 Table I.2-2):
+ * - error.failureReason, when it is set: instanceFromStream sets C000 for data that it cannot
+ *   read, and a validateInstance hook can set its own value;
+ * - A700 (refused, out of resources) for a storage error (toStorageError) with no free space
+ *   or resources (isOutOfResourcesError);
+ * - 0110 (processing failure) for each other error, because the server caused it (another
+ *   storage error, a stopped instance, a timeout, a Node.js stream error).
+ * @param {Error} error
+ * @returns {number}
+ */
+export function stowFailureReason(error) {
+  if (Number.isInteger(error?.failureReason)) {
+    return error.failureReason;
+  }
+  if (isStorageOutageError(error) && isOutOfResourcesError(error)) {
+    return OUT_OF_RESOURCES;
+  }
+  return PROCESSING_FAILURE;
+}
+
+/**
+ * Returns the reason to stop the other parts of an upload after the error of one instance
+ * (the stopOnError option of multipartStream), or null to let them continue. Only a storage
+ * error stops an upload (SQR-D21). The reason has the Failure Reason of that error, A700 or
+ * 0110, and never C000, so each part that the stop cuts gets that value.
+ * @param {Error} error - The error of the listener of a part
+ * @returns {Error|null}
+ */
+export function storageStopReason(error) {
+  if (!isStorageOutageError(error)) {
+    return null;
+  }
+  return Object.assign(new Error(`Upload stopped after a storage error: ${error.message}`), {
+    failureReason: isOutOfResourcesError(error) ? OUT_OF_RESOURCES : PROCESSING_FAILURE,
+  });
+}
+
+/**
+ * Returns true when the files of an upload hold no stored instance, and the server could not
+ * write to its storage: a storage error stopped the upload (`stopped`, storageStopReason), or
+ * each failure is a storage error. The request then gets 503 with Retry-After (SQR-U3,
+ * SQR-U5).
+ * @param {Array<{ok: boolean, cause?: Error}>} files - Files of completePostController
+ * @param {{stopped?: boolean}} [options]
+ * @returns {boolean}
+ */
+export function isStorageOutage(files = [], { stopped = false } = {}) {
+  if (files.length === 0 || files.some(file => file.ok)) {
+    return false;
+  }
+  return stopped || files.every(file => file.cause && isStorageOutageError(file.cause));
 }
 
 function getSOPClassUID(information) {
@@ -152,11 +248,11 @@ export function createDatasetResponseFromUploadedFiles(files = [], options = {})
   const failedItems = [];
 
   for (const file of files) {
-    const information = file.result?.information;
+    // A failed file has the UIDs that the parse read on its error (instanceFromStream)
+    const information = file.result?.information ?? file.cause?.information;
     const hasInformation = !!information;
-    const streamErrors = file.result?.streamErrors || [];
-    const hasStreamErrors = streamErrors.length > 0;
-    const isValidSuccess = file.ok && hasInformation && !hasStreamErrors;
+    // instanceFromStream throws on a failed stream write, so file.ok covers those errors
+    const isValidSuccess = file.ok && hasInformation;
     const sopClassUID = hasInformation ? getSOPClassUID(information) : null;
     const sopInstanceUID = hasInformation ? getSOPInstanceUID(information) : null;
 
@@ -184,17 +280,11 @@ export function createDatasetResponseFromUploadedFiles(files = [], options = {})
     if (isValidSuccess) {
       successItems.push(item);
     } else {
-      if (hasStreamErrors) {
-        const logger = options.logger ?? console;
-        logger.error(
-          `[STOW] Instance ${sopInstanceUID || 'unknown'} failed due to stream errors:`,
-          streamErrors.map(e => `${e.streamKey}: ${e.error?.message || e.error}`).join(', ')
-        );
-      }
-      item['00081197'] = {
-        vr: 'US',
-        Value: [options.defaultFailureReason ?? DEFAULT_FAILURE_REASON],
-      };
+      // file.cause is the error of instanceFromStream (completePostController)
+      const failureReason = file.cause
+        ? stowFailureReason(file.cause)
+        : (options.defaultFailureReason ?? DEFAULT_FAILURE_REASON);
+      item['00081197'] = { vr: 'US', Value: [failureReason] };
       failedItems.push(item);
     }
   }

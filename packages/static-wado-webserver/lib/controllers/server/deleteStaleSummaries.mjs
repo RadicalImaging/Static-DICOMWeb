@@ -21,6 +21,11 @@ import {
  * - Series metadata: studies/{studyUID}/series/{seriesUID}/metadata[.gz]
  * - Single series information: studies/{studyUID}/series/{seriesUID}/series-singleton.json[.gz]
  * - Instances index: studies/{studyUID}/series/{seriesUID}/instances/index.json[.gz]
+ * - Series thumbnail: studies/{studyUID}/series/{seriesUID}/thumbnail
+ *
+ * Per instance (for each info with a sopInstanceUid):
+ * - Instance thumbnail: .../instances/{sopInstanceUID}/thumbnail. The server makes a missing
+ *   thumbnail on request. The thumbnail-<n> files of the CLI are not deleted.
  *
  * Per study (once per studyUID):
  * - Study-level series index: studies/{studyUID}/series/index.json[.gz]
@@ -30,7 +35,8 @@ import {
  * update adds a missing study to it.
  *
  * @param {string} dicomdir - DICOMweb root directory (absolute or relative)
- * @param {Map<string, unknown>} seriesMap - Map of seriesId -> info, where seriesId is "studyUID&seriesUID"
+ * @param {Map<string, Object>} seriesMap - Map of seriesId -> info, where seriesId is
+ *   "studyUID&seriesUID", and info can have the sopInstanceUid of the stored instance
  * @param {Object} [options]
  * @param {Object} [options.generations] - Generation tracker (defaults to the shared tracker of create-dicomweb)
  */
@@ -46,6 +52,7 @@ export function deleteStaleSummaries(dicomdir, seriesMap, options = {}) {
 
   const studyUIDs = new Set();
   const seriesByStudy = new Map(); // studyUID -> Set of seriesUID
+  const instanceThumbnails = []; // relative paths of instance directories
 
   for (const seriesId of seriesMap.keys()) {
     const parts = seriesId.split('&');
@@ -57,6 +64,11 @@ export function deleteStaleSummaries(dicomdir, seriesMap, options = {}) {
       seriesByStudy.set(studyUID, new Set());
     }
     seriesByStudy.get(studyUID).add(seriesUID);
+    const sopInstanceUID = seriesMap.get(seriesId)?.sopInstanceUid;
+    if (sopInstanceUID) {
+      const seriesPath = reader.getSeriesPath(studyUID, seriesUID);
+      instanceThumbnails.push(`${seriesPath}/instances/${sopInstanceUID}`);
+    }
   }
   if (studyUIDs.size === 0) {
     return;
@@ -76,7 +88,11 @@ export function deleteStaleSummaries(dicomdir, seriesMap, options = {}) {
       writer.delete(seriesRelativePath, 'metadata');
       writer.delete(seriesRelativePath, 'series-singleton.json');
       writer.delete(seriesRelativePath, 'instances/index.json');
+      writer.delete(seriesRelativePath, 'thumbnail');
     }
+  }
+  for (const instanceRelativePath of instanceThumbnails) {
+    writer.delete(instanceRelativePath, 'thumbnail');
   }
 
   // Delete study-level files for each studyUID (series index + study singleton)

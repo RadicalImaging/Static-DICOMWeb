@@ -19,6 +19,9 @@ function getTempRelativePath(relativePath) {
   return 'studies/temp';
 }
 
+/** Name of a temp file of this writer: `<Date.now()>-<random base 36>-<file name>` */
+export const TEMP_FILE_NAME_RE = /^\d{13}-[a-z0-9]+-./;
+
 const COMPARE_BLOCK_SIZE = 4096;
 
 /**
@@ -103,6 +106,27 @@ export class FileDicomWebWriter extends DicomWebWriter {
     this.deferFinalMove = options?.deferFinalMove ?? false;
     /** @type {Array<Object>} Stream info objects awaiting final rename */
     this.pendingMoves = [];
+    /** @type {Array<fs.WriteStream>} File streams that recordStreamError destroyed */
+    this._destroyedFileStreams = [];
+  }
+
+  /**
+   * Returns a promise that resolves when each file stream that this writer destroyed has
+   * closed, or null when all of them closed already. A destroyed fs.WriteStream closes only
+   * after its pending file operation returns, so the promise stays pending while that
+   * operation is stuck in the storage (SQR-D20).
+   * @returns {Promise<void>|null}
+   */
+  whenDestroyedStreamsClosed() {
+    const open = this._destroyedFileStreams.filter(stream => !stream.closed);
+    this._destroyedFileStreams = open;
+    if (open.length === 0) {
+      return null;
+    }
+    // Not events.once: it settles on the 'error' of destroy(error), before the close
+    return Promise.all(
+      open.map(stream => new Promise(resolve => stream.once('close', resolve)))
+    ).then(() => undefined);
   }
 
   /**
@@ -130,6 +154,37 @@ export class FileDicomWebWriter extends DicomWebWriter {
           error = rmErr;
         }
         console.warn(`[FileDicomWebWriter] Could not delete ${p}:`, error?.message || error);
+      }
+    }
+  }
+
+  /**
+   * Deletes the frames `<n>.mht` and `<n>.mht.gz` of the instance with n above frameCount.
+   * Never throws: the instance is stored, so it logs each error.
+   * @param {number} frameCount
+   */
+  removeFramesAbove(frameCount) {
+    const framesDir = path.join(
+      this.options.baseDir,
+      `studies/${this.getStudyUID()}/series/${this.getSeriesUID()}/instances/${this.getSOPInstanceUID()}/frames`
+    );
+    let names;
+    try {
+      names = fs.readdirSync(framesDir);
+    } catch (err) {
+      if (err?.code !== 'ENOENT') {
+        console.warn(`[FileDicomWebWriter] Could not list ${framesDir}:`, err?.message || err);
+      }
+      return;
+    }
+    for (const name of names) {
+      const frameNumber = Number(/^(\d+)\.mht(\.gz)?$/.exec(name)?.[1]);
+      if (frameNumber > frameCount) {
+        try {
+          fs.unlinkSync(path.join(framesDir, name));
+        } catch (err) {
+          console.warn(`[FileDicomWebWriter] Could not delete ${name}:`, err?.message || err);
+        }
       }
     }
   }
@@ -244,9 +299,14 @@ export class FileDicomWebWriter extends DicomWebWriter {
    * Only meaningful when `deferFinalMove` is true. Call after validation passes.
    * Compares all files first, and then renames them in one synchronous step with one
    * `canCommit()` check, so on one node the files commit all together, or not at all.
+   * A stream opened with `commitLast: true` (the instance `metadata`) renames after all other
+   * files, so a failed rename or a process stop never shows an instance without its frames.
    */
   async commitPendingMoves() {
-    const pending = this.pendingMoves;
+    const pending = [
+      ...this.pendingMoves.filter(streamInfo => !streamInfo.commitLast),
+      ...this.pendingMoves.filter(streamInfo => streamInfo.commitLast),
+    ];
     this.pendingMoves = [];
     try {
       const moves = [];
@@ -323,6 +383,7 @@ export class FileDicomWebWriter extends DicomWebWriter {
           streamInfo.writeStatus = 'identical';
           this._cleanupTempFile(tempFilepath);
           this._removeStaleMetadataDirs(staleMetadataDirs);
+          this._removeReplacedFiles(streamInfo);
           return false;
         }
       }
@@ -394,6 +455,7 @@ export class FileDicomWebWriter extends DicomWebWriter {
       } else {
         streamInfo.writeStatus = 'updated';
       }
+      this._removeReplacedFiles(streamInfo);
     } catch (err) {
       console.warn(
         `[FileDicomWebWriter] Failed to move temp file ${tempFilepath} to ${filepath}:`,
@@ -438,6 +500,26 @@ export class FileDicomWebWriter extends DicomWebWriter {
   }
 
   /**
+   * Deletes the files that a committed stream replaces (`options.replaces`: file names in the
+   * same directory, for example the other variant `1.mht.gz` of a frame `1.mht`). Runs only
+   * after the commit, so a failed write keeps them. Never throws.
+   * @param {Object} streamInfo
+   * @private
+   */
+  _removeReplacedFiles(streamInfo) {
+    for (const name of streamInfo.replaces || []) {
+      const replaced = path.join(path.dirname(streamInfo.filepath), name);
+      try {
+        fs.unlinkSync(replaced);
+      } catch (err) {
+        if (err?.code !== 'ENOENT') {
+          console.warn(`[FileDicomWebWriter] Could not delete ${replaced}:`, err?.message || err);
+        }
+      }
+    }
+  }
+
+  /**
    * Records a stream error and cleans up the associated temp file.
    * @param {string} streamKey - The key identifying the stream
    * @param {Error} error - The error that occurred
@@ -448,6 +530,10 @@ export class FileDicomWebWriter extends DicomWebWriter {
     const tempFilepath = streamInfo?.tempFilepath;
 
     super.recordStreamError(streamKey, error, skipPromiseReject);
+
+    if (streamInfo?.fileStream && !streamInfo.fileStream.closed) {
+      this._destroyedFileStreams.push(streamInfo.fileStream);
+    }
 
     // Clean up temp file after the stream has been destroyed
     if (tempFilepath) {

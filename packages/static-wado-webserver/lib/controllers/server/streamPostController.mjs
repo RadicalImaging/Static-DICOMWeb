@@ -10,14 +10,22 @@ import { instanceFromStream } from '@radicalimaging/create-dicomweb';
 import { SagaBusMessaging } from './SagaBusMessaging.mjs';
 import { ensureSeriesLevel, ensureStudyLevel } from './indexOnDemandController.mjs';
 import { getBuildJobManager } from '../../util/buildJobManager.mjs';
+import { getStalledStowListeners } from '../../util/stalledStowListeners.mjs';
 
 import { multipartStream } from './multipartStream.mjs';
 import { TrackableReadBufferStream } from './TrackableReadBufferStream.mjs';
 import { deleteStaleSummaries } from './deleteStaleSummaries.mjs';
 import { getLivelockDetectMs } from '../../util/livelockRegistry.mjs';
-import { createDatasetResponseFromUploadedFiles } from '../../util/stowResponseBuilder.mjs';
+import {
+  createDatasetResponseFromUploadedFiles,
+  getStowStatusCode,
+  isStorageOutage,
+  storageStopReason,
+} from '../../util/stowResponseBuilder.mjs';
 
 const maxFileSize = 4 * 1024 * 1024 * 1024;
+/** Retry-After of a 503 for an upload that a storage error stopped (StorageUnavailableError) */
+const STORAGE_RETRY_AFTER_SECONDS = 10;
 const maxTotalFileSize = 10 * maxFileSize;
 
 // Track if handlers have been initialized
@@ -164,6 +172,7 @@ export function streamPostController(params) {
   const backpressureWaitMs = params.backpressureWaitMs ?? 100;
   const backpressureMaxBytes = params.backpressureMaxBytes ?? 128 * 1024;
   const showProgress = params.progress === true;
+  const stalledListeners = getStalledStowListeners(params);
 
   return multipartStream({
     onRequestStart: req => {
@@ -324,6 +333,8 @@ export function streamPostController(params) {
           validateInstance: validateInstance ? validateInstance.bind(null, req) : undefined,
           // An upload that aborts later must not leave stale derived files
           afterCommit: result => markSeriesStale(dicomdir, result),
+          // A failed instance counts as stalled until its destroyed file streams close (SQR-D20)
+          onStuckWrites: closed => stalledListeners.add([closed]),
           statusMonitorJob:
             req?.statusMonitorInstancesJobId != null
               ? { typeId: 'stowInstances', jobId: req.statusMonitorInstancesJobId }
@@ -361,6 +372,9 @@ export function streamPostController(params) {
       }
     },
     limits: { files: 1_000, fileSize: 250 * 1_000_000_000 }, // 250GB, 1000 files
+    stalledListeners,
+    // The first instance that the storage cannot write stops the upload (SQR-D21)
+    stopOnError: storageStopReason,
   });
 }
 
@@ -467,6 +481,7 @@ export const completePostController = async (req, res, next) => {
         ...entry.fileInfo,
         ok: false,
         error: String(r.reason),
+        cause: r.reason,
       };
     });
 
@@ -505,6 +520,12 @@ export const completePostController = async (req, res, next) => {
 
     // Create the dataset response (used for both JSON and XML)
     const datasetResponse = createDatasetResponseFromUploadedFiles(files, { logger: console });
+    // 200, 202 or 409 (PS3.18 Table 10.5.3-1), or 503 for a storage outage (SQR-U5)
+    let statusCode = getStowStatusCode(datasetResponse);
+    if (isStorageOutage(files, { stopped: !!req.uploadStopReason })) {
+      statusCode = 503;
+      res.setHeader('Retry-After', String(STORAGE_RETRY_AFTER_SECONDS));
+    }
 
     console.verbose('[streamPostController] Dataset response:', JSON.stringify(datasetResponse, null, 2));
 
@@ -523,11 +544,14 @@ export const completePostController = async (req, res, next) => {
     if (useXml) {
       const xml = dicomToXml(datasetResponse);
 
-      res.status(200).setHeader('Content-Type', 'application/dicom+xml; charset=utf-8').send(xml);
+      res
+        .status(statusCode)
+        .setHeader('Content-Type', 'application/dicom+xml; charset=utf-8')
+        .send(xml);
     } else {
       // Format as DICOM JSON (use dataset directly - it's already a single object)
       res
-        .status(200)
+        .status(statusCode)
         .setHeader('Content-Type', 'application/dicom+json; charset=utf-8')
         .json(datasetResponse);
     }

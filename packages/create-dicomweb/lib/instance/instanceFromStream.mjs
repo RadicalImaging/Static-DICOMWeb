@@ -22,7 +22,11 @@ const { ReadBufferStream } = data;
  * @returns {boolean}
  */
 function isReadBufferStreamLike(stream) {
-  return stream && typeof stream.reset === 'function' && typeof stream.addBuffer === 'function';
+  return (
+    stream &&
+    typeof stream.reset === 'function' &&
+    typeof stream.addBuffer === 'function'
+  );
 }
 
 const PARSE_JOB_TYPE = 'stowInstanceParse';
@@ -186,7 +190,7 @@ function createProgressFilter(parentJob, parseJob, throttleMs) {
  * @param {Object} options - Configuration options
  * @param {string} options.dicomdir - Base directory for writing files (required if DicomWebWriter is not provided)
  * @param {Function} options.DicomWebWriter - Constructor for DicomWebWriter. Defaults to FileDicomWebWriter if dicomdir is provided
- * @param {Object} options.writerOptions - Additional options to pass to the DicomWebWriter constructor
+ * @param {Object} options.writerOptions - Additional options to pass to the DicomWebWriter constructor. `deferFinalMove` defaults to true.
  * @param {{ add: (p: Promise) => Promise, limitUnsettled: (max, timeoutMs) => Promise }|undefined} [options.streamWritePromiseTracker] - Optional tracker for stream write promises (e.g. for back pressure). One is created when omitted. It is always passed to the writer, which registers every stream's completion promise with it, and the listener drain awaits limitUnsettled before emitting more frame data so we never open more streams than can be consumed.
  * @param {number} [options.drainMaxUnsettled] - Max unsettled stream writes allowed before the reader waits. Defaults to max(25, maxOpenStreams) so this gate never binds before the open file gate; pass a value explicitly only to cap a tracker shared across instances.
  * @param {number} [options.drainTimeoutMs=5000] - Timeout in ms for drain wait.
@@ -199,6 +203,10 @@ function createProgressFilter(parentJob, parseJob, throttleMs) {
  * @param {number} [options.progressThrottleMs=50] - Min ms between progress updates when statusMonitorJob is set.
  * @param {Function} [options.afterCommit] - (result) => void. Called synchronously right after the
  *   instance files are committed, for example to mark the derived files of the series as stale.
+ * @param {(closed: Promise<void>) => void} [options.onStuckWrites] - Called once, before the
+ *   call throws, when the instance failed and the writer destroyed file streams that did not
+ *   close yet. `closed` resolves when the last of them closes, so a caller can count the
+ *   instance while its file operations are stuck (SQR-D20).
  * @returns {Promise<{meta, dict, writer, informationFilter}>} - Parsed metadata and optional writer/filter instances
  */
 export async function instanceFromStream(stream, options = {}) {
@@ -287,6 +295,8 @@ export async function instanceFromStream(stream, options = {}) {
     const writerOptions = {
       baseDir: options.dicomdir,
       maxOpenStreams: options.maxOpenStreams,
+      // Each file moves at commitPendingMoves, so a failed instance moves no file (SQR-D18)
+      deferFinalMove: true,
       ...options.writerOptions,
       streamWritePromiseTracker,
     };
@@ -392,10 +402,7 @@ export async function instanceFromStream(stream, options = {}) {
         error: streamForAbort.abortedReason?.message ?? 'Request aborted',
       });
     }
-    const e = new Error(streamForAbort.abortedReason?.message ?? 'Request aborted');
-    e.code = 'ABORTED';
-    e.aborted = true;
-    throw e;
+    throw abortedError(streamForAbort);
   }
 
   let fmi;
@@ -409,7 +416,9 @@ export async function instanceFromStream(stream, options = {}) {
     parseError = err;
     writer?.abort(err);
     writer?.rollbackPendingMoves();
-    throw err;
+    reportStuckWrites(writer, options);
+    const error = streamForAbort?.abortedReason ? abortedError(streamForAbort) : markDataError(err);
+    throw withInformation(error, listener.information);
   } finally {
     progressFilter.reportProgress?.();
     if (parseJobId != null) {
@@ -423,10 +432,7 @@ export async function instanceFromStream(stream, options = {}) {
 
   // If stream was aborted during parse (e.g. STOW timeout), treat response as aborted
   if (streamForAbort?.abortedReason) {
-    const e = new Error(streamForAbort.abortedReason?.message ?? 'Request aborted');
-    e.code = 'ABORTED';
-    e.aborted = true;
-    throw e;
+    throw withInformation(abortedError(streamForAbort), listener.information);
   }
 
   let result;
@@ -443,22 +449,41 @@ export async function instanceFromStream(stream, options = {}) {
 
     if (writer) {
       console.verbose('Writing metadata to file', information.sopInstanceUid);
-      const metadataStream = await writer.openInstanceStream('metadata', { gzip: true });
+      // commitLast: the builds see the instance only after its frames moved. replaces: the
+      // stored Part 10 rendition of an earlier upload goes with the old metadata, and
+      // storeRawPart10 or the part10 controller makes it again from the new files.
+      const metadataStream = await writer.openInstanceStream('metadata', {
+        gzip: true,
+        commitLast: true,
+        replaces: ['index.mht', 'index.mht.gz'],
+      });
       metadataStream.stream.write(Buffer.from(JSON.stringify([dict])));
-      await writer.closeStream(metadataStream.streamKey);
+      // closeStream records a failure and resolves undefined rather than rejecting
+      if ((await writer.closeStream(metadataStream.streamKey)) === undefined) {
+        throw firstStreamError(writer) ?? new Error('Instance metadata stream failed to close');
+      }
     }
 
     // Wait for all frame/bulkdata writes to complete before returning. The filters close those
     // streams without awaiting, so this both flushes the in-flight closes and releases the
     // handle of anything that was never closed.
     await writer?.drainOpenStreams(options.drainOpenStreamsTimeoutMs);
+    // The filters only record a failed frame or bulkdata write
+    const streamError = writer && firstStreamError(writer);
+    if (streamError) {
+      throw streamError;
+    }
     console.verbose('Finished writing metadata to file', information.sopInstanceUid);
 
     result = { fmi, dict, writer, information: listener.information };
 
     // If a validateInstance hook is provided, run it before committing temp files.
     if (options.validateInstance) {
-      await options.validateInstance(result);
+      try {
+        await options.validateInstance(result);
+      } catch (err) {
+        throw markDataError(err);
+      }
     }
 
     // Commit deferred moves (rename temp → final). No-op on base class.
@@ -468,10 +493,13 @@ export async function instanceFromStream(stream, options = {}) {
     writer?.abort(err);
     await writer?.drainOpenStreams(options.drainOpenStreamsTimeoutMs).catch(() => {});
     writer?.rollbackPendingMoves();
-    throw err;
+    reportStuckWrites(writer, options);
+    throw withInformation(err, listener.information);
   }
 
   // The instance is stored from here on, so nothing below reports it as failed
+  // The frames of an earlier upload with more frames are stale
+  writer?.removeFramesAbove?.(writer.frameCount ?? 0);
   try {
     options.afterCommit?.(result);
   } catch (err) {
@@ -480,20 +508,129 @@ export async function instanceFromStream(stream, options = {}) {
 
   // After the commit above, because the rendition reads back the committed files
   if (writer && options.writeRawPart10 !== false && shouldStoreRawPart10(dict)) {
-    try {
-      await writeRawPart10(writer, dict, information.sopInstanceUid);
-      await writer.commitPendingMoves();
-    } catch (err) {
-      console.warn(
-        'Unable to store Part 10 rendition for',
-        information.sopInstanceUid,
-        err?.message ?? err
-      );
-      writer.rollbackPendingMoves();
-    }
+    await storeRawPart10(writer, dict, information.sopInstanceUid);
   }
 
   return result;
+}
+
+/** Gives the close of the destroyed file streams of a failed instance to options.onStuckWrites */
+function reportStuckWrites(writer, options) {
+  const closed = options.onStuckWrites && writer?.whenDestroyedStreamsClosed?.();
+  if (closed) {
+    try {
+      options.onStuckWrites(closed);
+    } catch (err) {
+      console.warn('onStuckWrites failed:', err?.message ?? err);
+    }
+  }
+}
+
+/** Failure Reason C000 (cannot understand) of PS3.18 Table I.2-2 */
+const CANNOT_UNDERSTAND = 0xc000;
+
+/** JavaScript errors of a program defect or of the memory, for example "Array buffer allocation failed" */
+const PROGRAM_ERROR_TYPES = [TypeError, RangeError, ReferenceError];
+
+/**
+ * Returns true for an error that the server causes, and not the data: an operating system
+ * error (`E...`), a Node.js stream error (`ERR_STREAM_*`), an abort (`ABORT_ERR`), or a
+ * `TypeError`, `RangeError` or `ReferenceError`. The server cannot tell such an error of
+ * corrupt data from a program error, so it never reports it as data that it cannot read.
+ * @param {Error} error
+ * @returns {boolean}
+ */
+function isServerError(error) {
+  const code = typeof error?.code === 'string' ? error.code : '';
+  return (
+    /^E[A-Z0-9]+$/.test(code) ||
+    code.startsWith('ERR_STREAM') ||
+    code === 'ABORT_ERR' ||
+    PROGRAM_ERROR_TYPES.some(type => error instanceof type)
+  );
+}
+
+/**
+ * Marks an error of the parse or of validateInstance as data that the server cannot read:
+ * `failureReason` C000 (SQR-U5), unless the error already has a failureReason or the server
+ * caused it (isServerError). The STOW response uses 0110 for an error with no failureReason.
+ * @param {Error} error
+ * @returns {Error}
+ */
+function markDataError(error) {
+  const marked = error && typeof error === 'object' && error.failureReason !== undefined;
+  if (error && typeof error === 'object' && !marked && !isServerError(error)) {
+    error.failureReason = CANNOT_UNDERSTAND;
+  }
+  return error;
+}
+
+/**
+ * Returns a new error (code ABORTED) for a stream that the request stopped
+ * (`stream.abortedReason`). It keeps the failureReason of the reason: a body that ended too
+ * early gives C000, and a stop of the server gives none (0110 in the STOW response).
+ * @param {Object} stream
+ * @returns {Error}
+ */
+function abortedError(stream) {
+  const reason = stream.abortedReason;
+  const error = new Error(reason?.message ?? 'Request aborted');
+  error.code = 'ABORTED';
+  error.aborted = true;
+  if (Number.isInteger(reason?.failureReason)) {
+    error.failureReason = reason.failureReason;
+  }
+  return error;
+}
+
+/**
+ * Gives an error of an instance the UIDs that the parse read (`error.information`), so the
+ * STOW response can name the failed instance (SQR-U5). Keeps information that is already set.
+ * @param {Error} error
+ * @param {Object} information - listener.information
+ * @returns {Error}
+ */
+function withInformation(error, information) {
+  if (error && typeof error === 'object' && !error.information && information?.sopInstanceUid) {
+    error.information = { ...information };
+  }
+  return error;
+}
+
+/**
+ * Returns the first error that the writer recorded for one of its streams, or undefined.
+ * @param {Object} writer - DicomWebWriter
+ * @returns {Error|undefined}
+ */
+function firstStreamError(writer) {
+  return writer.getStreamErrors?.().values().next().value;
+}
+
+/**
+ * Writes and commits the Part 10 rendition of a committed instance. Never throws: the
+ * instance is stored. When the rendition fails, deletes the stored rendition of an earlier
+ * upload, because it no longer matches the instance; the part10 controller then makes the
+ * rendition from the stored files.
+ * @param {Object} writer - DicomWebWriter of the instance
+ * @param {Object} dict - Parsed instance dataset
+ * @param {string} sopInstanceUID
+ */
+async function storeRawPart10(writer, dict, sopInstanceUID) {
+  try {
+    await writeRawPart10(writer, dict, sopInstanceUID);
+    await writer.commitPendingMoves();
+  } catch (err) {
+    console.warn('Unable to store Part 10 rendition for', sopInstanceUID, err?.message ?? err);
+    writer.rollbackPendingMoves();
+    try {
+      writer.delete(
+        `studies/${writer.getStudyUID()}/series/${writer.getSeriesUID()}/instances/${sopInstanceUID}`,
+        'index.mht'
+      );
+    } catch (deleteErr) {
+      console.warn('Unable to delete the old Part 10 rendition of', sopInstanceUID, deleteErr);
+    }
+  }
 }
 
 /**

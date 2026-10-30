@@ -1,9 +1,12 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { EventEmitter } from 'events';
 import { writeWithRetry, writeMultipleWithRetry } from '../lib/instance/writeWithRetry.mjs';
 import { FileDicomWebWriter } from '../lib/instance/FileDicomWebWriter.mjs';
 import { instanceFromStream } from '../lib/instance/instanceFromStream.mjs';
+import { instanceFromFile, storeInstanceFiles } from '../lib/commands/instanceMain.mjs';
+import { removeOrphanTempFiles } from '../lib/instance/removeOrphanTempFiles.mjs';
 
 /**
  * A build that fails leaves no temp file, and no part of its commit: an old file stays, or
@@ -267,5 +270,268 @@ describe('write functions after a failure', () => {
     ).rejects.toMatchObject({ name: 'StorageUnavailableError', code: 'EIO' });
 
     expect(await files()).toEqual(['a.json.gz']);
+  });
+});
+
+describe('an upload of an instance after a failure', () => {
+  const dicomFilePath = path.resolve(
+    process.cwd().endsWith('create-dicomweb')
+      ? process.cwd()
+      : path.resolve(process.cwd(), 'packages/create-dicomweb'),
+    '../static-wado-creator/dicom/jpeg8bit.dcm'
+  );
+  let baseDir;
+
+  const upload = options =>
+    instanceFromStream(fs.createReadStream(dicomFilePath), {
+      dicomdir: baseDir,
+      writerOptions: { baseDir, deferFinalMove: true },
+      ...options,
+    });
+
+  /** The stored files of the instance, relative to its directory, with their contents */
+  const instanceFiles = instanceDir =>
+    Object.fromEntries(
+      fs
+        .readdirSync(instanceDir, { recursive: true, withFileTypes: true })
+        .filter(entry => entry.isFile())
+        .map(entry => {
+          const file = path.join(entry.parentPath ?? entry.path, entry.name);
+          return [path.relative(instanceDir, file), fs.readFileSync(file).toString('base64')];
+        })
+    );
+
+  beforeEach(() => {
+    baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'instance-failure-'));
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  });
+
+  // Test 33. The user experience must have this: a failed new upload of a stored instance
+  // keeps its stored frames, and a committed upload replaces the other frame variant
+  it('keeps the stored frames when a new upload of the instance fails before commit', async () => {
+    const { information } = await upload();
+    const instanceDir = path.join(
+      baseDir,
+      'studies',
+      information.studyInstanceUid,
+      'series',
+      information.seriesInstanceUid,
+      'instances',
+      information.sopInstanceUid
+    );
+    const stored = instanceFiles(instanceDir);
+    expect(Object.keys(stored)).toContain(path.join('frames', '1.mht'));
+
+    await expect(
+      upload({
+        validateInstance: async () => {
+          throw new Error('rejected');
+        },
+      })
+    ).rejects.toThrow('rejected');
+    expect(instanceFiles(instanceDir)).toEqual(stored);
+
+    const otherVariant = path.join(instanceDir, 'frames', '1.mht.gz');
+    fs.writeFileSync(otherVariant, 'old variant');
+    await upload();
+    expect(fs.existsSync(otherVariant)).toBe(false);
+    expect(fs.existsSync(path.join(instanceDir, 'frames', '1.mht'))).toBe(true);
+  });
+
+  // Test 52. The API must do this (SQR-U5): a validation that rejects the instance gives C000,
+  // and a program error (TypeError, RangeError) is never reported as data that cannot be read
+  it.each([
+    ['a rejection', new Error('rejected'), 0xc000],
+    ['a TypeError', new TypeError('bug'), undefined],
+    ['a RangeError', new RangeError('Array buffer allocation failed'), undefined],
+  ])('marks %s of validateInstance', async (_, error, failureReason) => {
+    const failed = await upload({
+      validateInstance: async () => {
+        throw error;
+      },
+    }).catch(err => err);
+    expect(failed).toBe(error);
+    expect(failed.failureReason).toBe(failureReason);
+  });
+
+  // Test 34. The user experience must have this: an upload never reports success for an
+  // instance whose metadata or frame write failed, and commits no file of that instance
+  it.each([['metadata.gz'], ['1.mht']])(
+    'fails the instance, and commits nothing, when the write of %s fails',
+    async name => {
+      failWriteOf(name);
+      await expect(upload()).rejects.toMatchObject({ code: 'ENOSPC' });
+      expect(await storedFiles()).toEqual([]);
+    }
+  );
+
+  // Test 57. The API must do this (SQR-D20): a failed instance whose destroyed file stream
+  // did not close (a stuck file operation) goes to onStuckWrites until that stream closes
+  it('gives a failed instance to onStuckWrites until its destroyed file stream closes', async () => {
+    const stuck = Object.assign(new EventEmitter(), { closed: false, destroy: () => {} });
+    const closeStream = FileDicomWebWriter.prototype.closeStream;
+    jest
+      .spyOn(FileDicomWebWriter.prototype, 'closeStream')
+      .mockImplementation(async function stuckFrame(streamKey) {
+        const streamInfo = this.openStreams.get(streamKey);
+        if (streamInfo?.filepath?.endsWith('1.mht')) {
+          streamInfo.fileStream.destroy();
+          // A file stream whose pending file operation does not return
+          streamInfo.fileStream = stuck;
+          this.recordStreamError(
+            streamKey,
+            Object.assign(new Error('stuck'), { code: 'EIO' }),
+            true
+          );
+        }
+        return closeStream.call(this, streamKey);
+      });
+    const stuckWrites = [];
+
+    await expect(
+      upload({ onStuckWrites: closed => stuckWrites.push(closed) })
+    ).rejects.toMatchObject({ code: 'EIO' });
+    expect(stuckWrites).toHaveLength(1);
+    let settled = false;
+    stuckWrites[0].then(() => (settled = true));
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(settled).toBe(false);
+
+    stuck.emit('close');
+    await stuckWrites[0];
+  });
+
+  // Test 39. The user experience must have this: the CLI (instanceFromFile, no writer
+  // options) commits no file of an instance whose frame write failed
+  it('commits nothing from the CLI when the write of a frame fails', async () => {
+    failWriteOf('1.mht');
+    await expect(instanceFromFile(dicomFilePath, { dicomdir: baseDir })).rejects.toMatchObject({
+      code: 'ENOSPC',
+    });
+    expect(await storedFiles()).toEqual([]);
+  });
+
+  // Test 40. The API must do this: the CLI store gives the files that it did not store, so
+  // the instance and create commands can exit with a non-zero code
+  it('gives the files that the CLI did not store', async () => {
+    const sourceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'instance-files-'));
+    try {
+      fs.copyFileSync(dicomFilePath, path.join(sourceDir, 'good.dcm'));
+      fs.writeFileSync(path.join(sourceDir, 'bad.dcm'), 'not a DICOM file');
+      const { studyUIDs, failedFiles } = await storeInstanceFiles([sourceDir], {
+        dicomdir: baseDir,
+      });
+      expect(studyUIDs.size).toBe(1);
+      expect(failedFiles.map(file => path.basename(file))).toEqual(['bad.dcm']);
+    } finally {
+      fs.rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  // Test 48. The API must do this (SQR-D18, note 2 of the specification): the commit renames
+  // the instance metadata last, also when a frame closes after the metadata
+  it('renames the instance metadata after the frames', async () => {
+    const closeStream = FileDicomWebWriter.prototype.closeStream;
+    jest
+      .spyOn(FileDicomWebWriter.prototype, 'closeStream')
+      .mockImplementation(async function delayFrame1(streamKey) {
+        if (this.openStreams.get(streamKey)?.filepath?.endsWith(`${path.sep}1.mht`)) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        return closeStream.call(this, streamKey);
+      });
+    const rename = fs.renameSync;
+    const renamed = [];
+    jest.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+      renamed.push(path.basename(String(to)));
+      return rename(from, to);
+    });
+
+    await upload();
+
+    expect(renamed).toContain('1.mht');
+    expect(renamed[renamed.length - 1]).toBe('metadata.gz');
+  });
+
+  // Test 46. The user experience must have this (SQR-U5): a CLI input path that does not
+  // exist is a file that was not stored, so the command exits with a non-zero code
+  it('gives a missing input path of the CLI as not stored', async () => {
+    const missing = path.join(baseDir, 'no-such-file.dcm');
+    const { failedFiles } = await storeInstanceFiles([missing], { dicomdir: baseDir });
+    expect(failedFiles).toEqual([missing]);
+  });
+
+  /** Makes the write of the file whose final name ends with `name` fail with ENOSPC */
+  function failWriteOf(name) {
+    const closeStream = FileDicomWebWriter.prototype.closeStream;
+    jest
+      .spyOn(FileDicomWebWriter.prototype, 'closeStream')
+      .mockImplementation(async function closeStreamSpy(streamKey) {
+        if (this.openStreams.get(streamKey)?.filepath?.endsWith(name)) {
+          const error = Object.assign(new Error('no space'), { code: 'ENOSPC' });
+          this.recordStreamError(streamKey, error, true);
+        }
+        return closeStream.call(this, streamKey);
+      });
+  }
+
+  /** The files under baseDir, after a wait, so a temp file that closes late is also seen */
+  async function storedFiles() {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    return fs
+      .readdirSync(baseDir, { recursive: true, withFileTypes: true })
+      .filter(entry => entry.isFile())
+      .map(entry => entry.name);
+  }
+});
+
+describe('removeOrphanTempFiles', () => {
+  let baseDir;
+
+  beforeEach(() => {
+    baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'orphan-temp-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  });
+
+  // Test 42. The API must do this (SQR-D19): the cleanup removes only the old temp files of
+  // the writer, and keeps a recent temp file (a running upload) and each other file
+  it('removes only the temp files of the writer that are older than the limit', async () => {
+    const hour = 60 * 60 * 1000;
+    const now = Date.now();
+    const files = {
+      'studies/1.2.3/temp/1700000000000-abc123-1.mht': now - 25 * hour,
+      'studies/temp/1700000000000-def456-index.json.gz': now - 25 * hour,
+      'studies/1.2.3/temp/1700000000001-ghi789-metadata.gz': now - hour,
+      'studies/1.2.3/temp/notes.txt': now - 25 * hour,
+      'studies/1.2.3/series/1.2.3.4/metadata.gz': now - 25 * hour,
+    };
+    for (const [name, mtime] of Object.entries(files)) {
+      const file = path.join(baseDir, name);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, 'data');
+      fs.utimesSync(file, new Date(mtime), new Date(mtime));
+    }
+
+    // An age of 0 would remove the temp files of each running upload
+    for (const maxAgeMs of [0, -1, NaN]) {
+      await expect(removeOrphanTempFiles(baseDir, { maxAgeMs, now })).rejects.toThrow(RangeError);
+    }
+    expect(await removeOrphanTempFiles(baseDir, { maxAgeMs: 24 * hour, now })).toBe(2);
+
+    const kept = Object.keys(files).filter(name => fs.existsSync(path.join(baseDir, name)));
+    expect(kept).toEqual([
+      'studies/1.2.3/temp/1700000000001-ghi789-metadata.gz',
+      'studies/1.2.3/temp/notes.txt',
+      'studies/1.2.3/series/1.2.3.4/metadata.gz',
+    ]);
   });
 });

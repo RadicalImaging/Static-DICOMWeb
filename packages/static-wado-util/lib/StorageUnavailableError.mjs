@@ -1,24 +1,12 @@
-/**
- * Codes of a file system error that mean that the path does not exist. No stored path has a
- * name that is too long, so `ENAMETOOLONG` (for example a long UID in a request) is missing.
- */
-const MISSING_PATH_CODES = new Set(['ENOENT', 'ENOTDIR', 'ENAMETOOLONG']);
+import isMissingPathError from './isMissingPathError.js';
+
+export { isMissingPathError };
 
 /**
  * Codes of a file system error that a retry after the storage recovers does not change: the
  * layout of the files or the request is wrong. These are not I/O errors.
  */
 const PERMANENT_CODES = new Set(['ELOOP', 'EISDIR', 'EINVAL', 'ENOTEMPTY', 'EEXIST', 'EXDEV']);
-
-/**
- * Returns true when a file system error means that the path does not exist (`ENOENT`,
- * `ENOTDIR`, `ENAMETOOLONG`): a missing path. Compare isCorruptFileError and toStorageError.
- * @param {Error} error
- * @returns {boolean}
- */
-export function isMissingPathError(error) {
-  return MISSING_PATH_CODES.has(error?.code);
-}
 
 /**
  * Returns true when a read error shows that the file content is corrupt: the gunzip
@@ -78,4 +66,18 @@ export function toStorageError(path, error) {
     return error;
   }
   return new StorageUnavailableError(path, error);
+}
+
+/** Codes of an I/O error that mean that the storage or the server has no free space or resources */
+const OUT_OF_RESOURCES_CODES = new Set(['ENOSPC', 'EDQUOT', 'EMFILE', 'ENFILE', 'ENOMEM']);
+
+/**
+ * Returns true when an error (or the cause of a StorageUnavailableError) means that the
+ * storage or the server has no free space or resources (`ENOSPC`, `EDQUOT`, `EMFILE`,
+ * `ENFILE`, `ENOMEM`). These are I/O errors (toStorageError), so a retry can succeed.
+ * @param {Error} error
+ * @returns {boolean}
+ */
+export function isOutOfResourcesError(error) {
+  return OUT_OF_RESOURCES_CODES.has(error?.code ?? error?.cause?.code);
 }

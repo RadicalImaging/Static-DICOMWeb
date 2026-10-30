@@ -3,18 +3,27 @@ import path from "path";
 import http from "node:http";
 import https from "node:https";
 import { randomUUID } from "node:crypto";
-import { Readable } from "node:stream";
+import { Readable, pipeline } from "node:stream";
 import {
   dirScanner,
   createPromiseTracker,
   createProgressReporter,
 } from '@radicalimaging/static-wado-util';
-import { parseAndLogDicomJsonErrors } from './parseDicomJsonErrors.mjs';
+import {
+  parseAndLogDicomJsonErrors,
+  filesNotListedAsStored,
+  partContentLocation,
+} from './parseDicomJsonErrors.mjs';
 
 /** Timeout for createPromiseTracker limitUnsettled when waiting for the next storage slot (at least 30 minutes) */
 const LIMIT_UNSETTLED_TIMEOUT_MS = 30 * 60 * 1000;
 /** Timeout for "wait for all" when using parallel (24 hours) */
 const WAIT_ALL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+/** Number of times a group is sent again after a 503 response or a connection reset */
+const MAX_UNAVAILABLE_RETRIES = 3;
+/** Wait before a retry after a 503 with no Retry-After header, and the longest wait (seconds) */
+const DEFAULT_RETRY_AFTER_SECONDS = 10;
+const MAX_RETRY_AFTER_SECONDS = 10 * 60;
 /** File extensions skipped when filenameCheck is on (lowercase, no dot) */
 const SKIP_EXTENSIONS = new Set([
   'gz',
@@ -65,6 +74,7 @@ const SKIP_EXTENSIONS = new Set([
  * @param {boolean} [options.progress] - If true, show progress with instance count as files are stored
  * @param {boolean} [options.quiet] - If true, suppress progress and non-error output
  * @param {boolean} [options.verbose] - If true, show per-group storage messages
+ * @param {(ms: number) => Promise<void>} [options.retryWait] - Wait before a retry (see stowFilesWithRetry)
  */
 export async function stowMain(fileNames, options = {}) {
   const {
@@ -79,6 +89,7 @@ export async function stowMain(fileNames, options = {}) {
     progress = false,
     quiet = false,
     verbose = false,
+    retryWait,
   } = options; // Default 10MB
 
   const showProgress = progress && !quiet;
@@ -92,6 +103,8 @@ export async function stowMain(fileNames, options = {}) {
     let count = 0;
     await dirScanner(fileNames, {
       recursive: true,
+      // The scan of the upload counts the unreadable paths
+      onError: () => {},
       callback: async filename => {
         if (filenameCheck) {
           const ext = path.extname(filename).slice(1).toLowerCase();
@@ -128,9 +141,32 @@ export async function stowMain(fileNames, options = {}) {
 
   const runOneStow = async (group, requestTimeoutMs) => {
     try {
-      await stowFiles(group, url, headers, xmlResponse, requestTimeoutMs);
-      results.success += group.length;
-      console.verbose(`Stored group of ${group.length} file(s)`);
+      const response = await stowFilesWithRetry(
+        group,
+        url,
+        headers,
+        xmlResponse,
+        requestTimeoutMs,
+        retryWait
+      );
+      // 202: the server stored some instances only (SQR-U5). A file that the response does
+      // not list as stored is failed (stowFiles); a 202 still counts at least one file.
+      let failures = [];
+      if (response?.status === 202) {
+        failures = response.failures?.length
+          ? response.failures
+          : [
+              {
+                file: `a group of ${group.length} file(s)`,
+                error: 'HTTP 202, some instances failed',
+              },
+            ];
+      }
+      const failed = Math.min(failures.length, group.length);
+      results.success += group.length - failed;
+      results.failed += failed;
+      results.errors.push(...failures);
+      console.verbose(`Stored group of ${group.length - failed} of ${group.length} file(s)`);
       progressReporter.addProcessed(group.length);
     } catch (error) {
       const isConnectionError =
@@ -139,11 +175,9 @@ export async function stowMain(fileNames, options = {}) {
         error.message.includes('ECONNREFUSED') ||
         error.message.includes('ENOTFOUND') ||
         error.message.includes('ETIMEDOUT') ||
-        error.message.includes('ECONNRESET') ||
         error.cause?.code === 'ECONNREFUSED' ||
         error.cause?.code === 'ENOTFOUND' ||
-        error.cause?.code === 'ETIMEDOUT' ||
-        error.cause?.code === 'ECONNRESET';
+        error.cause?.code === 'ETIMEDOUT';
 
       if (isConnectionError) {
         console.error(`Failed to connect to endpoint ${url}: ${error.message}`);
@@ -153,9 +187,13 @@ export async function stowMain(fileNames, options = {}) {
 
       results.failed += group.length;
       progressReporter.addProcessed(group.length);
+      // The response body once for the group, and only the status for each file
+      console.error(`Failed to store a group of ${group.length} file(s): ${error.message}`);
+      if (error.responseText) {
+        console.error(error.responseText);
+      }
       group.forEach(({ filePath }) => {
         results.errors.push({ file: filePath, error: error.message });
-        console.error(`Failed to store ${filePath}: ${error.message}`);
       });
     }
   };
@@ -174,6 +212,10 @@ export async function stowMain(fileNames, options = {}) {
   await dirScanner(fileNames, {
     ...options,
     recursive: true,
+    onError: (filename, error) => {
+      results.failed++;
+      results.errors.push({ file: filename, error: error.message });
+    },
     callback: async filename => {
       try {
         if (filenameCheck) {
@@ -256,9 +298,14 @@ export async function stowFiles(
 
   const boundary = `StaticWadoBoundary${randomUUID()}`;
   const contentType = `multipart/related; type="application/dicom"; boundary=${boundary}`;
+  // The server echoes the Content-Location of each part in its response items (0009,1001)
+  const parts = files.map((file, i) => ({
+    ...file,
+    contentLocation: partContentLocation(i, file.filePath),
+  }));
 
   // Create streaming multipart body with multiple files
-  const { bodyStream, contentLength } = createMultipartBodyStreamMultiple(files, boundary);
+  const { bodyStream, contentLength } = createMultipartBodyStreamMultiple(parts, boundary);
 
   // Prepare headers
   const requestHeaders = {
@@ -308,6 +355,8 @@ export async function stowFiles(
           },
         };
         resolve({ responseLike, responseText, res });
+        // A response before the end of the body (an early 503): stop the send of the body
+        if (!req.writableFinished) req.destroy();
       });
       res.on('error', reject);
     });
@@ -320,7 +369,11 @@ export async function stowFiles(
       });
     }
 
-    bodyStream.pipe(req);
+    // pipeline closes the file of the body when the request fails or closes, because a retry
+    // reads the files again. A file that cannot be read destroys the request.
+    pipeline(bodyStream, req, error => {
+      if (error) reject(error);
+    });
   });
 
   const { responseLike, responseText, res } = response;
@@ -331,20 +384,84 @@ export async function stowFiles(
   }
 
   if (!responseLike.ok) {
-    throw new Error(
-      `HTTP ${res.statusCode} ${res.statusMessage || ''}: ${responseText}`
-    );
+    // 409 or 503: the body lists each failed instance (PS3.18 10.5.3). The 503 of an unknown
+    // result has a plain text body, and can come after some instances were stored (SQR-U5).
+    if (res.statusCode === 409 || res.statusCode === 503) {
+      await parseAndLogDicomJsonErrors(responseLike, responseText, parts);
+    }
+    throw Object.assign(new Error(`HTTP ${res.statusCode} ${res.statusMessage || ''}`.trim()), {
+      status: res.statusCode,
+      retryAfter: responseLike.headers.get('retry-after'),
+      responseText,
+    });
   }
 
-  // Parse JSON DICOM response if applicable and log errors
-  await parseAndLogDicomJsonErrors(responseLike, responseText, files);
+  // Parse JSON DICOM response if applicable and log errors; a 202 lists the failed instances
+  const failures = await parseAndLogDicomJsonErrors(responseLike, responseText, parts);
+  if (res.statusCode === 202) {
+    failures.push(...filesNotListedAsStored(responseLike, responseText, parts, failures.length));
+  }
+  responseLike.failures = failures;
 
   return responseLike;
 }
 
 /**
+ * Returns the wait (ms) of a Retry-After header: seconds, or an HTTP date. Bounded to
+ * MAX_RETRY_AFTER_SECONDS, with DEFAULT_RETRY_AFTER_SECONDS for a missing or invalid value.
+ * @param {string|null} value
+ * @returns {number}
+ */
+function retryAfterMs(value) {
+  let seconds = Number(value);
+  if (value == null || value === '' || !Number.isFinite(seconds)) {
+    const date = Date.parse(value ?? '');
+    seconds = Number.isNaN(date) ? DEFAULT_RETRY_AFTER_SECONDS : (date - Date.now()) / 1000;
+  }
+  return Math.min(Math.max(seconds, 0), MAX_RETRY_AFTER_SECONDS) * 1000;
+}
+
+/** Error codes of a connection that the server or a proxy closed during the request */
+const CONNECTION_RESET_CODES = new Set(['ECONNRESET', 'EPIPE']);
+
+/**
+ * stowFiles, and up to MAX_UNAVAILABLE_RETRIES more times after a 503 response, each after the
+ * wait of its Retry-After header. A 503 comes from a storage outage, from too much stalled
+ * work, or from an unknown result. In the last case the server can have stored some instances
+ * (SQR-U5). The same group can still be sent again, because a new upload of a stored instance
+ * replaces it. A connection reset (ECONNRESET, EPIPE) uses the same retries, with the wait of
+ * DEFAULT_RETRY_AFTER_SECONDS: a server or a proxy that refuses a request before it reads the
+ * body can close the connection. After the last retry, the error goes to the caller, which
+ * counts the group as failed. Same parameters as stowFiles, and `wait`, which waits the given
+ * ms before a retry (a test gives its own function).
+ */
+export async function stowFilesWithRetry(
+  files,
+  endpointUrl,
+  additionalHeaders,
+  xmlResponse,
+  timeoutMs,
+  wait = ms => new Promise(resolve => setTimeout(resolve, ms))
+) {
+  for (let retry = 0; ; retry++) {
+    try {
+      return await stowFiles(files, endpointUrl, additionalHeaders, xmlResponse, timeoutMs);
+    } catch (error) {
+      const reset = CONNECTION_RESET_CODES.has(error.code ?? error.cause?.code);
+      if ((error.status !== 503 && !reset) || retry >= MAX_UNAVAILABLE_RETRIES) throw error;
+      const waitMs = retryAfterMs(error.retryAfter);
+      const reason = reset ? `Connection reset (${error.code ?? error.cause?.code})` : 'HTTP 503';
+      console.warn(
+        `${reason} for a group of ${files.length} file(s), retry ${retry + 1} of ${MAX_UNAVAILABLE_RETRIES} in ${waitMs / 1000} s`
+      );
+      await wait(waitMs);
+    }
+  }
+}
+
+/**
  * Creates a multipart/related body for STOW-RS request with multiple files
- * @param {Array<{filePath: string, fileSize: number}>} files - Array of file objects
+ * @param {Array<{filePath: string, fileSize: number, contentLocation: string}>} files - Array of file objects
  * @param {string} boundary - Multipart boundary
  * @returns {Promise<Buffer>} Complete multipart body as buffer
  */
@@ -355,21 +472,19 @@ function createMultipartBodyStreamMultiple(files, boundary) {
     let contentLength = footerLen;
 
     for (let i = 0; i < files.length; i++) {
-        const { filePath, fileSize } = files[i];
-        const fileName = path.basename(filePath);
-        const headerStr = multipartPartHeader(boundary, fileName, i === 0);
+        const { fileSize, contentLocation } = files[i];
+        const headerStr = multipartPartHeader(boundary, contentLocation, i === 0);
         const headerLen = Buffer.byteLength(headerStr, 'utf-8');
         contentLength += headerLen + fileSize;
     }
 
     async function* gen() {
         for (let i = 0; i < files.length; i++) {
-            const { filePath } = files[i];
-            const fileName = path.basename(filePath);
+            const { filePath, contentLocation } = files[i];
 
             console.verbose(`Reading file: ${filePath}`);
 
-            yield Buffer.from(multipartPartHeader(boundary, fileName, i === 0), 'utf-8');
+            yield Buffer.from(multipartPartHeader(boundary, contentLocation, i === 0), 'utf-8');
 
             const fileStream = fs.createReadStream(filePath);
             for await (const chunk of fileStream) {
@@ -383,13 +498,13 @@ function createMultipartBodyStreamMultiple(files, boundary) {
     return { bodyStream: Readable.from(gen()), contentLength };
 }
 
-function multipartPartHeader(boundary, fileName, isFirstPart) {
+function multipartPartHeader(boundary, contentLocation, isFirstPart) {
     // First part starts with --boundary, subsequent parts need \r\n before --boundary
     const boundaryPrefix = isFirstPart ? '' : '\r\n';
     return [
         `${boundaryPrefix}--${boundary}\r\n`,
         `Content-Type: application/dicom\r\n`,
-        `Content-Location: ${fileName}\r\n`,
+        `Content-Location: ${contentLocation}\r\n`,
         `\r\n`,
     ].join('');
 }

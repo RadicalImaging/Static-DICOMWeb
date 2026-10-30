@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { createRequire } from 'module';
 import { Command } from 'commander';
-import { instanceMain, seriesMain, studyMain, createMain, stowMain, thumbnailMain, indexMain } from '../lib/index.mjs';
+import { storeInstanceFiles, seriesMain, studyMain, createMain, stowMain, thumbnailMain, indexMain } from '../lib/index.mjs';
 import {
   handleHomeRelative,
   createVerboseLog,
@@ -19,6 +19,16 @@ const program = new Command();
 
 // Initialize verbose logging with defaults
 createVerboseLog(false, {});
+
+/** Prints the files that were not stored, and sets a non-zero exit code (SQR-U5) */
+const reportFailedFiles = failedFiles => {
+  if (failedFiles?.length > 0) {
+    const shown = failedFiles.slice(0, 20).join(', ');
+    const more = failedFiles.length > 20 ? ', ...' : '';
+    console.error(`${failedFiles.length} file(s) not stored: ${shown}${more}`);
+    process.exitCode = 1;
+  }
+};
 
 // Helper function to update verbose logging from program options
 const updateVerboseLog = () => {
@@ -66,7 +76,8 @@ program
     if (maxOpenFiles !== undefined) {
       instanceOptions.maxOpenStreams = maxOpenFiles;
     }
-    await instanceMain([fileName], instanceOptions);
+    const { failedFiles } = await storeInstanceFiles([fileName], instanceOptions);
+    reportFailedFiles(failedFiles);
   });
 
 program
@@ -130,7 +141,8 @@ program
     if (maxOpenFiles !== undefined) {
       createOptions.maxOpenStreams = maxOpenFiles;
     }
-    await createMain(fileNames, createOptions);
+    const { failedFiles } = await createMain(fileNames, createOptions);
+    reportFailedFiles(failedFiles);
   });
 
 program
@@ -152,7 +164,10 @@ program
     '10m'
   )
   .option('--send-as-single-files', 'Send each file individually instead of grouping')
-  .option('--xml-response', 'Request XML response format instead of JSON')
+  .option(
+    '--xml-response',
+    'Request XML response format instead of JSON. After a 202 with an XML body, every file of the group counts as failed'
+  )
   .option(
     '--timeout <duration>',
     'Request timeout: hours (10h), minutes (10m), or seconds (3600 or 3600s)'
@@ -218,7 +233,11 @@ program
     stowOptions.quiet = opts.quiet;
     stowOptions.verbose = opts.verbose;
 
-    await stowMain(fileNames, stowOptions);
+    const { failed } = await stowMain(fileNames, stowOptions);
+    // As the instance and create commands: a file that was not stored gives exit code 1
+    if (failed > 0) {
+      process.exitCode = 1;
+    }
   });
 
 /**

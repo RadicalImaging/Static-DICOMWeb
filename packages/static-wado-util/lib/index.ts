@@ -41,6 +41,7 @@ import {
   StorageUnavailableError,
   isMissingPathError,
   isCorruptFileError,
+  isOutOfResourcesError,
   toStorageError,
 } from './StorageUnavailableError.mjs';
 import { createProgressReporter } from './createProgressReporter.mjs';
@@ -88,6 +89,7 @@ export {
   StorageUnavailableError,
   isMissingPathError,
   isCorruptFileError,
+  isOutOfResourcesError,
   toStorageError,
   createProgressReporter,
   parseTimeoutToMs,
