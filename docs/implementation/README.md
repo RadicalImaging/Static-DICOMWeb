@@ -14,3 +14,4 @@ the change in the implementation document.
 | Implementation | Prefix | Specification |
 | --- | --- | --- |
 | [Series index rebuild](series-index-rebuild.md) | `SQR-I` | [Updates of derived data](../specs/derived-data-updates.md) |
+| [Command line tools](command-line-tools.md) | `CLI-I` | [Results of the command line tools](../specs/command-line-tools.md) |
