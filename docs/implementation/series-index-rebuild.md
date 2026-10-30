@@ -544,8 +544,11 @@ throws, came with #141 (SQR-I3). This item depends on them, and does not change 
    cut part fails with `failureReason` C000, and `waitForListeners` sends the request to
    `completePostController`. Each other Dicer error (a folded first header line, or a header
    above 64 KB) comes while the body arrives. The pipe from the request to Dicer then stops,
-   so the later parts are lost, and the request gets `400` (`abort`). Each part gets a no-op
-   `error` listener when it arrives, because Dicer can emit the part error before
+   so the later parts are lost, and the request gets `400` (`abort`). `abort` reads and drops
+   the rest of the body, and does not destroy the request before the `400`. A destroy, or a
+   close while the client still sends, resets the connection, and the client then gets
+   `ECONNRESET` or, under bun, an empty `200` (test 49 sends the body over HTTP). Each part
+   gets a no-op `error` listener when it arrives, because Dicer can emit the part error before
    `errorHandler` is attached. `abort` sends no response after `next()`, because
    `completePostController` then owns the response. A part above `limits.parts` counts as
    complete when it ends, so the request does not wait for it.
