@@ -87,7 +87,8 @@ check_workspace_overrides() {
 
   while IFS=$'\t' read -r name version; do
     [[ -z "$name" ]] && continue
-    if ! is_exact_semver "$version"; then
+    # An npm alias (`npm:@scope/pkg@1.2.3`) must also name an exact version.
+    if ! is_exact_semver "${version##npm:*@}"; then
       echo "Unpinned override in pnpm-workspace.yaml: ${name} -> ${version}" >&2
       block_failed=1
     fi
@@ -95,8 +96,9 @@ check_workspace_overrides() {
     /^[^[:space:]#]/ { in_block = ($0 ~ /^overrides:/); next }
     in_block && /^[[:space:]]+[^[:space:]#]/ {
       line = $0; sub(/^[[:space:]]+/, "", line)
-      key = line; sub(/:[[:space:]][^:]*$/, "", key)
-      value = line; sub(/^.*:[[:space:]]+/, "", value)
+      match(line, /:[[:space:]]+/)
+      key = substr(line, 1, RSTART - 1)
+      value = substr(line, RSTART + RLENGTH)
       gsub(/["\047]/, "", key); gsub(/["\047]/, "", value)
       print key "\t" value
     }' "$file")
