@@ -40,6 +40,7 @@ overrides:
   fast-xml-builder: 1.2.0
   fast-xml-parser: 5.7.2
   flatted: 3.4.2
+  follow-redirects: 1.16.2
   handlebars: 4.7.9
   has-flag: 4.0.0
   http-cache-semantics: 4.3.0
