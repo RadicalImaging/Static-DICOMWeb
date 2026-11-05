@@ -42,7 +42,8 @@ is_pinned() {
     return
   fi
   case "$version" in
-    workspace:*|file:*|npm:*) return 0 ;;
+    workspace:*|file:*) return 0 ;;
+    npm:*) is_exact_semver "${version##npm:*@}"; return ;;
     http://*|https://*) return 0 ;;
   esac
   case "$version" in
