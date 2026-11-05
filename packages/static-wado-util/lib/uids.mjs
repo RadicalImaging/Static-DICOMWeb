@@ -34,6 +34,10 @@ const uids = {
   // Lossy, original JPEG reconstruction mode
   '1.2.840.10008.1.2.4.141': { contentType: jxl, lossy: true },
   '1.2.840.10008.1.2.4.142': { contentType: jxl, lossy: true },
+  // The final JPEG XL UIDs, with the PS3.18 media type
+  '1.2.840.10008.1.2.4.110': { contentType: 'image/jxl' },
+  '1.2.840.10008.1.2.4.111': { contentType: 'image/jxl' },
+  '1.2.840.10008.1.2.4.112': { contentType: 'image/jxl', lossy: true },
   '1.2.840.10008.1.2.4.80': { contentType: jls, extension: '.jls' },
   '1.2.840.10008.1.2.4.81': { contentType: jls, lossy: true },
   '1.2.840.10008.1.2.4.90': { contentType: jp2, extension: '.jp2' },
