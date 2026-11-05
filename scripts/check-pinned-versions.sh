@@ -88,7 +88,8 @@ check_workspace_overrides() {
 
   while IFS=$'\t' read -r name version; do
     [[ -z "$name" ]] && continue
-    # An npm alias (`npm:@scope/pkg@1.2.3`) must also name an exact version.
+    # An npm alias (`npm:@scope/pkg@1.2.3`) must also name an exact version. The alias
+    # target is not checked: review each new target package by hand.
     if ! is_exact_semver "${version##npm:*@}"; then
       echo "Unpinned override in pnpm-workspace.yaml: ${name} -> ${version}" >&2
       block_failed=1
