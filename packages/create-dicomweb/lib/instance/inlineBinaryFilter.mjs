@@ -10,9 +10,7 @@ const { TagHex, BULKDATA_VRS } = constants;
 export function inlineBinaryFilter(options = {}) {
   /**
    * Filter method: Called when a tag is being closed (popped from stack).
-   * When converting to InlineBinary, performs the default pop logic and returns
-   * without calling next, so the released dcmjs base pop (which logs when
-   * InlineBinary is set) is never run.
+   * Replaces a binary Value with InlineBinary, then runs the base pop.
    */
   function pop(next) {
     const current = this.current;
@@ -34,11 +32,9 @@ export function inlineBinaryFilter(options = {}) {
     delete dest.Value;
     dest.InlineBinary = base64;
 
-    // Default pop behavior without calling next (avoids dcmjs InlineBinary log)
-    const result = this.current.pop?.() ?? this.current.dest;
+    const result = next();
     delete result.Value;
     result.InlineBinary = base64;
-    this.current = this.current.parent;
     return result;
   }
 
