@@ -2,6 +2,7 @@ import { FileDicomWebReader, createBuildReader } from './FileDicomWebReader.mjs'
 import { writeMultipleWithRetry } from './writeWithRetry.mjs';
 import { generationTracker, seriesGenerationKey } from './generationTracker.mjs';
 import { Tags, TagLists } from '@radicalimaging/static-wado-util';
+import { mapBulkDataUris } from '@radicalimaging/static-wado-util/storageFormat/index.mjs';
 
 const { getValue, setValue } = Tags;
 
@@ -19,37 +20,11 @@ const { getValue, setValue } = Tags;
  * @returns {Object} - Updated instance metadata
  */
 function updateLocation(instanceMetadata, instanceUID) {
-  if (!instanceMetadata || typeof instanceMetadata !== 'object') {
-    return instanceMetadata;
-  }
-
-  function processObject(obj, instanceUid) {
-    if (Array.isArray(obj)) {
-      return obj.map(item => processObject(item, instanceUid));
-    }
-
-    if (obj && typeof obj === 'object') {
-      const result = {};
-
-      for (const [key, value] of Object.entries(obj)) {
-        if (key === 'BulkDataURI' && typeof value === 'string') {
-          if (value === './frames' || value.startsWith('./frames')) {
-            result[key] = `./instances/${instanceUid}/frames`;
-          } else {
-            result[key] = value.replace(/^(\.\.\/){4}bulkdata\//, '../../bulkdata/');
-          }
-        } else {
-          result[key] = processObject(value, instanceUid);
-        }
-      }
-
-      return result;
-    }
-
-    return obj;
-  }
-
-  return processObject(instanceMetadata, instanceUID);
+  return mapBulkDataUris(instanceMetadata, value =>
+    value.startsWith('./frames')
+      ? `./instances/${instanceUID}/frames`
+      : value.replace(/^(\.\.\/){4}bulkdata\//, '../../bulkdata/')
+  );
 }
 
 /**

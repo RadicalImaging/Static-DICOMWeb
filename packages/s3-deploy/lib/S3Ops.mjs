@@ -7,27 +7,19 @@ import {
 import { Upload } from '@aws-sdk/lib-storage';
 import fs from 'fs';
 import path from 'path';
-import mime from 'mime-types';
-import { configGroup, endsWith, uids } from '@radicalimaging/static-wado-util';
+import { configGroup, endsWith } from '@radicalimaging/static-wado-util';
 import { renameLegacyMultipart } from '@radicalimaging/static-wado-util/multipartFile.mjs';
+import * as storageFormat from '@radicalimaging/static-wado-util/storageFormat/index.mjs';
 import ConfigPoint from 'config-point';
 import { createHash } from 'crypto';
 import { createReadStream } from 'fs';
 
 import copyTo from './copyTo.mjs';
 
-const compressedRe = /((\.br)|(\.gz))$/;
-const indexRe = /\/index\.(json|mht)$/;
 /** A path inside a bulkdata directory, for either separator */
 const bulkdataRe = /(^|[\\/])bulkdata[\\/]/;
 
-const octetStream = 'application/octet-stream';
 const multipartRelated = 'multipart/related';
-const multipartRelatedDicom = 'multipart/related';
-const imagejpeg = 'image/jpeg';
-const pngType = 'image/png';
-const applicationDicom = 'application/dicom';
-const ionType = 'application/x-amzn-ion';
 
 /** Key patterns to not cache */
 const noCachePattern =
@@ -35,30 +27,6 @@ const noCachePattern =
 
 // const prefixSlash = (str) => (str && str[0] !== "/" ? `/${str}` : str);
 const noPrefixSlash = str => (str && str[0] === '/' ? str.substring(1) : str);
-
-/** Extension to content type for the raw codestreams frames can be stored as */
-const codestreamContentTypes = Object.values(uids).reduce((acc, info) => {
-  if (info.extension && info.contentType) acc[info.extension] = info.contentType;
-  return acc;
-}, {});
-
-/** Last path segment of a file name or key; win32 accepts both separators */
-const lastSegment = name => path.win32.basename(name);
-
-const hasExtension = name => lastSegment(name).indexOf('.') !== -1;
-
-/**
- * Content type for a frame stored as a raw codestream, from the transfer syntax
- * table's extensions (.jls, .jll, .jxl, .jhc, ...). mime-types knows some of these
- * and not others, so the table is the authority for the ones it misses.
- * @param {string} src - File name without any compression extension
- * @returns {string|undefined}
- */
-function codestreamContentType(src) {
-  const segment = lastSegment(src);
-  const dot = segment.lastIndexOf('.');
-  return dot === -1 ? undefined : codestreamContentTypes[segment.substring(dot)];
-}
 
 /**
  * The base name a guessed "<key>.gz" file would have if its content turns out to be
@@ -76,20 +44,11 @@ function codestreamContentType(src) {
 function multipartBase(fileName) {
   if (!endsWith(fileName, '.gz')) return undefined;
   const base = fileName.substring(0, fileName.length - 3);
-  const segment = lastSegment(base);
+  const segment = path.win32.basename(base);
   if (segment.indexOf('.') === -1) return base;
   if (segment === 'index.json') return base.substring(0, base.length - '.json'.length);
   return undefined;
 }
-
-const extensionsToRemove = ['.mht', '.jhc'];
-
-const findExtensionToRemove = name => {
-  for (const testExtension of extensionsToRemove) {
-    const lastFound = name.lastIndexOf(testExtension);
-    if (lastFound !== -1) return lastFound;
-  }
-};
 
 class S3Ops {
   constructor(config, name, options) {
@@ -106,7 +65,8 @@ class S3Ops {
   }
 
   /**
-   * Converts a file name into a path name for s3.
+   * Converts a file name into a path name for s3, with the storageFormat key rules and
+   * the group path as prefix.
    * @param {string} file - assumes relative to the group directory name
    * @returns path name in s3 as an absolute path
    */
@@ -117,28 +77,14 @@ class S3Ops {
       const lastSlash = fileName.lastIndexOf('/');
       fileName = `${fileName.substring(0, lastSlash + 1)}index.json.gz`;
     }
-    if (compressedRe.test(fileName)) {
-      fileName = fileName.substring(0, fileName.length - 3);
-    }
-    if (fileName[0] != '/') fileName = `/${fileName}`;
-    if (this.group.path && this.group.path != '/') {
-      fileName = `${this.group.path}${fileName}`;
-    }
-    if (indexRe.test(fileName)) {
-      const indexPos = fileName.lastIndexOf('/index');
-      fileName = fileName.substring(0, indexPos);
-    }
-    if (fileName[0] == '/') {
-      fileName = fileName.substring(1);
-    }
-    const extensionPos = findExtensionToRemove(fileName);
-    if (extensionPos > 0) {
-      fileName = fileName.substring(0, extensionPos);
-    }
-    if (!fileName) {
+    const key = storageFormat.fileToKey(fileName);
+    const groupPath =
+      this.group.path && this.group.path != '/' ? noPrefixSlash(this.group.path) : '';
+    const fullKey = groupPath && key ? `${groupPath}/${key}` : groupPath || key;
+    if (!fullKey) {
       throw new Error(`No filename defined for ${file}`);
     }
-    return fileName;
+    return fullKey;
   }
 
   /**
@@ -146,28 +92,11 @@ class S3Ops {
    * @param {string} file
    */
   fileToContentType(file) {
-    const compressed = compressedRe.test(file);
-    const src = (compressed && file.substring(0, file.length - 3)) || file;
-    return (
-      mime.lookup(src) ||
-      codestreamContentType(src) ||
-      (src.indexOf('.dcm') !== -1 && applicationDicom) ||
-      (src.indexOf('.mht') !== -1 && multipartRelatedDicom) ||
-      (src.indexOf('bulkdata') !== -1 && octetStream) ||
-      (src.indexOf('.raw') !== -1 && octetStream) ||
-      // A raw codestream frame (with an extension) is single-part
-      (src.indexOf('frames') !== -1 && !hasExtension(src) && multipartRelated) ||
-      (src.indexOf('thumbnail') !== -1 && imagejpeg) ||
-      (src.indexOf('.ion') !== -1 && ionType) ||
-      (src.indexOf('rendered') !== -1 && pngType) ||
-      'application/json'
-    );
+    return storageFormat.fileToContentType(file);
   }
 
   fileToContentEncoding(file) {
-    if (file.indexOf('.br') !== -1) return 'brotli';
-    if (file.indexOf('.gz') !== -1) return 'gzip';
-    return undefined;
+    return storageFormat.fileToContentEncoding(file);
   }
 
   fileToMetadata(file, hash) {
