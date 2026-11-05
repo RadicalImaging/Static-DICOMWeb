@@ -1,5 +1,7 @@
 import { seriesMetadata, instanceMetadata } from './metadata.mjs';
 import { studyQuery, seriesQuery, instanceQuery } from './query.mjs';
+import { frames } from './frames.mjs';
+import { bulkdata, part10 } from './instance.mjs';
 
 /**
  * The handler table: route kind (see `router.mjs`) to handler. `handle` returns 404 for a kind
@@ -16,6 +18,9 @@ const handlers = {
   studyQuery,
   seriesQuery,
   instanceQuery,
+  frames,
+  bulkdata,
+  part10,
 };
 
 export default handlers;

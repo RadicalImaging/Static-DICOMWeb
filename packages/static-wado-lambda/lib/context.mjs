@@ -1,6 +1,7 @@
 import { Upstream } from './upstream.mjs';
 import { envSecrets } from './secrets/env.mjs';
 import { awsSecretsManager } from './secrets/awsSecretsManager.mjs';
+import { inProcessCompute } from './compute/inProcess.mjs';
 
 /** The environment variable that holds the configuration JSON object */
 export const CONFIG_VARIABLE = 'STATIC_WADO_PROXY_CONFIG';
@@ -37,12 +38,12 @@ function createSecrets(auth) {
 
 /**
  * The `context` that `handle` and the handlers get. An entry adapter creates it one time.
- * @param {{config: Object, store: Object}} options - `store` is the object store of the entry
- * @returns {{config: Object, store: Object, secrets?: Object, upstream: Upstream, compute?: Object}}
- *   `compute` (encode, thumbnail) comes with the frame and thumbnail handlers.
+ * @param {{config: Object, store: Object, compute?: Object}} options - `store` is the object
+ *   store of the entry; `compute` defaults to the in-process implementation
+ * @returns {{config: Object, store: Object, secrets?: Object, upstream: Upstream, compute: Object}}
  */
-export function createContext({ config, store }) {
+export function createContext({ config, store, compute = inProcessCompute }) {
   const secrets = createSecrets(config.auth);
   const upstream = new Upstream({ url: config.upstream, secrets, store, allow: config.allow });
-  return { config, store, secrets, upstream, compute: undefined };
+  return { config, store, secrets, upstream, compute };
 }

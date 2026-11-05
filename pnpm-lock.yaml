@@ -500,8 +500,8 @@ importers:
         specifier: 3.975.0
         version: 3.975.0
       '@dcmjs/commands':
-        specifier: link:../../../dcmjs-commands-fetch
-        version: link:../../../dcmjs-commands-fetch
+        specifier: link:../../../dcmjs-commands
+        version: link:../../../dcmjs-commands
       '@radicalimaging/static-wado-util':
         specifier: '>=1.7.11'
         version: link:../static-wado-util
