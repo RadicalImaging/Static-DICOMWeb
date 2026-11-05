@@ -132,19 +132,85 @@ states.
 
 ### Facts to check at the start of the implementation
 
-These facts do not block a decision.
+These facts do not block a decision. The live checks of the IDC proxy are in the next section.
 
-- Live check: which `image/*` media types the IDC proxy and the Google store return for a
-  frame request with `type="image/*"` (for example `image/jpeg`, `image/jls`, `image/jp2`,
-  `image/jxl`), and whether they accept the wildcard and the second-choice media type in one
-  `Accept` header. Google documents per-type requests; the wildcard is not confirmed.
-- Live check of the IDC / Google metadata response: is `AvailableTransferSyntaxUID` or
-  `TransferSyntaxUID` present, and what form do the BulkDataURI values have (absolute, Google
-  host or proxy host)? A `dicomwebjs dump` against the IDC proxy returned nothing and exited
-  0; that is a possible dcmjs-commands defect to report.
 - Lambda runtime: dicom-codec declares `engines.node >= 24`. This affects only the container
   image (any Node version), because the zip function does not load the codecs.
 
+### Facts from the live check of the IDC public proxy (2026-11-05)
+
+Upstream: the IDC public proxy (URL in the section about the IDC upstream below), no auth. Client: the `DicomWebFetch` class
+(`@dcmjs/commands/dicomweb-fetch`) of the dcmjs-commands branch `feat/dicomweb-fetch-client`,
+commit `1eafa43`, and `fetch` with an explicit `Accept`. `dicomwebjs dump` prints nothing for a
+QIDO or metadata URL and exits 0 (see the last item). Total transfer: about 30 MB read.
+
+Test instances (one instance each):
+
+| Kind | StudyInstanceUID | SOPInstanceUID | Stored form |
+|---|---|---|---|
+| CT | `1.2.840.113654.2.55.8191733375219125995341921872104648622` | `1.2.840.113654.2.55.253757522837977461742488072218984793581` | 512x409, MONOCHROME2, 16 bit, `1.2.840.10008.1.2.1` |
+| SM | `2.25.142706219041623035237066035829917608689` | `1.3.6.1.4.1.5962.99.1.3120421285.85402270.1738287241637.31.0` | 174 frames of 256x256, YBR_FULL_422, `1.2.840.10008.1.2.4.50` |
+| Colour (XC) | `1.3.6.1.4.1.5962.1.2.0.1677425356.1733` | `1.3.6.1.4.1.5962.1.1.0.2.4589.1677425356.1733` | 4096x3061, RGB, 8 bit, `1.2.840.10008.1.2.1` (about 37.6 MB per frame) |
+
+Requests (`$U` is the proxy root):
+
+    GET $U/studies?ModalitiesInStudy=SM&limit=1
+    GET $U/series?Modality=CT&limit=3     GET $U/series?Modality=XC&limit=2
+    GET $U/studies/{study}/series/{series}/instances/{sop}/metadata     Accept: application/dicom+json
+    GET .../instances/{sop}/frames/1   with each Accept value of the table in item 3
+    GET .../instances/{sop}            Accept: multipart/related; type="application/dicom"; transfer-syntax=*
+    GET {BulkDataURI of 00131010}      Accept: multipart/related; type="application/octet-stream"
+    GET $U/studies/1.2.3.4.5.6.7.8.9.999999/metadata | /series | studies?StudyInstanceUID=...
+
+1. **Transfer syntax in the metadata.** The instance metadata has `TransferSyntaxUID`
+   (0002,0010) with the stored transfer syntax: CT `1.2.840.10008.1.2.1`, SM
+   `1.2.840.10008.1.2.4.50`, XC `1.2.840.10008.1.2.1`. It has no `AvailableTransferSyntaxUID`
+   (0008,3002). Other file meta elements are present, for example (0002,0001) as a BulkDataURI.
+2. **BulkDataURI form.** Every BulkDataURI is absolute, on the proxy host, with a `/bulk` path
+   prefix that the DICOMweb root does not have:
+   `https://proxy.imaging.datacommons.cancer.gov/bulk/current/<root path>/dicomWeb/studies/{study}/series/{series}/instances/{sop}/bulkdata/{tag}`.
+   Pixel data is `.../bulkdata/7FE00010`. A sequence element has a path form, for example
+   `.../bulkdata/00480105/0/00282000` (the ICC profile of the SM instance). The SM metadata
+   also has `FFFCFFFC` and `00020001`; the CT metadata has private UN elements
+   `00131010`-`00131013`. A GET of `00131010` with the octet-stream `Accept` returned 200, one
+   part `application/octet-stream; transfer-syntax=1.2.840.10008.1.2.1`, 4 bytes.
+3. **Frame requests** (`frames/1`). "default" is `multipart/related; type="image/*",
+   multipart/related; type="application/octet-stream"`.
+
+   | Accept | CT | SM (stored `.50`) | XC (stored `.1.2.1`) |
+   |---|---|---|---|
+   | default | 200, `image/jpeg; transfer-syntax=1.2.840.10008.1.2.4.70`, 214104 B | 200, `image/jpeg; .4.70`, 34136 B | 200, `image/jpeg; .4.70`, about 17.5 MB |
+   | `type="application/octet-stream"` | 200, `application/octet-stream; .1.2.1`, 418816 B | 200, octet-stream `.1.2.1`, 196608 B (decoded) | 500, `text/html`, empty body |
+   | octet-stream first, then `image/*` | 200, octet-stream `.1.2.1` | 200, octet-stream `.1.2.1` | 500 (no fallback to `image/*`) |
+   | `type="application/octet-stream"; transfer-syntax=*` | 200, octet-stream `.1.2.1` | 200, `image/jpeg; .4.50`, about 3.1 KB (stored bytes) | 500 |
+   | `type="image/*"; transfer-syntax=*` | 406, `text/plain` | 406 | 200, `.70` |
+
+   - The server honours the order of the media types: the first one wins. When the server
+     cannot give the first media type, it returns 500 and does not try the second.
+   - `type="image/*"` always gives JPEG Lossless (`.4.70`), also for stored JPEG baseline
+     (`.50`). The `.70` SM frame is 11 times larger than the stored frame.
+   - Each part carries its own `Content-Type` with `transfer-syntax`.
+   - The 406 body lists the supported frame media types: octet-stream with `.1.2.1` or `*`;
+     `image/jpeg` with `.70`, `.50`, `.57`, `.51`; `image/png`; `application/x-deflate` with
+     `.1.2.8.1`; `image/dicom-rle` with `.1.2.5`; `image/jls` with `.80`, `.81`; `image/jp2`
+     with `.90`, `.91`; `image/jphc` with `.201`, `.202`, `.203`; `image/jxl` with `.112`,
+     `.110`.
+4. **Part 10 with `transfer-syntax=*`.** CT: 200, `application/dicom; .1.2.1`, 420976 B. SM:
+   200, `application/dicom; .4.50`, 26879610 B. XC (about 37.6 MB): 500, empty body. Each
+   response above about 32 MB failed with 500; a 26.9 MB response passed. The limit is an
+   inference; the IDC documents do not give it.
+5. **Unknown study** (`1.2.3.4.5.6.7.8.9.999999`): `studies/{uid}/metadata` returns 502,
+   `application/json`, empty body, no `Retry-After`. `studies/{uid}/series` and
+   `studies?StudyInstanceUID={uid}` return 204 with `Content-Type: text/html`. One request
+   only; the 502 can be intermittent.
+
+Not checked: the Google Healthcare store (needs a token), a video instance, and `image/*`
+frames of a stored JPEG-LS, JPEG 2000, or HTJ2K instance.
+
+**dcmjs-commands defect.** `dicomwebjs dump` and `instance` print nothing for an HTTP URL and
+exit 0. `src/webRetrieve.js` sends no `Accept` header, and parses JSON only when the
+`Content-Type` contains `application/json`. The proxy returns `application/dicom+json`, so
+`readDicomWeb` returns a Buffer, and the command dumps nothing.
 ### Facts from the existing code
 
 Paths are under `packages/`. Nobody tested these facts against a live deployment.
