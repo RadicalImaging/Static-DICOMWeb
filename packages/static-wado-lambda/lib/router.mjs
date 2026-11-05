@@ -6,7 +6,7 @@ const instance = `${series}/instances/(?<sopUID>${UID})`;
 /** Route kind and path pattern, relative to the DICOMweb root. First match wins. */
 const routes = [
   ['studyQuery', `studies(?:/(?<studyUID>${UID}))?`],
-  ['seriesQuery', `series|${study}/series(?:/(?<seriesUID>${UID}))?`],
+  ['seriesQuery', `series|${study}/series(?:/(?<seriesUID>${UID})(?:/series-singleton\\.json)?)?`],
   ['instanceQuery', `instances|${study}(?:/series/(?<seriesUID>${UID}))?/instances`],
   ['seriesMetadata', `${series}/metadata`],
   ['instanceMetadata', `${instance}/metadata`],

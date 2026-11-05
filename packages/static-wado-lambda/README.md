@@ -20,7 +20,9 @@ failover). It gets the resource from the upstream DICOMweb service, stores it, a
 | `lib/stores/putFile.mjs` | Writes a file of the local layout with the storage-format key, type, and encoding |
 | `lib/secrets/awsSecretsManager.mjs`, `lib/secrets/env.mjs` | Secret source: `getToken()` |
 | `lib/entries/awsFunctionUrl.mjs` | Lambda function URL entry, with response streaming |
-| `lib/localServer.mjs`, `bin/local.mjs` | A local server: the directory store first, then `handle` |
+| `lib/edge/mapRequest.mjs` | The edge mapping of a request to the storage key (`PRX-IMP-2`) |
+| `lib/edge/cloudfrontFunction.mjs` | `buildCloudFrontFunction(options)`: the CloudFront Function code of the edge mapping |
+| `lib/localServer.mjs`, `bin/local.mjs` | A local server: the edge mapping, the directory store, then `handle` |
 
 ## Handlers
 
@@ -76,6 +78,7 @@ One JSON object in the environment variable `STATIC_WADO_PROXY_CONFIG`:
 | `allow` | none (all studies) | `{ "studies": [<uid>], "collections": [<id>] }`. A collection permits the studies of its stored pages `collections/<id>/studies[/<offset>]` |
 | `bucket` | | The S3 bucket (Lambda entry only) |
 | `variants` | none | The permitted single-part frame extensions, for example `["jls"]` |
+| `collectionParameter` | none | The query key of a collection query, `studies?<key>=<id>` (edge mapping) |
 | `upstreamSyntaxes` | the IDC list | The frame syntaxes that the upstream sends, `{ "<uid>": "<media type>" }` |
 | `rules` | `DEFAULT_RULES` | The compression rule table, in the shape of `DEFAULT_RULES` of `@dcmjs/commands/pixel` |
 
