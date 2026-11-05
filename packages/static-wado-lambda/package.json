@@ -1,0 +1,49 @@
+{
+  "name": "@radicalimaging/static-wado-lambda",
+  "version": "1.7.11",
+  "private": true,
+  "type": "module",
+  "description": "DICOMweb read-through proxy between CloudFront and S3: the platform-neutral core",
+  "keywords": [
+    "StaticWado",
+    "DICOM",
+    "DICOMweb"
+  ],
+  "author": [
+    "Bill Wallace <bill.wallace@radicalimaging.com>"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RadicalImaging/Static-DICOMWeb.git",
+    "directory": "packages/static-wado-lambda"
+  },
+  "license": "ISC",
+  "main": "lib/handle.mjs",
+  "exports": {
+    ".": "./lib/handle.mjs",
+    "./*": "./lib/*"
+  },
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "bin": {
+    "static-wado-proxy": "bin/local.mjs"
+  },
+  "//": "@dcmjs/commands is a temporary link to the dicomweb-fetch branch; use the published version once it exists.",
+  "scripts": {
+    "start": "bun bin/local.mjs",
+    "test": "jest --config ./jest.config.cjs",
+    "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
+    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.975.0",
+    "@aws-sdk/client-secrets-manager": "3.975.0",
+    "@dcmjs/commands": "link:../../../dcmjs-commands-fetch",
+    "@radicalimaging/static-wado-util": ">=1.7.11"
+  }
+}

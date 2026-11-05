@@ -1,0 +1,68 @@
+# @radicalimaging/static-wado-lambda
+
+The DICOMweb read-through proxy between CloudFront and S3: the platform-neutral core. See the
+[specification](../../docs/specs/lambda-proxy.md) and the
+[implementation requirements](../../docs/implementation/lambda-proxy.md).
+
+The proxy runs only when the storage has no object for a request (CloudFront origin group
+failover). It gets the resource from the upstream DICOMweb service, stores it, and returns it.
+
+## Layout
+
+| File | Purpose |
+|---|---|
+| `lib/router.mjs` | `route(path, query)`: the path relative to the DICOMweb root to `{ kind, studyUID, seriesUID, sopUID, frames, variant, tagPath, collection, offset, query }` |
+| `lib/handle.mjs` | `handle(Request, context) -> Response`: route, allowlist, handler table, error mapping (`PRX-IMP-25`) |
+| `lib/handlers/index.mjs` | The handler table, route kind to handler |
+| `lib/context.mjs` | `loadConfig()` and `createContext({ config, store })` |
+| `lib/upstream.mjs` | The upstream client (`@dcmjs/commands/dicomweb-fetch`), token, and allowlist |
+| `lib/stores/s3.mjs`, `lib/stores/directory.mjs` | Object store: `get`, `put`, `exists` |
+| `lib/stores/putFile.mjs` | Writes a file of the local layout with the storage-format key, type, and encoding |
+| `lib/secrets/awsSecretsManager.mjs`, `lib/secrets/env.mjs` | Secret source: `getToken()` |
+| `lib/entries/awsFunctionUrl.mjs` | Lambda function URL entry, with response streaming |
+| `lib/localServer.mjs`, `bin/local.mjs` | A local server: the directory store first, then `handle` |
+
+## Handlers
+
+A handler is `async (route, request, context) => Response`. Add it to the table in
+`lib/handlers/index.mjs` under its route kind. A kind with no handler returns 404. `handle`
+checks the allowlist for `route.studyUID` before the handler runs. A handler throws the
+`DicomWebFetchError` of the upstream unchanged.
+
+`context` holds:
+
+- `config`: the configuration below.
+- `store`: the object store. Keys are relative to the DICOMweb root.
+- `upstream`: a `DicomWebFetch` (`search`, `retrieveMetadata`, `retrieveFrames`,
+  `retrieveInstance`, `retrieveBulkData`), and `isAllowed(studyUID)`.
+- `secrets`: the secret source, or undefined.
+- `compute`: the encode and thumbnail client (not yet available).
+
+## Configuration
+
+One JSON object in the environment variable `STATIC_WADO_PROXY_CONFIG`:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `root` | `/dicomweb` | The path of the DICOMweb root, and the S3 key prefix |
+| `upstream` | the IDC public proxy | The upstream DICOMweb root |
+| `auth` | none | `{ "source": "env", "variable": "<NAME>" }` or `{ "source": "secretsManager", "secretId": "<name or ARN>" }`. The upstream gets `Authorization: Bearer <token>` |
+| `allow` | none (all studies) | `{ "studies": [<uid>], "collections": [<id>] }`. A collection permits the studies of its stored pages `collections/<id>/studies[/<offset>]` |
+| `bucket` | | The S3 bucket (Lambda entry only) |
+| `variants` | | The permitted frame variants (frame handlers) |
+| `rules` | | The path of the compression rule table (frame handlers) |
+
+## Local server
+
+```sh
+STATIC_WADO_PROXY_CONFIG='{"allow":{"studies":["1.2.3"]}}' pnpm start -- --dir ./proxy-store --port 5050
+```
+
+The server answers `http://localhost:5050/dicomweb/...`. A GET with no query string that the
+store holds comes from the store. Other requests go to `handle`.
+
+## Temporary dependency
+
+`@dcmjs/commands` is a `link:` to a local checkout of the dcmjs-commands branch
+`feat/dicomweb-fetch-client` (`../../../dcmjs-commands-fetch`). Change it to the published
+version when `@dcmjs/commands` publishes `dicomweb-fetch`.
