@@ -20,8 +20,10 @@ const filterKeys = {
  * @param {*} actual
  * @returns true if the values match
  */
-const compareValues = (desired, actualSrc) => {
+const compareValues = (desiredSrc, actualSrc) => {
   let actual = actualSrc;
+  // A naturalized PN query key is { Alphabetic }, as the stored value is
+  const desired = desiredSrc?.Alphabetic ?? desiredSrc;
   if (Array.isArray(desired)) {
     return desired.some(item => compareValues(item, actual));
   }

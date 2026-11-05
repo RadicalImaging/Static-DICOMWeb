@@ -15,6 +15,8 @@ describe('qidoFilter', () => {
     ['matching modality', { StudyInstanceUID: null, ModalitiesInStudy: ['MR'] }, 1],
     ['other modality', { StudyInstanceUID: null, ModalitiesInStudy: ['CT'] }, 0],
     ['other StudyInstanceUID', { StudyInstanceUID: '9.9' }, 0],
+    ['PatientName wildcard', { StudyInstanceUID: null, PatientName: [{ Alphabetic: 'MISTER*' }] }, 1],
+    ['other PatientName', { StudyInstanceUID: null, PatientName: [{ Alphabetic: 'NOBODY*' }] }, 0],
   ])('%s', (_label, keys, matches) => {
     expect(qidoFilter([study], { QueryRetrieveLevel: 'STUDY', ...keys })).toHaveLength(matches);
   });
