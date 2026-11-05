@@ -45,5 +45,8 @@
     "@aws-sdk/client-secrets-manager": "3.975.0",
     "@dcmjs/commands": "link:../../../dcmjs-commands-fetch",
     "@radicalimaging/static-wado-util": ">=1.7.11"
+  },
+  "devDependencies": {
+    "@radicalimaging/create-dicomweb": ">=1.7.11"
   }
 }

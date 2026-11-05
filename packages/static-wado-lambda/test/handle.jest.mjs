@@ -4,7 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { handle, errorResponse } from '../lib/handle.mjs';
-import handlers from '../lib/handlers/index.mjs';
 import { createContext } from '../lib/context.mjs';
 import { directoryStore } from '../lib/stores/directory.mjs';
 import { createLocalServer } from '../lib/localServer.mjs';
@@ -46,13 +45,9 @@ describe('local server', () => {
     upstreamUrl = await listen(upstream);
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'proxy-store-'));
     store = directoryStore(dir);
-    // A test handler that reads the upstream; the real handlers come in later steps.
-    handlers.seriesMetadata = async ({ studyUID, seriesUID }, request, context) =>
-      Response.json(await context.upstream.retrieveMetadata(studyUID, seriesUID));
   });
 
   afterAll(() => {
-    delete handlers.seriesMetadata;
     upstream.close();
     fs.rmSync(dir, { recursive: true, force: true });
   });

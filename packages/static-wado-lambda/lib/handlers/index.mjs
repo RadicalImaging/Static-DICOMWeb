@@ -1,3 +1,6 @@
+import { seriesMetadata, instanceMetadata } from './metadata.mjs';
+import { studyQuery, seriesQuery, instanceQuery } from './query.mjs';
+
 /**
  * The handler table: route kind (see `router.mjs`) to handler. `handle` returns 404 for a kind
  * with no handler.
@@ -7,6 +10,12 @@
  * upstream unchanged; `handle` maps the error to the response (PRX-IMP-25).
  * @type {Object<string, (route: Object, request: Request, context: Object) => Promise<Response>>}
  */
-const handlers = {};
+const handlers = {
+  seriesMetadata,
+  instanceMetadata,
+  studyQuery,
+  seriesQuery,
+  instanceQuery,
+};
 
 export default handlers;

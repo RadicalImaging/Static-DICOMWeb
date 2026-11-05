@@ -505,6 +505,10 @@ importers:
       '@radicalimaging/static-wado-util':
         specifier: '>=1.7.11'
         version: link:../static-wado-util
+    devDependencies:
+      '@radicalimaging/create-dicomweb':
+        specifier: '>=1.7.11'
+        version: link:../create-dicomweb
 
   packages/static-wado-plugins:
     dependencies:

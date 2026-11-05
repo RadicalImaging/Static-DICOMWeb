@@ -38,6 +38,19 @@ checks the allowlist for `route.studyUID` before the handler runs. A handler thr
 - `secrets`: the secret source, or undefined.
 - `compute`: the encode and thumbnail client (not yet available).
 
+The handlers store the files that `create-dicomweb` writes, gzipped, through `putFile`:
+
+| Route kind | Request | Stored file |
+|---|---|---|
+| `seriesMetadata` | `studies/<s>/series/<x>/metadata` | `studies/<s>/series/<x>/metadata.gz`, and `instances/<sop>/metadata.gz` of each instance |
+| `instanceMetadata` | `.../instances/<sop>/metadata` | `studies/<s>/series/<x>/instances/<sop>/metadata.gz` |
+| `studyQuery` | `studies/<s>`, `studies?StudyInstanceUID=<s>` | `studies/<s>/index.json.gz` |
+| `seriesQuery` | `studies/<s>/series/<x>`, `[studies/<s>/]series?SeriesInstanceUID=<x>` | `studies/<s>/series/<x>/series-singleton.json.gz` |
+
+The metadata handlers rewrite the BulkDataURI values to the relative storage form. Other
+queries, and every instance query, pass through with `Cache-Control: max-age=60` and are not
+stored.
+
 ## Configuration
 
 One JSON object in the environment variable `STATIC_WADO_PROXY_CONFIG`:
