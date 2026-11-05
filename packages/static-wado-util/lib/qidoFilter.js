@@ -23,10 +23,10 @@ const filterKeys = {
 const compareValues = (desired, actualSrc) => {
   let actual = actualSrc;
   if (Array.isArray(desired)) {
-    return desired.find(item => compareValues(item, actual));
+    return desired.some(item => compareValues(item, actual));
   }
   if (Array.isArray(actual)) {
-    return actual.find(actualItem => compareValues(desired, actualItem));
+    return actual.some(actualItem => compareValues(desired, actualItem));
   }
   if (actual?.Alphabetic) {
     actual = actual.Alphabetic;
@@ -71,7 +71,8 @@ const filterItem = (key, queryParams, study) => {
     return true;
   }
   const testValue = queryParams[key] || queryParams[altKey];
-  if (!testValue) {
+  // An empty return key naturalizes as [] and matches every item
+  if (!testValue || testValue.length === 0) {
     return true;
   }
   const valueElem = study[key] || study[altKey];
