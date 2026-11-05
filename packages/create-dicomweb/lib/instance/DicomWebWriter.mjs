@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { createGzip } from 'zlib';
 import { uids } from '@radicalimaging/static-wado-util';
-import { MultipartStreamWriter } from './MultipartStreamWriter.mjs';
+import { MultipartStreamWriter } from '@radicalimaging/static-wado-util/storageFormat/index.mjs';
 import { StreamInfo, getStreamCounts } from './StreamInfo.mjs';
 
 /** Default maximum number of write streams (file handles) open at the same time */
