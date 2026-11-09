@@ -397,8 +397,8 @@ async function readBinaryData(seriesDir, instanceMetadata, sopInstanceUID, trans
       continue;
     }
 
-    // Handle empty Value arrays - remove the tag
-    if (v.Value && Array.isArray(v.Value) && v.Value.length === 0) {
+    // Handle empty Value arrays, or no Value (an empty element in DICOM JSON) - remove the tag
+    if (v.Value === undefined || (Array.isArray(v.Value) && v.Value.length === 0)) {
       delete instanceMetadata[tag];
       continue;
     }

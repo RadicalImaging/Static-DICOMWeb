@@ -2,7 +2,7 @@ import dcmjsDimse from 'dcmjs-dimse';
 import StaticWado from '@radicalimaging/static-wado-creator';
 import DcmjsDimseScp from './DcmjsDimseScp.mjs';
 
-const { Server } = dcmjsDimse;
+const { Server, Transcoding } = dcmjsDimse;
 const { adaptProgramOpts } = StaticWado;
 
 export default function scpMain(defaults) {
@@ -22,5 +22,8 @@ export default function scpMain(defaults) {
   });
   console.log('Starting server listen on port', port);
   DcmjsDimseScp.setParams(options);
-  server.listen(port, options);
+  // C-GET and C-MOVE transcode a stored compressed instance when the SCU accepts only another syntax
+  return Transcoding.initializeAsync()
+    .catch(e => console.log('Transcoding is not available:', e.message))
+    .then(() => server.listen(port, options));
 }

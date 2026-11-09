@@ -1,11 +1,20 @@
-import { Stats } from '@radicalimaging/static-wado-util';
+import fs from 'fs';
+import { Stats, aeConfig } from '@radicalimaging/static-wado-util';
 import StaticWado from '@radicalimaging/static-wado-creator';
 import dcmjsDimse from 'dcmjs-dimse';
 import dcmjs from 'dcmjs';
 import { loadedPlugins } from './loadPlugins.mjs';
+import RawBytesDataset from './RawBytesDataset.mjs';
+import {
+  writeRetrieveFiles,
+  sendSubOperations,
+  finalRetrieveStatus,
+  RetrieveStatus,
+} from './retrieve.mjs';
 
-const { Scp, Dataset } = dcmjsDimse;
-const { CEchoResponse, CStoreResponse, CFindResponse } = dcmjsDimse.responses;
+const { Scp, Dataset, Client } = dcmjsDimse;
+const { CEchoResponse, CStoreResponse, CFindResponse, CGetResponse, CMoveResponse } =
+  dcmjsDimse.responses;
 const { Status, PresentationContextResult, SopClass, StorageClass } = dcmjsDimse.constants;
 
 const PreferredTransferSyntax = [
@@ -64,6 +73,8 @@ class DcmjsDimseScp extends Scp {
         if (
           context.getAbstractSyntaxUid() === SopClass.Verification ||
           context.getAbstractSyntaxUid() === SopClass.StudyRootQueryRetrieveInformationModelFind ||
+          context.getAbstractSyntaxUid() === SopClass.StudyRootQueryRetrieveInformationModelGet ||
+          context.getAbstractSyntaxUid() === SopClass.StudyRootQueryRetrieveInformationModelMove ||
           Object.values(StorageClass).includes(context.getAbstractSyntaxUid())
         ) {
           const transferSyntaxes = context.getTransferSyntaxUids();
@@ -176,6 +187,96 @@ class DcmjsDimseScp extends Scp {
       console.log('Caught cStoreRequest error', e);
       throw e;
     }
+  }
+
+  /**
+   * Keeps the received C-STORE bytes as they arrive, so that the importer
+   * reads the data without a decode and an encode in dcmjs-dimse.
+   */
+  createDatasetFromStoreWritableStream(writable, acceptedPresentationContext, callback) {
+    callback(
+      new RawBytesDataset(
+        writable.toBuffer(),
+        acceptedPresentationContext.getAcceptedTransferSyntaxUid()
+      )
+    );
+  }
+
+  /**
+   * Runs the C-STORE sub-operations of a C-GET or C-MOVE, sends a Pending
+   * response after each sub-operation, and gives the final response.
+   *
+   * @param {Request} request - The C-GET or C-MOVE request.
+   * @param {Function} Response - CGetResponse or CMoveResponse.
+   * @param {function(CStoreRequest[]): void} send - Queues the sub-operations.
+   * @param {function(Response): void} callback - Gets the final response.
+   */
+  async retrieve(request, Response, send, callback) {
+    const respond = (status, counts) => {
+      const response = Response.fromRequest(request);
+      response.setStatus(status);
+      response.setRemaining(counts.remaining);
+      response.setCompleted(counts.completed);
+      response.setFailures(counts.failed);
+      response.setWarnings(0);
+      return response;
+    };
+    let retrieved;
+    try {
+      retrieved = await writeRetrieveFiles(
+        this.options.rootDir,
+        request.getDataset().getElements()
+      );
+    } catch (e) {
+      console.log('Retrieve failed because', e.message);
+      callback(
+        respond(RetrieveStatus.UnableToPerformSubOperations, {
+          remaining: 0,
+          completed: 0,
+          failed: 0,
+        })
+      );
+      return;
+    }
+    try {
+      const counts = await sendSubOperations(retrieved.files, send, progress => {
+        if (progress.remaining) this.sendResponse(request, respond(Status.Pending, progress));
+      });
+      callback(respond(finalRetrieveStatus(counts), counts));
+    } finally {
+      fs.rmSync(retrieved.dir, { recursive: true, force: true });
+    }
+  }
+
+  // Handle incoming C-GET requests: the sub-operations use this association
+  cGetRequest(request, callback) {
+    this.retrieve(request, CGetResponse, requests => this.sendRequests(requests), callback);
+  }
+
+  // Handle incoming C-MOVE requests: the sub-operations use a new association
+  cMoveRequest(request, callback) {
+    const destination = request.getCommandDataset().getElement('MoveDestination');
+    const ae = aeConfig[destination];
+    if (!ae) {
+      console.log('Unknown move destination', destination);
+      const response = CMoveResponse.fromRequest(request);
+      response.setStatus(RetrieveStatus.MoveDestinationUnknown);
+      callback(response);
+      return;
+    }
+    const send = requests => {
+      const client = new Client();
+      requests.forEach(r => client.addRequest(r));
+      // A failed association never sends the requests, so mark each one done
+      const fail = e => {
+        console.log('Move to', destination, 'failed because', e?.message || e);
+        requests.forEach(r => r.raiseDoneEvent());
+      };
+      client.on('networkError', fail);
+      client.on('associationRejected', fail);
+      client.send(ae.host, ae.port, this.association.getCalledAeTitle(), destination);
+    };
+    this.retrieve(request, CMoveResponse, send, callback);
   }
 
   // Handle incoming association release requests
