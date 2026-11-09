@@ -1,19 +1,25 @@
 #!/usr/bin/env bash
 # Fails if any package.json dependency version is not pinned (no ^ ~ * >= ranges).
-# Allows workspace:, file:, npm:, and http(s): specifiers, except on a workspace package.
+# Allows workspace:, file:, http(s): and exact npm: alias specifiers, except on a workspace package.
+# A package.json that names a package with an override must use the override value.
 # A workspace package takes only an exact version, or >=X.Y.Z when X.Y.Z is its version.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+
+# Without jq, each package.json check below reads nothing and passes.
+command -v jq >/dev/null || { echo 'check-pinned-versions.sh needs jq' >&2; exit 1; }
 
 declare -A WORKSPACE_VERSIONS=()
+# The value of each override with a plain package key, which a package.json must repeat.
+declare -A OVERRIDE_VERSIONS=()
 
 load_workspace_versions() {
   local pkg name version
   while IFS= read -r -d '' pkg; do
-    name="$(jq -r '.name // empty' "$pkg" 2>/dev/null || true)"
-    version="$(jq -r '.version // empty' "$pkg" 2>/dev/null || true)"
+    name="$(jq -r '.name // empty' "$pkg" 2>/dev/null | tr -d '\r' || true)"
+    version="$(jq -r '.version // empty' "$pkg" 2>/dev/null | tr -d '\r' || true)"
     [[ -z "$name" || -z "$version" ]] && continue
     WORKSPACE_VERSIONS["$name"]="$version"
   done < <(find "$REPO_ROOT/packages" -mindepth 2 -maxdepth 2 -name package.json -print0 2>/dev/null || true)
@@ -66,11 +72,15 @@ check_dep_block() {
     [[ -z "$entry" ]] && continue
     name="${entry%%$'\t'*}"
     version="${entry#*$'\t'}"
-    if ! is_pinned "$name" "$version"; then
+    # pnpm installs the override anyway, so a different value installs a second copy when bumped
+    if [[ -n "${OVERRIDE_VERSIONS[$name]:-}" && "$version" != "${OVERRIDE_VERSIONS[$name]}" ]]; then
+      echo "Dependency in ${pkg} ${block} differs from the pnpm-workspace.yaml override: ${name} -> ${version}, override ${OVERRIDE_VERSIONS[$name]}" >&2
+      block_failed=1
+    elif ! is_pinned "$name" "$version"; then
       echo "Unpinned dependency in ${pkg} ${block}: ${name} -> ${version}" >&2
       block_failed=1
     fi
-  done < <(jq -r --arg b "$block" '.[$b] // {} | to_entries[] | "\(.key)\t\(.value|tostring)"' "$pkg" 2>/dev/null || true)
+  done < <(jq -r --arg b "$block" '.[$b] // {} | to_entries[] | "\(.key)\t\(.value|tostring)"' "$pkg" 2>/dev/null | tr -d '\r' || true)
 
   [[ "$block_failed" -eq 0 ]]
 }
@@ -88,6 +98,13 @@ check_workspace_overrides() {
 
   while IFS=$'\t' read -r name version; do
     [[ -z "$name" ]] && continue
+    if [[ "$name" == '!UNPARSED' ]]; then
+      echo "Cannot read the override line in pnpm-workspace.yaml: ${version}" >&2
+      block_failed=1
+      continue
+    fi
+    # A key such as `pkg@<1.2.3` selects only some versions, so a package.json need not repeat it.
+    [[ "${name:1}" != *@* ]] && OVERRIDE_VERSIONS["$name"]="$version"
     # An npm alias (`npm:@scope/pkg@1.2.3`) must also name an exact version. The alias
     # target is not checked: review each new target package by hand.
     if ! is_exact_semver "${version##npm:*@}"; then
@@ -98,9 +115,9 @@ check_workspace_overrides() {
     /^[^[:space:]#]/ { in_block = ($0 ~ /^overrides:/); next }
     in_block && /^[[:space:]]+[^[:space:]#]/ {
       line = $0; sub(/^[[:space:]]+/, "", line)
-      match(line, /:[[:space:]]+/)
+      if (!match(line, /:[[:space:]]+[^[:space:]]/)) { print "!UNPARSED\t" line; next }
       key = substr(line, 1, RSTART - 1)
-      value = substr(line, RSTART + RLENGTH)
+      value = substr(line, RSTART + RLENGTH - 1)
       gsub(/["\047]/, "", key); gsub(/["\047]/, "", value)
       print key "\t" value
     }' "$file")
