@@ -3,31 +3,113 @@ import dataDictionary from './dataDictionary.js';
 
 const { naturalizeDataset, denaturalizeDataset } = dcmjs.data.DicomMetaDictionary;
 
+/*
+ * Private blocks in DICOM JSON (PS3.5 7.8.1), with the rules of the dcmjs 1.0
+ * naturalized form (privateBlocks.js): a block is found by its group and
+ * creator, never by a fixed tag. A new block takes the preferred xx when that
+ * xx is free, and the first free xx from 0x10 to 0xFF otherwise.
+ */
+const PRIVATE_TAG = /^[0-9A-F]{3}[13579BDF][0-9A-F]{4}$/i;
+const hex2 = n => n.toString(16).toUpperCase().padStart(2, '0');
+
+/** The creator string of a private creator element, without the LO padding. */
+const creatorText = element => String(element?.Value?.[0] ?? '').replace(/^ +|[\0 ]+$/g, '');
+
+// Older data has a lowercase xx (for example "0009001a")
+const creatorElement = (item, group, xx) =>
+  item[`${group}00${hex2(xx)}`] ?? item[`${group}00${hex2(xx).toLowerCase()}`];
+
+/** The xx of the block of `creator` in `group`, or undefined. */
+const findPrivateBlock = (item, group, creator) => {
+  for (let xx = 0x10; xx <= 0xff; xx++) {
+    if (creatorText(creatorElement(item, group, xx)) === creator) return xx;
+  }
+  return undefined;
+};
+
+/** The xx of the block of `creator` in `group`; reserves a block when there is none. */
+const reservePrivateBlock = (item, group, creator, preferred = 0x10) => {
+  const found = findPrivateBlock(item, group, creator);
+  if (found !== undefined) return found;
+  const free = xx => creatorElement(item, group, xx) === undefined;
+  let xx = preferred >= 0x10 && free(preferred) ? preferred : undefined;
+  for (let n = 0x10; xx === undefined && n <= 0xff; n++) if (free(n)) xx = n;
+  if (xx === undefined) throw new Error(`No free private block in group ${group} for ${creator}`);
+  item[`${group}00${hex2(xx)}`] = { vr: 'LO', Value: [creator] };
+  return xx;
+};
+
+/** Removes the block of `creator` in `group`: the creator element and its elements. */
+const removePrivateBlock = (item, group, creator) => {
+  const xx = findPrivateBlock(item, group, creator);
+  if (xx === undefined) return false;
+  const prefix = `${group}${hex2(xx)}`.toUpperCase();
+  for (const key of Object.keys(item)) {
+    if (key.toUpperCase().startsWith(prefix)) delete item[key];
+  }
+  delete item[`${group}00${hex2(xx)}`];
+  delete item[`${group}00${hex2(xx).toLowerCase()}`];
+  return true;
+};
+
+/**
+ * Copies each element of `source` that `target` does not have. A private
+ * element goes into the block of its creator in `target`, so the blocks of
+ * two items merge by creator, not by tag. The blocks of `skipCreators` are
+ * not copied.
+ */
+const assignUndefined = (target, source, skipCreators = []) => {
+  if (!source) return target;
+  const blocks = new Map();
+  for (const key of Object.keys(source)) {
+    if (!PRIVATE_TAG.test(key)) continue;
+    const element = parseInt(key.slice(4), 16);
+    if (element < 0x10 || element > 0xff) continue;
+    const creator = creatorText(source[key]);
+    if (creator && !skipCreators.includes(creator)) {
+      blocks.set(`${key.slice(0, 4)}${hex2(element)}`.toUpperCase(), creator);
+    }
+  }
+  for (const key of Object.keys(source)) {
+    if (!PRIVATE_TAG.test(key)) {
+      if (!target[key]) target[key] = source[key];
+      continue;
+    }
+    const group = key.slice(0, 4);
+    const element = parseInt(key.slice(4), 16);
+    if (element <= 0xff) continue; // a creator: copied with its block
+    const xx = element >> 8;
+    const creator = blocks.get(`${group}${hex2(xx)}`.toUpperCase());
+    if (creator === undefined) {
+      // an element of a skipped block, or an element with no creator
+      if (creatorElement(source, group, xx) === undefined && !target[key]) {
+        target[key] = source[key];
+      }
+      continue;
+    }
+    const targetXx = reservePrivateBlock(target, group, creator, xx);
+    const targetKey = `${group}${hex2(targetXx)}${key.slice(6, 8)}`.toUpperCase();
+    if (!target[targetKey]) target[targetKey] = source[key];
+  }
+  return target;
+};
+
 /** Find the actual tag for a private value */
 const findPrivate = (item, tagObject, create) => {
   if (typeof tagObject === 'string') return tagObject;
   if (typeof tagObject === 'number') return `00000000${tagObject.toString(16)}`.slice(-8);
   const { creator, tag } = tagObject;
   if (!creator) return tag;
-  const start = tag.substring(0, 4);
-  const end = tag.substring(6, 8);
-  // Should technically go all the way up, but for now only test 0x30 items
-  let assignPosition;
-  for (let offset = 0x10; offset < 0x40; offset++) {
-    const testTag = `${start}00${offset.toString(16)}`;
-    const testCreator = item[testTag];
-    if (testCreator === undefined && assignPosition === undefined) assignPosition = offset;
-    if (testCreator && testCreator.Value && testCreator.Value[0] === creator) {
-      return `${start}${offset.toString(16)}${end}`;
-    }
-  }
-  if (create) {
-    if (!assignPosition)
-      throw new Error(`Couldn't find any assign positions for ${creator} ${tag} in ${item}`);
-    const creatorTag = `${start}00${assignPosition.toString(16)}`;
-    item[creatorTag] = { Value: [creator], vr: 'CS' };
-    return `${start}${assignPosition.toString(16)}${end}`;
-  }
+  const group = tag.substring(0, 4);
+  const xx = create
+    ? reservePrivateBlock(item, group, creator)
+    : findPrivateBlock(item, group, creator);
+  if (xx === undefined) return undefined;
+  const actual = `${group}${hex2(xx)}${tag.substring(6, 8)}`;
+  // Older data has a lowercase xx
+  return item[actual] === undefined && item[actual.toLowerCase()] !== undefined
+    ? actual.toLowerCase()
+    : actual;
 };
 
 const DeduppedCreator = 'dedupped';
@@ -87,6 +169,8 @@ export const Tags = {
         Value: [],
         vr: dataDictionary[actualTag]?.vr || tag.vr || 'UN',
       };
+    // An empty element in DICOM JSON has no Value
+    item[actualTag].Value ||= [];
     item[actualTag].Value.push(value);
     return actualTag;
   },
@@ -124,6 +208,10 @@ export const Tags = {
   },
 
   findPrivate,
+  findPrivateBlock,
+  reservePrivateBlock,
+  removePrivateBlock,
+  assignUndefined,
 };
 
 Object.keys(dataDictionary).forEach(key => {

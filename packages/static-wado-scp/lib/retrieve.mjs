@@ -2,97 +2,110 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import dcmjsDimse from 'dcmjs-dimse';
-import { generatePart10ForInstance, FileDicomWebReader } from '@radicalimaging/create-dicomweb';
-import { Tags, handleHomeRelative } from '@radicalimaging/static-wado-util';
+import { generatePart10ForStudy } from '@radicalimaging/create-dicomweb';
+import { handleHomeRelative } from '@radicalimaging/static-wado-util';
 
 const { CStoreRequest } = dcmjsDimse.requests;
 const { Status } = dcmjsDimse.constants;
-const { getValue } = Tags;
 
 /** PS3.4 C.4.2.1.4 / C.4.3.1.4 status values that dcmjs-dimse does not name. */
 export const RetrieveStatus = {
   SubOperationsCompleteWithFailures: 0xb000,
   UnableToPerformSubOperations: 0xa702,
   MoveDestinationUnknown: 0xa801,
+  IdentifierDoesNotMatchSopClass: 0xa900,
 };
 
-// Text VRs where a backslash is part of the value, not a value separator
-const SINGLE_VALUE_TEXT = new Set(['LT', 'ST', 'UT', 'UR']);
+// A DICOM UID (PS3.5 9.1); the UIDs also become path segments
+const UID_PATTERN = /^(?=.{1,64}$)[0-9]+(\.[0-9]+)*$/;
+
+// The unique keys that each retrieve level needs (PS3.4 C.4.2.2.1)
+const LEVEL_KEYS = {
+  STUDY: ['StudyInstanceUID'],
+  SERIES: ['StudyInstanceUID', 'SeriesInstanceUID'],
+  IMAGE: ['StudyInstanceUID', 'SeriesInstanceUID', 'SOPInstanceUID'],
+};
 
 /**
- * Adapts series metadata that the static-wado-creator importer wrote to the
- * form that generatePart10ForInstance reads. That importer writes a
- * BulkDataURI `bulkdata/...` relative to the study directory, and a
- * multi-valued string as one backslash-joined value.
+ * Checks a C-GET or C-MOVE identifier.
+ *
+ * @param {Object} identifier - Naturalized identifier.
+ * @returns {string|undefined} The problem, or undefined for a valid identifier.
  */
-export function adaptLegacyMetadata(dataset) {
-  for (const value of Object.values(dataset)) {
-    if (!value || typeof value !== 'object') continue;
-    if (value.BulkDataURI?.startsWith('bulkdata/')) {
-      value.BulkDataURI = `../../${value.BulkDataURI}`;
-    }
-    const values = value.Value;
-    if (!Array.isArray(values)) continue;
-    if (value.vr === 'SQ') {
-      values.forEach(adaptLegacyMetadata);
-    } else if (
-      !SINGLE_VALUE_TEXT.has(value.vr) &&
-      values.length === 1 &&
-      typeof values[0] === 'string' &&
-      values[0].includes('\\')
-    ) {
-      value.Value = values[0].split('\\');
+export function identifierError(identifier) {
+  const level = identifier.QueryRetrieveLevel || 'STUDY';
+  const keys = LEVEL_KEYS[level];
+  if (!keys) return `unsupported QueryRetrieveLevel ${level}`;
+  for (const key of keys) {
+    const values = [identifier[key]].flat();
+    if (!values.length || !values.every(uid => UID_PATTERN.test(uid ?? ''))) {
+      return `${key} is missing or not a valid UID at level ${level}`;
     }
   }
-  return dataset;
+  return undefined;
 }
 
 /**
  * Writes each instance that the retrieve identifier matches to a temporary
  * Part 10 file. A caller sends the files as C-STORE sub-operations, and
- * dcmjs-dimse reads each file only when it sends that file.
+ * dcmjs-dimse reads each file only when it sends that file. A study or
+ * series that is not found gives no files.
  *
  * @param {string} rootDir - Static DICOMweb root directory.
- * @param {Object} identifier - Naturalized C-GET or C-MOVE identifier.
- * @returns {Promise<{dir: string, files: string[]}>} The temporary directory
- *   (the caller removes it) and the Part 10 files.
- * @throws {Error} When the identifier has no StudyInstanceUID.
+ * @param {Object} identifier - Naturalized C-GET or C-MOVE identifier that
+ *   identifierError accepts.
+ * @returns {Promise<{dir: string, files: string[], failed: number}>} The
+ *   temporary directory (the caller removes it), the Part 10 files, and the
+ *   number of instances that could not be written.
  */
 export async function writeRetrieveFiles(rootDir, identifier) {
-  const { StudyInstanceUID: study, SeriesInstanceUID: series, SOPInstanceUID: sop } = identifier;
-  if (!study) {
-    throw new Error('the retrieve identifier has no StudyInstanceUID');
-  }
-  const dicomdir = handleHomeRelative(rootDir);
-  const reader = new FileDicomWebReader(dicomdir);
-  const seriesIndex =
-    (await reader.readJsonFile(reader.getStudyPath(study, { path: 'series' }), 'index.json')) || [];
+  const { QueryRetrieveLevel: level = 'STUDY' } = identifier;
+  const study = identifier.StudyInstanceUID;
+  const seriesUid = level === 'STUDY' ? undefined : identifier.SeriesInstanceUID;
+  const sopUids = level === 'IMAGE' ? [identifier.SOPInstanceUID].flat() : undefined;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scp-retrieve-'));
   const files = [];
+  let failed = 0;
   try {
-    for (const seriesItem of seriesIndex) {
-      const seriesUid = getValue(seriesItem, Tags.SeriesInstanceUID);
-      if (series && seriesUid !== series) continue;
-      const metadata =
-        (await reader.readJsonFile(reader.getSeriesPath(study, seriesUid), 'metadata')) || [];
-      const seriesDir = path.join(dicomdir, 'studies', study, 'series', seriesUid);
-      for (const instance of metadata) {
-        const sopUid = getValue(instance, Tags.SOPInstanceUID);
-        if (sop && sopUid !== sop) continue;
-        const { buffer } = await generatePart10ForInstance(
-          seriesDir,
-          adaptLegacyMetadata(instance)
-        );
-        const file = path.join(dir, `${sopUid}.dcm`);
+    await generatePart10ForStudy(handleHomeRelative(rootDir), study, {
+      seriesUid,
+      sopUids,
+      onInstance: ({ buffer }) => {
+        const file = path.join(dir, `${files.length}.dcm`);
         fs.writeFileSync(file, buffer);
         files.push(file);
-      }
-    }
+      },
+      onError: (sopInstanceUID, e) => {
+        console.warn('Retrieve cannot write', sopInstanceUID, e.message);
+        failed++;
+      },
+    });
   } catch (e) {
-    fs.rmSync(dir, { recursive: true, force: true });
-    throw e;
+    if (e.code !== 'NOT_FOUND') {
+      fs.rmSync(dir, { recursive: true, force: true });
+      throw e;
+    }
   }
-  return { dir, files };
+  return { dir, files, failed };
+}
+
+/**
+ * Removes the temporary retrieve directories that a stopped SCP left. Only
+ * directories older than `maxAgeMs` go, because another SCP process can use
+ * the same temporary directory.
+ */
+export function removeStaleRetrieveDirs(tmpDir = os.tmpdir(), maxAgeMs = 24 * 60 * 60 * 1000) {
+  for (const name of fs.readdirSync(tmpDir)) {
+    if (!name.startsWith('scp-retrieve-')) continue;
+    const dir = path.join(tmpDir, name);
+    try {
+      if (Date.now() - fs.statSync(dir).mtimeMs > maxAgeMs) {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    } catch (e) {
+      console.warn('Cannot remove', dir, e.message);
+    }
+  }
 }
 
 /**
@@ -102,11 +115,13 @@ export async function writeRetrieveFiles(rootDir, identifier) {
  * @param {string[]} files - Part 10 files.
  * @param {function(CStoreRequest[]): void} send - Queues the requests on an association.
  * @param {function(Object): void} onProgress - Gets { remaining, completed, failed }.
+ * @param {number} [failed=0] - Sub-operations that failed before the send.
  * @returns {Promise<{remaining: number, completed: number, failed: number}>}
- *   Resolves when every sub-operation is done.
+ *   Resolves when every sub-operation is done. A request that gets no
+ *   response (for example after an abort) must get raiseDoneEvent().
  */
-export function sendSubOperations(files, send, onProgress) {
-  const counts = { remaining: files.length, completed: 0, failed: 0 };
+export function sendSubOperations(files, send, onProgress, failed = 0) {
+  const counts = { remaining: files.length, completed: 0, failed };
   if (!files.length) return Promise.resolve(counts);
   return new Promise(resolve => {
     const requests = files.map(file => {

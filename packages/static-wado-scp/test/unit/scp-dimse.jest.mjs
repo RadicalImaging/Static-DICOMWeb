@@ -9,10 +9,10 @@ import StaticWado from '@radicalimaging/static-wado-creator';
 import { dicomWebScpConfig, DcmjsDimseScp } from '../../lib/index.mjs';
 import loadPlugins from '../../lib/loadPlugins.mjs';
 
-const { Client, Dataset, Server, Scp, Transcoding } = dcmjsDimse;
+const { Client, Dataset, Server, Transcoding } = dcmjsDimse;
 const { CStoreRequest, CFindRequest, CGetRequest, CMoveRequest } = dcmjsDimse.requests;
 const { CStoreResponse } = dcmjsDimse.responses;
-const { Status, PresentationContextResult } = dcmjsDimse.constants;
+const { Status } = dcmjsDimse.constants;
 
 const FIXTURE = path.join(__dirname, '../../../static-wado-creator/dicom/jpeg8bit.dcm');
 const fixture = Dataset.fromFile(FIXTURE);
@@ -47,28 +47,18 @@ const lastStatus = request => {
   return result;
 };
 
-// The C-MOVE destination: an SCP that keeps each received dataset
-const moved = [];
-class DestinationScp extends Scp {
-  associationRequested(association) {
-    for (const { id } of association.getPresentationContexts()) {
-      const context = association.getPresentationContext(id);
-      context.setResult(PresentationContextResult.Accept, context.getTransferSyntaxUids()[0]);
-    }
-    this.sendAssociationAccept();
+/** Waits until a file exists; the importer writes the indexes after the association closes. */
+const waitFor = async file => {
+  for (let i = 0; i < 100 && !fs.existsSync(file); i++) {
+    await new Promise(r => setTimeout(r, 50));
   }
-  associationReleaseRequested() {
-    this.sendAssociationReleaseResponse();
-  }
-  cStoreRequest(request, callback) {
-    moved.push(request.getDataset());
-    const response = CStoreResponse.fromRequest(request);
-    response.setStatus(Status.Success);
-    callback(response);
-  }
-}
+  return fs.existsSync(file);
+};
+
+const retrieveDirs = () => fs.readdirSync(os.tmpdir()).filter(n => n.startsWith('scp-retrieve-'));
 
 let rootDir;
+let destRoot;
 let scpPort;
 let server;
 let destination;
@@ -79,19 +69,23 @@ beforeAll(async () => {
   dcmjsDimse.log.setLevel('silent');
   await Transcoding.initializeAsync();
   rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scp-dimse-'));
-  const options = StaticWado.adaptProgramOpts(
-    { ...dicomWebScpConfig, dir: rootDir, verbose: false },
-    { isInstance: false, isGroup: true, isDeduplicate: true, isStudyData: true }
-  );
+  destRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'scp-dimse-dest-'));
+  const adapt = dir =>
+    StaticWado.adaptProgramOpts(
+      { ...dicomWebScpConfig, dir, verbose: false },
+      { isInstance: false, isGroup: true, isDeduplicate: true, isStudyData: true }
+    );
+  const options = adapt(rootDir);
   await loadPlugins(options);
   DcmjsDimseScp.setParams(options);
   scpPort = await freePort();
   server = new Server(DcmjsDimseScp);
   server.listen(scpPort, options);
 
+  // The C-MOVE destination is a second Static DICOMweb SCP that imports what it gets
   const destinationPort = await freePort();
-  destination = new Server(DestinationScp);
-  destination.listen(destinationPort);
+  destination = new Server(DcmjsDimseScp);
+  destination.listen(destinationPort, adapt(destRoot));
   aeConfig.TESTDEST = { host: '127.0.0.1', port: destinationPort };
 
   // Every later test needs the stored study
@@ -99,17 +93,14 @@ beforeAll(async () => {
   const stored = lastStatus(store);
   await send(scpPort, [store]);
   expect(stored.status).toBe(Status.Success);
-  // The importer writes the studies index after the association closes
-  const index = path.join(rootDir, 'studies', 'index.json.gz');
-  for (let i = 0; i < 100 && !fs.existsSync(index); i++) {
-    await new Promise(r => setTimeout(r, 50));
-  }
+  await waitFor(path.join(rootDir, 'studies', 'index.json.gz'));
 }, 60000);
 
 afterAll(() => {
   server.close();
   destination.close();
   fs.rmSync(rootDir, { recursive: true, force: true });
+  fs.rmSync(destRoot, { recursive: true, force: true });
 });
 
 it('C-STORE writes the study into the Static DICOMweb layout', () => {
@@ -143,16 +134,42 @@ it('C-GET sends the stored instance back on the same association', async () => {
   await send(scpPort, [get], client);
   expect(result.status).toBe(Status.Success);
   expect(result.response.getCompleted()).toBe(1);
-  expect(received.map(d => d.getElement('SOPInstanceUID'))).toEqual([SOP]);
+  const [instance] = received;
+  expect(instance.getElement('SOPInstanceUID')).toBe(SOP);
+  // AT is a tag number: FrameIncrementPointer is (0018,1063) FrameTime
+  expect([instance.getElement('FrameIncrementPointer')].flat()[0]).toBe(0x00181063);
+  // The deduplication bookkeeping of the store is not instance data
+  expect(JSON.stringify(instance.getElements())).not.toContain('dedupped');
 }, 30000);
 
-it('C-MOVE sends the stored instance to the destination AE', async () => {
-  moved.length = 0;
+it('C-MOVE to another Static DICOMweb SCP imports the stored instance there', async () => {
   const move = CMoveRequest.createStudyMoveRequest('TESTDEST', STUDY);
   const result = lastStatus(move);
   await send(scpPort, [move]);
   expect(result.status).toBe(Status.Success);
-  expect(moved.map(d => d.getElement('SOPInstanceUID'))).toEqual([SOP]);
+  expect(result.response.getCompleted()).toBe(1);
+  expect(await waitFor(path.join(destRoot, 'studies', STUDY, 'series', 'index.json.gz'))).toBe(
+    true
+  );
+}, 30000);
+
+it('C-GET with an invalid UID fails with 0xA900 and reads no files', async () => {
+  const get = CGetRequest.createStudyGetRequest('../studies');
+  const result = lastStatus(get);
+  await send(scpPort, [get]);
+  expect(result.status).toBe(0xa900);
+});
+
+it('an abort during C-GET removes the temporary files', async () => {
+  const before = retrieveDirs();
+  const get = CGetRequest.createStudyGetRequest(STUDY);
+  const client = new Client();
+  client.on('cStoreRequest', () => client.abort());
+  await send(scpPort, [get], client).catch(() => {});
+  for (let i = 0; i < 100 && retrieveDirs().length > before.length; i++) {
+    await new Promise(r => setTimeout(r, 50));
+  }
+  expect(retrieveDirs()).toEqual(before);
 }, 30000);
 
 it('C-MOVE to an unknown AE fails with 0xA801', async () => {

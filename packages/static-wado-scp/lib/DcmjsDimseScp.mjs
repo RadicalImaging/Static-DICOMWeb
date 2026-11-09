@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { Stats, aeConfig } from '@radicalimaging/static-wado-util';
+import { Stats, Tags, aeConfig } from '@radicalimaging/static-wado-util';
 import StaticWado from '@radicalimaging/static-wado-creator';
 import dcmjsDimse from 'dcmjs-dimse';
 import dcmjs from 'dcmjs';
@@ -9,6 +9,7 @@ import {
   writeRetrieveFiles,
   sendSubOperations,
   finalRetrieveStatus,
+  identifierError,
   RetrieveStatus,
 } from './retrieve.mjs';
 
@@ -48,6 +49,26 @@ class DcmjsDimseScp extends Scp {
     this.association = undefined;
     this.importer = new StaticWado(opts);
     this.options = opts;
+    // The C-GET sub-operations that wait for a response on this association
+    this.pendingRequests = new Set();
+    this.on('close', () => this.connectionClosed());
+  }
+
+  /**
+   * Ends the pending C-GET sub-operations and closes the importer when the
+   * connection closes, also after an abort or a network error.
+   */
+  connectionClosed() {
+    this.closed = true;
+    for (const request of this.pendingRequests) request.raiseDoneEvent();
+    this.pendingRequests.clear();
+    this.importer?.close();
+    this.importer = null;
+  }
+
+  // dcmjs-dimse closes the connection after an A-ABORT; connectionClosed cleans up
+  abort(source, reason) {
+    console.log('Association aborted, source', source, 'reason', reason);
   }
 
   // Handle incoming association requests
@@ -131,7 +152,10 @@ class DcmjsDimseScp extends Scp {
         .then(results => {
           const datasets = results.map(item => {
             if (item.elements) return item.elements;
-            return dcmjs.data.DicomMetaDictionary.naturalizeDataset(item);
+            const match = { ...item };
+            // The dedupped block is the deduplication bookkeeping of this store
+            Tags.removePrivateBlock(match, '0009', Tags.DeduppedCreator);
+            return dcmjs.data.DicomMetaDictionary.naturalizeDataset(match);
           });
           const responses = datasets.map(item => {
             const pendingResponse = CFindResponse.fromRequest(request);
@@ -221,28 +245,34 @@ class DcmjsDimseScp extends Scp {
       response.setWarnings(0);
       return response;
     };
+    const none = { remaining: 0, completed: 0, failed: 0 };
+    const identifier = request.getDataset().getElements();
+    const problem = identifierError(identifier);
+    if (problem) {
+      console.log('Retrieve refused:', problem);
+      callback(respond(RetrieveStatus.IdentifierDoesNotMatchSopClass, none));
+      return;
+    }
     let retrieved;
     try {
-      retrieved = await writeRetrieveFiles(
-        this.options.rootDir,
-        request.getDataset().getElements()
-      );
+      retrieved = await writeRetrieveFiles(this.options.rootDir, identifier);
     } catch (e) {
       console.log('Retrieve failed because', e.message);
-      callback(
-        respond(RetrieveStatus.UnableToPerformSubOperations, {
-          remaining: 0,
-          completed: 0,
-          failed: 0,
-        })
-      );
+      callback(respond(RetrieveStatus.UnableToPerformSubOperations, none));
       return;
     }
     try {
-      const counts = await sendSubOperations(retrieved.files, send, progress => {
-        if (progress.remaining) this.sendResponse(request, respond(Status.Pending, progress));
-      });
-      callback(respond(finalRetrieveStatus(counts), counts));
+      const counts = await sendSubOperations(
+        retrieved.files,
+        send,
+        progress => {
+          if (progress.remaining && !this.closed) {
+            this.sendResponse(request, respond(Status.Pending, progress));
+          }
+        },
+        retrieved.failed
+      );
+      if (!this.closed) callback(respond(finalRetrieveStatus(counts), counts));
     } finally {
       fs.rmSync(retrieved.dir, { recursive: true, force: true });
     }
@@ -250,7 +280,14 @@ class DcmjsDimseScp extends Scp {
 
   // Handle incoming C-GET requests: the sub-operations use this association
   cGetRequest(request, callback) {
-    this.retrieve(request, CGetResponse, requests => this.sendRequests(requests), callback);
+    const send = requests => {
+      for (const r of requests) {
+        this.pendingRequests.add(r);
+        r.on('done', () => this.pendingRequests.delete(r));
+      }
+      this.sendRequests(requests);
+    };
+    this.retrieve(request, CGetResponse, send, callback);
   }
 
   // Handle incoming C-MOVE requests: the sub-operations use a new association
@@ -274,6 +311,8 @@ class DcmjsDimseScp extends Scp {
       };
       client.on('networkError', fail);
       client.on('associationRejected', fail);
+      // A request without a response when the destination closes is a failure
+      client.on('closed', () => requests.forEach(r => r.raiseDoneEvent()));
       client.send(ae.host, ae.port, this.association.getCalledAeTitle(), destination);
     };
     this.retrieve(request, CMoveResponse, send, callback);
