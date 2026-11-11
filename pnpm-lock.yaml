@@ -297,13 +297,13 @@ importers:
   packages/create-dicomweb:
     dependencies:
       '@radicalimaging/cs3d':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../cs3d
       '@radicalimaging/static-wado-creator':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../static-wado-creator
       '@radicalimaging/static-wado-util':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../static-wado-util
       adm-zip:
         specifier: 0.6.1
@@ -371,16 +371,16 @@ importers:
   packages/healthlake:
     dependencies:
       '@radicalimaging/s3-deploy':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../s3-deploy
       '@radicalimaging/static-wado-deploy':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../static-wado-deploy
       '@radicalimaging/static-wado-plugins':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../static-wado-plugins
       '@radicalimaging/static-wado-util':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../static-wado-util
       config-point:
         specifier: 0.8.0
@@ -414,10 +414,10 @@ importers:
         specifier: 3.975.0
         version: 3.975.0(@aws-sdk/client-s3@3.975.0)
       '@radicalimaging/static-wado-plugins':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../static-wado-plugins
       '@radicalimaging/static-wado-util':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../static-wado-util
       aws-cdk-lib:
         specifier: 2.272.0
@@ -439,10 +439,10 @@ importers:
   packages/static-wado-creator:
     dependencies:
       '@radicalimaging/cs3d':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../cs3d
       '@radicalimaging/static-wado-util':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../static-wado-util
       canvas:
         specifier: 3.1.0
@@ -473,13 +473,13 @@ importers:
   packages/static-wado-deploy:
     dependencies:
       '@radicalimaging/s3-deploy':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../s3-deploy
       '@radicalimaging/static-wado-plugins':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../static-wado-plugins
       '@radicalimaging/static-wado-util':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../static-wado-util
       config-point:
         specifier: 0.8.0
@@ -498,7 +498,7 @@ importers:
   packages/static-wado-plugins:
     dependencies:
       '@radicalimaging/static-wado-util':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../static-wado-util
       config-point:
         specifier: 0.8.0
@@ -517,13 +517,13 @@ importers:
   packages/static-wado-scp:
     dependencies:
       '@radicalimaging/static-wado-creator':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../static-wado-creator
       '@radicalimaging/static-wado-plugins':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../static-wado-plugins
       '@radicalimaging/static-wado-util':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../static-wado-util
       config-point:
         specifier: 0.8.0
@@ -584,13 +584,13 @@ importers:
         specifier: 1.1.6
         version: 1.1.6
       '@radicalimaging/create-dicomweb':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../create-dicomweb
       '@radicalimaging/static-wado-plugins':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../static-wado-plugins
       '@radicalimaging/static-wado-util':
-        specifier: '>=1.7.11'
+        specifier: '>=1.7.12'
         version: link:../static-wado-util
       '@saga-bus/core':
         specifier: 0.2.2
