@@ -63,17 +63,17 @@ export async function writeRetrieveFiles(rootDir, identifier) {
   const study = identifier.StudyInstanceUID;
   const seriesUid = level === 'STUDY' ? undefined : identifier.SeriesInstanceUID;
   const sopUids = level === 'IMAGE' ? [identifier.SOPInstanceUID].flat() : undefined;
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scp-retrieve-'));
+  const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'scp-retrieve-'));
   const files = [];
   let failed = 0;
   try {
     await generatePart10ForStudy(handleHomeRelative(rootDir), study, {
       seriesUid,
       sopUids,
-      onInstance: ({ buffer }) => {
+      onInstance: async ({ buffer }) => {
         const file = path.join(dir, `${files.length}.dcm`);
-        fs.writeFileSync(file, buffer);
         files.push(file);
+        await fs.promises.writeFile(file, buffer);
       },
       onError: (sopInstanceUID, e) => {
         console.warn('Retrieve cannot write', sopInstanceUID, e.message);
@@ -82,7 +82,7 @@ export async function writeRetrieveFiles(rootDir, identifier) {
     });
   } catch (e) {
     if (e.code !== 'NOT_FOUND') {
-      fs.rmSync(dir, { recursive: true, force: true });
+      await fs.promises.rm(dir, { recursive: true, force: true });
       throw e;
     }
   }
@@ -114,14 +114,15 @@ export function removeStaleRetrieveDirs(tmpDir = os.tmpdir(), maxAgeMs = 24 * 60
  *
  * @param {string[]} files - Part 10 files.
  * @param {function(CStoreRequest[]): void} send - Queues the requests on an association.
- * @param {function(Object): void} onProgress - Gets { remaining, completed, failed }.
+ * @param {function(Object): void} onProgress - Gets { remaining, completed, failed, warnings }.
  * @param {number} [failed=0] - Sub-operations that failed before the send.
- * @returns {Promise<{remaining: number, completed: number, failed: number}>}
+ * @returns {Promise<{remaining: number, completed: number, failed: number, warnings: number}>}
  *   Resolves when every sub-operation is done. A request that gets no
- *   response (for example after an abort) must get raiseDoneEvent().
+ *   response (for example after an abort) must get raiseDoneEvent(). A
+ *   warning status (0xBxxx) is a stored instance, counted in `warnings`.
  */
 export function sendSubOperations(files, send, onProgress, failed = 0) {
-  const counts = { remaining: files.length, completed: 0, failed };
+  const counts = { remaining: files.length, completed: 0, failed, warnings: 0 };
   if (!files.length) return Promise.resolve(counts);
   return new Promise(resolve => {
     const requests = files.map(file => {
@@ -137,6 +138,7 @@ export function sendSubOperations(files, send, onProgress, failed = 0) {
         done = true;
         counts.remaining--;
         if (status === Status.Success) counts.completed++;
+        else if ((status & 0xf000) === 0xb000) counts.warnings++;
         else counts.failed++;
         onProgress({ ...counts });
         if (counts.remaining === 0) resolve(counts);
@@ -147,10 +149,14 @@ export function sendSubOperations(files, send, onProgress, failed = 0) {
   });
 }
 
-/** Gives the final C-GET or C-MOVE status for the sub-operation counts. */
-export function finalRetrieveStatus({ completed, failed }) {
-  if (!failed) return Status.Success;
-  return completed
+/**
+ * Gives the final C-GET or C-MOVE status for the sub-operation counts:
+ * Success with no failures or warnings, 0xB000 with
+ * failures or warnings and at least one stored instance, otherwise 0xA702.
+ */
+export function finalRetrieveStatus({ completed, failed, warnings = 0 }) {
+  if (!failed && !warnings) return Status.Success;
+  return completed || warnings
     ? RetrieveStatus.SubOperationsCompleteWithFailures
     : RetrieveStatus.UnableToPerformSubOperations;
 }

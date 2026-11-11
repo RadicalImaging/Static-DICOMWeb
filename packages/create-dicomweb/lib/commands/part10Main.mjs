@@ -264,6 +264,8 @@ const INTERNAL_TAGS_TO_REMOVE = new Set([
   '00083002', // AvailableTransferSyntaxUID - internal static-dicomweb tag
 ]);
 
+const notFound = message => Object.assign(new Error(message), { code: 'NOT_FOUND' });
+
 // Text VRs where a backslash is part of the value, not a value separator
 const SINGLE_VALUE_TEXT = new Set(['LT', 'ST', 'UT', 'UR']);
 
@@ -431,25 +433,19 @@ async function readBinaryData(seriesDir, instanceMetadata, sopInstanceUID, trans
       continue;
     }
 
-    // Handle empty Value arrays, or no Value (an empty element in DICOM JSON) - remove the tag
-    if (v.Value === undefined || (Array.isArray(v.Value) && v.Value.length === 0)) {
-      delete instanceMetadata[tag];
-      continue;
-    }
-
-    // Handle Value arrays with only null/undefined values - remove the tag
-    if (Array.isArray(v.Value) && v.Value.every(val => val === null || val === undefined)) {
-      delete instanceMetadata[tag];
+    // An empty element (no Value, [], or only null values) stays as a zero-length element,
+    // so an empty Type 2 attribute is kept (#165)
+    if (
+      v.Value == null ||
+      (Array.isArray(v.Value) && v.Value.every(val => val === null || val === undefined))
+    ) {
+      v.Value = [];
       continue;
     }
 
     // Filter out null/undefined values from Value arrays
-    if (v.Value && Array.isArray(v.Value)) {
+    if (Array.isArray(v.Value)) {
       v.Value = v.Value.filter(val => val !== null && val !== undefined);
-      if (v.Value.length === 0) {
-        delete instanceMetadata[tag];
-        continue;
-      }
     }
 
     // DICOM JSON gives AT as a hex string; the dcmjs writer needs the number
@@ -588,7 +584,7 @@ function wrapMultipart(dcmBuffer) {
  * @param {string} dicomdir - Base directory path where DICOMweb structure is located
  * @param {string} studyUID - Study Instance UID
  * @param {Object} [opts] - Options
- * @param {string} [opts.seriesUid] - Filter to a specific series
+ * @param {string|string[]} [opts.seriesUid] - Filter to one or more series
  * @param {string[]} [opts.sopUids] - Filter to specific SOP Instance UIDs
  * @param {function(Object): Promise<void>|void} [opts.onInstance] - Gets each
  *   result in place of the buffers list, so only one instance is in memory.
@@ -600,7 +596,6 @@ function wrapMultipart(dcmBuffer) {
  */
 export async function generatePart10ForStudy(dicomdir, studyUID, opts = {}) {
   const { seriesUid, sopUids, onInstance, onError } = opts;
-  const notFound = message => Object.assign(new Error(message), { code: 'NOT_FOUND' });
   const reader = new FileDicomWebReader(dicomdir);
 
   const seriesIndex = await reader.readJsonFile(
@@ -614,8 +609,9 @@ export async function generatePart10ForStudy(dicomdir, studyUID, opts = {}) {
 
   let seriesToProcess = seriesIndex;
   if (seriesUid) {
-    seriesToProcess = seriesIndex.filter(
-      series => getValue(series, Tags.SeriesInstanceUID) === seriesUid
+    const wanted = [seriesUid].flat();
+    seriesToProcess = seriesIndex.filter(series =>
+      wanted.includes(getValue(series, Tags.SeriesInstanceUID))
     );
     if (seriesToProcess.length === 0) {
       throw notFound(`Series ${seriesUid} not found in study ${studyUID}`);

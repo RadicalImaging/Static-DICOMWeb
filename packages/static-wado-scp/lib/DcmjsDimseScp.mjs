@@ -32,6 +32,23 @@ const PreferredTransferSyntax = [
   '1.2.840.10008.1.2',
 ];
 
+// The SCP cannot transcode an image into a video syntax (MPEG-2, MPEG-4), so a C-GET
+// accepts a video syntax only for a video SOP class
+const VideoSopClass = [
+  '1.2.840.10008.5.1.4.1.1.77.1.1.1', // Video Endoscopic Image Storage
+  '1.2.840.10008.5.1.4.1.1.77.1.2.1', // Video Microscopic Image Storage
+  '1.2.840.10008.5.1.4.1.1.77.1.4.1', // Video Photographic Image Storage
+];
+const VideoTransferSyntax = [
+  '1.2.840.10008.1.2.4.100',
+  '1.2.840.10008.1.2.4.101',
+  '1.2.840.10008.1.2.4.102',
+  '1.2.840.10008.1.2.4.103',
+];
+const GetStorageTransferSyntax = PreferredTransferSyntax.filter(
+  tsuid => !VideoTransferSyntax.includes(tsuid)
+);
+
 // TODO - make this come from the command line setup to allow for custom settings
 const defaultParams = {
   isInstance: false,
@@ -88,18 +105,29 @@ class DcmjsDimseScp extends Scp {
     this.association.setMaxPduLength(65536);
 
     const contexts = association.getPresentationContexts();
+    // On a C-GET association the SCP sends on the storage contexts
+    const isGet = contexts.some(
+      c =>
+        association.getPresentationContext(c.id).getAbstractSyntaxUid() ===
+        SopClass.StudyRootQueryRetrieveInformationModelGet
+    );
     try {
       contexts.forEach(c => {
         const context = association.getPresentationContext(c.id);
+        const isStorage = Object.values(StorageClass).includes(context.getAbstractSyntaxUid());
+        const preferred =
+          isGet && isStorage && !VideoSopClass.includes(context.getAbstractSyntaxUid())
+            ? GetStorageTransferSyntax
+            : PreferredTransferSyntax;
         if (
           context.getAbstractSyntaxUid() === SopClass.Verification ||
           context.getAbstractSyntaxUid() === SopClass.StudyRootQueryRetrieveInformationModelFind ||
           context.getAbstractSyntaxUid() === SopClass.StudyRootQueryRetrieveInformationModelGet ||
           context.getAbstractSyntaxUid() === SopClass.StudyRootQueryRetrieveInformationModelMove ||
-          Object.values(StorageClass).includes(context.getAbstractSyntaxUid())
+          isStorage
         ) {
           const transferSyntaxes = context.getTransferSyntaxUids();
-          const transferSyntax = PreferredTransferSyntax.find(tsuid =>
+          const transferSyntax = preferred.find(tsuid =>
             transferSyntaxes.find(contextTsuid => contextTsuid === tsuid)
           );
           if (transferSyntax) {
@@ -242,10 +270,10 @@ class DcmjsDimseScp extends Scp {
       response.setRemaining(counts.remaining);
       response.setCompleted(counts.completed);
       response.setFailures(counts.failed);
-      response.setWarnings(0);
+      response.setWarnings(counts.warnings);
       return response;
     };
-    const none = { remaining: 0, completed: 0, failed: 0 };
+    const none = { remaining: 0, completed: 0, failed: 0, warnings: 0 };
     const identifier = request.getDataset().getElements();
     const problem = identifierError(identifier);
     if (problem) {
@@ -273,19 +301,32 @@ class DcmjsDimseScp extends Scp {
         retrieved.failed
       );
       if (!this.closed) callback(respond(finalRetrieveStatus(counts), counts));
+    } catch (e) {
+      // For example a bad aeConfig port: Client.send throws in place of a networkError
+      console.log('Retrieve failed because', e.message);
+      if (!this.closed) callback(respond(RetrieveStatus.UnableToPerformSubOperations, none));
     } finally {
-      fs.rmSync(retrieved.dir, { recursive: true, force: true });
+      await fs.promises
+        .rm(retrieved.dir, { recursive: true, force: true })
+        .catch(e => console.warn('Cannot remove', retrieved.dir, e.message));
     }
   }
 
   // Handle incoming C-GET requests: the sub-operations use this association
   cGetRequest(request, callback) {
     const send = requests => {
+      const sendable = [];
       for (const r of requests) {
+        // dcmjs-dimse skips a request with no accepted context and never raises 'done'
+        if (!this.association.getAcceptedPresentationContextFromRequest(r)) {
+          r.raiseDoneEvent();
+          continue;
+        }
         this.pendingRequests.add(r);
         r.on('done', () => this.pendingRequests.delete(r));
+        sendable.push(r);
       }
-      this.sendRequests(requests);
+      if (sendable.length) this.sendRequests(sendable);
     };
     this.retrieve(request, CGetResponse, send, callback);
   }

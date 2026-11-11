@@ -8,16 +8,20 @@ import { aeConfig, createVerboseLog } from '@radicalimaging/static-wado-util';
 import StaticWado from '@radicalimaging/static-wado-creator';
 import { dicomWebScpConfig, DcmjsDimseScp } from '../../lib/index.mjs';
 import loadPlugins from '../../lib/loadPlugins.mjs';
+import { finalRetrieveStatus } from '../../lib/retrieve.mjs';
 
 const { Client, Dataset, Server, Transcoding } = dcmjsDimse;
-const { CStoreRequest, CFindRequest, CGetRequest, CMoveRequest } = dcmjsDimse.requests;
+const { CEchoRequest, CStoreRequest, CFindRequest, CGetRequest, CMoveRequest } =
+  dcmjsDimse.requests;
 const { CStoreResponse } = dcmjsDimse.responses;
 const { Status } = dcmjsDimse.constants;
+const { PresentationContext } = dcmjsDimse.association;
 
 const FIXTURE = path.join(__dirname, '../../../static-wado-creator/dicom/jpeg8bit.dcm');
 const fixture = Dataset.fromFile(FIXTURE);
 const STUDY = fixture.getElement('StudyInstanceUID');
 const SOP = fixture.getElement('SOPInstanceUID');
+const SERIES = fixture.getElement('SeriesInstanceUID');
 
 const freePort = () =>
   new Promise(resolve => {
@@ -171,6 +175,74 @@ it('an abort during C-GET removes the temporary files', async () => {
   }
   expect(retrieveDirs()).toEqual(before);
 }, 30000);
+
+it('C-GET with no storage context for the stored instance fails the sub-operation', async () => {
+  const get = CGetRequest.createStudyGetRequest(STUDY);
+  get.setAddStorageSopClassesToAssociation(false);
+  const result = lastStatus(get);
+  await send(scpPort, [get]);
+  expect(result.status).toBe(0xa702);
+  expect(result.response.getFailures()).toBe(1);
+}, 30000);
+
+it('C-GET does not accept a video syntax for an image SOP class', async () => {
+  const get = CGetRequest.createStudyGetRequest(STUDY);
+  get.setAddStorageSopClassesToAssociation(false);
+  const context = new PresentationContext(
+    99,
+    fixture.getElement('SOPClassUID'),
+    '1.2.840.10008.1.2.4.100', // MPEG-2 Main Profile
+    undefined,
+    false,
+    true
+  );
+  context.addTransferSyntaxUid('1.2.840.10008.1.2.1');
+  const client = new Client();
+  client.addAdditionalPresentationContext(context);
+  const received = [];
+  client.on('cStoreRequest', (request, callback) => {
+    received.push(request.getDataset().getTransferSyntaxUid());
+    const response = CStoreResponse.fromRequest(request);
+    response.setStatus(Status.Success);
+    callback(response);
+  });
+  const result = lastStatus(get);
+  await send(scpPort, [get], client);
+  expect(result.status).toBe(Status.Success);
+  expect(received).toEqual(['1.2.840.10008.1.2.1']);
+}, 30000);
+
+it('C-GET at the series level accepts a list of series UIDs', async () => {
+  const get = CGetRequest.createSeriesGetRequest(STUDY, SERIES);
+  get.getDataset().setElement('SeriesInstanceUID', [SERIES, '1.2.3']);
+  const result = lastStatus(get);
+  const client = new Client();
+  client.on('cStoreRequest', (request, callback) => {
+    const response = CStoreResponse.fromRequest(request);
+    response.setStatus(Status.Success);
+    callback(response);
+  });
+  await send(scpPort, [get], client);
+  expect(result.status).toBe(Status.Success);
+  expect(result.response.getCompleted()).toBe(1);
+}, 30000);
+
+it('C-MOVE to an AE with a bad port fails with 0xA702, and the SCP stays up', async () => {
+  aeConfig.BADPORT = { host: '127.0.0.1', port: -1 };
+  const move = CMoveRequest.createStudyMoveRequest('BADPORT', STUDY);
+  const result = lastStatus(move);
+  await send(scpPort, [move]);
+  expect(result.status).toBe(0xa702);
+  const echo = new CEchoRequest();
+  const echoed = lastStatus(echo);
+  await send(scpPort, [echo]);
+  expect(echoed.status).toBe(Status.Success);
+}, 30000);
+
+it('a warning sub-operation status gives 0xB000', () => {
+  expect(finalRetrieveStatus({ completed: 0, failed: 0, warnings: 2 })).toBe(0xb000);
+  expect(finalRetrieveStatus({ completed: 3, failed: 0, warnings: 0 })).toBe(Status.Success);
+});
 
 it('C-MOVE to an unknown AE fails with 0xA801', async () => {
   const move = CMoveRequest.createStudyMoveRequest('NO_SUCH_AE', STUDY);
