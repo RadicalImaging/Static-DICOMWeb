@@ -33,7 +33,8 @@ const PreferredTransferSyntax = [
 ];
 
 // The SCP cannot transcode an image into a video syntax (MPEG-2, MPEG-4), so a C-GET
-// accepts a video syntax only for a video SOP class
+// accepts a video syntax only for a video SOP class. A C-GET prefers Explicit VR Little
+// Endian, so that a lossy stored instance is not transcoded to a larger lossless syntax.
 const VideoSopClass = [
   '1.2.840.10008.5.1.4.1.1.77.1.1.1', // Video Endoscopic Image Storage
   '1.2.840.10008.5.1.4.1.1.77.1.2.1', // Video Microscopic Image Storage
@@ -45,9 +46,13 @@ const VideoTransferSyntax = [
   '1.2.840.10008.1.2.4.102',
   '1.2.840.10008.1.2.4.103',
 ];
-const GetStorageTransferSyntax = PreferredTransferSyntax.filter(
-  tsuid => !VideoTransferSyntax.includes(tsuid)
-);
+const ExplicitVRLittleEndian = '1.2.840.10008.1.2.1';
+const GetStorageTransferSyntax = [
+  ExplicitVRLittleEndian,
+  ...PreferredTransferSyntax.filter(
+    tsuid => tsuid !== ExplicitVRLittleEndian && !VideoTransferSyntax.includes(tsuid)
+  ),
+];
 
 // TODO - make this come from the command line setup to allow for custom settings
 const defaultParams = {

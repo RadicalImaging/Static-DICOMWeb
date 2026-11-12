@@ -8,7 +8,7 @@ import { aeConfig, createVerboseLog } from '@radicalimaging/static-wado-util';
 import StaticWado from '@radicalimaging/static-wado-creator';
 import { dicomWebScpConfig, DcmjsDimseScp } from '../../lib/index.mjs';
 import loadPlugins from '../../lib/loadPlugins.mjs';
-import { finalRetrieveStatus } from '../../lib/retrieve.mjs';
+import { finalRetrieveStatus, identifierError } from '../../lib/retrieve.mjs';
 
 const { Client, Dataset, Server, Transcoding } = dcmjsDimse;
 const { CEchoRequest, CStoreRequest, CFindRequest, CGetRequest, CMoveRequest } =
@@ -185,7 +185,7 @@ it('C-GET with no storage context for the stored instance fails the sub-operatio
   expect(result.response.getFailures()).toBe(1);
 }, 30000);
 
-it('C-GET does not accept a video syntax for an image SOP class', async () => {
+it('C-GET prefers Explicit VR LE, and no video syntax for an image SOP class', async () => {
   const get = CGetRequest.createStudyGetRequest(STUDY);
   get.setAddStorageSopClassesToAssociation(false);
   const context = new PresentationContext(
@@ -196,6 +196,7 @@ it('C-GET does not accept a video syntax for an image SOP class', async () => {
     false,
     true
   );
+  context.addTransferSyntaxUid('1.2.840.10008.1.2.4.80'); // JPEG-LS lossless
   context.addTransferSyntaxUid('1.2.840.10008.1.2.1');
   const client = new Client();
   client.addAdditionalPresentationContext(context);
@@ -226,6 +227,27 @@ it('C-GET at the series level accepts a list of series UIDs', async () => {
   expect(result.status).toBe(Status.Success);
   expect(result.response.getCompleted()).toBe(1);
 }, 30000);
+
+it('C-GET at the study level accepts a list of study UIDs', async () => {
+  const get = CGetRequest.createStudyGetRequest(STUDY);
+  get.getDataset().setElement('StudyInstanceUID', ['1.2.3', STUDY]);
+  const result = lastStatus(get);
+  const client = new Client();
+  client.on('cStoreRequest', (request, callback) => {
+    const response = CStoreResponse.fromRequest(request);
+    response.setStatus(Status.Success);
+    callback(response);
+  });
+  await send(scpPort, [get], client);
+  expect(result.status).toBe(Status.Success);
+  expect(result.response.getCompleted()).toBe(1);
+}, 30000);
+
+it('only the key of the retrieve level can hold a list of UIDs', () => {
+  const series = { QueryRetrieveLevel: 'SERIES', SeriesInstanceUID: SERIES };
+  expect(identifierError({ ...series, StudyInstanceUID: [STUDY, '1.2.3'] })).toMatch(/single/);
+  expect(identifierError({ ...series, StudyInstanceUID: STUDY })).toBeUndefined();
+});
 
 it('C-MOVE to an AE with a bad port fails with 0xA702, and the SCP stays up', async () => {
   aeConfig.BADPORT = { host: '127.0.0.1', port: -1 };

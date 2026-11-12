@@ -41,6 +41,10 @@ export function identifierError(identifier) {
     if (!values.length || !values.every(uid => UID_PATTERN.test(uid ?? ''))) {
       return `${key} is missing or not a valid UID at level ${level}`;
     }
+    // Only the key of the retrieve level can hold a list (PS3.4 C.4.2.2.1)
+    if (values.length > 1 && key !== keys.at(-1)) {
+      return `${key} must have a single value at level ${level}`;
+    }
   }
   return undefined;
 }
@@ -60,30 +64,32 @@ export function identifierError(identifier) {
  */
 export async function writeRetrieveFiles(rootDir, identifier) {
   const { QueryRetrieveLevel: level = 'STUDY' } = identifier;
-  const study = identifier.StudyInstanceUID;
   const seriesUid = level === 'STUDY' ? undefined : identifier.SeriesInstanceUID;
   const sopUids = level === 'IMAGE' ? [identifier.SOPInstanceUID].flat() : undefined;
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'scp-retrieve-'));
   const files = [];
   let failed = 0;
-  try {
-    await generatePart10ForStudy(handleHomeRelative(rootDir), study, {
-      seriesUid,
-      sopUids,
-      onInstance: async ({ buffer }) => {
-        const file = path.join(dir, `${files.length}.dcm`);
-        files.push(file);
-        await fs.promises.writeFile(file, buffer);
-      },
-      onError: (sopInstanceUID, e) => {
-        console.warn('Retrieve cannot write', sopInstanceUID, e.message);
-        failed++;
-      },
-    });
-  } catch (e) {
-    if (e.code !== 'NOT_FOUND') {
-      await fs.promises.rm(dir, { recursive: true, force: true });
-      throw e;
+  // A STUDY-level retrieve can list several studies
+  for (const study of [identifier.StudyInstanceUID].flat()) {
+    try {
+      await generatePart10ForStudy(handleHomeRelative(rootDir), study, {
+        seriesUid,
+        sopUids,
+        onInstance: async ({ buffer }) => {
+          const file = path.join(dir, `${files.length}.dcm`);
+          files.push(file);
+          await fs.promises.writeFile(file, buffer);
+        },
+        onError: (sopInstanceUID, e) => {
+          console.warn('Retrieve cannot write', sopInstanceUID, e.message);
+          failed++;
+        },
+      });
+    } catch (e) {
+      if (e.code !== 'NOT_FOUND') {
+        await fs.promises.rm(dir, { recursive: true, force: true });
+        throw e;
+      }
     }
   }
   return { dir, files, failed };

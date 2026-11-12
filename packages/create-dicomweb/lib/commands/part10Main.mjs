@@ -450,7 +450,7 @@ async function readBinaryData(seriesDir, instanceMetadata, sopInstanceUID, trans
 
     // DICOM JSON gives AT as a hex string; the dcmjs writer needs the number
     if (v.vr === 'AT') {
-      v.Value = v.Value.map(val => (typeof val === 'string' ? parseInt(val, 16) : val));
+      v.Value = [v.Value].flat().map(val => (typeof val === 'string' ? parseInt(val, 16) : val));
       continue;
     }
 
