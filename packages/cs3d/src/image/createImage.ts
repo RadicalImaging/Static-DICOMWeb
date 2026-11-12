@@ -101,6 +101,9 @@ function decimal(value) {
     : Number(value);
 }
 
+/** Reads the first value of a multi-valued DS element, which dcmjs naturalizes as a list */
+const firstDecimal = value => decimal(Array.isArray(value) ? value[0] : value);
+
 /**
  * Tells whether the values that index the VOI LUT, the output of the modality
  * transform, are signed. They can be signed when the stored pixels are not (CT, or a
@@ -248,8 +251,8 @@ export function createImage(
     sizeInBytes: imageFrame.pixelData.byteLength,
     width: columns,
     voiLUTFunction: VOILUTFunctionType.LINEAR,
-    windowCenter,
-    windowWidth,
+    windowCenter: firstDecimal(windowCenter),
+    windowWidth: firstDecimal(windowWidth),
     decodeTimeInMS: imageFrame.decodeTimeInMS,
     getPixelData: null,
     getCanvas: null,

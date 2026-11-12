@@ -264,6 +264,42 @@ const INTERNAL_TAGS_TO_REMOVE = new Set([
   '00083002', // AvailableTransferSyntaxUID - internal static-dicomweb tag
 ]);
 
+const notFound = message => Object.assign(new Error(message), { code: 'NOT_FOUND' });
+
+// Text VRs where a backslash is part of the value, not a value separator
+const SINGLE_VALUE_TEXT = new Set(['LT', 'ST', 'UT', 'UR']);
+
+/**
+ * Adapts metadata that the static-wado-creator importer wrote to the form
+ * that generatePart10ForInstance reads. That importer writes a BulkDataURI
+ * `bulkdata/...` relative to the study directory, and a multi-valued string
+ * as one backslash-joined value.
+ *
+ * @param {Object} dataset - DICOM JSON dataset; changed in place.
+ * @returns {Object} The dataset.
+ */
+export function adaptLegacyMetadata(dataset) {
+  for (const value of Object.values(dataset)) {
+    if (!value || typeof value !== 'object') continue;
+    if (value.BulkDataURI?.startsWith('bulkdata/')) {
+      value.BulkDataURI = `../../${value.BulkDataURI}`;
+    }
+    const values = value.Value;
+    if (!Array.isArray(values)) continue;
+    if (value.vr === 'SQ') {
+      values.forEach(item => item && adaptLegacyMetadata(item));
+    } else if (
+      !SINGLE_VALUE_TEXT.has(value.vr) &&
+      values.length === 1 &&
+      typeof values[0] === 'string' &&
+      values[0].includes('\\')
+    ) {
+      value.Value = values[0].split('\\');
+    }
+  }
+  return dataset;
+}
+
 /**
  * Converts a numeric array to ArrayBuffer
  * @param {number[]} arr - Array of numbers (bytes)
@@ -397,25 +433,25 @@ async function readBinaryData(seriesDir, instanceMetadata, sopInstanceUID, trans
       continue;
     }
 
-    // Handle empty Value arrays - remove the tag
-    if (v.Value && Array.isArray(v.Value) && v.Value.length === 0) {
-      delete instanceMetadata[tag];
-      continue;
-    }
-
-    // Handle Value arrays with only null/undefined values - remove the tag
-    if (Array.isArray(v.Value) && v.Value.every(val => val === null || val === undefined)) {
-      delete instanceMetadata[tag];
+    // An empty element (no Value, [], or only null values) stays as a zero-length element,
+    // so an empty Type 2 attribute is kept (#165)
+    if (
+      v.Value == null ||
+      (Array.isArray(v.Value) && v.Value.every(val => val === null || val === undefined))
+    ) {
+      v.Value = [];
       continue;
     }
 
     // Filter out null/undefined values from Value arrays
-    if (v.Value && Array.isArray(v.Value)) {
+    if (Array.isArray(v.Value)) {
       v.Value = v.Value.filter(val => val !== null && val !== undefined);
-      if (v.Value.length === 0) {
-        delete instanceMetadata[tag];
-        continue;
-      }
+    }
+
+    // DICOM JSON gives AT as a hex string; the dcmjs writer needs the number
+    if (v.vr === 'AT') {
+      v.Value = [v.Value].flat().map(val => (typeof val === 'string' ? parseInt(val, 16) : val));
+      continue;
     }
 
     // Handle numeric string VRs (IS, DS) - ensure values are strings, not numbers
@@ -485,7 +521,9 @@ async function readBinaryData(seriesDir, instanceMetadata, sopInstanceUID, trans
  * @returns {Promise<{buffer: Buffer, sopInstanceUID: string, transferSyntaxUID: string}>}
  */
 export async function generatePart10ForInstance(seriesDir, instanceMetadata) {
-  const instanceCopy = JSON.parse(JSON.stringify(instanceMetadata));
+  const instanceCopy = adaptLegacyMetadata(JSON.parse(JSON.stringify(instanceMetadata)));
+  // The dedupped block is the deduplication bookkeeping of this store, not instance data
+  Tags.removePrivateBlock(instanceCopy, '0009', Tags.DeduppedCreator);
 
   const sopInstanceUID = getValue(instanceCopy, Tags.SOPInstanceUID);
   if (!sopInstanceUID) {
@@ -546,12 +584,18 @@ function wrapMultipart(dcmBuffer) {
  * @param {string} dicomdir - Base directory path where DICOMweb structure is located
  * @param {string} studyUID - Study Instance UID
  * @param {Object} [opts] - Options
- * @param {string} [opts.seriesUid] - Filter to a specific series
+ * @param {string|string[]} [opts.seriesUid] - Filter to one or more series
  * @param {string[]} [opts.sopUids] - Filter to specific SOP Instance UIDs
+ * @param {function(Object): Promise<void>|void} [opts.onInstance] - Gets each
+ *   result in place of the buffers list, so only one instance is in memory.
+ * @param {function(string, Error): void} [opts.onError] - Gets the
+ *   SOPInstanceUID and the error of an instance that fails; the other
+ *   instances continue. Without it, the first error is thrown.
  * @returns {Promise<{buffers: Array<{buffer: Buffer, sopInstanceUID: string, transferSyntaxUID: string}>, studyUID: string}>}
+ * @throws {Error} With `code` 'NOT_FOUND' when the study or series is not found.
  */
 export async function generatePart10ForStudy(dicomdir, studyUID, opts = {}) {
-  const { seriesUid, sopUids } = opts;
+  const { seriesUid, sopUids, onInstance, onError } = opts;
   const reader = new FileDicomWebReader(dicomdir);
 
   const seriesIndex = await reader.readJsonFile(
@@ -560,16 +604,17 @@ export async function generatePart10ForStudy(dicomdir, studyUID, opts = {}) {
   );
 
   if (!seriesIndex || !Array.isArray(seriesIndex) || seriesIndex.length === 0) {
-    throw new Error(`No series found for study ${studyUID}`);
+    throw notFound(`No series found for study ${studyUID}`);
   }
 
   let seriesToProcess = seriesIndex;
   if (seriesUid) {
-    seriesToProcess = seriesIndex.filter(
-      series => getValue(series, Tags.SeriesInstanceUID) === seriesUid
+    const wanted = [seriesUid].flat();
+    seriesToProcess = seriesIndex.filter(series =>
+      wanted.includes(getValue(series, Tags.SeriesInstanceUID))
     );
     if (seriesToProcess.length === 0) {
-      throw new Error(`Series ${seriesUid} not found in study ${studyUID}`);
+      throw notFound(`Series ${seriesUid} not found in study ${studyUID}`);
     }
   }
 
@@ -595,8 +640,16 @@ export async function generatePart10ForStudy(dicomdir, studyUID, opts = {}) {
       if (!sopInstanceUID) continue;
       if (sopUids && !sopUids.includes(sopInstanceUID)) continue;
 
-      const result = await generatePart10ForInstance(seriesDir, instanceMetadata);
-      results.push(result);
+      let result;
+      try {
+        result = await generatePart10ForInstance(seriesDir, instanceMetadata);
+      } catch (e) {
+        if (!onError) throw e;
+        onError(sopInstanceUID, e);
+        continue;
+      }
+      if (onInstance) await onInstance(result);
+      else results.push(result);
     }
   }
 
@@ -646,7 +699,7 @@ export async function part10Main(studyUID, options = {}) {
   );
 
   if (!seriesIndex || !Array.isArray(seriesIndex) || seriesIndex.length === 0) {
-    throw new Error(`No series found for study ${studyUID}`);
+    throw notFound(`No series found for study ${studyUID}`);
   }
 
   // Filter to specific series if provided, otherwise process all
@@ -656,7 +709,7 @@ export async function part10Main(studyUID, options = {}) {
       series => getValue(series, Tags.SeriesInstanceUID) === seriesUid
     );
     if (seriesToProcess.length === 0) {
-      throw new Error(`Series ${seriesUid} not found in study ${studyUID}`);
+      throw notFound(`Series ${seriesUid} not found in study ${studyUID}`);
     }
   }
 

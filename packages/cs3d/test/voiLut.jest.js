@@ -333,6 +333,17 @@ describe('Modality and VOI LUT Sequences', () => {
     });
   });
 
+  // The pixels run from 0 to 3750, so the dynamic-range window is 3751 wide, centred at 1875.5.
+  it.each([
+    ['a value', { vr: 'DS', Value: [40, 400] }, 40],
+    ['no value', { vr: 'DS' }, 1875.5],
+    ['an empty list', { vr: 'DS', Value: [] }, 1875.5],
+  ])('reads a window center with %s as a number', (_, element, expected) => {
+    const md = metadata({ extra: { '00281050': element, '00281051': element } });
+
+    expect(imageFrom(md).windowCenter).toBe(expected);
+  });
+
   // Renders a 4x4 image of one stored value and returns the red channel at the centre.
   async function renderedCentre(md, storedValue) {
     let rendered;
