@@ -516,6 +516,9 @@ importers:
 
   packages/static-wado-scp:
     dependencies:
+      '@radicalimaging/create-dicomweb':
+        specifier: '>=1.7.12'
+        version: link:../create-dicomweb
       '@radicalimaging/static-wado-creator':
         specifier: '>=1.7.12'
         version: link:../static-wado-creator
@@ -532,8 +535,8 @@ importers:
         specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.10
         version: '@dcmjs-org/dcmjs@1.0.0-beta.10'
       dcmjs-dimse:
-        specifier: 0.1.31
-        version: 0.1.31
+        specifier: 0.3.4
+        version: 0.3.4
     devDependencies:
       must:
         specifier: 0.13.4
@@ -2400,6 +2403,9 @@ packages:
   asap@2.0.6:
     resolution: {integrity: sha512-BSHWgDSAiKs50o2Re8ppvp3seVHXSRM44cdSsT9FfNEUUZLOGWVCsiWaRPWM1Znn+mqZ1OfVZ3z3DWEzSp7hRA==}
 
+  async-event-emitter2@0.0.2:
+    resolution: {integrity: sha512-STaByrQCwDlQEb1stntYzVYzaS3zA02+3OMm6Ah6hjUWhmmthS0aJaD5t9GGQ/Q8H9vHl8O11PUm9s+z3bNUdQ==}
+
   async-eventemitter@0.2.4:
     resolution: {integrity: sha512-pd20BwL7Yt1zwDFy+8MX8F1+WCT8aQeKj0kQnTrH9WaeRETlRamVhD0JtRPmrV4GfOJ2F9CvdQkZeZhnh2TuHw==}
 
@@ -2767,8 +2773,14 @@ packages:
     resolution: {integrity: sha512-ZYP5VBHshaDAiVZxjbRVcFJpc+4xGgT0bK3vzy1HLN8jTO975HEbuYzZJcHoQEY5K1a0z8YayJkyVETa08eNTg==}
     engines: {node: '>=18'}
 
+  dcmjs-codecs@0.0.8:
+    resolution: {integrity: sha512-qYilc+kqqpLYha6wytkIjzqsiByg7ol3KbONcJMcN7yG6G3FJOJo2s0PqtaCMM4sw9Ilcr9IyPgkKWW+tfuKQA==}
+
   dcmjs-dimse@0.1.31:
     resolution: {integrity: sha512-77rTn3LpZCVyA4a3fCVcXVGVh9FjcJtCZScYhi1l/U0fPMGScVSagEGCEdtakmgZT0CM3aPRgFM38MxMw8fz3Q==}
+
+  dcmjs-dimse@0.3.4:
+    resolution: {integrity: sha512-KtaRuygKt3swTfFLw8TNJ8yuWc9MaOYZIj7C/oV0siZrjoQDf5c/Rtyl1W1C1MM4VPsQAXrdMwkP0PyRU3IVHQ==}
 
   debug@2.6.9:
     resolution: {integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==}
@@ -3699,6 +3711,9 @@ packages:
     resolution: {integrity: sha512-TFYA4jnP7PVbmlBIfhlSe+WKxs9dklXMTEGcBCIvLhE/Tn3H6Gk1norupVW7m5Cnd4bLcr08AytbyV/xj7f/kQ==}
     engines: {node: '>= 12.0.0'}
 
+  loglevel-plugin-prefix@0.8.4:
+    resolution: {integrity: sha512-WpG9CcFAOjz/FtNht+QJeGpvVl/cdR6P0z6OcXSkr8wFJOsV2GRj2j10JLfjuA4aYkcKCNIEqRGCyTife9R8/g==}
+
   loglevel@1.9.2:
     resolution: {integrity: sha512-HgMmCqIJSAKqo68l0rS2AanEWfkxaZ5wNiEFb5ggm08lDs9Xl2KxBlX3PTcaD2chBM1gXAYf491/M2Rv8Jwayg==}
     engines: {node: '>= 0.6.0'}
@@ -3734,6 +3749,10 @@ packages:
   media-typer@1.1.1:
     resolution: {integrity: sha512-yz3xRaG20c6/BOzvYoDaGtPmGscs7YivItZEEqe6GbwNfHuxu9YNmvnEkMzKldAGY4/80pRcQRZSEnhquk9XuQ==}
     engines: {node: '>= 0.8'}
+
+  memorystream@0.3.1:
+    resolution: {integrity: sha512-S3UwM3yj5mtUSEfP41UZmt/0SCoVYUcU1rkXv+BQ5Ig8ndL4sPoJNBUJERafdPb5jjHJGuMgytgKvKIf58XNBw==}
+    engines: {node: '>= 0.10.0'}
 
   merge-descriptors@2.0.0:
     resolution: {integrity: sha512-Snk314V5ayFLhp3fkUREub6WtjBfPdCPY1Ln8/8munuLuiYhsABgBVWsozAG+MWMbVEvcdcpbi9R7ww22l9Q3g==}
@@ -6974,6 +6993,10 @@ snapshots:
 
   asap@2.0.6: {}
 
+  async-event-emitter2@0.0.2:
+    dependencies:
+      async: 3.2.6
+
   async-eventemitter@0.2.4:
     dependencies:
       async: 2.6.4
@@ -7372,6 +7395,12 @@ snapshots:
       whatwg-mimetype: 4.0.0
       whatwg-url: 14.2.0
 
+  dcmjs-codecs@0.0.8:
+    dependencies:
+      dcmjs: '@dcmjs-org/dcmjs@1.0.0-beta.10'
+      loglevel: 1.9.2
+      loglevel-plugin-prefix: 0.8.4
+
   dcmjs-dimse@0.1.31:
     dependencies:
       async-eventemitter: 0.2.4
@@ -7379,6 +7408,17 @@ snapshots:
       smart-buffer: 4.2.0
       ts-mixer: 6.0.4
       winston: 3.19.0
+
+  dcmjs-dimse@0.3.4:
+    dependencies:
+      async-event-emitter2: 0.0.2
+      dcmjs: '@dcmjs-org/dcmjs@1.0.0-beta.10'
+      dcmjs-codecs: 0.0.8
+      loglevel: 1.9.2
+      loglevel-plugin-prefix: 0.8.4
+      memorystream: 0.3.1
+      smart-buffer: 4.2.0
+      ts-mixer: 6.0.4
 
   debug@2.6.9(supports-color@8.1.1):
     dependencies:
@@ -8506,6 +8546,8 @@ snapshots:
       safe-stable-stringify: 2.5.0
       triple-beam: 1.4.1
 
+  loglevel-plugin-prefix@0.8.4: {}
+
   loglevel@1.9.2: {}
 
   lru-cache@10.4.3: {}
@@ -8533,6 +8575,8 @@ snapshots:
   math-intrinsics@1.1.0: {}
 
   media-typer@1.1.1: {}
+
+  memorystream@0.3.1: {}
 
   merge-descriptors@2.0.0: {}
 

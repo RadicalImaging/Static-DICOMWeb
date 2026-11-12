@@ -168,12 +168,13 @@ class StudyData {
     return item;
   }
 
+  /**
+   * Copies the elements of an extract that `ret` does not have. Private
+   * elements merge by creator, and the dedupped block of the extract (its own
+   * hash and type) is not copied.
+   */
   assignUndefined(ret, item) {
-    if (!item) return;
-    Object.keys(item).forEach(key => {
-      if (ret[key]) return;
-      ret[key] = item[key];
-    });
+    Tags.assignUndefined(ret, item, [Tags.DeduppedCreator]);
   }
 
   /**

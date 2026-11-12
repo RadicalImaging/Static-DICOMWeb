@@ -34,6 +34,8 @@ async function deduplicateSingleInstance(id, imageFrame, { force }) {
 
   if (this.verbose) console.log('SOP Instance UID', sopUID, 'being added');
   const deduplicated = { ...imageFrame };
+  // The dedupped block of an instance from another Static DICOMweb is that store's bookkeeping
+  Tags.removePrivateBlock(deduplicated, '0009', Tags.DeduppedCreator);
 
   if (!this.extractors) this.extractors = extractors;
   for (const key of Object.keys(this.extractors)) {
