@@ -16,3 +16,4 @@ each specification states the change rules.
 | Specification | Prefixes | Implementation |
 | --- | --- | --- |
 | [Updates of derived data](derived-data-updates.md) | `SQR-U`, `SQR-D` | [Series index rebuild](../implementation/series-index-rebuild.md) (`SQR-I`) |
+| [Results of the command line tools](command-line-tools.md) | `CLI-U` | [Command line tools](../implementation/command-line-tools.md) (`CLI-I`) |

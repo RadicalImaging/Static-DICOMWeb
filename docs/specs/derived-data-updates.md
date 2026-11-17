@@ -184,11 +184,12 @@ does not change the user contract (SQR-U1).
   - After an upload, with builds on demand, a thumbnail request for the series or for an
     instance of the upload does not give `404`. It gives a thumbnail of the stored data.
   - The `createdicomweb instance`, `create` and `stow` commands exit with a code that is not
-    `0` when they did not store one or more files. An input path that does not exist, or that
-    the command cannot read, is a file that the command did not store. After a `202`, the
-    `stow` command counts a file as stored only when the response lists that file as stored.
-    When the response does not name the files of its items, the `stow` command counts as many
-    stored files as the response has stored items. The command can then name the wrong file
+    `0` when they did not store one or more files (CLI-U1 in
+    [Results of the command line tools](command-line-tools.md)). An input path that does not
+    exist, or that the command cannot read, is a file that the command did not store. After a
+    `202`, the `stow` command counts a file as stored only when the response lists that file
+    as stored. When the response does not name the files of its items, the `stow` command
+    counts as many stored files as the response has stored items. The command can then name the wrong file
     as failed. When the `stow` command cannot read a file of a group, all files of that group
     are failed files. The command continues with the other groups. The server can have stored
     some files of that group.

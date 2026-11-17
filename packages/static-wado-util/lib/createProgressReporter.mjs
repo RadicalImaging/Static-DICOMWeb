@@ -23,7 +23,8 @@ export function createProgressReporter(options = {}) {
     if (!enabled) return;
     const percentage = total > 0 ? Math.round((processed / total) * 100) : 0;
     const barLen = 25;
-    const filled = total > 0 ? Math.floor((percentage / 100) * barLen) : 0;
+    // A failed path that the first count did not see can take processed above total
+    const filled = total > 0 ? Math.min(barLen, Math.floor((percentage / 100) * barLen)) : 0;
     const progressBar = '='.repeat(filled) + '-'.repeat(barLen - filled);
     const pct = total > 0 ? ` ${percentage}% |` : '';
     const count = total > 0 ? `${processed}/${total}` : `${processed}`;

@@ -42,22 +42,27 @@ export function Success(options) {
   };
 }
 
+/** The returned function counts its calls in `count`, for the exit code of the CLI (CLI-U1) */
 export function Failure(options) {
   const { deleteFailed } = options;
 
-  return (_action, data, file) => {
+  const failure = (_action, data, file?, error?) => {
+    failure.count += 1;
     if (data.FailedSOPSequence) {
       ensureSOPResponse(data);
     } else {
       results.push(data);
     }
-    if (file && deleteFailed) {
+    // A system error (EACCES, EIO, ENOSPC) says nothing about the data, so the input stays (CLI-U2)
+    if (file && deleteFailed && !error?.code) {
       console.noQuiet('Deleting failure', file);
       fs.unlinkSync(file);
     } else if (file) {
       console.verbose('Not deleting failure file', file);
     }
   };
+  failure.count = 0;
+  return failure;
 }
 
 export function clearResults() {
