@@ -145,31 +145,55 @@ describe('multipartStream', () => {
   };
 
   // Test 49. The user experience must have this (SQR-U5): a malformed part header in the
-  // middle of the body gives 400, and never a report that leaves out the later parts
+  // middle of the body gives 400, and never a report that leaves out the later parts. A real
+  // client must get the 400 and its text, not a connection reset.
   it('answers 400 for a malformed part header before the body ends', async () => {
     jest.spyOn(console, 'warn').mockImplementation(() => {});
     jest.spyOn(console, 'trace').mockImplementation(() => {});
-    const req = new PassThrough();
-    req.headers = { 'content-type': `multipart/related; boundary=${BOUNDARY}` };
-    const res = createResponse();
-    const listened = [];
-    const middleware = multipartStream({
-      listener: async fileInfo => listened.push(fileInfo.fieldname),
-      createBufferStream: () => new TrackableReadBufferStream(null, true, { noCopy: true }),
-    });
+    const app = express();
+    app.post(
+      '/studies',
+      multipartStream({
+        listener: async () => undefined,
+        createBufferStream: () => new TrackableReadBufferStream(null, true, { noCopy: true }),
+      }),
+      (req, res) => res.status(200).end()
+    );
+    const server = http.createServer(app);
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
 
     try {
-      middleware(req, res, () => res.resolveResult('next'));
-      req.write(dicomPart());
-      // A folded first header line. Dicer parses a header only when body bytes follow it.
-      req.write(
-        Buffer.from(`--${BOUNDARY}\r\n Content-Type: application/dicom\r\n\r\n${'x'.repeat(100)}`)
-      );
-      await new Promise(resolve => setTimeout(resolve, 50));
-      if (!req.destroyed) req.end(Buffer.concat([dicomPart(), Buffer.from(`--${BOUNDARY}--\r\n`)]));
+      const res = await new Promise((resolve, reject) => {
+        const req = http.request(
+          {
+            method: 'POST',
+            hostname: '127.0.0.1',
+            port: server.address().port,
+            path: '/studies',
+            headers: { 'Content-Type': `multipart/related; boundary=${BOUNDARY}` },
+          },
+          res => {
+            let text = '';
+            res.on('data', chunk => (text += chunk));
+            res.on('end', () => resolve({ statusCode: res.statusCode, text }));
+          }
+        );
+        req.on('error', reject);
+        req.write(dicomPart());
+        // A folded first header line. Dicer parses a header only when body bytes follow it.
+        req.write(`--${BOUNDARY}\r\n Content-Type: application/dicom\r\n\r\n${'x'.repeat(100)}`);
+        setTimeout(
+          () => req.end(Buffer.concat([dicomPart(), Buffer.from(`--${BOUNDARY}--\r\n`)])),
+          50
+        );
+      });
 
-      expect(await res.result).toBe(400);
+      expect(res.statusCode).toBe(400);
+      expect(res.text).toMatch(/folded/i);
     } finally {
+      server.closeAllConnections();
+      await new Promise(resolve => server.close(resolve));
       jest.restoreAllMocks();
     }
   });

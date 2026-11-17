@@ -230,15 +230,18 @@ export function multipartStream(opts) {
         req.unpipe(dicer);
       } catch {}
       try {
-        req.destroy?.(err);
-      } catch {}
-      try {
         dicer.removeAllListeners();
       } catch {}
 
-      // After next(), completePostController owns the response
+      // After next(), completePostController owns the response. A destroy or a close while the
+      // client still sends resets the connection, so drop the rest of the body instead.
       if (!res.headersSent && !nextCalled) {
+        req.resume?.();
         res.status(400).send(err?.message ?? String(err));
+      } else {
+        try {
+          req.destroy?.(err);
+        } catch {}
       }
     };
 
