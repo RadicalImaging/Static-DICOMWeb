@@ -62,9 +62,10 @@ async function settlesWithin(promise, timeoutMs, abortPromise) {
  * When opts.stalledListeners is full, a new request gets 503 with Retry-After at once, before
  * the middleware reads its body (SQR-D20). The response has no `Connection: close`, because
  * a close while the client still sends the body resets the connection, and the client gets
- * ECONNRESET and not the 503. After the response, Node.js (24.20.0) stops the read of the body
- * after some 64 to 128 KB, and closes the connection after the keepAliveTimeout of the server
- * (5 s). A client that reads the response while it sends the body thus gets the 503.
+ * ECONNRESET and not the 503. The middleware does not parse the body. The runtime decides how
+ * much of the body it reads, and when it closes the connection (SQR-I10): Node.js 24 stops
+ * after some 64 to 128 KB and closes after keepAliveTimeout (5 s); bun reads the rest of the
+ * body. A client that reads the response while it sends the body thus gets the 503.
  *
  * When opts.stopOnError gives a reason for the error of a listener (on the server: the storage
  * cannot be written, SQR-D21), the request stops at once. The middleware stops the read of the
