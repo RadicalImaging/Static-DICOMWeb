@@ -145,7 +145,9 @@ instances, and thumbnails. The next request for the same resource comes from S3.
 
 The [package README](./packages/static-wado-lambda/README.md) explains the configuration, the
 [local server](./packages/static-wado-lambda/README.md#local-server), and the
-[deployment to AWS](./packages/static-wado-lambda/README.md#deploy-to-aws) with CloudFormation.
+[deployment to AWS](./packages/static-wado-lambda/README.md#deploy-to-aws) with CloudFormation,
+and the [requirements for the upstream, the storage, and auditing](./packages/static-wado-lambda/README.md#upstream-requirements-storage-and-auditing).
+The upstream can be any DICOMweb service that meets those requirements.
 The [specification](./docs/specs/lambda-proxy.md) gives the user requirements.
 
 # Using Static DICOMweb

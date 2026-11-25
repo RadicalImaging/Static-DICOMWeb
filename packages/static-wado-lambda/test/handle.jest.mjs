@@ -88,6 +88,10 @@ describe('local server', () => {
 
     const denied = await fetchProxy(config, 'studies/9.9/series/1/metadata');
     expect(denied.status).toBe(403);
+    // D10: a query that can name other studies is refused, with no upstream request
+    const calls = requests.length;
+    expect((await fetchProxy(config, 'studies?PatientName=A*')).status).toBe(403);
+    expect(requests.length).toBe(calls);
   });
 
   // User behaviour: PRX-USR-9, no client can store data

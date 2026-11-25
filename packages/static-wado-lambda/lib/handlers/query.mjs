@@ -21,9 +21,12 @@ const withUID = (records, tag, uid) => records.filter(record => Tags.getValue(re
 
 /**
  * A query that no stored index answers (Q19): the upstream answer with a short cache time,
- * not stored.
+ * not stored. With an allowlist, 403 (D10): the answer can name studies outside the allowlist.
  */
 async function passThrough(request, context) {
+  if (context.upstream.allow) {
+    return errorResponse({ status: 403 });
+  }
   const { pathname, search } = new URL(request.url);
   const path = pathname.slice(context.config.root.length + 1);
   const response = await context.upstream.request(`${path}${search}`, JSON_ACCEPT);

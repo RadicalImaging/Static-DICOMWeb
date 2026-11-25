@@ -7,6 +7,11 @@ The DICOMweb read-through proxy between CloudFront and S3: the platform-neutral 
 The proxy runs only when the storage has no object for a request (CloudFront origin group
 failover). It gets the resource from the upstream DICOMweb service, stores it, and returns it.
 
+The upstream can be any DICOMweb service that meets the requirements below. The default is the
+IDC public proxy. The proxy is a read-through cache for fast access to the studies that clients
+open. It is not a tool to export a whole archive: for a bulk copy, upload the data to the bucket
+with the Static DICOMweb upload tools.
+
 ## Layout
 
 | File | Purpose |
@@ -53,7 +58,7 @@ The handlers store the files that `create-dicomweb` writes, gzipped, through `pu
 | `frames` | `.../frames/<n>.<extension>` (a permitted variant) | `.../frames/<n>.<extension>`: single-part, only for the stored syntax |
 | `bulkdata` | `.../instances/<sop>/bulkdata/<tagpath>` | the same key, multipart |
 | `part10` | `.../instances/<sop>` | `.../instances/<sop>/index.mht.gz` |
-| `thumbnail` | `studies/<s>/series/<x>[/instances/<sop>]/thumbnail` | the same key, `image/jpeg` (no study level, no video) |
+| `thumbnail` | `studies/<s>[/series/<x>[/instances/<sop>]]/thumbnail` | the same key, `image/jpeg`. A study uses the first series, by SeriesNumber, that gives a thumbnail; it skips `NON_IMAGE_MODALITIES` (SEG, SR, DOC, PR, RTSTRUCT, RTPLAN, KO). No thumbnail for video |
 
 A frame miss asks the upstream for a form of the final syntax in (0008,3002) of the stored
 metadata: JPEG baseline for `.111`, the syntax itself when the upstream sends it
@@ -65,7 +70,8 @@ destination syntax of the rule to (0008,3002) when the rule recompresses.
 
 The metadata handlers rewrite the BulkDataURI values to the relative storage form. Other
 queries, and every instance query, pass through with `Cache-Control: max-age=60` and are not
-stored.
+stored. When `allow` is set, these pass-through queries get 403, because their answer can name
+studies outside the allowlist.
 
 ## Configuration
 
@@ -76,7 +82,7 @@ One JSON object in the environment variable `STATIC_WADO_PROXY_CONFIG`:
 | `root` | `/dicomweb` | The path of the DICOMweb root, and the S3 key prefix |
 | `upstream` | the IDC public proxy | The upstream DICOMweb root |
 | `auth` | none | `{ "source": "env", "variable": "<NAME>" }` or `{ "source": "secretsManager", "secretId": "<name or ARN>" }`. The upstream gets `Authorization: Bearer <token>` |
-| `allow` | none (all studies) | `{ "studies": [<uid>], "collections": [<id>] }`. A collection permits the studies of its stored pages `collections/<id>/studies[/<offset>]` |
+| `allow` | none (all studies) | `{ "studies": [<uid>], "collections": [<id>] }`. A collection permits the studies of its stored pages `collections/<id>/studies[/<offset>]`. With `allow`, a request for another study, and a query that no stored index answers, get 403 |
 | `bucket` | | The S3 bucket (Lambda entry only) |
 | `variants` | none | The permitted single-part frame extensions, for example `["jls"]` |
 | `collectionParameter` | none | The query key of a collection query, `studies?<key>=<id>` (edge mapping) |
@@ -114,3 +120,41 @@ The output `DicomWebRoot` is the DICOMweb root for a client. The bucket has
 
 Thumbnails come from the upstream `frames/<n>/rendered?viewport=256,256`, which the IDC public
 proxy supports.
+
+## Upstream requirements, storage, and auditing
+
+### What the upstream must support
+
+| Use | Upstream request | Needed for |
+|---|---|---|
+| Metadata | WADO-RS `studies/<s>/series/<x>[/instances/<sop>]/metadata` | every resource; the frame and thumbnail handlers read the stored metadata |
+| Queries | QIDO-RS `studies`, `series`, `instances`, with `StudyInstanceUID` and `SeriesInstanceUID` | exact-UID indexes, pass-through queries, study thumbnails |
+| Frames | WADO-RS `frames/<n>` with `multipart/related; type=...; transfer-syntax=...`, and a fallback with the default `Accept` after a 406 or 500 | frames, and the source of the compression rule. List the syntaxes that the upstream sends in `upstreamSyntaxes` |
+| Bulkdata | the BulkDataURI values of the upstream metadata | non-pixel bulkdata |
+| Part 10 | WADO-RS instance with `transfer-syntax=*` | Part 10 retrieve |
+| Rendered | `frames/<n>/rendered?viewport=256,256` with `Accept: image/jpeg` | thumbnails. An upstream with no rendered resource gives no thumbnails |
+| Auth | none, or `Authorization: Bearer <token>` | `auth` in the configuration. A 401 reads the token again and repeats the request one time |
+
+The proxy sends the bearer token only to the origin of the `upstream` URL. An absolute
+BulkDataURI on another host gets no token.
+
+### What the operator must check
+
+- **Terms of the upstream.** The proxy stores what clients request, permanently. Check that the
+  terms of the upstream permit a cache. The IDC public proxy permits a cache, and refuses
+  requests after its daily quota (about 15 GB). The proxy passes a 429 or 5xx to the client with
+  `max-age=10` and stores nothing.
+- **Data in the bucket.** Stored data is final: there is no expiry and no invalidation. Delete a
+  study prefix (`dicomweb/studies/<uid>/`) by hand to get a fresh copy. The bucket has the S3
+  default encryption (SSE-S3) and `DeletionPolicy: Retain`. For identifiable data, add the
+  encryption, retention, and bucket policies that your rules require.
+- **Who can read.** The distribution has no viewer authentication. Any client with the URL can
+  read the stored data, and can cause the proxy to fetch and store a study. Set `AllowStudies`
+  (or `allow`) to limit the studies that the proxy fetches. For data that is not public, put
+  viewer authentication in front of the distribution (for example a CloudFront signed URL or
+  signed cookie, or an authorizing edge function).
+- **Auditing.** The template keeps the Lambda logs for 30 days (`/aws/lambda/<function>`). The
+  logs hold each upstream 429 with the request key, each encode failure, and each proxy failure.
+  The template enables no access log. For an audit trail of who read what, enable the CloudFront
+  standard logs, the S3 server access logs or CloudTrail data events on the bucket, and set
+  their retention.

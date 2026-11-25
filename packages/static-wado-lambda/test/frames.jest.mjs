@@ -268,6 +268,27 @@ describe('frame and bulkdata handlers', () => {
     expect((await store.get(`${seriesDir}/thumbnail`)).body.toString()).toBe('a rendered JPEG');
   });
 
+  // User behaviour: PRX-USR-4, a study thumbnail from the first series that gives one
+  it('stores the study thumbnail of the first image series, and skips a SEG series', async () => {
+    responses['/studies/1.2.3/series'] = [
+      {
+        '00200011': value('IS', 1),
+        '00080060': value('CS', 'SEG'),
+        '0020000E': value('UI', '9.9'),
+      },
+      {
+        '00200011': value('IS', 2),
+        '00080060': value('CS', 'CT'),
+        '0020000E': value('UI', '1.2.3.4'),
+      },
+    ];
+    requests = [];
+    const response = await fetch(`${proxyUrl}/studies/1.2.3/thumbnail`);
+    expect(response.status).toBe(200);
+    expect((await store.get('studies/1.2.3/thumbnail')).body.toString()).toBe('a rendered JPEG');
+    expect(requests.some(url => url.includes('/series/9.9/'))).toBe(false);
+  });
+
   // User behaviour: PRX-USR-4, the exception for video
   it('gives 404 for the thumbnail of a video instance', async () => {
     expect((await fetch(`${proxyUrl}/${instanceDir('1.2.3.4.3')}/thumbnail`)).status).toBe(404);
