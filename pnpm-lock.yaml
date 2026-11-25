@@ -175,11 +175,12 @@ overrides:
   brace-expansion@>=3.0.0 <3.0.6: 3.0.6
   brace-expansion@>=4.0.0 <5.0.11: 5.0.11
   canvas: 3.1.0
-  dcmjs: 0.52.0
+  dcmjs: npm:@dcmjs-org/dcmjs@1.0.0-beta.17
   fast-uri: 3.1.8
   fast-xml-builder: 1.2.0
   fast-xml-parser: 5.7.2
   flatted: 3.4.2
+  follow-redirects: 1.16.2
   handlebars: 4.7.9
   has-flag: 4.0.0
   http-cache-semantics: 4.3.0
@@ -205,8 +206,8 @@ importers:
         specifier: 3.1.0
         version: 3.1.0
       dcmjs:
-        specifier: 0.52.0
-        version: 0.52.0
+        specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.17
+        version: '@dcmjs-org/dcmjs@1.0.0-beta.17'
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -296,13 +297,13 @@ importers:
   packages/create-dicomweb:
     dependencies:
       '@radicalimaging/cs3d':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../cs3d
       '@radicalimaging/static-wado-creator':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../static-wado-creator
       '@radicalimaging/static-wado-util':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../static-wado-util
       adm-zip:
         specifier: 0.6.1
@@ -317,8 +318,8 @@ importers:
         specifier: 0.8.0
         version: 0.8.0(@babel/core@7.28.6(supports-color@8.1.1))(@types/babel__core@7.20.5)(supports-color@8.1.1)
       dcmjs:
-        specifier: 0.52.0
-        version: 0.52.0
+        specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.17
+        version: '@dcmjs-org/dcmjs@1.0.0-beta.17'
       dicom-parser:
         specifier: 1.8.21
         version: 1.8.21
@@ -351,8 +352,8 @@ importers:
         specifier: 3.1.0
         version: 3.1.0
       dcmjs:
-        specifier: 0.52.0
-        version: 0.52.0
+        specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.17
+        version: '@dcmjs-org/dcmjs@1.0.0-beta.17'
       jsdom:
         specifier: 26.1.0
         version: 26.1.0(canvas@3.1.0)(supports-color@8.1.1)
@@ -370,16 +371,16 @@ importers:
   packages/healthlake:
     dependencies:
       '@radicalimaging/s3-deploy':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../s3-deploy
       '@radicalimaging/static-wado-deploy':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../static-wado-deploy
       '@radicalimaging/static-wado-plugins':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../static-wado-plugins
       '@radicalimaging/static-wado-util':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../static-wado-util
       config-point:
         specifier: 0.8.0
@@ -388,8 +389,8 @@ importers:
         specifier: 7.0.3
         version: 7.0.3
       dcmjs:
-        specifier: 0.52.0
-        version: 0.52.0
+        specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.17
+        version: '@dcmjs-org/dcmjs@1.0.0-beta.17'
       dicom-parser:
         specifier: 1.8.21
         version: 1.8.21
@@ -413,10 +414,10 @@ importers:
         specifier: 3.975.0
         version: 3.975.0(@aws-sdk/client-s3@3.975.0)
       '@radicalimaging/static-wado-plugins':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../static-wado-plugins
       '@radicalimaging/static-wado-util':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../static-wado-util
       aws-cdk-lib:
         specifier: 2.272.0
@@ -434,11 +435,14 @@ importers:
 
   packages/static-wado-creator:
     dependencies:
+      '@dcmjs-org/core':
+        specifier: 1.0.0-beta.17
+        version: 1.0.0-beta.17
       '@radicalimaging/cs3d':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../cs3d
       '@radicalimaging/static-wado-util':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../static-wado-util
       canvas:
         specifier: 3.1.0
@@ -447,8 +451,8 @@ importers:
         specifier: 0.8.0
         version: 0.8.0(@babel/core@7.28.6(supports-color@8.1.1))(@types/babel__core@7.20.5)(supports-color@8.1.1)
       dcmjs:
-        specifier: 0.52.0
-        version: 0.52.0
+        specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.17
+        version: '@dcmjs-org/dcmjs@1.0.0-beta.17'
       dicom-parser:
         specifier: 1.8.21
         version: 1.8.21
@@ -469,13 +473,13 @@ importers:
   packages/static-wado-deploy:
     dependencies:
       '@radicalimaging/s3-deploy':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../s3-deploy
       '@radicalimaging/static-wado-plugins':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../static-wado-plugins
       '@radicalimaging/static-wado-util':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../static-wado-util
       config-point:
         specifier: 0.8.0
@@ -494,7 +498,7 @@ importers:
   packages/static-wado-plugins:
     dependencies:
       '@radicalimaging/static-wado-util':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../static-wado-util
       config-point:
         specifier: 0.8.0
@@ -512,24 +516,27 @@ importers:
 
   packages/static-wado-scp:
     dependencies:
+      '@radicalimaging/create-dicomweb':
+        specifier: '>=1.8.1'
+        version: link:../create-dicomweb
       '@radicalimaging/static-wado-creator':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../static-wado-creator
       '@radicalimaging/static-wado-plugins':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../static-wado-plugins
       '@radicalimaging/static-wado-util':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../static-wado-util
       config-point:
         specifier: 0.8.0
         version: 0.8.0(@babel/core@7.28.6(supports-color@8.1.1))(@types/babel__core@7.20.5)(supports-color@8.1.1)
       dcmjs:
-        specifier: 0.52.0
-        version: 0.52.0
+        specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.17
+        version: '@dcmjs-org/dcmjs@1.0.0-beta.17'
       dcmjs-dimse:
-        specifier: 0.1.31
-        version: 0.1.31
+        specifier: 0.3.4
+        version: 0.3.4
     devDependencies:
       must:
         specifier: 0.13.4
@@ -553,8 +560,8 @@ importers:
         specifier: 0.8.0
         version: 0.8.0(@babel/core@7.28.6(supports-color@8.1.1))(@types/babel__core@7.20.5)(supports-color@8.1.1)
       dcmjs:
-        specifier: 0.52.0
-        version: 0.52.0
+        specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.17
+        version: '@dcmjs-org/dcmjs@1.0.0-beta.17'
       imurmurhash:
         specifier: 0.1.4
         version: 0.1.4
@@ -583,13 +590,13 @@ importers:
         specifier: 1.1.6
         version: 1.1.6
       '@radicalimaging/create-dicomweb':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../create-dicomweb
       '@radicalimaging/static-wado-plugins':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../static-wado-plugins
       '@radicalimaging/static-wado-util':
-        specifier: '>=1.7.11'
+        specifier: '>=1.8.1'
         version: link:../static-wado-util
       '@saga-bus/core':
         specifier: 0.2.2
@@ -604,8 +611,8 @@ importers:
         specifier: 2.8.6
         version: 2.8.6
       dcmjs:
-        specifier: 0.52.0
-        version: 0.52.0
+        specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.17
+        version: '@dcmjs-org/dcmjs@1.0.0-beta.17'
       dcmjs-dimse:
         specifier: 0.1.31
         version: 0.1.31
@@ -1544,6 +1551,31 @@ packages:
   '@dabh/diagnostics@2.0.9':
     resolution: {integrity: sha512-R6siwR65Hm+3yfgP7o8DKhNvputQAwfoz9zTc3kyDudnomj2/BcLmD+uGQQPICjuFUp8ounPBU+jmKsocwVVAg==}
 
+  '@dcmjs-org/core@1.0.0-beta.17':
+    resolution: {integrity: sha512-wribtSOCYxrhlXce+cxt1v2X+pi6e4r3usAtDPDBT/pS5kcMahJs8/DkPfVNvlrGyahSkgkydhmkamqjJZF/Pg==}
+
+  '@dcmjs-org/dcmjs@1.0.0-beta.17':
+    resolution: {integrity: sha512-qlLbsJic5bGDG64lk+92p/eQB4Dk9ari4CE3K9lYfH3udi+FK6H1LrWgFHxQod/eaG8vwHL5Ry1bgCFbjVG3Bg==}
+    engines: {node: '>=22.13'}
+
+  '@dcmjs-org/dicomdir@1.0.0-beta.17':
+    resolution: {integrity: sha512-cROac3zhj4B91ZaJLiUyhWMKEBBrrv+tGuEAEKrSwQJKcb+X3QAcUdckve17IdjjJ11FHqw9yKKGReBIi92ATQ==}
+
+  '@dcmjs-org/encapsulated@1.0.0-beta.17':
+    resolution: {integrity: sha512-1k2w2xV/VVw7N8hVvY1rfiJu2at5RwZvoXxyy/8HDKMgI7Tc4YCZAW2aVV1pWWEnFCizb69xhyEzIFkmk2X2Lw==}
+
+  '@dcmjs-org/imaging@1.0.0-beta.17':
+    resolution: {integrity: sha512-ZqizbtUU9lmYDku6sgSY3p1UrpgpJ2ZVK6h0i8KD77748ibvst5EoRrT2Ss0KSJxKVSECmxasKBv0zUN34ks/Q==}
+
+  '@dcmjs-org/media@1.0.0-beta.17':
+    resolution: {integrity: sha512-sLU1CIogfr/9s7+88oF9ZGESFHv0dGtxc4Vib+mzqO5kS+ILfpgf6qzPi3NN1Ipbw9Dbj4Sbzg/fxSh6GoI3NQ==}
+
+  '@dcmjs-org/parser@1.0.0-beta.17':
+    resolution: {integrity: sha512-qYZX5AVLi/Z4/qEwG2bk44tUFFgYUgjjJl403BZoyULjvUXIUiUcCIHJ9Mse4HbsITX7o/35k8MdK0ySk/K+0A==}
+
+  '@dcmjs-org/video@1.0.0-beta.17':
+    resolution: {integrity: sha512-6eczS4RYga91UeFQJL56QxGQ7wxNbliukQDL8obtGeFYnCI5DJC+aZ0kOxnOeyM64G6AGLbudmNDI+T6rg0M9g==}
+
   '@discoveryjs/json-ext@0.5.7':
     resolution: {integrity: sha512-dBVuXR082gk3jsFp7Rd/JI4kytwGHecnCoTtXFb7DB6CNHp4rg5k1bhg0nWdLGLnOV71lmDzGQaLMy8iPLY0pw==}
     engines: {node: '>=10.0.0'}
@@ -1985,6 +2017,7 @@ packages:
   '@smithy/core@3.35.1':
     resolution: {integrity: sha512-i4YPS4B6ts7bjn7UwLnGjiZdprOvHvgGobFZsYK3GIY3E5hIqtj0rReU69BcTpGp+fvtraSNXeG1l+jtJvF55w==}
     engines: {node: '>=18.0.0'}
+    deprecated: Deprecated due to a bug in custom logger data redaction. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/credential-provider-imds@4.5.2':
     resolution: {integrity: sha512-A9uSdn72ozbRUSit0eib0TW7nXuNPlaeM0zcGkJ+nE6tFcSDbnmtwoxbTCFBukVQcszDAyvsd7+rTduPTXpygg==}
@@ -2373,6 +2406,9 @@ packages:
   asap@2.0.6:
     resolution: {integrity: sha512-BSHWgDSAiKs50o2Re8ppvp3seVHXSRM44cdSsT9FfNEUUZLOGWVCsiWaRPWM1Znn+mqZ1OfVZ3z3DWEzSp7hRA==}
 
+  async-event-emitter2@0.0.2:
+    resolution: {integrity: sha512-STaByrQCwDlQEb1stntYzVYzaS3zA02+3OMm6Ah6hjUWhmmthS0aJaD5t9GGQ/Q8H9vHl8O11PUm9s+z3bNUdQ==}
+
   async-eventemitter@0.2.4:
     resolution: {integrity: sha512-pd20BwL7Yt1zwDFy+8MX8F1+WCT8aQeKj0kQnTrH9WaeRETlRamVhD0JtRPmrV4GfOJ2F9CvdQkZeZhnh2TuHw==}
 
@@ -2740,12 +2776,14 @@ packages:
     resolution: {integrity: sha512-ZYP5VBHshaDAiVZxjbRVcFJpc+4xGgT0bK3vzy1HLN8jTO975HEbuYzZJcHoQEY5K1a0z8YayJkyVETa08eNTg==}
     engines: {node: '>=18'}
 
+  dcmjs-codecs@0.0.8:
+    resolution: {integrity: sha512-qYilc+kqqpLYha6wytkIjzqsiByg7ol3KbONcJMcN7yG6G3FJOJo2s0PqtaCMM4sw9Ilcr9IyPgkKWW+tfuKQA==}
+
   dcmjs-dimse@0.1.31:
     resolution: {integrity: sha512-77rTn3LpZCVyA4a3fCVcXVGVh9FjcJtCZScYhi1l/U0fPMGScVSagEGCEdtakmgZT0CM3aPRgFM38MxMw8fz3Q==}
 
-  dcmjs@0.52.0:
-    resolution: {integrity: sha512-0/mT9NACKnwnOnkUx7JAqmWxRcUr7HiCoptw1KhN2StNYE0Hy6+tmpI7CU+lJuBc4rFpcMCalvI8QO6JkJ+7Fg==}
-    engines: {node: '>=22.13'}
+  dcmjs-dimse@0.3.4:
+    resolution: {integrity: sha512-KtaRuygKt3swTfFLw8TNJ8yuWc9MaOYZIj7C/oV0siZrjoQDf5c/Rtyl1W1C1MM4VPsQAXrdMwkP0PyRU3IVHQ==}
 
   debug@2.6.9:
     resolution: {integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==}
@@ -3101,8 +3139,8 @@ packages:
   fn.name@1.1.0:
     resolution: {integrity: sha512-GRnmB5gPyJpAhTQdSZTSp9uaPSvl09KoYcMQtsB9rQoOmzs9dH6ffeccH+Z+cv6P68Hu5bC6JjRh4Ah/mHSNRw==}
 
-  follow-redirects@1.16.1:
-    resolution: {integrity: sha512-FNvFGzoMLWmE6Yj9spb/zjd7yiNCHiAW9/Tg9CXrQ8wuu32HtlJOwWO11OJafl5FfY3DxTdQ0vj42zU1kvv5jg==}
+  follow-redirects@1.16.2:
+    resolution: {integrity: sha512-/kVP2U8z596Ia0gwFrwyIeo74ta5aVmSeU1FfAUMAmcEP5EP7zydmag3SLiN64NaRKef3lxsq7i/g7ltJQDGow==}
     engines: {node: '>=4.0'}
     peerDependencies:
       debug: '*'
@@ -3676,6 +3714,9 @@ packages:
     resolution: {integrity: sha512-TFYA4jnP7PVbmlBIfhlSe+WKxs9dklXMTEGcBCIvLhE/Tn3H6Gk1norupVW7m5Cnd4bLcr08AytbyV/xj7f/kQ==}
     engines: {node: '>= 12.0.0'}
 
+  loglevel-plugin-prefix@0.8.4:
+    resolution: {integrity: sha512-WpG9CcFAOjz/FtNht+QJeGpvVl/cdR6P0z6OcXSkr8wFJOsV2GRj2j10JLfjuA4aYkcKCNIEqRGCyTife9R8/g==}
+
   loglevel@1.9.2:
     resolution: {integrity: sha512-HgMmCqIJSAKqo68l0rS2AanEWfkxaZ5wNiEFb5ggm08lDs9Xl2KxBlX3PTcaD2chBM1gXAYf491/M2Rv8Jwayg==}
     engines: {node: '>= 0.6.0'}
@@ -3711,6 +3752,10 @@ packages:
   media-typer@1.1.1:
     resolution: {integrity: sha512-yz3xRaG20c6/BOzvYoDaGtPmGscs7YivItZEEqe6GbwNfHuxu9YNmvnEkMzKldAGY4/80pRcQRZSEnhquk9XuQ==}
     engines: {node: '>= 0.8'}
+
+  memorystream@0.3.1:
+    resolution: {integrity: sha512-S3UwM3yj5mtUSEfP41UZmt/0SCoVYUcU1rkXv+BQ5Ig8ndL4sPoJNBUJERafdPb5jjHJGuMgytgKvKIf58XNBw==}
+    engines: {node: '>= 0.10.0'}
 
   merge-descriptors@2.0.0:
     resolution: {integrity: sha512-Snk314V5ayFLhp3fkUREub6WtjBfPdCPY1Ln8/8munuLuiYhsABgBVWsozAG+MWMbVEvcdcpbi9R7ww22l9Q3g==}
@@ -5931,12 +5976,12 @@ snapshots:
     dependencies:
       '@cornerstonejs/calculate-suv': 1.0.3
       '@cornerstonejs/utils': 5.11.5
-      dcmjs: 0.52.0
+      dcmjs: '@dcmjs-org/dcmjs@1.0.0-beta.17'
       gl-matrix: 3.4.3
 
   '@cornerstonejs/utils@5.11.5':
     dependencies:
-      dcmjs: 0.52.0
+      dcmjs: '@dcmjs-org/dcmjs@1.0.0-beta.17'
 
   '@csstools/color-helpers@5.1.0': {}
 
@@ -5963,6 +6008,56 @@ snapshots:
       '@so-ric/colorspace': 1.1.6
       enabled: 2.0.0
       kuler: 2.0.0
+
+  '@dcmjs-org/core@1.0.0-beta.17':
+    dependencies:
+      loglevel: 1.9.2
+      pako: 2.1.0
+
+  '@dcmjs-org/dcmjs@1.0.0-beta.17':
+    dependencies:
+      '@babel/runtime-corejs3': 7.29.2
+      '@dcmjs-org/core': 1.0.0-beta.17
+      '@dcmjs-org/encapsulated': 1.0.0-beta.17
+      '@dcmjs-org/imaging': 1.0.0-beta.17
+      '@dcmjs-org/media': 1.0.0-beta.17
+      '@dcmjs-org/parser': 1.0.0-beta.17
+      '@dcmjs-org/video': 1.0.0-beta.17
+      gl-matrix: 3.4.4
+      lodash.clonedeep: 4.5.0
+      loglevel: 1.9.2
+      ndarray: 1.0.19
+      pako: 2.1.0
+
+  '@dcmjs-org/dicomdir@1.0.0-beta.17':
+    dependencies:
+      '@dcmjs-org/core': 1.0.0-beta.17
+
+  '@dcmjs-org/encapsulated@1.0.0-beta.17':
+    dependencies:
+      '@dcmjs-org/core': 1.0.0-beta.17
+
+  '@dcmjs-org/imaging@1.0.0-beta.17':
+    dependencies:
+      '@dcmjs-org/core': 1.0.0-beta.17
+
+  '@dcmjs-org/media@1.0.0-beta.17':
+    dependencies:
+      '@dcmjs-org/dicomdir': 1.0.0-beta.17
+      '@dcmjs-org/encapsulated': 1.0.0-beta.17
+      '@dcmjs-org/imaging': 1.0.0-beta.17
+      '@dcmjs-org/video': 1.0.0-beta.17
+
+  '@dcmjs-org/parser@1.0.0-beta.17':
+    dependencies:
+      '@dcmjs-org/core': 1.0.0-beta.17
+      pako: 2.1.0
+
+  '@dcmjs-org/video@1.0.0-beta.17':
+    dependencies:
+      '@dcmjs-org/core': 1.0.0-beta.17
+      '@dcmjs-org/imaging': 1.0.0-beta.17
+      '@dcmjs-org/parser': 1.0.0-beta.17
 
   '@discoveryjs/json-ext@0.5.7': {}
 
@@ -6900,6 +6995,10 @@ snapshots:
 
   asap@2.0.6: {}
 
+  async-event-emitter2@0.0.2:
+    dependencies:
+      async: 3.2.6
+
   async-eventemitter@0.2.4:
     dependencies:
       async: 2.6.4
@@ -7298,23 +7397,30 @@ snapshots:
       whatwg-mimetype: 4.0.0
       whatwg-url: 14.2.0
 
+  dcmjs-codecs@0.0.8:
+    dependencies:
+      dcmjs: '@dcmjs-org/dcmjs@1.0.0-beta.17'
+      loglevel: 1.9.2
+      loglevel-plugin-prefix: 0.8.4
+
   dcmjs-dimse@0.1.31:
     dependencies:
       async-eventemitter: 0.2.4
-      dcmjs: 0.52.0
+      dcmjs: '@dcmjs-org/dcmjs@1.0.0-beta.17'
       smart-buffer: 4.2.0
       ts-mixer: 6.0.4
       winston: 3.19.0
 
-  dcmjs@0.52.0:
+  dcmjs-dimse@0.3.4:
     dependencies:
-      '@babel/runtime-corejs3': 7.29.2
-      adm-zip: 0.6.1
-      gl-matrix: 3.4.4
-      lodash.clonedeep: 4.5.0
+      async-event-emitter2: 0.0.2
+      dcmjs: '@dcmjs-org/dcmjs@1.0.0-beta.17'
+      dcmjs-codecs: 0.0.8
       loglevel: 1.9.2
-      ndarray: 1.0.19
-      pako: 2.1.0
+      loglevel-plugin-prefix: 0.8.4
+      memorystream: 0.3.1
+      smart-buffer: 4.2.0
+      ts-mixer: 6.0.4
 
   debug@2.6.9(supports-color@8.1.1):
     dependencies:
@@ -7696,7 +7802,7 @@ snapshots:
 
   fn.name@1.1.0: {}
 
-  follow-redirects@1.16.1(debug@4.4.3(supports-color@8.1.1)):
+  follow-redirects@1.16.2(debug@4.4.3(supports-color@8.1.1)):
     optionalDependencies:
       debug: 4.4.3(supports-color@8.1.1)
 
@@ -7846,7 +7952,7 @@ snapshots:
   http-proxy@1.18.1(debug@4.4.3(supports-color@8.1.1)):
     dependencies:
       eventemitter3: 4.0.7
-      follow-redirects: 1.16.1(debug@4.4.3(supports-color@8.1.1))
+      follow-redirects: 1.16.2(debug@4.4.3(supports-color@8.1.1))
       requires-port: 1.0.0
     transitivePeerDependencies:
       - debug
@@ -8442,6 +8548,8 @@ snapshots:
       safe-stable-stringify: 2.5.0
       triple-beam: 1.4.1
 
+  loglevel-plugin-prefix@0.8.4: {}
+
   loglevel@1.9.2: {}
 
   lru-cache@10.4.3: {}
@@ -8469,6 +8577,8 @@ snapshots:
   math-intrinsics@1.1.0: {}
 
   media-typer@1.1.1: {}
+
+  memorystream@0.3.1: {}
 
   merge-descriptors@2.0.0: {}
 

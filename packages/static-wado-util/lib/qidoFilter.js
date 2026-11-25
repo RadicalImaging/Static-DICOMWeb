@@ -20,13 +20,15 @@ const filterKeys = {
  * @param {*} actual
  * @returns true if the values match
  */
-const compareValues = (desired, actualSrc) => {
+const compareValues = (desiredSrc, actualSrc) => {
   let actual = actualSrc;
+  // A naturalized PN query key is { Alphabetic }, as the stored value is
+  const desired = desiredSrc?.Alphabetic ?? desiredSrc;
   if (Array.isArray(desired)) {
-    return desired.find(item => compareValues(item, actual));
+    return desired.some(item => compareValues(item, actual));
   }
   if (Array.isArray(actual)) {
-    return actual.find(actualItem => compareValues(desired, actualItem));
+    return actual.some(actualItem => compareValues(desired, actualItem));
   }
   if (actual?.Alphabetic) {
     actual = actual.Alphabetic;
@@ -71,7 +73,8 @@ const filterItem = (key, queryParams, study) => {
     return true;
   }
   const testValue = queryParams[key] || queryParams[altKey];
-  if (!testValue) {
+  // An empty return key naturalizes as [] and matches every item
+  if (!testValue || testValue.length === 0) {
     return true;
   }
   const valueElem = study[key] || study[altKey];
