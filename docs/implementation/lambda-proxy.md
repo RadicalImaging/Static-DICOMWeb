@@ -1,11 +1,13 @@
 # Implementation: Lambda DICOMweb proxy
 
-Status: draft. Not implemented. The requirements wait for confirmation as a set.
+Status: draft. The requirements wait for confirmation as a set. The code is in
+`packages/static-wado-lambda`. Not implemented yet: `PRX-IMP-13`, `-14`, `-17`, `-19`, `-20`,
+`-21`, and `-29`.
 
 This document applies the user requirements of
 [Lambda DICOMweb proxy](../specs/lambda-proxy.md) (`PRX-USR`) to the code. The specification
 holds the user requirements, the scope, the releases, and the design decisions (Q1-Q35,
-D1-D8). You can change an implementation requirement (`PRX-IMP`) freely when a better
+D1-D9). You can change an implementation requirement (`PRX-IMP`) freely when a better
 approach appears. Record the change in this document.
 
 ## § Implementation requirements
@@ -19,10 +21,13 @@ Topology:
 - **PRX-IMP-2** A CloudFront Function normalizes the request (for example the Accept header)
   to a canonical S3 key name. The S3 key, the cache key, and the failover use that name.
 - **PRX-IMP-3** One upstream per deployment, set in configuration, with pluggable auth:
-  none (default, IDC public proxy), a static header, or a token from Secrets Manager.
-- **PRX-IMP-4** Two functions: a small zip function for metadata, frames, and multipart
-  transforms; a container image (ECR) for thumbnails and compression (`canvas`, `jsdom`,
-  `cs3d`). No `ffmpeg` in either function.
+  none (default, IDC public proxy), a bearer token from an environment variable (local
+  server), or a bearer token from Secrets Manager. On a 401 the client reads the token again
+  and repeats the request one time.
+- **PRX-IMP-4** One zip function (D9), `nodejs24.x`, with response streaming.
+  `bin/build-lambda.mjs` bundles the function URL entry with esbuild. The zip also holds a
+  `node_modules` with the packages that dcmjs-commands loads with a runtime `require` (dcmjs
+  and the WASM codecs). No `canvas`, `jsdom`, `cs3d`, or `ffmpeg`.
 
 Miss handling:
 
@@ -30,11 +35,16 @@ Miss handling:
   fetches the rest of a series or study.
 - **PRX-IMP-6** Metadata: fetch, rewrite BulkDataURI values, store in S3, then respond.
 - **PRX-IMP-7** Frames and bulkdata that the rule leaves unchanged: stream the upstream
-  response to the client and write the same bytes to S3 in parallel.
+  response to the client and write the same bytes to S3 in parallel. Current code: the proxy
+  reads the part into memory, stores it, then answers. The IDC limit of about 32 MB per
+  response keeps the memory use small. Change to a stream when larger objects must pass.
 - **PRX-IMP-8** Compression runs per frame, when the frame arrives. The proxy stores only the
   frames that clients requested. No series-level derived work.
-- **PRX-IMP-9** A computed resource (thumbnail) uses the proxy recursively to get the
-  metadata and the frame that it needs, and stores the result in S3. No thumbnail for video.
+- **PRX-IMP-9** A thumbnail miss reads the stored metadata (the metadata handler fills a
+  miss), then gets `frames/<n>/rendered?viewport=256,256` from the upstream (D9). An instance
+  uses its first frame. A series uses its middle instance and the middle frame of that
+  instance. The proxy stores the JPEG at the `create-dicomweb thumbnail` key. No thumbnail for
+  video.
 - **PRX-IMP-15** A frame that the rule compresses: fetch the original, encode, store, then
   answer from memory in the requested form.
 - **PRX-IMP-16** The rule reads the metadata attributes and the transfer syntax of the frame
@@ -57,15 +67,16 @@ Storage format:
 
 - **PRX-IMP-10** The proxy writes S3 keys, content types, and content encodings with the
   `S3Ops` rules (`fileToKey`, `fileToContentType`, `fileToContentEncoding`). Those functions
-  move to a shared module so that the Lambda function does not import deploy code.
+  are in the shared module `@radicalimaging/static-wado-util/storageFormat`, so that the
+  Lambda function does not import deploy code.
 - **PRX-IMP-11** The metadata rewrite emits BulkDataURI values in the S3 key form (without
   `.mht.gz`).
-- **PRX-IMP-12** Transcoding uses `@dcmjs/commands` (dcmjs-commands) as a library, through a
-  new subpath export of the per-frame codec API. dcmjs-commands gets JPEG-LS and HTJ2K
+- **PRX-IMP-12** Transcoding uses `@dcmjs-org/commands` (dcmjs-commands, 0.1.1 or later) as a
+  library, through the subpath export `@dcmjs-org/commands/pixel` of the per-frame codec API. dcmjs-commands gets JPEG-LS and HTJ2K
   targets, and the compression rule as `selectTargetSyntax(metadata, rules)`.
 - **PRX-IMP-22** The proxy uses small functions of this repository for the metadata rewrite,
   the multipart wrap, and the S3 key rules. It does not use the dcmjs-commands writer.
-- **PRX-IMP-23** The upstream client is a `fetch`-based client in dcmjs-commands (headers,
+- **PRX-IMP-23** The upstream client is `DicomWebFetch` of `@dcmjs-org/commands/dicomweb-fetch` (headers,
   streaming bodies, per-request `Accept`). No `jsdom` and no `dicomweb-client` in the zip
   function.
 - **PRX-IMP-24** A frame request to the upstream asks for the request form of the final form
@@ -109,8 +120,8 @@ Cloud portability and Release 1 deployment:
 
 - **PRX-IMP-28** Code that touches a cloud service goes through a small interface, with one
   AWS implementation and one local implementation (for tests). The interfaces are: object
-  store (`get`, `put`, `exists`); secret source (upstream token); compute invoke (encode,
-  thumbnail); HTTP entry (the core handler takes a web-standard `Request` and returns a
+  store (`get`, `put`, `exists`); secret source (upstream token); compute (`encode` of one
+  frame, with an in-process implementation only, D9); HTTP entry (the core handler takes a web-standard `Request` and returns a
   `Response`; an adapter connects the Lambda function URL). The edge request mapping
   (`PRX-IMP-2`, `-17`) is one pure function that the CloudFront Function wraps. No Azure
   implementation now.
@@ -124,6 +135,16 @@ Cloud portability and Release 1 deployment:
   distribution configuration. The existing CDK stack does not know about the attach: a later
   CDK deploy removes the proxy from the distribution, and Release 2 imports the distribution
   in its attached state.
+- **PRX-IMP-30** A standalone proxy site template (`deploy/proxy-site.yaml` of the proxy
+  package) creates a new bucket and a new distribution with the proxy, for a new deployment
+  and for tests. It does not replace `PRX-IMP-29`. The template:
+  - sets `DeletionPolicy: Retain` on the bucket;
+  - uses OAC for the bucket and for the function URL (`AuthType: AWS_IAM`);
+  - gives the function role `s3:GetObject` and `s3:PutObject` on `dicomweb/*`, and
+    `s3:ListBucket`, so that a missing key gives 404 and not 403;
+  - uses a cache policy with the query string in the cache key, and no header;
+  - answers the CORS preflight (`OPTIONS`) in the CloudFront Function, because neither origin
+    answers it.
 
 ## Appendix: facts
 
@@ -134,13 +155,13 @@ states.
 
 These facts do not block a decision. The live checks of the IDC proxy are in the next section.
 
-- Lambda runtime: dicom-codec declares `engines.node >= 24`. This affects only the container
-  image (any Node version), because the zip function does not load the codecs.
+- Lambda runtime: dicom-codec declares `engines.node >= 24`. The zip function loads the codecs
+  (D9), so it uses the `nodejs24.x` runtime.
 
 ### Facts from the live check of the IDC public proxy (2026-11-05)
 
 Upstream: the IDC public proxy (URL in the section about the IDC upstream below), no auth. Client: the `DicomWebFetch` class
-(`@dcmjs/commands/dicomweb-fetch`) of the dcmjs-commands branch `feat/dicomweb-fetch-client`,
+(`@dcmjs/commands/dicomweb-fetch`, now `@dcmjs-org/commands/dicomweb-fetch`) of the dcmjs-commands branch `feat/dicomweb-fetch-client`,
 commit `1eafa43`, and `fetch` with an explicit `Accept`. `dicomwebjs dump` prints nothing for a
 QIDO or metadata URL and exits 0 (see the last item). Total transfer: about 30 MB read.
 
@@ -284,7 +305,15 @@ From documents, not from live requests.
 ### Facts from dcmjs-commands
 
 The public repository `dcmjs-org/dcmjs-commands`, `@dcmjs/commands` 0.1.0, commit `f2f38ce`.
-Read from code, not run.
+Read from code, not run. Later changes, in `@dcmjs-org/commands` 0.1.1 (npm, commit `005ed7c`):
+
+- The package name is `@dcmjs-org/commands`.
+- The `exports` map has `./pixel` (the per-frame codec API, the header helpers, and
+  `selectTargetSyntax` with `DEFAULT_RULES`) and `./dicomweb-fetch` (`DicomWebFetch`).
+- The target table has JPEG-LS lossless (`.80`) and HTJ2K lossless (`.201`).
+- dcmjs is `@dcmjs-org/dcmjs` 1.0.0-beta.17.
+
+The items below describe commit `f2f38ce`.
 
 - **Transcode command.** `dcmjs transcode` (`src/commands/transcode.js`) works on Part 10
   files, one frame at a time. `dicom_convert` does not transcode pixel data. The MCP server has

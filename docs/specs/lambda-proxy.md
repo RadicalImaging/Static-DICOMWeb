@@ -1,6 +1,8 @@
 # Specification: Lambda DICOMweb proxy between CloudFront and S3
 
-Status: draft. Not implemented. The requirement sections wait for confirmation as a set.
+Status: draft. The requirement sections wait for confirmation as a set. The proxy of Release 1
+is in `packages/static-wado-lambda`. The attach to an existing deployment (`PRX-USR-19`) and
+the collection build command (`PRX-USR-17`) are not implemented yet.
 
 ## Scope
 
@@ -105,7 +107,7 @@ Deployment:
 ## Decisions
 
 Each line gives the result of one settled design question (Q1-Q35), or of one decision after
-the design questions (D1-D8). The requirement sections hold the current text. A later item
+the design questions (D1-D9). The requirement sections hold the current text. A later item
 can change an earlier item, and the line then says so.
 
 - **Q1 - Upstream scope.** The deployment has one upstream, which the configuration sets.
@@ -182,7 +184,7 @@ can change an earlier item, and the line then says so.
 - **Q23 - Resources to carry over.** The templates keep all resources of the CDK stacks except
   DocumentDB. The conversion deletes the DocumentDB cluster (`PRX-IMP-19`).
 - **Q24 - Changes to dcmjs-commands.** dcmjs-commands gets three changes: a subpath export
-  (for example `@dcmjs/commands/pixel`) of the per-frame codec API, the header helpers, and
+  (for example `@dcmjs-org/commands/pixel`) of the per-frame codec API, the header helpers, and
   the transfer syntax table; JPEG-LS lossless (`.80`) and HTJ2K lossless (`.201`) in the
   target table, with tests; and the compression rule as a pure function
   `selectTargetSyntax(metadata, rules)` with a default table. D2 removed the
@@ -242,8 +244,8 @@ can change an earlier item, and the line then says so.
 - **D3 - Cloud interfaces.** Code that touches a cloud service goes through an interface,
   because an Azure deployment can be necessary within 6 months (`PRX-IMP-28`).
 - **D4 - dcmjs 1.0 beta.** The change of Static-DICOMweb to the dcmjs 1.0 beta merges before
-  the proxy work completes. The proxy uses dcmjs only through `@dcmjs/commands`, so the proxy
-  work does not wait for that change.
+  the proxy work completes. The proxy uses dcmjs only through `@dcmjs-org/commands`, so the
+  proxy work does not wait for that change. (#159 merged the change.)
 - **D5 - Frame request (changes Q32).** The stored instance metadata holds the final form of
   the frames in (0008,3002) (D6). The proxy reads that metadata for every frame miss, because
   the transform also needs it (for example the bit depth). The proxy requests the form that
@@ -263,4 +265,9 @@ can change an earlier item, and the line then says so.
   `instances/<sop>/bulkdata/<tagpath>`, from the upstream tag path, and no content hash.
 - **D8 - Exact-UID instance query.** The instance level passes through to the upstream, and the
   proxy does not store it. `create-dicomweb` writes no index file for one instance.
+- **D9 - One zip function (changes Q14).** The deployment has one zip function. The function
+  compresses frames in process, with the WASM codecs of dcmjs-commands. The function gets a
+  thumbnail from the `rendered` resource of the upstream, so it needs no `canvas`, `jsdom`, or
+  `cs3d`. A container image becomes necessary only for an upstream with no `rendered`
+  resource (`PRX-IMP-4`, `PRX-IMP-9`).
 
