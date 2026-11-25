@@ -63,7 +63,7 @@ Retrieval:
   file of that UID, the whole file, as Static-DICOMweb does now. When S3 has no index file, the
   proxy gets it from the upstream and stores it. An exact-UID query at instance level, and all
   other queries, go to the upstream with a short cache time, and the proxy does not store them
-  (D8).
+  (D8). When an allowlist is set, these queries return 403 (`PRX-USR-9`).
 - **PRX-USR-7** One frame request causes the fetch of that resource only. A large series does
   not delay the first frame.
 - **PRX-USR-13** A study query by IDC collection returns the stored study list of that
@@ -84,8 +84,11 @@ Storage:
   instances with a video transfer syntax) unchanged, as the upstream sends them: no re-encode
   of a video, and no compression of its frames.
 - **PRX-USR-9** An operator can restrict population to configured studies or IDC collections.
+  When the operator sets this allowlist, a client gets no data of other studies through the
+  proxy: a request for another study, and a query that no stored index answers, return 403.
   No client can store data through the proxy (no STOW-RS). (Changed by D2: no upstream rate
-  limit setting. The upstream 429 handling of `PRX-IMP-25` limits the load.)
+  limit setting. The upstream 429 handling of `PRX-IMP-25` limits the load. Changed by D10:
+  the allowlist also applies to queries.)
 - **PRX-USR-17** An operator can build the stored study list of an IDC collection with a CLI
   command, one time per IDC release.
 
@@ -107,7 +110,7 @@ Deployment:
 ## Decisions
 
 Each line gives the result of one settled design question (Q1-Q35), or of one decision after
-the design questions (D1-D9). The requirement sections hold the current text. A later item
+the design questions (D1-D12). The requirement sections hold the current text. A later item
 can change an earlier item, and the line then says so.
 
 - **Q1 - Upstream scope.** The deployment has one upstream, which the configuration sets.
@@ -270,4 +273,18 @@ can change an earlier item, and the line then says so.
   thumbnail from the `rendered` resource of the upstream, so it needs no `canvas`, `jsdom`, or
   `cs3d`. A container image becomes necessary only for an upstream with no `rendered`
   resource (`PRX-IMP-4`, `PRX-IMP-9`).
+- **D10 - Queries with an allowlist (changes `PRX-USR-6`, `PRX-USR-9`).** The answer of a query
+  that no stored index answers can name studies outside the allowlist. So, when an allowlist is
+  set, the proxy returns 403 for such a query, and sends no upstream request. Without an
+  allowlist, the query passes through as before.
+- **D11 - Purpose and the terms of the upstream (adds to Q29).** The proxy is a general
+  read-through cache for any DICOMweb upstream, not only IDC. Its purpose is faster access to the
+  studies that clients open, for example a demonstration. It is not a tool to export an archive.
+  A bulk copy uses the upload mechanisms of Static DICOMweb; the stored layout already serves
+  such data, but the upload script for this deployment does not exist yet. The IDC proxy policy
+  does not prohibit a cache, also a permanent cache. IDC refuses requests after the daily quota,
+  and `PRX-IMP-25` handles that refusal. The operator checks the terms of any other upstream.
+- **D12 - Study thumbnail.** A study thumbnail is the thumbnail of the first series, by
+  SeriesNumber, that can give one. Series of a non-image modality (SEG, SR, DOC, PR, RTSTRUCT,
+  RTPLAN, KO) are not tried (`PRX-USR-4`, `PRX-IMP-9`).
 
