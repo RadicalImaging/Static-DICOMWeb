@@ -7,7 +7,7 @@ Status: draft. The requirements wait for confirmation as a set. The code is in
 This document applies the user requirements of
 [Lambda DICOMweb proxy](../specs/lambda-proxy.md) (`PRX-USR`) to the code. The specification
 holds the user requirements, the scope, the releases, and the design decisions (Q1-Q35,
-D1-D9). You can change an implementation requirement (`PRX-IMP`) freely when a better
+D1-D12). You can change an implementation requirement (`PRX-IMP`) freely when a better
 approach appears. Record the change in this document.
 
 ## § Implementation requirements
@@ -43,7 +43,10 @@ Miss handling:
 - **PRX-IMP-9** A thumbnail miss reads the stored metadata (the metadata handler fills a
   miss), then gets `frames/<n>/rendered?viewport=256,256` from the upstream (D9). An instance
   uses its first frame. A series uses its middle instance and the middle frame of that
-  instance. The proxy stores the JPEG at the `create-dicomweb thumbnail` key. No thumbnail for
+  instance. A study queries `studies/<s>/series`, drops the non-image modalities, sorts by
+  SeriesNumber, and uses the first series that gives a thumbnail (D12). A series that gives none
+  (video, or an upstream 4xx other than 429) is skipped; another upstream error ends the
+  request. The proxy stores the JPEG at the `create-dicomweb thumbnail` key. No thumbnail for
   video.
 - **PRX-IMP-15** A frame that the rule compresses: fetch the original, encode, store, then
   answer from memory in the requested form.
@@ -88,8 +91,9 @@ Storage format:
   Part 10 requests send `multipart/related; type="application/dicom"; transfer-syntax=*`. The
   rule decides per frame from the media type and transfer syntax of the response.
 - **PRX-IMP-25** On an upstream error the proxy passes the status to the client and stores
-  nothing. CloudFront caches a 404 for 5 minutes, and a 429 or 5xx for 10 seconds. The proxy
-  passes `Retry-After` through and logs each 429 with the request key.
+  nothing. CloudFront caches a 404 for 5 minutes, and every other error for 10 seconds (for
+  example a 429, a 5xx, or a 401 or 403 of an upstream auth fault). The proxy passes
+  `Retry-After` through and logs each 429 with the request key.
 - **PRX-IMP-26** Stored data is final: no TTL, no version marker, no invalidation. An operator
   deletes a study prefix in S3 by hand to get a fresh copy.
 - **PRX-IMP-27** One upstream series metadata response writes the series metadata and every
