@@ -11,9 +11,10 @@ frozenLockfile: true
 
 # https://pnpm.io/supply-chain-security - only install releases at least 2 days old (minutes).
 minimumReleaseAge: 2880
-# Cornerstone3D releases are trusted and taken as soon as they publish.
+# Cornerstone3D and dcmjs releases are trusted and taken as soon as they publish.
 minimumReleaseAgeExclude:
   - '@cornerstonejs/*'
+  - '@dcmjs-org/*'
 
 allowBuilds:
   canvas: true
@@ -34,11 +35,12 @@ overrides:
   'brace-expansion@>=3.0.0 <3.0.6': 3.0.6
   'brace-expansion@>=4.0.0 <5.0.11': 5.0.11
   canvas: 3.1.0
-  dcmjs: 0.52.0
+  dcmjs: npm:@dcmjs-org/dcmjs@1.0.0-beta.10
   fast-uri: 3.1.8
   fast-xml-builder: 1.2.0
   fast-xml-parser: 5.7.2
   flatted: 3.4.2
+  follow-redirects: 1.16.2
   handlebars: 4.7.9
   has-flag: 4.0.0
   http-cache-semantics: 4.3.0

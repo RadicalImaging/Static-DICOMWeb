@@ -1,5 +1,5 @@
 const ExpandUriPath = (id, path, options) => {
-  const { prependBulkDataUri, expandBulkDataUri, includeSeries } = options;
+  const { prependBulkDataUri = '', expandBulkDataUri, includeSeries } = options;
   let expandedRelative = '';
   if (expandBulkDataUri) {
     let expandedRelativeSeries = '';
