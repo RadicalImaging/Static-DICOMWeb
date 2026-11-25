@@ -86,7 +86,10 @@ export async function seriesQuery(route, request, context) {
   }
   const studyUID = requestStudyUID || Tags.getValue(series[0], Tags.StudyInstanceUID);
   if (!studyUID) {
-    return Response.json(series, { headers: { 'Cache-Control': SHORT_CACHE } });
+    // No study to check against an allowlist, so only an open proxy answers.
+    return context.upstream.allow
+      ? errorResponse({ status: 403 })
+      : Response.json(series, { headers: { 'Cache-Control': SHORT_CACHE } });
   }
   if (!(await context.upstream.isAllowed(studyUID))) {
     return errorResponse({ status: 403 });

@@ -1,10 +1,10 @@
 import { gunzipSync } from 'node:zlib';
-import { DicomWebFetch } from '@dcmjs/commands/dicomweb-fetch';
+import { DicomWebFetch } from '@dcmjs-org/commands/dicomweb-fetch';
 
 const PAGE_SIZE = 1000;
 
 /**
- * The upstream DICOMweb service (PRX-IMP-3, PRX-IMP-23): the `@dcmjs/commands` fetch client
+ * The upstream DICOMweb service (PRX-IMP-3, PRX-IMP-23): the `@dcmjs-org/commands` fetch client
  * with the token of the secret source as `Authorization: Bearer <token>`, and the allowlist.
  * On a 401 it gets a fresh token and repeats the request one time. No rate limit (D2).
  */

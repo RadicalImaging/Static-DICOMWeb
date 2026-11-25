@@ -7,13 +7,9 @@ import { handle, errorResponse } from '../lib/handle.mjs';
 import { createContext } from '../lib/context.mjs';
 import { directoryStore } from '../lib/stores/directory.mjs';
 import { createLocalServer } from '../lib/localServer.mjs';
+import { listen } from './listen.mjs';
 
 const series = 'studies/1.2.3/series/4.5';
-
-const listen = server =>
-  new Promise(resolve =>
-    server.listen(0, () => resolve(`http://localhost:${server.address().port}`))
-  );
 
 // API contract: PRX-IMP-25
 describe('errorResponse', () => {
@@ -21,6 +17,7 @@ describe('errorResponse', () => {
     [404, undefined, 'max-age=300'],
     [429, '30', 'max-age=10'],
     [502, undefined, 'max-age=10'],
+    [401, undefined, 'max-age=10'],
   ])('maps %s', (status, retryAfter, cacheControl) => {
     const response = errorResponse({ status, retryAfter });
     expect(response.status).toBe(status);

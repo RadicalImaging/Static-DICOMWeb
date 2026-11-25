@@ -15,7 +15,7 @@ failover). It gets the resource from the upstream DICOMweb service, stores it, a
 | `lib/handle.mjs` | `handle(Request, context) -> Response`: route, allowlist, handler table, error mapping (`PRX-IMP-25`) |
 | `lib/handlers/index.mjs` | The handler table, route kind to handler |
 | `lib/context.mjs` | `loadConfig()` and `createContext({ config, store })` |
-| `lib/upstream.mjs` | The upstream client (`@dcmjs/commands/dicomweb-fetch`), token, and allowlist |
+| `lib/upstream.mjs` | The upstream client (`@dcmjs-org/commands/dicomweb-fetch`), token, and allowlist |
 | `lib/stores/s3.mjs`, `lib/stores/directory.mjs` | Object store: `get`, `put`, `exists` |
 | `lib/stores/putFile.mjs` | Writes a file of the local layout with the storage-format key, type, and encoding |
 | `lib/secrets/awsSecretsManager.mjs`, `lib/secrets/env.mjs` | Secret source: `getToken()` |
@@ -60,7 +60,7 @@ metadata: JPEG baseline for `.111`, the syntax itself when the upstream sends it
 (`upstreamSyntaxes`), else Explicit VR Little Endian. Metadata with no (0008,3002) asks for JPEG
 baseline for WSI, else Explicit VR Little Endian. After a 406 or 500 it asks with the default
 `Accept`. The rule (`selectTargetSyntax` of
-`@dcmjs/commands/pixel`) then reads the syntax of the response. The metadata handlers write the
+`@dcmjs-org/commands/pixel`) then reads the syntax of the response. The metadata handlers write the
 destination syntax of the rule to (0008,3002) when the rule recompresses.
 
 The metadata handlers rewrite the BulkDataURI values to the relative storage form. Other
@@ -81,7 +81,7 @@ One JSON object in the environment variable `STATIC_WADO_PROXY_CONFIG`:
 | `variants` | none | The permitted single-part frame extensions, for example `["jls"]` |
 | `collectionParameter` | none | The query key of a collection query, `studies?<key>=<id>` (edge mapping) |
 | `upstreamSyntaxes` | the IDC list | The frame syntaxes that the upstream sends, `{ "<uid>": "<media type>" }` |
-| `rules` | `DEFAULT_RULES` | The compression rule table, in the shape of `DEFAULT_RULES` of `@dcmjs/commands/pixel` |
+| `rules` | `DEFAULT_RULES` | The compression rule table, in the shape of `DEFAULT_RULES` of `@dcmjs-org/commands/pixel` |
 
 ## Local server
 
@@ -114,10 +114,3 @@ The output `DicomWebRoot` is the DICOMweb root for a client. The bucket has
 
 Thumbnails come from the upstream `frames/<n>/rendered?viewport=256,256`, which the IDC public
 proxy supports.
-
-## Temporary dependency
-
-`@dcmjs/commands` is a `link:` to a local checkout of dcmjs-commands
-(`../../../dcmjs-commands`) that holds the branches `feat/pixel-export-select-target` and
-`feat/dicomweb-fetch-client`. Change it to the published version when `@dcmjs/commands`
-publishes `pixel` and `dicomweb-fetch`.

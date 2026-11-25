@@ -1,4 +1,4 @@
-import { transcodeFrame } from '@dcmjs/commands/pixel';
+import { transcodeFrame } from '@dcmjs-org/commands/pixel';
 
 /**
  * The in-process compute implementation (PRX-IMP-28), for the local server and the tests. The

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { decodeFrame, imageInfoFromDict, JPEG_BASELINE } from '@dcmjs/commands/pixel';
+import { decodeFrame, imageInfoFromDict, JPEG_BASELINE } from '@dcmjs-org/commands/pixel';
 import {
   unwrapMultipart,
   wrapMultipart,
@@ -12,6 +12,7 @@ import { inProcessCompute } from '../lib/compute/inProcess.mjs';
 import { frameAccept } from '../lib/handlers/frames.mjs';
 import { directoryStore } from '../lib/stores/directory.mjs';
 import { createLocalServer } from '../lib/localServer.mjs';
+import { listen } from './listen.mjs';
 
 const EXPLICIT_LE = '1.2.840.10008.1.2.1';
 const JLS = '1.2.840.10008.1.2.4.80';
@@ -35,11 +36,6 @@ const instance = (sop, sopClass, transferSyntax, image) => ({
   '00280101': value('US', image.bits),
   '00280103': value('US', 0),
 });
-
-const listen = server =>
-  new Promise(resolve =>
-    server.listen(0, () => resolve(`http://localhost:${server.address().port}`))
-  );
 
 const bytes = async response => Buffer.from(await response.arrayBuffer());
 
@@ -143,7 +139,7 @@ describe('frame and bulkdata handlers', () => {
     store = directoryStore(dir);
     server = createLocalServer(
       createContext({
-        config: { root: '/dicomweb', upstream: upstreamUrl, variants: ['jls'] },
+        config: { root: '/dicomweb', upstream: upstreamUrl, variants: ['jls', 'jxl'] },
         store,
         // The codec tests of dcmjs-commands cover the transcode; this records the request.
         compute: {
@@ -211,6 +207,16 @@ describe('frame and bulkdata handlers', () => {
     expect(encodes.at(-1)).toMatchObject({ sourceUid: JPEG_BASELINE, targetUid: JXL_JPEG });
     expect((await storedPart(`${instanceDir('1.2.3.4.2')}/frames/1`)).transferSyntaxUid).toBe(
       JXL_JPEG
+    );
+  });
+
+  // User behaviour: PRX-USR-5, Q20 (the .jxl variant of a stored JPEG XL frame)
+  it('gives the stored JPEG XL frame as the single-part jxl variant', async () => {
+    const response = await fetch(`${proxyUrl}/${instanceDir('1.2.3.4.2')}/frames/1.jxl`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('image/jxl');
+    expect(await bytes(response)).toEqual(
+      (await storedPart(`${instanceDir('1.2.3.4.2')}/frames/1`)).body
     );
   });
 

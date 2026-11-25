@@ -12,9 +12,12 @@ const pngType = 'image/png';
 const applicationDicom = 'application/dicom';
 const ionType = 'application/x-amzn-ion';
 
-/** Extension to content type for the raw codestreams frames can be stored as */
+/**
+ * Extension to content type for the raw codestreams frames can be stored as. The first UID of
+ * an extension wins: `.jxl` stays `image/x-jxl` (the `.140` draft UID) for uploaded files.
+ */
 const codestreamContentTypes = Object.values(uids).reduce((acc, info) => {
-  if (info.extension && info.contentType) acc[info.extension] = info.contentType;
+  if (info.extension && info.contentType) acc[info.extension] ||= info.contentType;
   return acc;
 }, {});
 

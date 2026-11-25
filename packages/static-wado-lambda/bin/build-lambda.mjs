@@ -4,15 +4,31 @@
 // runtime `require` (esbuild cannot follow those). `aws cloudformation package` zips the directory.
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { buildCloudFrontFunction } from '../lib/edge/cloudfrontFunction.mjs';
 
 const outdir = new URL('../dist/lambda/', import.meta.url);
-const commands = JSON.parse(
-  fs.readFileSync(new URL('../node_modules/@dcmjs/commands/package.json', import.meta.url))
+// The package exports no package.json; its root export is src/index.js.
+const fromCommands = createRequire(
+  new URL('../package.json', import.meta.resolve('@dcmjs-org/commands'))
 );
 const RUNTIME = ['dcmjs', '@dcmjs-org/media', '@dcmjs-org/fhir', '@cornerstonejs/dicom-codec'];
+
+/**
+ * The exact version that the workspace installs for a dependency of dcmjs-commands, so that the
+ * zip runs the versions that the tests ran. An npm alias (`dcmjs`) keeps its alias form.
+ */
+function installedVersion(name) {
+  const dir = fromCommands.resolve
+    .paths(name)
+    .map(nodeModules => path.join(nodeModules, name))
+    .find(candidate => fs.existsSync(path.join(candidate, 'package.json')));
+  const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+  return pkg.name === name ? pkg.version : `npm:${pkg.name}@${pkg.version}`;
+}
 
 fs.rmSync(outdir, { recursive: true, force: true });
 await build({
@@ -28,7 +44,7 @@ await build({
   plugins: [
     {
       // shortcut: dataDictionary.js is CommonJS in a "type": "module" package; drop this when
-      // static-wado-util renames it to .cjs (review item B2).
+      // static-wado-util renames it to dataDictionary.cjs.
       name: 'data-dictionary-esm',
       setup(b) {
         b.onLoad({ filter: /dataDictionary\.js$/ }, ({ path }) => ({
@@ -48,7 +64,7 @@ fs.writeFileSync(
   JSON.stringify({
     type: 'module',
     private: true,
-    dependencies: Object.fromEntries(RUNTIME.map(name => [name, commands.dependencies[name]])),
+    dependencies: Object.fromEntries(RUNTIME.map(name => [name, installedVersion(name)])),
   })
 );
 const template = fs.readFileSync(new URL('../deploy/proxy-site.yaml', import.meta.url), 'utf8');

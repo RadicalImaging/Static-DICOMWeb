@@ -3,7 +3,9 @@ const baseConfig = require('../../.config/jest/jest.config.cjs');
 module.exports = {
   ...baseConfig,
   testEnvironment: 'node',
-  // Inline options, so that babel also transforms the linked @dcmjs/commands outside the repository.
+  // A cold Babel cache (CI) transforms dcmjs-commands and the codecs inside the first test.
+  testTimeout: 60_000,
+  // Inline options, so that babel also transforms @dcmjs-org/commands in the root pnpm store.
   // TypeScript: the root export of static-wado-util, which the create-dicomweb test fixture loads.
   transform: {
     '^.+\\.(js|mjs|ts)$': [

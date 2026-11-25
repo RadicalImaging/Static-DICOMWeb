@@ -1,13 +1,12 @@
 import { gunzipSync } from 'node:zlib';
-import { selectTargetSyntax, EXPLICIT_LITTLE_ENDIAN } from '@dcmjs/commands/pixel';
+import { selectTargetSyntax, EXPLICIT_LITTLE_ENDIAN } from '@dcmjs-org/commands/pixel';
+import { Tags } from '@radicalimaging/static-wado-util/dictionary/Tags.mjs';
 import { errorResponse } from '../handle.mjs';
 import { loadInstanceMetadata } from './frames.mjs';
 import { seriesMetadata } from './metadata.mjs';
 
 /** The size of the `viewport` that the upstream renders into, as `create-dicomweb thumbnail` */
 const SIZE = 256;
-
-const first = (dict, tag) => dict?.[tag]?.Value?.[0];
 
 /** The stored series metadata, from the metadata handler on a miss; undefined when unknown. */
 async function loadSeriesMetadata(route, context) {
@@ -43,13 +42,19 @@ export async function thumbnail(route, request, context) {
   } else {
     const series = await loadSeriesMetadata(route, context);
     metadata = series?.[Math.floor(series.length / 2)];
-    frame = Math.ceil((Number(first(metadata, '00280008')) || 1) / 2);
   }
-  const incomingTransferSyntax = first(metadata, '00083002') ?? EXPLICIT_LITTLE_ENDIAN;
-  if (!metadata || selectTargetSyntax(metadata, { incomingTransferSyntax }).reason === 'video') {
+  if (!metadata) {
     return errorResponse({ status: 404 });
   }
-  const sop = sopUID || first(metadata, '00080018');
+  if (!sopUID) {
+    frame = Math.ceil((Number(Tags.getValue(metadata, Tags.NumberOfFrames)) || 1) / 2);
+  }
+  const incomingTransferSyntax =
+    Tags.getValue(metadata, Tags.AvailableTransferSyntaxUID) ?? EXPLICIT_LITTLE_ENDIAN;
+  if (selectTargetSyntax(metadata, { incomingTransferSyntax }).reason === 'video') {
+    return errorResponse({ status: 404 });
+  }
+  const sop = sopUID || Tags.getValue(metadata, Tags.SOPInstanceUID);
   const response = await context.upstream.request(
     `studies/${studyUID}/series/${seriesUID}/instances/${sop}/frames/${frame}/rendered?viewport=${SIZE},${SIZE}`,
     'image/jpeg'

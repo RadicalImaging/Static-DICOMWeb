@@ -9,6 +9,7 @@ import { fileToKey } from '@radicalimaging/static-wado-util/storageFormat/index.
 import { createContext } from '../lib/context.mjs';
 import { directoryStore } from '../lib/stores/directory.mjs';
 import { createLocalServer } from '../lib/localServer.mjs';
+import { listen } from './listen.mjs';
 
 const studyUID = '1.2.3';
 const seriesUID = '1.2.3.4';
@@ -29,11 +30,6 @@ const upstreamInstance = sop => {
     '7FE00010': { vr: 'OW', BulkDataURI: `${instanceUrl}/7FE00010` },
   };
 };
-
-const listen = server =>
-  new Promise(resolve =>
-    server.listen(0, () => resolve(`http://localhost:${server.address().port}`))
-  );
 
 const readStored = async (store, key) => {
   const stored = await store.get(key);

@@ -1,20 +1,20 @@
-import { DicomWebFetchError } from '@dcmjs/commands/dicomweb-fetch';
+import { DicomWebFetchError } from '@dcmjs-org/commands/dicomweb-fetch';
 import { route } from './router.mjs';
 import handlers from './handlers/index.mjs';
 
 /**
- * The error response for a status (PRX-IMP-25). CloudFront keeps a 429 or 5xx for 10 seconds,
- * and other errors (404) for 5 minutes. A 429 is logged with the request key.
+ * The error response for a status (PRX-IMP-25). CloudFront keeps a 404 for 5 minutes, and
+ * every other error for 10 seconds, so that an upstream auth fault (401, 403) clears quickly.
+ * A 429 is logged with the request key.
  * @param {{status?: number, retryAfter?: string}} error - Default status 500
  * @param {string} [key] - The request path, for the log
  * @returns {Response} A response with no body
  */
 export function errorResponse({ status = 500, retryAfter } = {}, key) {
-  const transient = status === 429 || status >= 500;
   if (status === 429) {
     console.warn('Upstream 429', key);
   }
-  const headers = { 'Cache-Control': `max-age=${transient ? 10 : 300}` };
+  const headers = { 'Cache-Control': `max-age=${status === 404 ? 300 : 10}` };
   if (retryAfter) {
     headers['Retry-After'] = retryAfter;
   }

@@ -5,7 +5,7 @@ import {
 import { errorResponse } from '../handle.mjs';
 import { firstPart, storeParts, storedResponse } from './parts.mjs';
 
-const instanceDir = ({ studyUID, seriesUID, sopUID }) =>
+export const instanceDir = ({ studyUID, seriesUID, sopUID }) =>
   `studies/${studyUID}/series/${seriesUID}/instances/${sopUID}`;
 
 /**

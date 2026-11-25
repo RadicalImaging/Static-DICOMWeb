@@ -5,21 +5,19 @@ import {
   EXPLICIT_LITTLE_ENDIAN,
   JPEG_BASELINE,
   JPEG_XL_JPEG_RECOMPRESSION,
-} from '@dcmjs/commands/pixel';
+} from '@dcmjs-org/commands/pixel';
 import {
   unwrapMultipart,
   wrapMultipart,
 } from '@radicalimaging/static-wado-util/storageFormat/index.mjs';
 import uids from '@radicalimaging/static-wado-util/uids.mjs';
+import { Tags } from '@radicalimaging/static-wado-util/dictionary/Tags.mjs';
 import { errorResponse } from '../handle.mjs';
 import { instanceMetadata } from './metadata.mjs';
+import { instanceDir } from './instance.mjs';
 import { firstPart, storeParts, storedResponse } from './parts.mjs';
 
 const WSI = '1.2.840.10008.5.1.4.1.1.77.1.6';
-
-const first = (dict, tag) => dict?.[tag]?.Value?.[0];
-const instanceDir = ({ studyUID, seriesUID, sopUID }) =>
-  `studies/${studyUID}/series/${seriesUID}/instances/${sopUID}`;
 
 const OCTET_STREAM = 'application/octet-stream';
 const JPEG = 'image/jpeg';
@@ -30,7 +28,8 @@ const JXL = 'image/jxl';
 
 /**
  * The frame syntaxes that the upstream sends, with their media types: the 406 list of the IDC
- * public proxy (2026-11-05). `config.upstreamSyntaxes` replaces it.
+ * public proxy (2026-11-05). `config.upstreamSyntaxes` replaces it. Not the `uids` content
+ * types: the upstream uses `image/jpeg` for `.70` and `application/x-deflate` for `.1.2.8.1`.
  */
 export const UPSTREAM_SYNTAXES = {
   [EXPLICIT_LITTLE_ENDIAN]: OCTET_STREAM,
@@ -113,8 +112,10 @@ async function storedFrame(route, frame, context) {
     return undefined;
   }
   // No upstream syntax in the metadata: the Q30 assumption gives the request form.
-  const assumed = first(metadata, '00080016') === WSI ? JPEG_BASELINE : EXPLICIT_LITTLE_ENDIAN;
-  const fetched = await fetchFrame(route, frame, first(metadata, '00083002') ?? assumed, context);
+  const assumed =
+    Tags.getValue(metadata, Tags.SOPClassUID) === WSI ? JPEG_BASELINE : EXPLICIT_LITTLE_ENDIAN;
+  const finalForm = Tags.getValue(metadata, Tags.AvailableTransferSyntaxUID) ?? assumed;
+  const fetched = await fetchFrame(route, frame, finalForm, context);
   // The stored metadata can hold the destination syntax (D6), so the rule gets the response one.
   const incoming = fetched.transferSyntaxUid ?? assumed;
   let part = { ...fetched, transferSyntaxUid: incoming };
@@ -144,13 +145,18 @@ async function storedFrame(route, frame, context) {
  * `config.variants` (Q20):
  * - the extension of the stored syntax: the single-part codestream, stored at
  *   `<instance>/frames/<n>.<extension>`;
- * - another syntax: the upstream frame in that syntax, single-part and not stored.
- * Other variants give 406.
+ * - another syntax: the upstream frame in a syntax of that extension that the upstream sends,
+ *   single-part and not stored.
+ * Other variants give 406, with no upstream request when the upstream sends no such syntax.
  */
 export async function frames(route, request, context) {
-  const variantSyntax =
-    route.variant && Object.keys(uids).find(uid => uids[uid].extension === `.${route.variant}`);
-  if (route.variant && (!variantSyntax || !context.config.variants?.includes(route.variant))) {
+  const variantSyntaxes = route.variant
+    ? Object.keys(uids).filter(uid => uids[uid].extension === `.${route.variant}`)
+    : [];
+  if (
+    route.variant &&
+    (!variantSyntaxes.length || !context.config.variants?.includes(route.variant))
+  ) {
     return errorResponse({ status: 406 });
   }
   const found = [];
@@ -170,13 +176,19 @@ export async function frames(route, request, context) {
   if (found.length !== 1) {
     return errorResponse({ status: 406 });
   }
-  const contentType = uids[variantSyntax].contentType;
   const [{ part }] = found;
-  if (part.transferSyntaxUid === variantSyntax) {
+  if (variantSyntaxes.includes(part.transferSyntaxUid)) {
+    const { contentType } = uids[part.transferSyntaxUid];
     const key = `${instanceDir(route)}/frames/${route.frames[0]}.${route.variant}`;
     await context.store.put(key, part.body, { contentType });
     return new Response(part.body, { headers: { 'Content-Type': contentType } });
   }
+  const sent = context.config.upstreamSyntaxes ?? UPSTREAM_SYNTAXES;
+  const variantSyntax = variantSyntaxes.find(uid => sent[uid]);
+  if (!variantSyntax) {
+    return errorResponse({ status: 406 });
+  }
+  const { contentType } = uids[variantSyntax];
   const computed = await firstPart(
     await context.upstream.retrieveFrames(
       route.studyUID,

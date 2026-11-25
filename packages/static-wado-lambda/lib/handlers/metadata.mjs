@@ -1,4 +1,4 @@
-import { selectTargetSyntax } from '@dcmjs/commands/pixel';
+import { selectTargetSyntax } from '@dcmjs-org/commands/pixel';
 import {
   rewriteBulkDataUris,
   splitSeriesMetadata,
