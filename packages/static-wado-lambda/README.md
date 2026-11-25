@@ -104,7 +104,7 @@ store holds comes from the store. Other requests go to `handle`.
 the primary origin, and the proxy function URL is the failover origin on 403 and 404. The
 template also creates the function (`nodejs24.x`, response streaming), the OACs, the edge
 function, and a cache policy with the query string in the cache key. Use a region that has
-Lambda function URLs (`ca-west-1` does not).
+Lambda function URLs; not every region has them.
 
 ```sh
 pnpm build:lambda   # dist/lambda (bundle + codecs) and dist/proxy-site.yaml (edge code inlined)
