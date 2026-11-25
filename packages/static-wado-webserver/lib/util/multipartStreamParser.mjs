@@ -233,7 +233,7 @@ export async function parseMultipartStream(req, onPart, options = {}) {
         currentPartHeaders = parseHeaders(headerString);
         
         // Create new WriteBufferStream for this part
-        currentPartBufferStream = new WriteBufferStream(bufferSize);
+        currentPartBufferStream = new WriteBufferStream({ defaultSize: bufferSize, littleEndian: false });
         
         // Fire the listener callback with headers and BufferStream
         onPart(currentPartHeaders, currentPartBufferStream);
