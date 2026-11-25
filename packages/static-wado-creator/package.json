@@ -65,11 +65,12 @@
     "verbose": true
   },
   "dependencies": {
+    "@dcmjs-org/core": "1.0.0-beta.17",
     "@radicalimaging/cs3d": ">=1.8.0",
     "@radicalimaging/static-wado-util": ">=1.8.0",
     "canvas": "3.1.0",
     "config-point": "0.8.0",
-    "dcmjs": "npm:@dcmjs-org/dcmjs@1.0.0-beta.10",
+    "dcmjs": "npm:@dcmjs-org/dcmjs@1.0.0-beta.17",
     "dicom-parser": "1.8.21",
     "glob": "11.1.0",
     "node-object-hash": "3.1.1",
