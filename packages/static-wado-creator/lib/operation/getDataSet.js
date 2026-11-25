@@ -1,3 +1,4 @@
+const { resolveCharsetDecoder } = require('@dcmjs-org/core');
 const { Tags } = require('@radicalimaging/static-wado-util');
 const getVR = require('./getVR');
 const getValue = require('./getValue');
@@ -23,9 +24,11 @@ async function getDataSet(dataSet, callback, optionsOrig, parentAttr = undefined
     if (tag != Tags.RawTransferSyntaxUID && tag >= Tags.RawMinTag && tag < Tags.RawFirstBodyTag) {
       continue;
     }
-    if (tag === Tags.RawSpecificCharacterSet) {
-      const SpecificCharacterSet = dataSet.string(tag);
-      options = { ...options, SpecificCharacterSet };
+    // The first (0008,0005) of a parse decodes every later string, items included
+    if (tag === Tags.RawSpecificCharacterSet && !options.charsetDecoder) {
+      const values = (dataSet.string(tag) || '').split('\\');
+      const charsetDecoder = resolveCharsetDecoder(values, { ignoreErrors: true });
+      if (charsetDecoder) options = { ...options, charsetDecoder };
     }
     const attr = dataSet.elements[tag];
 

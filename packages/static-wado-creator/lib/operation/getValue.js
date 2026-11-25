@@ -1,27 +1,32 @@
+const { createLatin1Decoder, PN_DELIMITER_BYTES } = require('@dcmjs-org/core');
 const extractImageFrames = require('./extractImageFrames');
 
-function decodeUtf8(s, options) {
-  if (options?.SpecificCharacterSet === 'ISO_IR 192') {
-    return decodeURIComponent(escape(s));
-  }
-  return s;
-}
+/** Without (0008,0005): WHATWG latin1 is windows-1252, which reads ASCII and the many sites that write 1252. */
+const defaultDecoder = createLatin1Decoder();
 
-/** Gets a value as a UTF-8 string - todo, make UTF-8 decode optional. */
-const getValueInlineString = (dataSet, attr, options) => [
-  decodeUtf8(dataSet.string(attr.tag), options),
-];
+/**
+ * Decodes the bytes of a string element with the character set of the parse
+ * (`options.charsetDecoder`, set by getDataSet). The decode happens before the
+ * split on `\`, because a two-byte ISO 2022 character can hold the 0x5C byte.
+ * Like dicom-parser `string()`, it stops at the first NUL and trims. Bad bytes
+ * become U+FFFD; the decode never throws.
+ */
+const decodeString = (dataSet, attr, options, decodeOptions) => {
+  const bytes = dataSet.byteArray.subarray(attr.dataOffset, attr.dataOffset + attr.length);
+  const text = (options?.charsetDecoder || defaultDecoder).decode(bytes, decodeOptions);
+  const nul = text.indexOf('\0');
+  return (nul === -1 ? text : text.slice(0, nul)).trim();
+};
 
-const getStrings = (dataSet, attr, options) => {
-  const ret = dataSet.string(attr.tag);
-  if (ret) {
-    return ret.split(/\\/).map(s => decodeUtf8(s, options));
-  }
-  return undefined;
+const getValueInlineString = (dataSet, attr, options) => [decodeString(dataSet, attr, options)];
+
+const getStrings = (dataSet, attr, options, decodeOptions) => {
+  const ret = decodeString(dataSet, attr, options, decodeOptions);
+  return ret ? ret.split('\\') : undefined;
 };
 
 const getValuePatientName = (dataSet, attr, options) => {
-  const strings = getStrings(dataSet, attr, options);
+  const strings = getStrings(dataSet, attr, options, { delimiters: PN_DELIMITER_BYTES });
   return (strings && strings.map(item => ({ Alphabetic: item }))) || undefined;
 };
 

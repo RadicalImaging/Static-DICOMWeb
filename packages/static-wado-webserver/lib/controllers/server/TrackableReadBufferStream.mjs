@@ -33,7 +33,7 @@ const DEFAULT_LIVELOCK_DETECT_MS = 0;
  */
 export class TrackableReadBufferStream extends ReadBufferStream {
   constructor(buffer, littleEndian, options = {}) {
-    super(buffer, littleEndian, options);
+    super(buffer, { ...options, littleEndian: !!littleEndian });
     /** @type {{ bytes: number }[]} */
     this._pendingEnsureAvailableEntries = [];
     const envMs = parseInt(

@@ -188,7 +188,7 @@ describe('Part 10 rendition for SEG/SR instances', () => {
     const dicomdir = path.join(tempRoot, 'dicomweb');
     // Matches the STOW upload stream: buffers released as consumed, temp files only
     // renamed at commitPendingMoves.
-    const stream = new ReadBufferStream(null, true, { noCopy: true, clearBuffers: true });
+    const stream = new ReadBufferStream(null, { noCopy: true, clearBuffers: true });
     const promise = instanceFromStream(stream, {
       dicomdir,
       writerOptions: { baseDir: dicomdir, deferFinalMove: true },
