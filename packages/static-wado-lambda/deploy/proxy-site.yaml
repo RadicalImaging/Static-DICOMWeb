@@ -1,0 +1,211 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Static-DICOMweb read-through proxy site: a new S3 bucket and CloudFront distribution, with the
+  bucket as the primary origin and the proxy Lambda function URL as the failover origin on
+  403/404 (PRX-IMP-1). `pnpm build:lambda` writes dist/proxy-site.yaml with the CloudFront
+  Function code; deploy that file with `aws cloudformation package` and `deploy`.
+
+Parameters:
+  Upstream:
+    Type: String
+    Default: https://proxy.imaging.datacommons.cancer.gov/current/viewer-only-no-downloads-see-tinyurl-dot-com-slash-3j3d9jyp/dicomWeb
+    Description: The upstream DICOMweb root (PRX-USR-18)
+  AllowStudies:
+    Type: CommaDelimitedList
+    Default: ''
+    Description: StudyInstanceUIDs that the proxy may populate; empty permits all studies
+
+Conditions:
+  OpenAllowlist: !Equals [!Join ['', !Ref AllowStudies], '']
+
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Bucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal: { Service: cloudfront.amazonaws.com }
+            Action: s3:GetObject
+            Resource: !Sub '${Bucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
+
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: store
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject]
+                Resource: !Sub '${Bucket.Arn}/dicomweb/*'
+              # Without ListBucket a missing key is 403, and the store throws (lib/stores/s3.mjs).
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt Bucket.Arn
+
+  Function:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: nodejs24.x
+      Handler: index.handler
+      Code: ../dist/lambda
+      MemorySize: 2048
+      Timeout: 60
+      Role: !GetAtt FunctionRole.Arn
+      Environment:
+        Variables:
+          STATIC_WADO_PROXY_CONFIG: !If
+            - OpenAllowlist
+            - !Sub '{"bucket":"${Bucket}","root":"/dicomweb","upstream":"${Upstream}"}'
+            - !Sub
+              - '{"bucket":"${Bucket}","root":"/dicomweb","upstream":"${Upstream}","allow":{"studies":["${Studies}"]}}'
+              - Studies: !Join ['","', !Ref AllowStudies]
+
+  FunctionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${Function}'
+      RetentionInDays: 30
+
+  FunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !Ref Function
+      AuthType: AWS_IAM
+      InvokeMode: RESPONSE_STREAM
+
+  # CloudFront with OAC needs both permissions on a function URL.
+  InvokeUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref Function
+      Action: lambda:InvokeFunctionUrl
+      Principal: cloudfront.amazonaws.com
+      FunctionUrlAuthType: AWS_IAM
+      SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
+
+  InvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref Function
+      Action: lambda:InvokeFunction
+      Principal: cloudfront.amazonaws.com
+      SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
+
+  BucketOac:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AWS::StackName}-s3'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  FunctionOac:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AWS::StackName}-lambda'
+        OriginAccessControlOriginType: lambda
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  EdgeFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub '${AWS::StackName}-edge'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Static-DICOMweb request mapping (PRX-IMP-2)
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        __CLOUDFRONT_FUNCTION__
+
+  CachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub '${AWS::StackName}-dicomweb'
+        DefaultTTL: 86400
+        MinTTL: 0
+        MaxTTL: 31536000
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          CookiesConfig: { CookieBehavior: none }
+          HeadersConfig: { HeaderBehavior: none }
+          QueryStringsConfig: { QueryStringBehavior: all }
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub '${AWS::StackName} Static-DICOMweb proxy'
+        HttpVersion: http2and3
+        Origins:
+          - Id: store
+            DomainName: !GetAtt Bucket.RegionalDomainName
+            OriginAccessControlId: !Ref BucketOac
+            S3OriginConfig: { OriginAccessIdentity: '' }
+          - Id: proxy
+            DomainName: !Select [2, !Split ['/', !GetAtt FunctionUrl.FunctionUrl]]
+            OriginAccessControlId: !Ref FunctionOac
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginReadTimeout: 60
+        OriginGroups:
+          Quantity: 1
+          Items:
+            - Id: store-then-proxy
+              FailoverCriteria:
+                StatusCodes: { Quantity: 2, Items: [403, 404] }
+              Members:
+                Quantity: 2
+                Items:
+                  - OriginId: store
+                  - OriginId: proxy
+        DefaultCacheBehavior:
+          TargetOriginId: store-then-proxy
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          CachePolicyId: !Ref CachePolicy
+          # Managed CORS-With-Preflight; the edge function answers OPTIONS itself.
+          ResponseHeadersPolicyId: 5cc3b908-e619-4b99-88e5-2cf7f45965bd
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt EdgeFunction.FunctionMetadata.FunctionARN
+
+Outputs:
+  DicomWebRoot:
+    Value: !Sub 'https://${Distribution.DomainName}/dicomweb'
+  DistributionId:
+    Value: !Ref Distribution
+  BucketName:
+    Value: !Ref Bucket
+  FunctionName:
+    Value: !Ref Function

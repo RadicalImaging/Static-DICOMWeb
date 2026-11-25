@@ -53,6 +53,7 @@ The handlers store the files that `create-dicomweb` writes, gzipped, through `pu
 | `frames` | `.../frames/<n>.<extension>` (a permitted variant) | `.../frames/<n>.<extension>`: single-part, only for the stored syntax |
 | `bulkdata` | `.../instances/<sop>/bulkdata/<tagpath>` | the same key, multipart |
 | `part10` | `.../instances/<sop>` | `.../instances/<sop>/index.mht.gz` |
+| `thumbnail` | `studies/<s>/series/<x>[/instances/<sop>]/thumbnail` | the same key, `image/jpeg` (no study level, no video) |
 
 A frame miss asks the upstream for a form of the final syntax in (0008,3002) of the stored
 metadata: JPEG baseline for `.111`, the syntax itself when the upstream sends it
@@ -90,6 +91,29 @@ STATIC_WADO_PROXY_CONFIG='{"allow":{"studies":["1.2.3"]}}' pnpm start -- --dir .
 
 The server answers `http://localhost:5050/dicomweb/...`. A GET with no query string that the
 store holds comes from the store. Other requests go to `handle`.
+
+## Deploy to AWS
+
+`deploy/proxy-site.yaml` creates a new S3 bucket and a CloudFront distribution. The bucket is
+the primary origin, and the proxy function URL is the failover origin on 403 and 404. The
+template also creates the function (`nodejs24.x`, response streaming), the OACs, the edge
+function, and a cache policy with the query string in the cache key. Use a region that has
+Lambda function URLs (`ca-west-1` does not).
+
+```sh
+pnpm build:lambda   # dist/lambda (bundle + codecs) and dist/proxy-site.yaml (edge code inlined)
+aws cloudformation package --region <region> --template-file dist/proxy-site.yaml \
+  --s3-bucket <artifact bucket in that region> --output-template-file dist/proxy-site.packaged.yaml
+aws cloudformation deploy --region <region> --template-file dist/proxy-site.packaged.yaml \
+  --stack-name <name> --capabilities CAPABILITY_IAM \
+  [--parameter-overrides AllowStudies=<uid>,<uid>]
+```
+
+The output `DicomWebRoot` is the DICOMweb root for a client. The bucket has
+`DeletionPolicy: Retain`, so a stack delete keeps the stored data.
+
+Thumbnails come from the upstream `frames/<n>/rendered?viewport=256,256`, which the IDC public
+proxy supports.
 
 ## Temporary dependency
 

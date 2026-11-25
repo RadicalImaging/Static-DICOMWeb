@@ -13,6 +13,18 @@ export function buildCloudFrontFunction(options) {
     .replace(/^var OPTIONS = .*$/m, `var OPTIONS = ${JSON.stringify(options)};`);
   return `${source}
 function handler(event) {
+  if (event.request.method === 'OPTIONS') {
+    // CORS preflight: neither the storage nor the proxy answers OPTIONS.
+    return {
+      statusCode: 204,
+      headers: {
+        'access-control-allow-origin': { value: '*' },
+        'access-control-allow-methods': { value: 'GET, HEAD, OPTIONS' },
+        'access-control-allow-headers': { value: '*' },
+        'access-control-max-age': { value: '86400' },
+      },
+    };
+  }
   var mapped = mapRequest(event.request);
   event.request.uri = mapped.uri;
   event.request.querystring = mapped.querystring;

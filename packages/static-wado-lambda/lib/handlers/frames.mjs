@@ -84,7 +84,7 @@ async function fetchFrame(route, frame, transferSyntaxUid, context) {
 }
 
 /** The stored instance metadata, from the metadata handler on a miss; undefined when unknown. */
-async function loadInstanceMetadata(route, context) {
+export async function loadInstanceMetadata(route, context) {
   const stored = await context.store.get(`${instanceDir(route)}/metadata`);
   if (stored) {
     return JSON.parse(gunzipSync(stored.body))[0];

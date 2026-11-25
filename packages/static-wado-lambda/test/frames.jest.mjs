@@ -85,6 +85,10 @@ describe('frame and bulkdata handlers', () => {
     upstream = http.createServer((req, res) => {
       requests.push(req.url);
       accepts.push(req.headers.accept);
+      if (req.url.includes('/rendered?viewport=256,256')) {
+        res.writeHead(200, { 'Content-Type': 'image/jpeg' }).end('a rendered JPEG');
+        return;
+      }
       const frame = frames[req.url];
       if (frame) {
         // Like IDC: the stored form only; a different requested syntax is not served.
@@ -134,6 +138,7 @@ describe('frame and bulkdata handlers', () => {
       responses[`/${dirOf}/metadata`] = [dict];
       frames[`/${dirOf}/frames/1`] = frame;
     }
+    responses[`/${seriesDir}/metadata`] = [ct, wsi, video];
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'proxy-frames-'));
     store = directoryStore(dir);
     server = createLocalServer(
@@ -238,6 +243,28 @@ describe('frame and bulkdata handlers', () => {
     const response = await fetch(`${proxyUrl}/${key}`);
     expect(response.status).toBe(200);
     expect((await storedPart(key)).body.toString()).toBe('ABCD');
+  });
+
+  // User behaviour: PRX-USR-4, a thumbnail with no stored data, from the store the second time
+  it('stores the upstream rendered frame as the instance and series thumbnail', async () => {
+    const key = `${instanceDir('1.2.3.4.1')}/thumbnail`;
+    const response = await fetch(`${proxyUrl}/${key}`);
+    expect(response.headers.get('content-type')).toBe('image/jpeg');
+    expect(await response.text()).toBe('a rendered JPEG');
+    expect((await store.get(key)).body.toString()).toBe('a rendered JPEG');
+    requests = [];
+    await fetch(`${proxyUrl}/${key}`);
+    expect(requests).toEqual([]);
+
+    expect((await fetch(`${proxyUrl}/${seriesDir}/thumbnail`)).status).toBe(200);
+    // The middle instance of [ct, wsi, video]
+    expect(requests.some(url => url.includes('/instances/1.2.3.4.2/frames/1/rendered'))).toBe(true);
+    expect((await store.get(`${seriesDir}/thumbnail`)).body.toString()).toBe('a rendered JPEG');
+  });
+
+  // User behaviour: PRX-USR-4, the exception for video
+  it('gives 404 for the thumbnail of a video instance', async () => {
+    expect((await fetch(`${proxyUrl}/${instanceDir('1.2.3.4.3')}/thumbnail`)).status).toBe(404);
   });
 });
 
