@@ -29,7 +29,8 @@ async function loadSeriesMetadata(route, context) {
 /**
  * The JPEG of a series or instance thumbnail: the upstream rendered frame. A series uses its
  * middle instance and middle frame, an instance its first frame.
- * @returns {Promise<Buffer|undefined>} undefined for an unknown instance or a video
+ * @returns {Promise<Buffer|undefined>} undefined for an unknown instance, a non-image modality,
+ *   or a video
  */
 async function renderThumbnail(route, context) {
   const { studyUID, seriesUID, sopUID } = route;
@@ -40,7 +41,7 @@ async function renderThumbnail(route, context) {
     const series = await loadSeriesMetadata(route, context);
     metadata = series?.[Math.floor(series.length / 2)];
   }
-  if (!metadata) {
+  if (!metadata || NON_IMAGE_MODALITIES.includes(Tags.getValue(metadata, Tags.Modality))) {
     return undefined;
   }
   const frame = sopUID
@@ -90,7 +91,8 @@ async function studyThumbnail(route, context) {
 /**
  * Thumbnail miss (PRX-USR-4, PRX-IMP-9): the upstream rendered frame (`frames/<n>/rendered`
  * with `viewport`), stored as JPEG at the `create-dicomweb thumbnail` key. A study uses the
- * first series that gives a thumbnail. A video instance gives 404.
+ * first series that gives a thumbnail. A video instance, and a series or instance of a
+ * non-image modality, give 404 with no `rendered` request.
  * shortcut: the upstream renders the frame (the IDC proxy does); a cs3d render is needed only for
  * an upstream with no `rendered`.
  */

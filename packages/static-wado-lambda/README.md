@@ -58,7 +58,7 @@ The handlers store the files that `create-dicomweb` writes, gzipped, through `pu
 | `frames` | `.../frames/<n>.<extension>` (a permitted variant) | `.../frames/<n>.<extension>`: single-part, only for the stored syntax |
 | `bulkdata` | `.../instances/<sop>/bulkdata/<tagpath>` | the same key, multipart |
 | `part10` | `.../instances/<sop>` | `.../instances/<sop>/index.mht.gz` |
-| `thumbnail` | `studies/<s>[/series/<x>[/instances/<sop>]]/thumbnail` | the same key, `image/jpeg`. A study uses the first series, by SeriesNumber, that gives a thumbnail; it skips `NON_IMAGE_MODALITIES` (SEG, SR, DOC, PR, RTSTRUCT, RTPLAN, KO). No thumbnail for video |
+| `thumbnail` | `studies/<s>[/series/<x>[/instances/<sop>]]/thumbnail` | the same key, `image/jpeg`. A study uses the first series, by SeriesNumber, that gives a thumbnail; it skips `NON_IMAGE_MODALITIES` (SEG, SR, DOC, PR, RTSTRUCT, RTPLAN, KO). A series or instance of these modalities, and video, give 404 |
 
 A frame miss asks the upstream for a form of the final syntax in (0008,3002) of the stored
 metadata: JPEG baseline for `.111`, the syntax itself when the upstream sends it
@@ -81,10 +81,10 @@ One JSON object in the environment variable `STATIC_WADO_PROXY_CONFIG`:
 |---|---|---|
 | `root` | `/dicomweb` | The path of the DICOMweb root, and the S3 key prefix |
 | `upstream` | the IDC public proxy | The upstream DICOMweb root |
-| `auth` | none | `{ "source": "env", "variable": "<NAME>" }` or `{ "source": "secretsManager", "secretId": "<name or ARN>" }`. The upstream gets `Authorization: Bearer <token>` |
-| `allow` | none (all studies) | `{ "studies": [<uid>], "collections": [<id>] }`. A collection permits the studies of its stored pages `collections/<id>/studies[/<offset>]`. With `allow`, a request for another study, and a query that no stored index answers, get 403 |
+| `auth` | none | `{ "source": "env", "variable": "<NAME>" }` or `{ "source": "secretsManager", "secretId": "<name or ARN>" }`. The upstream gets `Authorization: Bearer <token>`. The token is static: keep it valid, for example with a scheduled job that writes a new token to the secret |
+| `allow` | none (all studies) | `{ "studies": [<uid>], "collections": [<id>] }`. A collection permits the studies of its stored pages `collections/<id>/studies[/<offset>]`. With `allow`, a request for another study, a query with no stored index form, and a series query that names no study, get 403 |
 | `bucket` | | The S3 bucket (Lambda entry only) |
-| `variants` | none | The permitted single-part frame extensions, for example `["jls"]` |
+| `variants` | none | The permitted single-part frame extensions, for example `["jls"]`. An `Accept` for another variant gets the stored multipart form; a path `frames/<n>.<extension>` with another extension gets 406 |
 | `collectionParameter` | none | The query key of a collection query, `studies?<key>=<id>` (edge mapping) |
 | `upstreamSyntaxes` | the IDC list | The frame syntaxes that the upstream sends, `{ "<uid>": "<media type>" }` |
 | `rules` | `DEFAULT_RULES` | The compression rule table, in the shape of `DEFAULT_RULES` of `@dcmjs-org/commands/pixel` |
@@ -133,7 +133,7 @@ proxy supports.
 | Bulkdata | the BulkDataURI values of the upstream metadata | non-pixel bulkdata |
 | Part 10 | WADO-RS instance with `transfer-syntax=*` | Part 10 retrieve |
 | Rendered | `frames/<n>/rendered?viewport=256,256` with `Accept: image/jpeg` | thumbnails. An upstream with no rendered resource gives no thumbnails |
-| Auth | none, or `Authorization: Bearer <token>` | `auth` in the configuration. A 401 reads the token again and repeats the request one time |
+| Auth | none, or `Authorization: Bearer <token>` | `auth` in the configuration. A 401 reads the token again and repeats the request one time. The proxy does no OAuth refresh: for a short-lived token (the Google Healthcare store, about one hour), a scheduled job must write a new token to the secret |
 
 The proxy sends the bearer token only to the origin of the `upstream` URL. An absolute
 BulkDataURI on another host gets no token.

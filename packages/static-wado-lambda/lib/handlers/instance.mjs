@@ -9,9 +9,12 @@ export const instanceDir = ({ studyUID, seriesUID, sopUID }) =>
   `studies/${studyUID}/series/${seriesUID}/instances/${sopUID}`;
 
 /**
- * Bulkdata miss (D7): the stored metadata names `<instance>/bulkdata/<tagpath>`, from the tag
- * path of the upstream BulkDataURI. The handler finds that URI in the upstream instance
- * metadata, gets the bulkdata, and stores it as multipart at that key.
+ * Bulkdata miss (D7): the stored metadata names `<instance>/bulkdata/<tagpath>`, from the
+ * instance and the tag path of the upstream BulkDataURI (also `7FE00008` and `7FE00009`). The
+ * handler finds the URI of that instance and tag path in the upstream metadata of the instance,
+ * gets the bulkdata, and stores it as multipart at that key.
+ * shortcut: a URI that only the metadata of another instance holds gives 404; read the referring
+ * metadata when an upstream needs it.
  */
 export async function bulkdata(route, request, context) {
   const { studyUID, seriesUID, sopUID, tagPath } = route;
@@ -19,7 +22,7 @@ export async function bulkdata(route, request, context) {
   let uri;
   if (metadata) {
     mapBulkDataUris(metadata, value => {
-      if (value.endsWith(`/bulkdata/${tagPath}`)) {
+      if (value.endsWith(`/instances/${sopUID}/bulkdata/${tagPath}`)) {
         uri = value;
       }
       return value;

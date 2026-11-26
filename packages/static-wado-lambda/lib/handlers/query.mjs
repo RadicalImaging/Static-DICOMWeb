@@ -20,7 +20,7 @@ function queryValue(query, tag, keyword) {
 const withUID = (records, tag, uid) => records.filter(record => Tags.getValue(record, tag) === uid);
 
 /**
- * A query that no stored index answers (Q19): the upstream answer with a short cache time,
+ * A query with no stored index form (Q19): the upstream answer with a short cache time,
  * not stored. With an allowlist, 403 (D10): the answer can name studies outside the allowlist.
  */
 async function passThrough(request, context) {
@@ -69,6 +69,7 @@ export async function studyQuery(route, request, context) {
  * the upstream series record and stores it as `studies/<s>/series/<x>/series-singleton.json.gz`,
  * the form that `create-dicomweb` writes. With no StudyInstanceUID in the request, the record
  * gives the study; a record with no study passes through. Other series queries pass through.
+ * With an allowlist, a request that names no study gets 403 with no upstream search (D10).
  */
 export async function seriesQuery(route, request, context) {
   const seriesUID = route.seriesUID || queryValue(route.query, '0020000e', 'seriesinstanceuid');
@@ -76,6 +77,12 @@ export async function seriesQuery(route, request, context) {
     return passThrough(request, context);
   }
   const requestStudyUID = route.studyUID || queryValue(route.query, '0020000d', 'studyinstanceuid');
+  // D10: no upstream search for a refused study; with no study in the request, an allowlist refuses.
+  if (
+    requestStudyUID ? !(await context.upstream.isAllowed(requestStudyUID)) : context.upstream.allow
+  ) {
+    return errorResponse({ status: 403 });
+  }
   const series = withUID(
     await context.upstream.search(
       requestStudyUID ? `studies/${requestStudyUID}/series` : 'series',
@@ -89,13 +96,7 @@ export async function seriesQuery(route, request, context) {
   }
   const studyUID = requestStudyUID || Tags.getValue(series[0], Tags.StudyInstanceUID);
   if (!studyUID) {
-    // No study to check against an allowlist, so only an open proxy answers.
-    return context.upstream.allow
-      ? errorResponse({ status: 403 })
-      : Response.json(series, { headers: { 'Cache-Control': SHORT_CACHE } });
-  }
-  if (!(await context.upstream.isAllowed(studyUID))) {
-    return errorResponse({ status: 403 });
+    return Response.json(series, { headers: { 'Cache-Control': SHORT_CACHE } });
   }
   return storeJson(context.store, [
     [`studies/${studyUID}/series/${seriesUID}/series-singleton.json.gz`, series],

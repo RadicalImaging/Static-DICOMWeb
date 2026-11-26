@@ -9,7 +9,7 @@ import {
 } from '@radicalimaging/static-wado-util/storageFormat/index.mjs';
 import { createContext } from '../lib/context.mjs';
 import { inProcessCompute } from '../lib/compute/inProcess.mjs';
-import { frameAccept } from '../lib/handlers/frames.mjs';
+import { frameAccept, frames as framesHandler } from '../lib/handlers/frames.mjs';
 import { directoryStore } from '../lib/stores/directory.mjs';
 import { createLocalServer } from '../lib/localServer.mjs';
 import { listen } from './listen.mjs';
@@ -292,6 +292,33 @@ describe('frame and bulkdata handlers', () => {
   // User behaviour: PRX-USR-4, the exception for video
   it('gives 404 for the thumbnail of a video instance', async () => {
     expect((await fetch(`${proxyUrl}/${instanceDir('1.2.3.4.3')}/thumbnail`)).status).toBe(404);
+  });
+
+  // User behaviour: PRX-USR-4, a non-image instance has no thumbnail and no rendered request
+  it('gives 404 for the thumbnail of a SEG instance, with no rendered request', async () => {
+    const sop = '1.2.3.4.5';
+    responses[`/${instanceDir(sop)}/metadata`] = [
+      { ...ct, '00080018': value('UI', sop), '00080060': value('CS', 'SEG') },
+    ];
+    expect((await fetch(`${proxyUrl}/${instanceDir(sop)}/thumbnail`)).status).toBe(404);
+    expect(requests.some(url => url.includes('/rendered'))).toBe(false);
+  });
+
+  // API contract: a damaged stored frame is a miss, and the proxy stores the frame again
+  it('fetches the frame again when the stored frame is damaged', async () => {
+    const key = `${instanceDir('1.2.3.4.4')}/frames/1`;
+    await store.put(key, Buffer.from('not multipart'), { contentType: 'multipart/related' });
+    const response = await fetch(`${proxyUrl}/${key}.jls`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('image/jls');
+    expect((await storedPart(key)).transferSyntaxUid).toBe(JLS);
+  });
+});
+
+// API contract: an empty frame list never reaches the multipart wrap
+describe('frames', () => {
+  it('returns 400 for an empty frame list', async () => {
+    expect((await framesHandler({ frames: [] }, undefined, {})).status).toBe(400);
   });
 });
 

@@ -94,6 +94,17 @@ describe('local server', () => {
     expect(requests.length).toBe(calls);
   });
 
+  // API contract: D10, a refused series query sends no upstream search
+  it('refuses a series query by UID before the upstream search', async () => {
+    const config = { allow: { studies: ['1.2.3'] } };
+    const calls = requests.length;
+    expect((await fetchProxy(config, 'series?SeriesInstanceUID=4.5')).status).toBe(403);
+    expect(
+      (await fetchProxy(config, 'series?SeriesInstanceUID=4.5&StudyInstanceUID=9.9')).status
+    ).toBe(403);
+    expect(requests.length).toBe(calls);
+  });
+
   // User behaviour: PRX-USR-9, no client can store data
   it('rejects a write (no STOW-RS)', async () => {
     const context = { config: { root: '/dicomweb' } };

@@ -13,7 +13,7 @@ const request = (uri, query = {}, accept) => ({
 });
 const map = (...args) => mapRequest(request(...args), options);
 
-// API contract: PRX-IMP-2, PRX-IMP-17, Q20, Q28
+// API contract: PRX-IMP-2, PRX-IMP-17, PRX-IMP-31, Q28
 describe('mapRequest', () => {
   it('maps a single-part Accept of a permitted variant to the frame suffix', () => {
     expect(map(frame, {}, 'image/jls').uri).toBe(`${frame}.jls`);

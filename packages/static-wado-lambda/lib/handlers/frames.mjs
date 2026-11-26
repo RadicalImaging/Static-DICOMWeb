@@ -104,9 +104,11 @@ export async function loadInstanceMetadata(route, context) {
 async function storedFrame(route, frame, context) {
   const key = `${instanceDir(route)}/frames/${frame}`;
   const hit = await context.store.get(key);
-  if (hit) {
-    return { stored: hit, part: unwrapMultipart(hit.body)[0] };
+  const hitPart = hit && unwrapMultipart(hit.body)?.[0];
+  if (hitPart) {
+    return { stored: hit, part: hitPart };
   }
+  // A damaged stored object is a miss: the frame is fetched and stored again.
   const metadata = await loadInstanceMetadata(route, context);
   if (!metadata) {
     return undefined;
@@ -148,8 +150,12 @@ async function storedFrame(route, frame, context) {
  * - another syntax: the upstream frame in a syntax of that extension that the upstream sends,
  *   single-part and not stored.
  * Other variants give 406, with no upstream request when the upstream sends no such syntax.
+ * The edge mapping never gives such a path for an `Accept` header (PRX-IMP-31).
  */
 export async function frames(route, request, context) {
+  if (!route.frames?.length) {
+    return errorResponse({ status: 400 });
+  }
   const variantSyntaxes = route.variant
     ? Object.keys(uids).filter(uid => uids[uid].extension === `.${route.variant}`)
     : [];
