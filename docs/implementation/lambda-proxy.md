@@ -8,7 +8,7 @@ adds. Not implemented yet: `PRX-IMP-13`, `-14`, `-17`, `-19`, `-20`,
 This document applies the user requirements of
 [Lambda DICOMweb proxy](../specs/lambda-proxy.md) (`PRX-USR`) to the code. The specification
 holds the user requirements, the scope, the releases, and the design decisions (Q1-Q35,
-D1-D12). You can change an implementation requirement (`PRX-IMP`) freely when a better
+D1-D13). You can change an implementation requirement (`PRX-IMP`) freely when a better
 approach appears. Record the change in this document.
 
 ## § Implementation requirements
@@ -25,10 +25,13 @@ Topology:
 - **PRX-IMP-2** A CloudFront Function normalizes the request (for example the Accept header)
   to a canonical S3 key name. The S3 key, the cache key, and the failover use that name. The
   CloudFront Function runs on every request, also on a hit.
-- **PRX-IMP-3** One upstream per deployment, set in configuration, with pluggable auth:
-  none (default, IDC public proxy), a bearer token from an environment variable (local
-  server), or a bearer token from Secrets Manager. On a 401 the client reads the token again
-  and repeats the request one time.
+- **PRX-IMP-3** (`PRX-USR-18`) One upstream per deployment, set in configuration, with
+  pluggable auth: none (default, IDC public proxy), a bearer token from an environment variable
+  (local server), or a bearer token from the `SecretString` of a Secrets Manager secret. On a
+  401 the client reads the token again and repeats the request one time. The environment
+  source cannot change its token. The proxy does no OAuth token exchange. For an upstream with
+  short-lived tokens (for example the Google Healthcare store, about one hour), the operator
+  runs a scheduled job that writes a new token to the secret before the old token expires.
 - **PRX-IMP-4** One zip function (D9), `nodejs24.x`, with response streaming.
   `bin/build-lambda.mjs` bundles the function URL entry with esbuild. The zip also holds a
   `node_modules` with the packages that dcmjs-commands loads with a runtime `require` (dcmjs
@@ -57,8 +60,9 @@ Miss handling:
   instance. A study queries `studies/<s>/series`, drops the non-image modalities, sorts by
   SeriesNumber, and uses the first series that gives a thumbnail (D12). A series that gives none
   (video, or an upstream 4xx other than 429) is skipped; another upstream error ends the
-  request. The proxy stores the JPEG at the `create-dicomweb thumbnail` key. No thumbnail for
-  video.
+  request. A series or instance request whose metadata has a non-image modality returns 404
+  before the `rendered` request. The proxy stores the JPEG at the `create-dicomweb thumbnail`
+  key. No thumbnail for video.
 - **PRX-IMP-15** A frame that the rule compresses (`PRX-USR-8`): fetch the original, encode,
   store, then answer from memory in the requested form.
 - **PRX-IMP-16** (`PRX-USR-8`, `PRX-USR-15`) The rule reads the metadata attributes and the transfer syntax of the frame
@@ -70,13 +74,23 @@ Miss handling:
   recompresses, else the stored transfer syntax (D6). The proxy does not fetch an extra frame
   to find the transfer syntax. On an encode failure the proxy
   stores the original frame, labels it with its own transfer syntax, and logs the failure.
-- **PRX-IMP-17** A CLI command builds `collections/<id>/studies[/<offset>]` from `idc-index`
+- **PRX-IMP-17** (`PRX-USR-13`, `PRX-USR-17`) A CLI command builds `collections/<id>/studies[/<offset>]` from `idc-index`
   and upstream QIDO queries by StudyInstanceUID. The CloudFront Function maps
   `studies?<parameter>=<id>[&offset=<n>]` (no other filters) to those keys. The parameter
   name comes from configuration. Later pages exist only for collections with more than 1000
   studies.
 - **PRX-IMP-18** Video-capable instances skip the rule and the thumbnail path (`PRX-USR-16`,
   `PRX-USR-4`).
+- **PRX-IMP-31** (`PRX-USR-5`, D13) Frame variants. The configuration key `variants` lists the
+  permitted single-part frame extensions; the default is empty. The edge mapping maps a request
+  for one frame to `frames/<n>.<extension>` only when the first media type of the Accept header
+  has an extension in `variants`. Every other Accept keeps the path `frames/<n>`, so the client
+  gets the stored multipart form. The proxy returns 406 for a path `frames/<n>.<extension>` in
+  three cases: the extension is not in `variants`; the path names several frames; or the
+  upstream does not send a syntax of that extension. That path is not a DICOMweb form, so the
+  406 does not apply to a DICOMweb request. A variant in the stored syntax is stored at
+  `frames/<n>.<extension>`. A variant in another syntax comes from the upstream, and the proxy
+  does not store it. No code compares a lossy variant with lossless stored data.
 
 Storage format:
 
@@ -129,8 +143,8 @@ Deployment:
   `GetTemplate`; (2) delete the old stack; (3) create the new stack with a CloudFormation
   resource import; (4) switch from OAI to OAC. A `--dry-run` prints each step. The DocumentDB
   cluster is not retained, so step 2 deletes it.
-- **PRX-IMP-21** The deploy script reads the existing `static-wado.json5` and maps its key
-  names to the template parameters. `packages/s3-deploy` keeps `S3Ops`, gets the templates and
+- **PRX-IMP-21** (`PRX-USR-11`) The deploy script reads the existing `static-wado.json5` and
+  maps its key names to the template parameters. `packages/s3-deploy` keeps `S3Ops`, gets the templates and
   the deploy script, and drops `aws-cdk-lib`, `aws-cdk`, and `constructs`. The proxy is a new
   package (`packages/static-wado-lambda`).
 
@@ -163,6 +177,12 @@ Cloud portability and Release 1 deployment:
   - uses a cache policy with the query string in the cache key, and no header;
   - answers the CORS preflight (`OPTIONS`) in the CloudFront Function, because neither origin
     answers it.
+- **PRX-IMP-32** (Release 1) The proxy reads one JSON object from the environment variable
+  `STATIC_WADO_PROXY_CONFIG`, with the keys `root`, `upstream`, `auth`, `allow`, `bucket`,
+  `variants`, `collectionParameter`, `upstreamSyntaxes`, and `rules`. The README of
+  `packages/static-wado-lambda` gives the meaning and the default of each key. These keys are
+  new; `static-wado.json5` has none of them. The proxy site template sets `bucket`, `root`,
+  `upstream`, and `allow`, from its parameters `Upstream` and `AllowStudies`.
 
 ## Appendix: facts
 

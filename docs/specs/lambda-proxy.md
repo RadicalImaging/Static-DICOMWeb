@@ -2,8 +2,8 @@
 
 Status: draft. The requirement sections wait for confirmation as a set. The proxy of Release 1
 is in `packages/static-wado-lambda`. The pull request #162 (branch `feat/lambda-proxy-core`)
-adds that package. The attach to an existing deployment (`PRX-USR-19`) and the collection build
-command (`PRX-USR-17`) are not implemented yet.
+adds that package. Not implemented yet: the attach to an existing deployment (`PRX-USR-19`),
+the collection query (`PRX-USR-13`), and the collection build command (`PRX-USR-17`).
 
 ## Scope
 
@@ -63,11 +63,16 @@ Retrieval:
   series, or instance path, and is a JPEG image for a viewport of 256 x 256 pixels. A study
   thumbnail is the thumbnail of the first series that can give one (D12). Exceptions: the
   deployment creates no thumbnail for video, and none for a study that has only video series
-  and series of a non-image modality (SEG, SR, DOC, PR, RTSTRUCT, RTPLAN, KO). The thumbnail
-  needs an upstream that has the `rendered` resource (D9).
+  and series of a non-image modality (SEG, SR, DOC, PR, RTSTRUCT, RTPLAN, KO). A thumbnail
+  request for a series or an instance of a non-image modality returns 404. For that request the
+  proxy sends no upstream request, other than for metadata that S3 does not hold yet. The
+  thumbnail needs an upstream that has the `rendered` resource (D9).
 - **PRX-USR-5** A client can ask for a frame as single-part or multipart data, and in a
   compressed transfer syntax. The deployment gives only the variants that its configuration
-  permits.
+  permits. The default configuration gives the stored multipart form only. A request with an
+  Accept header for a variant that the configuration does not permit gets the stored multipart
+  form, with status 200. The Static-DICOMweb web server gives the same answer. (The client
+  reads the transfer syntax from the response: section "Assumptions".) (D13)
 - **PRX-USR-6** A query with an exact UID at study or series level returns the stored index
   file of that UID, the whole file. When S3 has no index file, the proxy gets it from the
   upstream and stores it, also when an allowlist is set and permits the study. An exact-UID
@@ -79,13 +84,27 @@ Retrieval:
   requests, or 4 for a variant that the deployment does not store. The number does not depend
   on the size of the series. A repeat of a request after an upstream auth refusal (401) does
   not count.
-- **PRX-USR-13** A study query by IDC collection returns the stored study list of that IDC
-  collection, in pages of 1000 studies. A collection query returns 404 when the operator has
-  not built the stored study list of that collection (`PRX-USR-17`), including when the
-  collection ID is not an IDC collection. The proxy does not query the upstream for a
-  collection query.
-- **PRX-USR-14** Every client that requests the same URL with the same Accept header gets the
-  same bytes, also on the first request.
+- **PRX-USR-13** (Not implemented yet.) A study query by IDC collection returns the stored
+  study list of that IDC collection, in pages of 1000 studies. A collection query returns 404
+  when the operator has not built the stored study list of that collection (`PRX-USR-17`),
+  including when the collection ID is not an IDC collection. The proxy does not query the
+  upstream for a collection query. The other details wait for the collection build command of
+  `PRX-USR-17`. The proposal is:
+  - A page starts at an offset that is a multiple of 1000. A query with another offset returns
+    400.
+  - A query for a page after the last page returns 404.
+  - The order of the studies is by StudyInstanceUID.
+  - Each entry is the QIDO-RS study record of the study.
+  - A query for a collection that is not in the allowlist returns 403.
+- **PRX-USR-14** Every successful response for a stored resource has the same bytes for every
+  client that requests the same URL with an Accept header that maps to the same canonical form
+  (Q8). The bytes are the bytes before `Content-Encoding`. This also applies to the first
+  request. A stored resource is metadata, a single frame, bulk data, a thumbnail, or an
+  exact-UID index (`PRX-USR-6`). These responses are not in scope:
+  - a response for a request for several frames;
+  - the answer of a query with no stored index form;
+  - an error response;
+  - a variant that the deployment does not store.
 - **PRX-USR-15** The metadata has no `AvailableTransferSyntaxUID` when the upstream gives no
   transfer syntax for the instance (D6). (The related assumption about the client is in the
   section "Assumptions".)
@@ -111,18 +130,30 @@ Storage:
 
 Deployment:
 
-- **PRX-USR-19** (Release 1) An operator adds the proxy to an existing deployment with one
-  command, and removes it with one command. The command does not redeploy the buckets, the
-  client site, or the upload site, and keeps the CloudFront URL and the stored data.
+- **PRX-USR-19** (Release 1, not implemented yet) An operator adds the proxy to an existing
+  deployment with one command, and removes it with one command. The command does not create,
+  replace, or delete the buckets, the client site, or the upload site. It changes the
+  CloudFront distribution to add the proxy. The add and the removal both keep the CloudFront
+  URL and the stored data. A later deploy of the existing CDK stack removes the proxy. The
+  operator then runs the add command again.
 - **PRX-USR-10** (Release 2) An operator deploys every Static-DICOMweb deployment (with or without the
   proxy) from CloudFormation templates, with no CDK.
-- **PRX-USR-11** (Release 1 for the proxy settings, Release 2 for the rest) The deployment
-  accepts the existing configuration parameter names.
+- **PRX-USR-11** (Release 2) The deployment honours the configuration key names of
+  `static-wado.json5` that the CDK deployment reads: `deployments` (with `name` and `oldName`),
+  `s3Env` (with `account` and `region`), `rootGroup`, `clientGroup`, and `uploadGroup` (each
+  with `Bucket` and `useExistingBucket`), `clientDir`, `domainName`, and `siteSubDomain`. The
+  DocumentDB key `indexGroup` is not in this list (`PRX-USR-12`). The configuration keys of the
+  proxy of Release 1 are new, and are in the implementation specification.
 - **PRX-USR-12** (Release 2) An operator can convert an existing CDK-deployed stack to the new templates,
   and keeps the buckets, the data, and the CloudFront URL. The conversion deletes a DocumentDB
   cluster of the old stack.
 - **PRX-USR-18** The default upstream is the IDC public proxy, with no auth. An operator can
-  configure the Google Healthcare store of IDC (or another upstream) with a token.
+  configure the Google Healthcare store of IDC (or another upstream) with a static bearer
+  token. The operator keeps the token valid, for example with a scheduled job that writes a
+  new token to the secret. When the upstream refuses the token (401), the proxy reads the token
+  again and sends the request one more time. The proxy does no OAuth refresh in Release 1. A
+  Google Healthcare access token expires after about one hour. Without such a job, each miss
+  fails after that time, and the data that S3 holds stays readable.
 
 ## Assumptions
 
@@ -135,7 +166,7 @@ assumption fails, so an assumption is not a user requirement.
 ## Decisions
 
 Each line gives the result of one settled design question (Q1-Q35), or of one decision after
-the design questions (D1-D12). The requirement sections hold the current text. A later item
+the design questions (D1-D13). The requirement sections hold the current text. A later item
 can change an earlier item, and the line then says so.
 
 - **Q1 - Upstream scope.** The deployment has one upstream, which the configuration sets.
@@ -202,7 +233,8 @@ can change an earlier item, and the line then says so.
   proxy computes the original upstream transfer syntax, and does not store it. Lossy variants
   of lossless data are not permitted, unless the configuration adds them. Without the Lambda
   function, the CloudFront Function maps only to stored variants, and maps other requests to
-  the default form. The deployment configuration holds the list.
+  the default form. The deployment configuration holds the list. D13 changed the answer for a
+  variant that is not permitted.
 - **Q21 - Conversion of an existing CDK stack.** The conversion uses a resource import: retain
   the resources, delete the old stack, import the resources into the new stack, and switch to
   OAC. `--dry-run` prints each step (`PRX-IMP-20`).
@@ -317,4 +349,9 @@ can change an earlier item, and the line then says so.
 - **D12 - Study thumbnail.** A study thumbnail is the thumbnail of the first series, by
   SeriesNumber, that can give one. Series of a non-image modality (SEG, SR, DOC, PR, RTSTRUCT,
   RTPLAN, KO) are not tried (`PRX-USR-4`, `PRX-IMP-9`).
-
+- **D13 - Variant that is not permitted (changes Q20, `PRX-USR-5`).** The default
+  configuration permits no variant, so the deployment gives the stored multipart form only. A
+  request with an Accept header for a variant that is not permitted gets the default form, with
+  or without the Lambda function. The Static-DICOMweb web server gives the same answer. Strict
+  DICOMweb behaviour (406) would refuse a request that gets a usable multipart answer now. The
+  proxy returns 406 only for a request form that is not a DICOMweb form (`PRX-IMP-31`).
