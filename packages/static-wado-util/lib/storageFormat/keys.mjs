@@ -39,19 +39,11 @@ function codestreamContentType(src) {
   return dot === -1 ? undefined : codestreamContentTypes[segment.substring(dot)];
 }
 
-const extensionsToRemove = ['.mht', '.jhc'];
-
-const findExtensionToRemove = name => {
-  for (const testExtension of extensionsToRemove) {
-    const lastFound = name.lastIndexOf(testExtension);
-    if (lastFound !== -1) return lastFound;
-  }
-};
-
 /**
  * Converts a file name of the local DICOMweb layout into its storage key: strips `.gz` and
- * `.br`, collapses `index.json` / `index.mht` to the directory key, and strips `.mht` and
- * `.jhc`. The key has no leading slash and no deployment path prefix; the root index gives ''.
+ * `.br`, collapses `index.json` / `index.mht` to the directory key, and strips a trailing
+ * `.mht` or `.jhc`. The key has no leading slash and no deployment path prefix; the root index
+ * gives ''.
  * @param {string} file - File name relative to the DICOMweb root, either separator
  * @returns {string} The key relative to the DICOMweb root
  */
@@ -67,11 +59,7 @@ export function fileToKey(file) {
   if (fileName[0] == '/') {
     fileName = fileName.substring(1);
   }
-  const extensionPos = findExtensionToRemove(fileName);
-  if (extensionPos > 0) {
-    fileName = fileName.substring(0, extensionPos);
-  }
-  return fileName;
+  return fileName.replace(/(?<=.)\.(mht|jhc)$/, '');
 }
 
 /**

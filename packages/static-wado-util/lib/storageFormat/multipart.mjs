@@ -25,6 +25,7 @@ const closeDelimiter = boundary => `\r\n--${boundary}--\r\n`;
  *   content type with the `type` of the first part and the boundary
  */
 export function wrapMultipart(parts, boundary = `BOUNDARY_${randomUUID()}`) {
+  if (!parts.length) throw new Error('wrapMultipart needs at least one part');
   const chunks = parts.flatMap((part, index) => [
     Buffer.from(
       (index ? '\r\n' : '') +
@@ -86,7 +87,7 @@ export function unwrapMultipart(input) {
     if (next === -1 || data[next + delimiter.length] === 0x2d) break;
     start = next + delimiter.length;
   }
-  return parts;
+  return parts.length ? parts : null;
 }
 
 /**
