@@ -47,6 +47,39 @@ describe('storageFormat API contract', () => {
     expect(fileToKey('index.json.gz')).toBe('');
   });
 
+  it('fileToKey strips only a trailing .mht or .jhc', () => {
+    expect(fileToKey('studies/1/rendered.mhtml')).toBe('studies/1/rendered.mhtml');
+    expect(fileToKey('studies/1/frames/1.jhc')).toBe('studies/1/frames/1');
+    expect(fileToKey('studies/1/bulkdata/ab/cd/hash.mht.br')).toBe('studies/1/bulkdata/ab/cd/hash');
+  });
+
+  const withUri = (tag, uri) => ({ ...instance('5'), [tag]: { vr: 'OB', BulkDataURI: uri } });
+  const rewritten = (tag, uri) =>
+    rewriteBulkDataUris(withUri(tag, uri), 'instance')[tag].BulkDataURI;
+  const instances = `${upstream}/studies/${study}/series/${series}/instances`;
+
+  it('rewriteBulkDataUris keeps float pixel data as bulkdata', () => {
+    expect(rewritten('7FE00008', '../../../../bulkdata/ab/cd/h.gz')).toBe(
+      '../../../../bulkdata/ab/cd/h'
+    );
+  });
+
+  it('rewriteBulkDataUris leaves a URI with a query string unchanged', () => {
+    const uri = `${instances}/5?offset=100&length=50`;
+    expect(rewritten('00420011', uri)).toBe(uri);
+  });
+
+  it('rewriteBulkDataUris keeps the instance that an upstream URI names', () => {
+    expect(rewritten('00420011', `${instances}/B/bulkdata/00420011`)).toBe(
+      '../B/bulkdata/00420011'
+    );
+  });
+
+  it('rewriteBulkDataUris leaves a malformed URI unchanged', () => {
+    const uri = 'http://[bad-host/studies/1/bulkdata/x';
+    expect(rewritten('00420011', uri)).toBe(uri);
+  });
+
   it('rewriteBulkDataUris makes each URI relative at the instance level', () => {
     expect(bulkDataUris(rewriteBulkDataUris(instance('5'), 'instance'))).toEqual([
       './frames',
@@ -110,6 +143,14 @@ describe('storageFormat API contract', () => {
       { ...parts[1], transferSyntaxUid: null },
     ]);
     expect(unwrapMultipart(Buffer.from([1, 2, 3]))).toBeNull();
+  });
+
+  it('unwrapMultipart gives null for a body with no complete part header', () => {
+    expect(unwrapMultipart(Buffer.from('--B\r\nContent-Type: x\r\n'))).toBeNull();
+  });
+
+  it('wrapMultipart refuses an empty list of parts', () => {
+    expect(() => wrapMultipart([])).toThrow('at least one part');
   });
 });
 

@@ -4,8 +4,8 @@ import { fileToKey } from './keys.mjs';
 
 const { getValue } = Tags;
 
-/** Top-level attributes whose bulkdata is the frames of the instance */
-const pixelDataTags = new Set(['7FE00010', '7FE00008', '7FE00009']);
+/** The top-level attribute whose bulkdata is the frames; float pixel data is hashed bulkdata */
+const pixelDataTag = '7FE00010';
 
 /**
  * Returns a copy of the DICOM JSON metadata of one instance, with each string BulkDataURI
@@ -36,7 +36,7 @@ export function mapBulkDataUris(metadata, mapUri) {
 }
 
 /** Upstream bulkdata path: `.../studies/<study>/series/<series>/instances/<sop>/bulkdata/<tagpath>` */
-const upstreamBulkDataRe = /\/studies\/[^/]+\/series\/[^/]+\/instances\/[^/]+\/bulkdata\/(.+)$/;
+const upstreamBulkDataRe = /\/(studies\/[^/]+\/series\/[^/]+\/instances\/[^/]+)\/bulkdata\/(.+)$/;
 
 /**
  * Instance-relative key of proxied bulkdata. The proxy cannot hash bulkdata before the fetch,
@@ -47,12 +47,21 @@ const proxiedBulkDataPath = tagPath => `bulkdata/${tagPath}`;
 /**
  * The key (from `studies/`) that a BulkDataURI names, or undefined when it names none.
  * An upstream bulkdata URI (any host and prefix) maps to `proxiedBulkDataPath` of the
- * instance. A relative URI is relative to the instance directory, as `create-dicomweb` writes it.
+ * instance that the URI names. A relative URI is relative to the instance directory, as
+ * `create-dicomweb` writes it. A malformed URI, and a URI with a query string (the key cannot
+ * hold the query), name no key.
  */
 function uriToKey(uri, instanceDir) {
-  const { pathname } = new URL(uri, `http://host/${instanceDir}/`);
+  let url;
+  try {
+    url = new URL(uri, `http://host/${instanceDir}/`);
+  } catch {
+    return undefined;
+  }
+  const { pathname, search } = url;
+  if (search) return undefined;
   const upstream = upstreamBulkDataRe.exec(pathname);
-  if (upstream) return `${instanceDir}/${proxiedBulkDataPath(upstream[1])}`;
+  if (upstream) return `${upstream[1]}/${proxiedBulkDataPath(upstream[2])}`;
   const start = pathname.indexOf('/studies/');
   return start === -1 ? undefined : fileToKey(pathname.substring(start + 1));
 }
@@ -61,14 +70,16 @@ function uriToKey(uri, instanceDir) {
  * Rewrites every BulkDataURI to a relative URI in the storage key form (no `.mht`, `.gz`),
  * so that it resolves against the URL of the metadata to the key that `fileToKey` gives for
  * the written file:
- * - Pixel data (top-level 7FE0xxxx, or a `./frames` URI) is `./frames` at the instance level,
+ * - Pixel data (top-level 7FE00010, or a `./frames` URI) is `./frames` at the instance level,
  *   and `./instances/<sop>/frames` at the series level.
  * - Upstream bulkdata (an absolute URI that ends in `/instances/<sop>/bulkdata/<tagpath>`, on
  *   any host and prefix) is `./bulkdata/<tagpath>` at the instance level, and
- *   `./instances/<sop>/bulkdata/<tagpath>` at the series level.
+ *   `./instances/<sop>/bulkdata/<tagpath>` at the series level. `<sop>` is the instance that
+ *   the URI names.
  * - Other bulkdata keeps its path from `studies/` on, for example the hashed study-level
  *   `bulkdata/` of `create-dicomweb` (`../../bulkdata/...` at the series level).
- * - A URI with no `/studies/` path stays unchanged.
+ * - A URI with no `/studies/` path, a URI with a query string, and a malformed URI stay
+ *   unchanged.
  * @param {Object|Object[]} metadata - Metadata of one instance, or an array of instances
  * @param {'instance'|'series'} level - The level of the metadata document that is written
  * @returns {Object|Object[]} A rewritten copy
@@ -91,7 +102,7 @@ export function rewriteBulkDataUris(metadata, level) {
   const baseDir = level === 'series' ? seriesDir : instanceDir;
 
   return mapBulkDataUris(metadata, (uri, tag, nested) => {
-    if ((!nested && pixelDataTags.has(tag)) || uri.startsWith('./frames')) {
+    if ((!nested && tag === pixelDataTag) || uri.startsWith('./frames')) {
       return level === 'series' ? `./instances/${sopUID}/frames` : './frames';
     }
     const key = uriToKey(uri, instanceDir);

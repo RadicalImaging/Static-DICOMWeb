@@ -1,7 +1,8 @@
 # Implementation: Lambda DICOMweb proxy
 
 Status: draft. The requirements wait for confirmation as a set. The code is in
-`packages/static-wado-lambda`. Not implemented yet: `PRX-IMP-13`, `-14`, `-17`, `-19`, `-20`,
+`packages/static-wado-lambda`, which the pull request #162 (branch `feat/lambda-proxy-core`)
+adds. Not implemented yet: `PRX-IMP-13`, `-14`, `-17`, `-19`, `-20`,
 `-21`, and `-29`.
 
 This document applies the user requirements of
@@ -18,8 +19,12 @@ Topology:
 
 - **PRX-IMP-1** CloudFront uses an origin group: S3 is the primary origin, and a Lambda
   function URL with response streaming is the failover origin on 403/404. Origins use OAC.
+  On a hit CloudFront serves the S3 object, and the Lambda function does not run
+  (`PRX-USR-1`). On a miss the client keeps the same URL, and the failover origin answers
+  (`PRX-USR-2`).
 - **PRX-IMP-2** A CloudFront Function normalizes the request (for example the Accept header)
-  to a canonical S3 key name. The S3 key, the cache key, and the failover use that name.
+  to a canonical S3 key name. The S3 key, the cache key, and the failover use that name. The
+  CloudFront Function runs on every request, also on a hit.
 - **PRX-IMP-3** One upstream per deployment, set in configuration, with pluggable auth:
   none (default, IDC public proxy), a bearer token from an environment variable (local
   server), or a bearer token from Secrets Manager. On a 401 the client reads the token again
@@ -31,8 +36,14 @@ Topology:
 
 Miss handling:
 
-- **PRX-IMP-5** On a miss the proxy fetches only the requested resource. No background job
-  fetches the rest of a series or study.
+- **PRX-IMP-5** On a miss the proxy fetches the requested resource from the upstream
+  (`PRX-USR-2`), and only that resource. No background job fetches the rest of a series or
+  study. A frame miss sends at most these upstream requests (`PRX-USR-7`): one for the
+  instance metadata when S3 does not hold it (D5), one for the frame, and one more for the
+  frame after a 406 or 500 (`PRX-IMP-24`). A variant that the deployment does not store adds
+  one frame request. Each request can repeat one time after a 401 (`PRX-IMP-3`). A request for
+  several frames does this work for each frame. A series thumbnail is the exception to "only
+  that resource": it reads the metadata of the whole series (`PRX-IMP-9`).
 - **PRX-IMP-6** Metadata: fetch, rewrite BulkDataURI values, store in S3, then respond.
 - **PRX-IMP-7** Frames and bulkdata that the rule leaves unchanged: stream the upstream
   response to the client and write the same bytes to S3 in parallel. Current code: the proxy
@@ -40,7 +51,7 @@ Miss handling:
   response keeps the memory use small. Change to a stream when larger objects must pass.
 - **PRX-IMP-8** Compression runs per frame, when the frame arrives. The proxy stores only the
   frames that clients requested. No series-level derived work.
-- **PRX-IMP-9** A thumbnail miss reads the stored metadata (the metadata handler fills a
+- **PRX-IMP-9** (`PRX-USR-4`) A thumbnail miss reads the stored metadata (the metadata handler fills a
   miss), then gets `frames/<n>/rendered?viewport=256,256` from the upstream (D9). An instance
   uses its first frame. A series uses its middle instance and the middle frame of that
   instance. A study queries `studies/<s>/series`, drops the non-image modalities, sorts by
@@ -48,9 +59,9 @@ Miss handling:
   (video, or an upstream 4xx other than 429) is skipped; another upstream error ends the
   request. The proxy stores the JPEG at the `create-dicomweb thumbnail` key. No thumbnail for
   video.
-- **PRX-IMP-15** A frame that the rule compresses: fetch the original, encode, store, then
-  answer from memory in the requested form.
-- **PRX-IMP-16** The rule reads the metadata attributes and the transfer syntax of the frame
+- **PRX-IMP-15** A frame that the rule compresses (`PRX-USR-8`): fetch the original, encode,
+  store, then answer from memory in the requested form.
+- **PRX-IMP-16** (`PRX-USR-8`, `PRX-USR-15`) The rule reads the metadata attributes and the transfer syntax of the frame
   response (PRX-IMP-24). When neither gives a transfer syntax, the rule assumes Explicit VR
   Little Endian (`1.2.840.10008.1.2.1`) for images, and JPEG baseline
   (`1.2.840.10008.1.2.4.50`) for WSI. The metadata handler removes every group 0002 element.
@@ -64,7 +75,8 @@ Miss handling:
   `studies?<parameter>=<id>[&offset=<n>]` (no other filters) to those keys. The parameter
   name comes from configuration. Later pages exist only for collections with more than 1000
   studies.
-- **PRX-IMP-18** Video-capable instances skip the rule and the thumbnail path.
+- **PRX-IMP-18** Video-capable instances skip the rule and the thumbnail path (`PRX-USR-16`,
+  `PRX-USR-4`).
 
 Storage format:
 
@@ -73,7 +85,9 @@ Storage format:
   are in the shared module `@radicalimaging/static-wado-util/storageFormat`, so that the
   Lambda function does not import deploy code.
 - **PRX-IMP-11** The metadata rewrite emits BulkDataURI values in the S3 key form (without
-  `.mht.gz`).
+  `.mht.gz`), relative to the metadata document (`PRX-USR-3`). Proxied non-pixel bulkdata has
+  the key of D7, for the instance that the upstream URI names. A BulkDataURI with a query
+  string, and a malformed BulkDataURI, stay unchanged.
 - **PRX-IMP-12** Transcoding uses `@dcmjs-org/commands` (dcmjs-commands, 0.1.1 or later) as a
   library, through the subpath export `@dcmjs-org/commands/pixel` of the per-frame codec API. dcmjs-commands gets JPEG-LS and HTJ2K
   targets, and the compression rule as `selectTargetSyntax(metadata, rules)`.
@@ -129,8 +143,8 @@ Cloud portability and Release 1 deployment:
   `Response`; an adapter connects the Lambda function URL). The edge request mapping
   (`PRX-IMP-2`, `-17`) is one pure function that the CloudFront Function wraps. No Azure
   implementation now.
-- **PRX-IMP-29** (Release 1) A proxy stack template (`proxy.yaml`: the two functions, the
-  function URL, the ECR repository, IAM, log groups) and a script `deploy-proxy`. The script
+- **PRX-IMP-29** (Release 1, `PRX-USR-19`) A proxy stack template (`proxy.yaml`: the
+  function of D9, the function URL, IAM, log groups) and a script `deploy-proxy`. The script
   deploys the stack, then attaches the proxy to the existing distribution through the
   CloudFront API: the function URL origin with an OAC for Lambda, the origin group (existing
   S3 origin primary, failover on 403/404), the viewer-request CloudFront Function, and a cache

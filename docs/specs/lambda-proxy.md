@@ -1,8 +1,9 @@
 # Specification: Lambda DICOMweb proxy between CloudFront and S3
 
 Status: draft. The requirement sections wait for confirmation as a set. The proxy of Release 1
-is in `packages/static-wado-lambda`. The attach to an existing deployment (`PRX-USR-19`) and
-the collection build command (`PRX-USR-17`) are not implemented yet.
+is in `packages/static-wado-lambda`. The pull request #162 (branch `feat/lambda-proxy-core`)
+adds that package. The attach to an existing deployment (`PRX-USR-19`) and the collection build
+command (`PRX-USR-17`) are not implemented yet.
 
 ## Scope
 
@@ -46,51 +47,67 @@ Draft. Not yet confirmed as a set.
 
 Retrieval:
 
-- **PRX-USR-1** A client reads a study through the CloudFront URL. When S3 holds the
-  resource, CloudFront serves the S3 content, and no Lambda function runs.
-- **PRX-USR-2** When S3 does not hold the resource, the client gets the resource from the
-  upstream DICOMweb service through the same URL, with no change in the client.
+- **PRX-USR-1** A client reads the resources of a study through the CloudFront URL. A resource
+  is the answer to one DICOMweb request: a metadata document, a frame, a bulk data item, an
+  instance, a thumbnail, or a query answer. When S3 holds the resource, the proxy function
+  does not run.
+- **PRX-USR-2** The client gets a resource through the same CloudFront URL whether S3 holds it
+  or not. The client does nothing different on a miss, and cannot tell whether the response
+  came from S3 or from the upstream DICOMweb service through the proxy. (Which responses have
+  the same bytes: `PRX-USR-14`.)
 - **PRX-USR-3** The metadata that the client gets has BulkDataURI values that resolve through
-  the CloudFront URL, not through the upstream. (Interaction with direct upstream frame
-  access: Q31.)
+  the CloudFront URL, not through the upstream, to the same bulk data as the upstream URI.
+  (Interaction with direct upstream frame access: Q31.)
 - **PRX-USR-4** A client can get a thumbnail for a study, series, or instance, also when S3
-  holds no data for that study yet. Exception: the deployment does not create thumbnails for
-  video.
+  holds no data for that study yet. The thumbnail is the resource `thumbnail` below the study,
+  series, or instance path, and is a JPEG image for a viewport of 256 x 256 pixels. A study
+  thumbnail is the thumbnail of the first series that can give one (D12). Exceptions: the
+  deployment creates no thumbnail for video, and none for a study that has only video series
+  and series of a non-image modality (SEG, SR, DOC, PR, RTSTRUCT, RTPLAN, KO). The thumbnail
+  needs an upstream that has the `rendered` resource (D9).
 - **PRX-USR-5** A client can ask for a frame as single-part or multipart data, and in a
   compressed transfer syntax. The deployment gives only the variants that its configuration
   permits.
 - **PRX-USR-6** A query with an exact UID at study or series level returns the stored index
-  file of that UID, the whole file, as Static-DICOMweb does now. When S3 has no index file, the
-  proxy gets it from the upstream and stores it. An exact-UID query at instance level, and all
-  other queries, go to the upstream with a short cache time, and the proxy does not store them
-  (D8). When an allowlist is set, these queries return 403 (`PRX-USR-9`).
-- **PRX-USR-7** One frame request causes the fetch of that resource only. A large series does
-  not delay the first frame.
-- **PRX-USR-13** A study query by IDC collection returns the stored study list of that
-  collection, in pages of 1000 studies. A collection that nobody has built returns 404.
+  file of that UID, the whole file. When S3 has no index file, the proxy gets it from the
+  upstream and stores it, also when an allowlist is set and permits the study. An exact-UID
+  query at instance level, and every query with another filter, have no stored index form.
+  A query with no stored index form goes to the upstream, its answer has a cache time of 60 s,
+  and the proxy does not store the answer (D8). When an allowlist is set, a query with no
+  stored index form returns 403 (`PRX-USR-9`).
+- **PRX-USR-7** A request for one frame that S3 does not hold makes at most 3 upstream
+  requests, or 4 for a variant that the deployment does not store. The number does not depend
+  on the size of the series. A repeat of a request after an upstream auth refusal (401) does
+  not count.
+- **PRX-USR-13** A study query by IDC collection returns the stored study list of that IDC
+  collection, in pages of 1000 studies. A collection query returns 404 when the operator has
+  not built the stored study list of that collection (`PRX-USR-17`), including when the
+  collection ID is not an IDC collection. The proxy does not query the upstream for a
+  collection query.
 - **PRX-USR-14** Every client that requests the same URL with the same Accept header gets the
   same bytes, also on the first request.
-- **PRX-USR-15** Client contract: a client decodes each frame by the transfer syntax of the
-  response (the multipart `Content-Type`), not by `AvailableTransferSyntaxUID` in the
-  metadata. The metadata has no `AvailableTransferSyntaxUID` when the upstream does not give
-  one.
+- **PRX-USR-15** The metadata has no `AvailableTransferSyntaxUID` when the upstream gives no
+  transfer syntax for the instance (D6). (The related assumption about the client is in the
+  section "Assumptions".)
 
 Storage:
 
 - **PRX-USR-8** The deployment stores image frames in the transfer syntax that a fixed,
-  configured compression rule selects (rule: settled Q17). Lossy re-encode of data that is
-  already lossy is permitted by the default rule.
-- **PRX-USR-16** The deployment stores video-capable instances (video SOP classes, and
-  instances with a video transfer syntax) unchanged, as the upstream sends them: no re-encode
-  of a video, and no compression of its frames.
+  configured compression rule selects (rule: settled Q17). The default rule re-encodes some
+  data that is already lossy with one more lossy step (Q17). Exceptions: when the encode of a
+  frame fails, the deployment stores the original frame in its own transfer syntax (Q16); and
+  the rule does not apply to video (`PRX-USR-16`).
+- **PRX-USR-16** The deployment stores the pixel data of a video-capable instance unchanged,
+  as the upstream sends it: no re-encode of a video, and no compression of its frames. The
+  metadata of the instance gets the same changes as other metadata. An instance is
+  video-capable when it has a video SOP class, or a video transfer syntax.
 - **PRX-USR-9** An operator can restrict population to configured studies or IDC collections.
-  When the operator sets this allowlist, a client gets no data of other studies through the
-  proxy: a request for another study, and a query that no stored index answers, return 403.
-  No client can store data through the proxy (no STOW-RS). (Changed by D2: no upstream rate
-  limit setting. The upstream 429 handling of `PRX-IMP-25` limits the load. Changed by D10:
-  the allowlist also applies to queries.)
+  When the operator sets this allowlist, the proxy gets no data of other studies from the
+  upstream: a request for a resource of another study that S3 does not hold, and a query with
+  no stored index form (`PRX-USR-6`), return 403. Data that S3 already holds stays readable
+  (`PRX-USR-1`). No client can store data through the proxy (no STOW-RS).
 - **PRX-USR-17** An operator can build the stored study list of an IDC collection with a CLI
-  command, one time per IDC release.
+  command. One run per IDC release is sufficient: this is the expected frequency, not a limit.
 
 Deployment:
 
@@ -106,6 +123,14 @@ Deployment:
   cluster of the old stack.
 - **PRX-USR-18** The default upstream is the IDC public proxy, with no auth. An operator can
   configure the Google Healthcare store of IDC (or another upstream) with a token.
+
+## Assumptions
+
+An assumption is an obligation on a client. A test of the deployment cannot show that an
+assumption fails, so an assumption is not a user requirement.
+
+- A client decodes each frame by the transfer syntax of the response (the multipart
+  `Content-Type`), not by `AvailableTransferSyntaxUID` in the metadata (Q16, `PRX-USR-15`).
 
 ## Decisions
 
@@ -243,7 +268,8 @@ can change an earlier item, and the line then says so.
   deployment. The replacement of the CDK moves to Release 2.
 - **D2 - Removed work.** No requirement needs three items, so the design removes them: the
   upstream rate limit setting (this changes `PRX-USR-9`), `dcmjs transcode --to auto`, and the
-  fix of the `dicomwebjs dump` defect. The defect is a separate issue.
+  fix of the `dicomwebjs dump` defect. The defect is a separate issue. The upstream 429
+  handling of `PRX-IMP-25` limits the load in place of a rate limit setting.
 - **D3 - Cloud interfaces.** Code that touches a cloud service goes through an interface,
   because an Azure deployment can be necessary within 6 months (`PRX-IMP-28`).
 - **D4 - dcmjs 1.0 beta.** The change of Static-DICOMweb to the dcmjs 1.0 beta merges before
@@ -262,21 +288,25 @@ can change an earlier item, and the line then says so.
   of 2026-11-05 showed that the Q32 order gives JPEG Lossless for every frame.
 - **D6 - Transfer syntax in the stored metadata.** (0002,0010) counts as a transfer syntax
   from the upstream. The proxy never stores group 0002 elements, because DICOMweb metadata
-  must not hold them. The proxy writes AvailableTransferSyntaxUID (0008,3002): the destination
+  must not hold them. When the upstream gives a transfer syntax, in (0008,3002) or in
+  (0002,0010), the proxy writes AvailableTransferSyntaxUID (0008,3002): the destination
   transfer syntax when the proxy will recompress the frames, else the stored transfer syntax.
+  When the upstream gives none, the proxy does not write it (Q30, `PRX-USR-15`).
 - **D7 - Key of proxied bulkdata.** Proxied non-pixel bulkdata uses the instance key
   `instances/<sop>/bulkdata/<tagpath>`, from the upstream tag path, and no content hash.
-- **D8 - Exact-UID instance query.** The instance level passes through to the upstream, and the
+- **D8 - Exact-UID instance query (changes Q6).** The instance level passes through to the upstream, and the
   proxy does not store it. `create-dicomweb` writes no index file for one instance.
 - **D9 - One zip function (changes Q14).** The deployment has one zip function. The function
   compresses frames in process, with the WASM codecs of dcmjs-commands. The function gets a
   thumbnail from the `rendered` resource of the upstream, so it needs no `canvas`, `jsdom`, or
   `cs3d`. A container image becomes necessary only for an upstream with no `rendered`
   resource (`PRX-IMP-4`, `PRX-IMP-9`).
-- **D10 - Queries with an allowlist (changes `PRX-USR-6`, `PRX-USR-9`).** The answer of a query
-  that no stored index answers can name studies outside the allowlist. So, when an allowlist is
-  set, the proxy returns 403 for such a query, and sends no upstream request. Without an
-  allowlist, the query passes through as before.
+- **D10 - Queries with an allowlist (changes `PRX-USR-6`, `PRX-USR-9`).** The allowlist also
+  applies to queries. The answer of a query with no stored index form (`PRX-USR-6`) can name
+  studies outside the allowlist. So, when an allowlist is set, the proxy returns 403 for such a
+  query, and sends no upstream request. Without an allowlist, the query passes through as
+  before. An exact-UID study or series query of a permitted study has a stored index form, so
+  the proxy still gets and stores its index file.
 - **D11 - Purpose and the terms of the upstream (adds to Q29).** The proxy is a general
   read-through cache for any DICOMweb upstream, not only IDC. Its purpose is faster access to the
   studies that clients open, for example a demonstration. It is not a tool to export an archive.
