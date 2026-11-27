@@ -1,4 +1,5 @@
 import path from 'path';
+import { createHash } from 'crypto';
 import { Tags } from '../dictionary/Tags.mjs';
 import { fileToKey } from './keys.mjs';
 
@@ -45,25 +46,37 @@ const upstreamBulkDataRe = /\/(studies\/[^/]+\/series\/[^/]+\/instances\/[^/]+)\
 const proxiedBulkDataPath = tagPath => `bulkdata/${tagPath}`;
 
 /**
- * The key (from `studies/`) that a BulkDataURI names, or undefined when it names none.
- * An upstream bulkdata URI (any host and prefix) maps to `proxiedBulkDataPath` of the
- * instance that the URI names. A relative URI is relative to the instance directory, as
- * `create-dicomweb` writes it. A malformed URI, and a URI with a query string (the key cannot
- * hold the query), name no key.
+ * Instance-relative key of a BulkDataURI that has no key form (D7): a URI with a query string,
+ * a malformed URI, and a URI with no `/studies/` path. The key holds a hash of the whole URI,
+ * so the proxy finds the URI again in the upstream metadata of the instance. A tag path is
+ * 8 upper-case hex digits and `create-dicomweb` writes no instance-level `bulkdata/`, so the
+ * key collides with no other key.
+ * @param {string} uri - The BulkDataURI as the upstream metadata gives it
+ * @returns {string} `bulkdata/hash/<32 hex digits of sha256(uri)>`
+ */
+export const hashedBulkDataPath = uri =>
+  `bulkdata/hash/${createHash('sha256').update(uri).digest('hex').substring(0, 32)}`;
+
+/**
+ * The key (from `studies/`) that a BulkDataURI names. An upstream bulkdata URI (any host and
+ * prefix) maps to `proxiedBulkDataPath` of the instance that the URI names. A relative URI is
+ * relative to the instance directory, as `create-dicomweb` writes it. Every other URI maps to
+ * `hashedBulkDataPath` of the instance that holds it, so no URI leads to the upstream.
  */
 function uriToKey(uri, instanceDir) {
+  const hashed = `${instanceDir}/${hashedBulkDataPath(uri)}`;
   let url;
   try {
     url = new URL(uri, `http://host/${instanceDir}/`);
   } catch {
-    return undefined;
+    return hashed;
   }
   const { pathname, search } = url;
-  if (search) return undefined;
+  if (search) return hashed;
   const upstream = upstreamBulkDataRe.exec(pathname);
   if (upstream) return `${upstream[1]}/${proxiedBulkDataPath(upstream[2])}`;
   const start = pathname.indexOf('/studies/');
-  return start === -1 ? undefined : fileToKey(pathname.substring(start + 1));
+  return start === -1 ? hashed : fileToKey(pathname.substring(start + 1));
 }
 
 /**
@@ -78,8 +91,8 @@ function uriToKey(uri, instanceDir) {
  *   the URI names.
  * - Other bulkdata keeps its path from `studies/` on, for example the hashed study-level
  *   `bulkdata/` of `create-dicomweb` (`../../bulkdata/...` at the series level).
- * - A URI with no `/studies/` path, a URI with a query string, and a malformed URI stay
- *   unchanged.
+ * - A URI with no `/studies/` path, a URI with a query string, and a malformed URI get the
+ *   hashed key `bulkdata/hash/<hash>` of the instance that holds the URI (`hashedBulkDataPath`).
  * @param {Object|Object[]} metadata - Metadata of one instance, or an array of instances
  * @param {'instance'|'series'} level - The level of the metadata document that is written
  * @returns {Object|Object[]} A rewritten copy
@@ -105,9 +118,7 @@ export function rewriteBulkDataUris(metadata, level) {
     if ((!nested && tag === pixelDataTag) || uri.startsWith('./frames')) {
       return level === 'series' ? `./instances/${sopUID}/frames` : './frames';
     }
-    const key = uriToKey(uri, instanceDir);
-    if (key === undefined) return uri;
-    const relative = path.posix.relative(baseDir, key);
+    const relative = path.posix.relative(baseDir, uriToKey(uri, instanceDir));
     return relative.startsWith('../') ? relative : `./${relative}`;
   });
 }
