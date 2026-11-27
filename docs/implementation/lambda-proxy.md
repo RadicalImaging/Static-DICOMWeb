@@ -51,7 +51,9 @@ Miss handling:
   one frame request. Each request can repeat one time after a 401 (`PRX-IMP-3`). A request for
   several frames does this work for each frame. A series thumbnail is the exception to "only
   that resource": it reads the metadata of the whole series (`PRX-IMP-9`).
-- **PRX-IMP-6** Metadata: fetch, rewrite BulkDataURI values, store in S3, then respond.
+- **PRX-IMP-6** Metadata: fetch, rewrite BulkDataURI values, store in S3, then respond. The
+  proxy gives series and instance metadata only. A request for the study-level
+  `studies/<s>/metadata` returns 404, because its answer must hold the metadata of every series.
 - **PRX-IMP-7** Frames and bulkdata that the rule leaves unchanged: stream the upstream
   response to the client and write the same bytes to S3 in parallel. Current code: the proxy
   reads the part into memory, stores it, then answers. The IDC limit of about 32 MB per
@@ -105,12 +107,15 @@ Miss handling:
   has an extension in `variants`. Every other Accept keeps the path `frames/<n>`, so the client
   gets the stored multipart form. The proxy returns 406 for a path `frames/<n>.<extension>` in
   three cases: the extension is not in `variants`; the path names several frames; or the
-  upstream does not send a syntax of that extension. That path is not a DICOMweb form, so the
-  406 does not apply to a DICOMweb request. A variant in the stored syntax is stored at
-  `frames/<n>.<extension>`. A variant in another syntax comes from the upstream, and the proxy
-  does not store it. The proxy also returns 406 for a variant in a lossy syntax when the stored
-  syntax, or the syntax of the source frame, is lossless (Q20). The proxy site template sets no
-  `variants`, so the CloudFront Function of that deployment maps no variant.
+  upstream does not send a syntax of that extension. That path is not a DICOMweb form. A
+  variant in the stored syntax is stored at `frames/<n>.<extension>`. A variant in another
+  syntax comes from the upstream, and the proxy does not store it. The proxy also returns 406
+  for a variant in a lossy syntax when the stored syntax, or the syntax of the source frame, is
+  lossless (Q20). The proxy site template sets no `variants`, so the CloudFront Function of that
+  deployment maps no variant, and a DICOMweb request never gets one of these 406 answers. When
+  an operator permits a lossy extension, for example `jpeg`, the edge maps a DICOMweb request
+  with `Accept: image/jpeg` to the variant path. For lossless data that request gets 406, not
+  the default form of D13.
 
 Storage format:
 
