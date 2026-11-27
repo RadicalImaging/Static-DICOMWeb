@@ -56,7 +56,7 @@ describe('fileToContentType', () => {
     // These are single-part binaries; multipart/related would send clients hunting for a
     // boundary that is not in the object.
     expect(ops.fileToContentType('studies/1/series/2/instances/3/frames/1.jxl')).toBe(
-      'image/x-jxl'
+      'image/jxl'
     );
     expect(ops.fileToContentType('studies/1/series/2/instances/3/frames/1.jll')).toBe('image/jll');
     expect(ops.fileToContentType('studies/1/series/2/instances/3/frames/1.jls.gz')).toBe(
