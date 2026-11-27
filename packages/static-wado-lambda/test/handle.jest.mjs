@@ -5,6 +5,7 @@ import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { handle, errorResponse } from '../lib/handle.mjs';
 import { createContext } from '../lib/context.mjs';
+import { Upstream } from '../lib/upstream.mjs';
 import { directoryStore } from '../lib/stores/directory.mjs';
 import { createLocalServer } from '../lib/localServer.mjs';
 import { listen } from './listen.mjs';
@@ -103,6 +104,35 @@ describe('local server', () => {
       (await fetchProxy(config, 'series?SeriesInstanceUID=4.5&StudyInstanceUID=9.9')).status
     ).toBe(403);
     expect(requests.length).toBe(calls);
+  });
+
+  // API contract: PRX-USR-18, PRX-IMP-3, a 401 reads the token again and repeats one time
+  it('repeats an upstream request one time with a fresh token after a 401', async () => {
+    const seen = [];
+    const tokenServer = http.createServer((req, res) => {
+      seen.push(req.headers.authorization);
+      if (req.headers.authorization !== 'Bearer new') {
+        res.writeHead(401).end();
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/dicom+json' }).end('[]');
+    });
+    let token = 'old';
+    const secrets = {
+      getToken: async ({ refresh } = {}) => {
+        if (refresh) {
+          token = 'new';
+        }
+        return token;
+      },
+    };
+    const client = new Upstream({ url: await listen(tokenServer), secrets });
+    try {
+      expect(await client.search('studies')).toEqual([]);
+      expect(seen).toEqual(['Bearer old', 'Bearer new']);
+    } finally {
+      tokenServer.close();
+    }
   });
 
   // User behaviour: PRX-USR-9, no client can store data

@@ -7,6 +7,7 @@ import { createMain } from '@radicalimaging/create-dicomweb';
 import { createVerboseLog } from '@radicalimaging/static-wado-util';
 import { fileToKey } from '@radicalimaging/static-wado-util/storageFormat/index.mjs';
 import { createContext } from '../lib/context.mjs';
+import { handle } from '../lib/handle.mjs';
 import { directoryStore } from '../lib/stores/directory.mjs';
 import { createLocalServer } from '../lib/localServer.mjs';
 import { listen } from './listen.mjs';
@@ -134,4 +135,52 @@ describe('metadata and query handlers', () => {
     expect(await response.json()).toEqual(written);
     expect(await readStored(store, fileToKey(file))).toEqual(written);
   }, 60_000);
+
+  // User behaviour: PRX-USR-6, Q19, a query with another filter passes through and is not stored
+  it('passes an exact-UID query with another filter through, and does not store it', async () => {
+    const query = 'studies?StudyInstanceUID=9.8.7&PatientName=ZZZ';
+    responses[`/${query}`] = [];
+    requests.length = 0;
+    const response = await fetch(`${proxyUrl}/${query}`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('max-age=60');
+    expect(requests).toEqual([`/${query}`]);
+    expect(await store.exists('studies/9.8.7')).toBe(false);
+  });
+
+  // User behaviour: PRX-USR-6, an exact-UID series query, with and without the study
+  it('stores an exact-UID series query, with and without the study in the request', async () => {
+    const record = series => [
+      { '0020000D': { vr: 'UI', Value: [studyUID] }, '0020000E': { vr: 'UI', Value: [series] } },
+    ];
+    responses[`/studies/${studyUID}/series?SeriesInstanceUID=1.2.3.5`] = record('1.2.3.5');
+    responses['/series?SeriesInstanceUID=1.2.3.6'] = record('1.2.3.6');
+    for (const [request, series] of [
+      [`studies/${studyUID}/series/1.2.3.5`, '1.2.3.5'],
+      ['series?SeriesInstanceUID=1.2.3.6', '1.2.3.6'],
+    ]) {
+      const response = await fetch(`${proxyUrl}/${request}`);
+      expect(await response.json()).toEqual(record(series));
+      const key = `studies/${studyUID}/series/${series}/series-singleton.json`;
+      expect(await readStored(store, key)).toEqual(record(series));
+    }
+  });
+
+  // User behaviour: PRX-USR-6, D10, the series list of a permitted study, with an allowlist
+  it('stores the series list of a permitted study when an allowlist is set', async () => {
+    const list = [{ '0020000E': { vr: 'UI', Value: [seriesUID] } }];
+    responses[`/studies/${studyUID}/series`] = list;
+    const context = createContext({
+      config: { root: '/dicomweb', upstream: upstreamUrl, allow: { studies: [studyUID] } },
+      store,
+    });
+    const response = await handle(
+      new Request(`http://host/dicomweb/studies/${studyUID}/series`),
+      context
+    );
+    expect(response.status).toBe(200);
+    expect(await readStored(store, fileToKey(`studies/${studyUID}/series/index.json.gz`))).toEqual(
+      list
+    );
+  });
 });

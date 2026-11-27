@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { wrapMultipart } from '@radicalimaging/static-wado-util/storageFormat/index.mjs';
 
@@ -22,7 +23,8 @@ export async function firstPart(parts) {
 }
 
 /**
- * Stores parts as one multipart/related object.
+ * Stores parts as one multipart/related object. The boundary is a hash of the key, so that two
+ * concurrent first requests store and return the same bytes (PRX-USR-14).
  * @param {Object} store
  * @param {string} key
  * @param {Object[]} parts - See `wrapMultipart`
@@ -31,7 +33,10 @@ export async function firstPart(parts) {
  *   object, for `storedResponse`
  */
 export async function storeParts(store, key, parts, contentEncoding) {
-  const wrapped = wrapMultipart(parts);
+  const wrapped = wrapMultipart(
+    parts,
+    `BOUNDARY_${createHash('sha256').update(key).digest('hex').slice(0, 32)}`
+  );
   const body = contentEncoding ? gzipSync(wrapped.body) : wrapped.body;
   await store.put(key, body, { contentType: wrapped.contentType, contentEncoding });
   return { body, contentType: wrapped.contentType, contentEncoding };

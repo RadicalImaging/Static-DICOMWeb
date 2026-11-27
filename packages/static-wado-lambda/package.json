@@ -44,7 +44,8 @@
     "@aws-sdk/client-s3": "3.975.0",
     "@aws-sdk/client-secrets-manager": "3.975.0",
     "@dcmjs-org/commands": "0.1.1",
-    "@radicalimaging/static-wado-util": ">=1.8.1"
+    "@radicalimaging/static-wado-util": ">=1.8.1",
+    "dcmjs": "npm:@dcmjs-org/dcmjs@1.0.0-beta.17"
   },
   "devDependencies": {
     "@radicalimaging/create-dicomweb": ">=1.8.1",

@@ -1,9 +1,8 @@
-import { gunzipSync } from 'node:zlib';
-import { selectTargetSyntax, EXPLICIT_LITTLE_ENDIAN } from '@dcmjs-org/commands/pixel';
 import { DicomWebFetchError } from '@dcmjs-org/commands/dicomweb-fetch';
 import { Tags } from '@radicalimaging/static-wado-util/dictionary/Tags.mjs';
 import { errorResponse } from '../handle.mjs';
-import { loadInstanceMetadata } from './frames.mjs';
+import { storedJson } from '../stores/decodedBody.mjs';
+import { isVideo, loadInstanceMetadata } from './frames.mjs';
 import { seriesMetadata } from './metadata.mjs';
 
 /** The size of the `viewport` that the upstream renders into, as `create-dicomweb thumbnail` */
@@ -18,12 +17,10 @@ async function loadSeriesMetadata(route, context) {
     `studies/${route.studyUID}/series/${route.seriesUID}/metadata`
   );
   if (stored) {
-    return JSON.parse(gunzipSync(stored.body));
+    return storedJson(stored);
   }
   const response = await seriesMetadata(route, undefined, context);
-  return response.ok
-    ? JSON.parse(gunzipSync(Buffer.from(await response.arrayBuffer())))
-    : undefined;
+  return response.ok ? storedJson(response) : undefined;
 }
 
 /**
@@ -41,17 +38,16 @@ async function renderThumbnail(route, context) {
     const series = await loadSeriesMetadata(route, context);
     metadata = series?.[Math.floor(series.length / 2)];
   }
-  if (!metadata || NON_IMAGE_MODALITIES.includes(Tags.getValue(metadata, Tags.Modality))) {
+  if (
+    !metadata ||
+    NON_IMAGE_MODALITIES.includes(Tags.getValue(metadata, Tags.Modality)) ||
+    isVideo(metadata)
+  ) {
     return undefined;
   }
   const frame = sopUID
     ? 1
     : Math.ceil((Number(Tags.getValue(metadata, Tags.NumberOfFrames)) || 1) / 2);
-  const incomingTransferSyntax =
-    Tags.getValue(metadata, Tags.AvailableTransferSyntaxUID) ?? EXPLICIT_LITTLE_ENDIAN;
-  if (selectTargetSyntax(metadata, { incomingTransferSyntax }).reason === 'video') {
-    return undefined;
-  }
   const sop = sopUID || Tags.getValue(metadata, Tags.SOPInstanceUID);
   const response = await context.upstream.request(
     `studies/${studyUID}/series/${seriesUID}/instances/${sop}/frames/${frame}/rendered?viewport=${SIZE},${SIZE}`,

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { decodeFrame, imageInfoFromDict, JPEG_BASELINE } from '@dcmjs-org/commands/pixel';
 import {
   unwrapMultipart,
@@ -10,6 +11,7 @@ import {
 import { createContext } from '../lib/context.mjs';
 import { inProcessCompute } from '../lib/compute/inProcess.mjs';
 import { frameAccept, frames as framesHandler } from '../lib/handlers/frames.mjs';
+import { withoutFileMeta } from '../lib/handlers/metadata.mjs';
 import { directoryStore } from '../lib/stores/directory.mjs';
 import { createLocalServer } from '../lib/localServer.mjs';
 import { listen } from './listen.mjs';
@@ -55,6 +57,14 @@ describe('frame and bulkdata handlers', () => {
     bits: 8,
   });
   const video = instance('1.2.3.4.3', '1.2.840.10008.5.1.4.1.1.77.1.1.1', MPEG4, {
+    rows: 16,
+    columns: 16,
+    samples: 3,
+    photometric: 'YBR_PARTIAL_420',
+    bits: 8,
+  });
+  // A video transfer syntax with a SOP class that is not a video class
+  const usVideo = instance('1.2.3.4.6', '1.2.840.10008.5.1.4.1.1.3.1', MPEG4, {
     rows: 16,
     columns: 16,
     samples: 3,
@@ -125,6 +135,7 @@ describe('frame and bulkdata handlers', () => {
         { transferSyntaxUid: JPEG_BASELINE, contentType: 'image/jpeg', body: Buffer.from(jpeg) },
       ],
       [video, { transferSyntaxUid: MPEG4, contentType: 'video/mp4', body: videoBytes }],
+      [usVideo, { transferSyntaxUid: MPEG4, contentType: 'video/mp4', body: videoBytes }],
       [
         noSyntax,
         { transferSyntaxUid: EXPLICIT_LE, contentType: 'application/octet-stream', body: ctPixels },
@@ -134,6 +145,11 @@ describe('frame and bulkdata handlers', () => {
       responses[`/${dirOf}/metadata`] = [dict];
       frames[`/${dirOf}/frames/1`] = frame;
     }
+    frames[`/${instanceDir('1.2.3.4.1')}`] = {
+      transferSyntaxUid: EXPLICIT_LE,
+      contentType: 'application/dicom',
+      body: Buffer.from('a Part 10 file'),
+    };
     responses[`/${seriesDir}/metadata`] = [ct, wsi, video];
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'proxy-frames-'));
     store = directoryStore(dir);
@@ -220,17 +236,19 @@ describe('frame and bulkdata handlers', () => {
     );
   });
 
-  // User behaviour: PRX-USR-16
-  it('stores a video instance unchanged', async () => {
-    const response = await fetch(`${proxyUrl}/${instanceDir('1.2.3.4.3')}/frames/1`);
+  // User behaviour: PRX-USR-16, PRX-IMP-18 (a video SOP class, or a video transfer syntax)
+  it.each([
+    ['a video SOP class', '1.2.3.4.3'],
+    ['a video transfer syntax', '1.2.3.4.6'],
+  ])('stores the frames of an instance with %s unchanged', async (_, sop) => {
+    const encoded = encodes.length;
+    const response = await fetch(`${proxyUrl}/${instanceDir(sop)}/frames/1`);
     expect(response.status).toBe(200);
-    // The upstream does not list MPEG-4 frames, so the first request asks for Explicit VR LE.
-    expect(accepts.find(a => a.includes('transfer-syntax'))).toContain(
-      `transfer-syntax=${EXPLICIT_LE}`
-    );
-    const part = await storedPart(`${instanceDir('1.2.3.4.3')}/frames/1`);
+    expect(accepts.find(a => a.includes('transfer-syntax'))).toContain('transfer-syntax=*');
+    const part = await storedPart(`${instanceDir(sop)}/frames/1`);
     expect(part.transferSyntaxUid).toBe(MPEG4);
     expect(part.body).toEqual(videoBytes);
+    expect(encodes.length).toBe(encoded);
   });
 
   // User behaviour: D5, metadata with no transfer syntax gives the Q30 request form
@@ -304,14 +322,39 @@ describe('frame and bulkdata handlers', () => {
     expect(requests.some(url => url.includes('/rendered'))).toBe(false);
   });
 
-  // API contract: a damaged stored frame is a miss, and the proxy stores the frame again
-  it('fetches the frame again when the stored frame is damaged', async () => {
-    const key = `${instanceDir('1.2.3.4.4')}/frames/1`;
-    await store.put(key, Buffer.from('not multipart'), { contentType: 'multipart/related' });
-    const response = await fetch(`${proxyUrl}/${key}.jls`);
+  // API contract: PRX-IMP-26, a stored frame is read with its Content-Encoding and never replaced
+  it('reads a gzip stored frame, and does not replace a stored frame that it cannot read', async () => {
+    const gzipKey = `${instanceDir('1.2.3.4.4')}/frames/2`;
+    const codestream = Buffer.from('a JPEG-LS codestream');
+    const wrapped = wrapMultipart([
+      { body: codestream, contentType: 'image/jls', transferSyntaxUid: JLS },
+    ]);
+    const gzipped = gzipSync(wrapped.body);
+    await store.put(gzipKey, gzipped, {
+      contentType: wrapped.contentType,
+      contentEncoding: 'gzip',
+    });
+    const response = await fetch(`${proxyUrl}/${gzipKey}.jls`);
     expect(response.status).toBe(200);
-    expect(response.headers.get('content-type')).toBe('image/jls');
-    expect((await storedPart(key)).transferSyntaxUid).toBe(JLS);
+    expect(await bytes(response)).toEqual(codestream);
+    expect((await store.get(gzipKey)).body).toEqual(gzipped);
+
+    const damagedKey = `${instanceDir('1.2.3.4.4')}/frames/3`;
+    await store.put(damagedKey, Buffer.from('not multipart'), { contentType: 'multipart/related' });
+    expect((await fetch(`${proxyUrl}/${damagedKey}.jls`)).status).toBe(500);
+    expect((await store.get(damagedKey)).body.toString()).toBe('not multipart');
+    expect(requests.some(url => url.includes('/frames/'))).toBe(false);
+  });
+
+  // User behaviour: a Part 10 miss stores the instance in the form of create-dicomweb
+  it('stores a Part 10 instance with transfer-syntax=*', async () => {
+    const response = await fetch(`${proxyUrl}/${instanceDir('1.2.3.4.1')}`);
+    expect(response.status).toBe(200);
+    expect(accepts).toEqual(['multipart/related; type="application/dicom"; transfer-syntax=*']);
+    const [part] = unwrapMultipart(await bytes(response));
+    expect(part.contentType).toBe('application/dicom');
+    expect(part.body.toString()).toBe('a Part 10 file');
+    expect((await store.get(instanceDir('1.2.3.4.1'))).contentEncoding).toBe('gzip');
   });
 });
 
@@ -319,6 +362,23 @@ describe('frame and bulkdata handlers', () => {
 describe('frames', () => {
   it('returns 400 for an empty frame list', async () => {
     expect((await framesHandler({ frames: [] }, undefined, {})).status).toBe(400);
+  });
+});
+
+// API contract: PRX-IMP-16, the metadata of recompressed colour data describes the stored frames
+describe('withoutFileMeta', () => {
+  it('sets PlanarConfiguration 0 when the rule recompresses colour data', () => {
+    const rgb = instance('1.2.3.9', '1.2.840.10008.5.1.4.1.1.7', EXPLICIT_LE, {
+      rows: 4,
+      columns: 4,
+      samples: 3,
+      photometric: 'RGB',
+      bits: 8,
+    });
+    const [result] = withoutFileMeta([{ ...rgb, '00280006': value('US', 1) }]);
+    expect(result['00083002'].Value).toEqual(['1.2.840.10008.1.2.4.110']);
+    expect(result['00280006'].Value).toEqual([0]);
+    expect(result['00280004'].Value).toEqual(['RGB']);
   });
 });
 

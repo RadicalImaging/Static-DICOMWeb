@@ -510,6 +510,9 @@ importers:
       '@radicalimaging/static-wado-util':
         specifier: '>=1.8.1'
         version: link:../static-wado-util
+      dcmjs:
+        specifier: npm:@dcmjs-org/dcmjs@1.0.0-beta.17
+        version: '@dcmjs-org/dcmjs@1.0.0-beta.17'
     devDependencies:
       '@radicalimaging/create-dicomweb':
         specifier: '>=1.8.1'

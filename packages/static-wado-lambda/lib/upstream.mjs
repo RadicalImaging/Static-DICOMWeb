@@ -1,5 +1,5 @@
-import { gunzipSync } from 'node:zlib';
 import { DicomWebFetch } from '@dcmjs-org/commands/dicomweb-fetch';
+import { storedJson } from './stores/decodedBody.mjs';
 
 const PAGE_SIZE = 1000;
 
@@ -66,8 +66,7 @@ export class Upstream extends DicomWebFetch {
         if (!page) {
           break;
         }
-        const body = page.contentEncoding === 'gzip' ? gunzipSync(page.body) : page.body;
-        const list = JSON.parse(body.toString());
+        const list = await storedJson(page);
         list.forEach(study => studies.add(study['0020000D']?.Value?.[0]));
         if (list.length < PAGE_SIZE) {
           break;

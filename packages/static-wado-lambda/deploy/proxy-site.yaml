@@ -14,9 +14,16 @@ Parameters:
     Type: CommaDelimitedList
     Default: ''
     Description: StudyInstanceUIDs that the proxy may populate; empty permits all studies
+  UpstreamSecretArn:
+    Type: String
+    Default: ''
+    Description: >-
+      Optional. The ARN of a Secrets Manager secret whose SecretString is the bearer token of
+      the upstream (PRX-USR-18); empty sends no token
 
 Conditions:
   OpenAllowlist: !Equals [!Join ['', !Ref AllowStudies], '']
+  HasUpstreamSecret: !Not [!Equals [!Ref UpstreamSecretArn, '']]
 
 Resources:
   Bucket:
@@ -64,6 +71,15 @@ Resources:
               - Effect: Allow
                 Action: s3:ListBucket
                 Resource: !GetAtt Bucket.Arn
+        - !If
+          - HasUpstreamSecret
+          - PolicyName: upstream-secret
+            PolicyDocument:
+              Statement:
+                - Effect: Allow
+                  Action: secretsmanager:GetSecretValue
+                  Resource: !Ref UpstreamSecretArn
+          - !Ref AWS::NoValue
 
   Function:
     Type: AWS::Lambda::Function
@@ -76,12 +92,20 @@ Resources:
       Role: !GetAtt FunctionRole.Arn
       Environment:
         Variables:
-          STATIC_WADO_PROXY_CONFIG: !If
-            - OpenAllowlist
-            - !Sub '{"bucket":"${Bucket}","root":"/dicomweb","upstream":"${Upstream}"}'
-            - !Sub
-              - '{"bucket":"${Bucket}","root":"/dicomweb","upstream":"${Upstream}","allow":{"studies":["${Studies}"]}}'
-              - Studies: !Join ['","', !Ref AllowStudies]
+          STATIC_WADO_PROXY_CONFIG: !Join
+            - ''
+            - - !Sub '{"bucket":"${Bucket}","root":"/dicomweb","upstream":"${Upstream}"'
+              - !If
+                - HasUpstreamSecret
+                - !Sub ',"auth":{"source":"secretsManager","secretId":"${UpstreamSecretArn}"}'
+                - ''
+              - !If
+                - OpenAllowlist
+                - ''
+                - !Sub
+                  - ',"allow":{"studies":["${Studies}"]}'
+                  - Studies: !Join ['","', !Ref AllowStudies]
+              - '}'
 
   FunctionLogs:
     Type: AWS::Logs::LogGroup

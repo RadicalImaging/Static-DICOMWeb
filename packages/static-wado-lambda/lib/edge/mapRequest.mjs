@@ -103,4 +103,4 @@ function mapRequest(request, options) {
   return { uri: uri, querystring: query };
 }
 
-export { mapRequest, OPTIONS };
+export { mapRequest, findKey, onlyFilter, OPTIONS };

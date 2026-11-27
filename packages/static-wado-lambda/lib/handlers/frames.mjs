@@ -1,4 +1,4 @@
-import { gunzipSync } from 'node:zlib';
+import dcmjs from 'dcmjs';
 import {
   selectTargetSyntax,
   imageInfoFromDict,
@@ -13,11 +13,19 @@ import {
 import uids from '@radicalimaging/static-wado-util/uids.mjs';
 import { Tags } from '@radicalimaging/static-wado-util/dictionary/Tags.mjs';
 import { errorResponse } from '../handle.mjs';
+import { decodedBody, storedJson } from '../stores/decodedBody.mjs';
 import { instanceMetadata } from './metadata.mjs';
 import { instanceDir } from './instance.mjs';
 import { firstPart, storeParts, storedResponse } from './parts.mjs';
 
 const WSI = '1.2.840.10008.5.1.4.1.1.77.1.6';
+/** The video SOP classes of `selectTargetSyntax` of dcmjs-commands, which does not export them */
+const VIDEO_SOP_CLASSES = [
+  '1.2.840.10008.5.1.4.1.1.77.1.1.1',
+  '1.2.840.10008.5.1.4.1.1.77.1.2.1',
+  '1.2.840.10008.5.1.4.1.1.77.1.4.1',
+];
+const { isVideoTransferSyntax } = dcmjs.constants;
 
 const OCTET_STREAM = 'application/octet-stream';
 const JPEG = 'image/jpeg';
@@ -63,13 +71,24 @@ export function frameAccept(transferSyntaxUid, syntaxes = UPSTREAM_SYNTAXES) {
   return `multipart/related; type="${type}"; transfer-syntax=${requested}`;
 }
 
+/** The `Accept` of a frame of a video-capable instance: the stored form (PRX-IMP-18) */
+const STORED_FORM_ACCEPT = 'multipart/related; type="application/octet-stream"; transfer-syntax=*';
+
 /**
- * Gets one frame from the upstream (PRX-IMP-24) for the final form `transferSyntaxUid`, and
- * after a 406 or 500 with the default `Accept` of the client.
+ * True for a video-capable instance (PRX-USR-16, PRX-IMP-18): a video SOP class, or a video
+ * transfer syntax in (0008,3002) of the stored metadata.
+ * @param {Object} metadata - The stored instance metadata
  */
-async function fetchFrame(route, frame, transferSyntaxUid, context) {
+export const isVideo = metadata =>
+  VIDEO_SOP_CLASSES.includes(Tags.getValue(metadata, Tags.SOPClassUID)) ||
+  Boolean(isVideoTransferSyntax(Tags.getValue(metadata, Tags.AvailableTransferSyntaxUID)));
+
+/**
+ * Gets one frame from the upstream (PRX-IMP-24) with `accept`, and after a 406 or 500 with the
+ * default `Accept` of the client.
+ */
+async function fetchFrame(route, frame, accept, context) {
   const { studyUID, seriesUID, sopUID } = route;
-  const accept = frameAccept(transferSyntaxUid, context.config.upstreamSyntaxes);
   try {
     return await firstPart(
       await context.upstream.retrieveFrames(studyUID, seriesUID, sopUID, frame, { accept })
@@ -86,29 +105,30 @@ async function fetchFrame(route, frame, transferSyntaxUid, context) {
 export async function loadInstanceMetadata(route, context) {
   const stored = await context.store.get(`${instanceDir(route)}/metadata`);
   if (stored) {
-    return JSON.parse(gunzipSync(stored.body))[0];
+    return (await storedJson(stored))[0];
   }
   const response = await instanceMetadata(route, undefined, context);
-  return response.ok
-    ? JSON.parse(gunzipSync(Buffer.from(await response.arrayBuffer())))[0]
-    : undefined;
+  return response.ok ? (await storedJson(response))[0] : undefined;
 }
 
 /**
  * One frame in its stored form: from the store, or on a miss fetched, put through the rule
  * (PRX-IMP-15, PRX-IMP-16), and stored as multipart at `<instance>/frames/<n>`. An encode
- * failure stores the original frame with its own transfer syntax. Video keeps its frames: the
- * rule gives no target for it (PRX-USR-16).
+ * failure stores the original frame with its own transfer syntax. Video keeps its frames in
+ * the stored form of the upstream, with no rule (PRX-USR-16). A stored object that is not
+ * multipart throws: the proxy never replaces a stored object (PRX-IMP-26).
  * @returns {Promise<{stored: Object, part: Object}|undefined>} undefined for an unknown instance
  */
 async function storedFrame(route, frame, context) {
   const key = `${instanceDir(route)}/frames/${frame}`;
   const hit = await context.store.get(key);
-  const hitPart = hit && unwrapMultipart(hit.body)?.[0];
-  if (hitPart) {
-    return { stored: hit, part: hitPart };
+  if (hit) {
+    const part = unwrapMultipart(decodedBody(hit))?.[0];
+    if (!part) {
+      throw new Error(`The stored frame ${key} is not multipart`);
+    }
+    return { stored: hit, part };
   }
-  // A damaged stored object is a miss: the frame is fetched and stored again.
   const metadata = await loadInstanceMetadata(route, context);
   if (!metadata) {
     return undefined;
@@ -117,14 +137,22 @@ async function storedFrame(route, frame, context) {
   const assumed =
     Tags.getValue(metadata, Tags.SOPClassUID) === WSI ? JPEG_BASELINE : EXPLICIT_LITTLE_ENDIAN;
   const finalForm = Tags.getValue(metadata, Tags.AvailableTransferSyntaxUID) ?? assumed;
-  const fetched = await fetchFrame(route, frame, finalForm, context);
+  const video = isVideo(metadata);
+  const fetched = await fetchFrame(
+    route,
+    frame,
+    video ? STORED_FORM_ACCEPT : frameAccept(finalForm, context.config.upstreamSyntaxes),
+    context
+  );
   // The stored metadata can hold the destination syntax (D6), so the rule gets the response one.
   const incoming = fetched.transferSyntaxUid ?? assumed;
   let part = { ...fetched, transferSyntaxUid: incoming };
-  const { target, reason } = selectTargetSyntax(metadata, {
-    incomingTransferSyntax: incoming,
-    rules: context.config.rules,
-  });
+  const { target, reason } = video
+    ? {}
+    : selectTargetSyntax(metadata, {
+        incomingTransferSyntax: incoming,
+        rules: context.config.rules,
+      });
   if (target) {
     try {
       const body = await context.compute.encode({

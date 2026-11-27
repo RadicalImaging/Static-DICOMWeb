@@ -53,6 +53,7 @@ The handlers store the files that `create-dicomweb` writes, gzipped, through `pu
 | `seriesMetadata` | `studies/<s>/series/<x>/metadata` | `studies/<s>/series/<x>/metadata.gz`, and `instances/<sop>/metadata.gz` of each instance |
 | `instanceMetadata` | `.../instances/<sop>/metadata` | `studies/<s>/series/<x>/instances/<sop>/metadata.gz` |
 | `studyQuery` | `studies/<s>`, `studies?StudyInstanceUID=<s>` | `studies/<s>/index.json.gz` |
+| `seriesQuery` | `studies/<s>/series` (no filter) | `studies/<s>/series/index.json.gz`, the series list of the study |
 | `seriesQuery` | `studies/<s>/series/<x>`, `[studies/<s>/]series?SeriesInstanceUID=<x>` | `studies/<s>/series/<x>/series-singleton.json.gz` |
 | `frames` | `.../instances/<sop>/frames/<n>` | `.../frames/<n>`: multipart, in the syntax of the compression rule |
 | `frames` | `.../frames/<n>.<extension>` (a permitted variant) | `.../frames/<n>.<extension>`: single-part, only for the stored syntax |
@@ -63,15 +64,20 @@ The handlers store the files that `create-dicomweb` writes, gzipped, through `pu
 A frame miss asks the upstream for a form of the final syntax in (0008,3002) of the stored
 metadata: JPEG baseline for `.111`, the syntax itself when the upstream sends it
 (`upstreamSyntaxes`), else Explicit VR Little Endian. Metadata with no (0008,3002) asks for JPEG
-baseline for WSI, else Explicit VR Little Endian. After a 406 or 500 it asks with the default
-`Accept`. The rule (`selectTargetSyntax` of
+baseline for WSI, else Explicit VR Little Endian. A video-capable instance (a video SOP class,
+or a video syntax in (0008,3002)) asks for `transfer-syntax=*`, and skips the rule. After a 406
+or 500 it asks with the default `Accept`. The rule (`selectTargetSyntax` of
 `@dcmjs-org/commands/pixel`) then reads the syntax of the response. The metadata handlers write the
 destination syntax of the rule to (0008,3002) when the rule recompresses.
 
-The metadata handlers rewrite the BulkDataURI values to the relative storage form. Other
-queries, and every instance query, pass through with `Cache-Control: max-age=60` and are not
-stored. When `allow` is set, these pass-through queries get 403, because their answer can name
-studies outside the allowlist.
+The metadata handlers rewrite the BulkDataURI values to the relative storage form. A stored
+object is read with its `Content-Encoding`, and the proxy never writes over it: a stored frame
+that is not multipart gives 500. A query with a filter other than the UIDs of the table (the
+`onlyFilter` rule of the edge mapping), and every instance query, pass through with
+`Cache-Control: max-age=60` and are not stored. When `allow` is set, these pass-through queries
+get 403, because their answer can name studies outside the allowlist. When S3 holds an object
+at the path of a query (for example `studies` after an upload), S3 answers, the proxy does not
+run, and the filters do not apply.
 
 ## Configuration
 
@@ -112,8 +118,12 @@ aws cloudformation package --region <region> --template-file dist/proxy-site.yam
   --s3-bucket <artifact bucket in that region> --output-template-file dist/proxy-site.packaged.yaml
 aws cloudformation deploy --region <region> --template-file dist/proxy-site.packaged.yaml \
   --stack-name <name> --capabilities CAPABILITY_IAM \
-  [--parameter-overrides AllowStudies=<uid>,<uid>]
+  [--parameter-overrides AllowStudies=<uid>,<uid> UpstreamSecretArn=<secret ARN>]
 ```
+
+`UpstreamSecretArn` is optional. With it, the proxy sends the `SecretString` of the secret as
+the bearer token (`auth` with `secretsManager`), and the function role can read that secret.
+The role has no `kms:Decrypt`, so the secret must use the AWS managed key.
 
 The output `DicomWebRoot` is the DICOMweb root for a client. The bucket has
 `DeletionPolicy: Retain`, so a stack delete keeps the stored data.

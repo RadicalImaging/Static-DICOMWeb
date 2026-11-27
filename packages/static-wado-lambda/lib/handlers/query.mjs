@@ -1,20 +1,15 @@
 import { Tags } from '@radicalimaging/static-wado-util/dictionary/Tags.mjs';
 import { errorResponse } from '../handle.mjs';
+import { findKey, onlyFilter } from '../edge/mapRequest.mjs';
 import { storeJson } from './storeJson.mjs';
 
 const JSON_ACCEPT = 'application/dicom+json, application/json';
 const SHORT_CACHE = 'max-age=60';
+const STUDY_KEYS = ['0020000d', 'studyinstanceuid'];
+const SERIES_KEYS = ['0020000e', 'seriesinstanceuid'];
 
-/** The value of a query key, by keyword or tag and in any case, as the webserver reads it */
-function queryValue(query, tag, keyword) {
-  for (const [key, value] of query) {
-    const lower = key.toLowerCase();
-    if (lower === tag || lower === keyword) {
-      return value;
-    }
-  }
-  return undefined;
-}
+/** The query in the shape of the edge mapping, for its `findKey` and `onlyFilter` (PRX-IMP-2) */
+const edgeQuery = query => Object.fromEntries([...query].map(([key, value]) => [key, { value }]));
 
 /** The records of a QIDO answer that have `uid` in `tag`; the stored index of a UID holds no other */
 const withUID = (records, tag, uid) => records.filter(record => Tags.getValue(record, tag) === uid);
@@ -41,13 +36,14 @@ async function passThrough(request, context) {
 
 /**
  * Study query (PRX-USR-6). An exact StudyInstanceUID (`studies/<uid>`, or
- * `studies?StudyInstanceUID=<uid>`) gets the upstream study record and stores it as
- * `studies/<uid>/index.json.gz`, the form that `create-dicomweb` writes. Other study queries
- * pass through.
+ * `studies?StudyInstanceUID=<uid>`) with no other filter gets the upstream study record and
+ * stores it as `studies/<uid>/index.json.gz`, the form that `create-dicomweb` writes. Other
+ * study queries pass through.
  */
 export async function studyQuery(route, request, context) {
-  const studyUID = route.studyUID || queryValue(route.query, '0020000d', 'studyinstanceuid');
-  if (!studyUID) {
+  const query = edgeQuery(route.query);
+  const studyUID = route.studyUID || findKey(query, ...STUDY_KEYS);
+  if (!studyUID || !onlyFilter(query, STUDY_KEYS)) {
     return passThrough(request, context);
   }
   if (!(await context.upstream.isAllowed(studyUID))) {
@@ -65,18 +61,38 @@ export async function studyQuery(route, request, context) {
 }
 
 /**
- * Series query (PRX-USR-6). An exact SeriesInstanceUID (in the path or the query string) gets
- * the upstream series record and stores it as `studies/<s>/series/<x>/series-singleton.json.gz`,
- * the form that `create-dicomweb` writes. With no StudyInstanceUID in the request, the record
- * gives the study; a record with no study passes through. Other series queries pass through.
+ * The series list of a study (PRX-USR-6, D10): the upstream series records, stored as
+ * `studies/<s>/series/index.json.gz`, the form that `create-dicomweb` writes.
+ * shortcut: one upstream answer with no paging (the Google store gives 100 series by default);
+ * page when a study has more series.
+ */
+async function seriesList(studyUID, context) {
+  const series = await context.upstream.search(`studies/${studyUID}/series`);
+  if (!series.length) {
+    return errorResponse({ status: 404 });
+  }
+  return storeJson(context.store, [[`studies/${studyUID}/series/index.json.gz`, series]]);
+}
+
+/**
+ * Series query (PRX-USR-6). `studies/<s>/series` with no filter is the series list of the
+ * study. An exact SeriesInstanceUID (in the path or the query string), with no filter other
+ * than the StudyInstanceUID, gets the upstream series record and stores it as
+ * `studies/<s>/series/<x>/series-singleton.json.gz`, the form that `create-dicomweb` writes.
+ * With no StudyInstanceUID in the request, the record gives the study; a record with no study
+ * passes through. Other series queries pass through.
  * With an allowlist, a request that names no study gets 403 with no upstream search (D10).
  */
 export async function seriesQuery(route, request, context) {
-  const seriesUID = route.seriesUID || queryValue(route.query, '0020000e', 'seriesinstanceuid');
-  if (!seriesUID) {
+  const query = edgeQuery(route.query);
+  const seriesUID = route.seriesUID || findKey(query, ...SERIES_KEYS);
+  if (!seriesUID && route.studyUID && onlyFilter(query, [])) {
+    return seriesList(route.studyUID, context);
+  }
+  if (!seriesUID || !onlyFilter(query, [...SERIES_KEYS, ...STUDY_KEYS])) {
     return passThrough(request, context);
   }
-  const requestStudyUID = route.studyUID || queryValue(route.query, '0020000d', 'studyinstanceuid');
+  const requestStudyUID = route.studyUID || findKey(query, ...STUDY_KEYS);
   // D10: no upstream search for a refused study; with no study in the request, an allowlist refuses.
   if (
     requestStudyUID ? !(await context.upstream.isAllowed(requestStudyUID)) : context.upstream.allow

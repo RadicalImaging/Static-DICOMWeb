@@ -1,4 +1,9 @@
-import { selectTargetSyntax } from '@dcmjs-org/commands/pixel';
+import {
+  selectTargetSyntax,
+  photometricAfter,
+  resolveOutputSyntax,
+  updatePixelHeader,
+} from '@dcmjs-org/commands/pixel';
 import {
   rewriteBulkDataUris,
   splitSeriesMetadata,
@@ -10,7 +15,9 @@ import { storeJson } from './storeJson.mjs';
  * Removes the group 0002 (file meta) elements, which DICOMweb metadata must not hold, and
  * writes AvailableTransferSyntaxUID (0008,3002) when the upstream gives a transfer syntax
  * (PRX-IMP-16, D6): the destination of the compression rule when the rule recompresses, else
- * the upstream syntax. The upstream (0008,3002) wins over (0002,0010).
+ * the upstream syntax. The upstream (0008,3002) wins over (0002,0010). When the rule
+ * recompresses, PhotometricInterpretation and PlanarConfiguration get the values of the
+ * stored frames (`updatePixelHeader`).
  * @param {Object[]} metadata
  * @param {Object[]} [rules] - The rule table of the configuration; default `DEFAULT_RULES`
  */
@@ -26,6 +33,20 @@ export const withoutFileMeta = (metadata, rules) =>
         rules,
       });
       result['00083002'] = { vr: 'UI', Value: [target ?? transferSyntax] };
+      if (target) {
+        const output = resolveOutputSyntax(target);
+        updatePixelHeader({
+          meta: {},
+          dict: result,
+          sourceUid: transferSyntax,
+          target: output,
+          photometric: photometricAfter({
+            photometric: result['00280004']?.Value?.[0],
+            sourceUid: transferSyntax,
+            target: output,
+          }),
+        });
+      }
     }
     return result;
   });
