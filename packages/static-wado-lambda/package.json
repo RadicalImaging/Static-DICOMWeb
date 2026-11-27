@@ -1,0 +1,54 @@
+{
+  "name": "@radicalimaging/static-wado-lambda",
+  "version": "1.8.1",
+  "private": true,
+  "type": "module",
+  "description": "DICOMweb read-through proxy between CloudFront and S3: the platform-neutral core",
+  "keywords": [
+    "StaticWado",
+    "DICOM",
+    "DICOMweb"
+  ],
+  "author": [
+    "Bill Wallace <bill.wallace@radicalimaging.com>"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RadicalImaging/Static-DICOMWeb.git",
+    "directory": "packages/static-wado-lambda"
+  },
+  "license": "ISC",
+  "main": "lib/handle.mjs",
+  "exports": {
+    ".": "./lib/handle.mjs",
+    "./*": "./lib/*"
+  },
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "bin": {
+    "static-wado-proxy": "bin/local.mjs"
+  },
+  "scripts": {
+    "start": "bun bin/local.mjs",
+    "build:lambda": "node bin/build-lambda.mjs",
+    "test": "jest --config ./jest.config.cjs",
+    "lint": "npx eslint --color \"**/*.{js,mjs,cjs}\"",
+    "lint:fix": "npx eslint --fix --color \"**/*.{js,mjs,cjs}\""
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.975.0",
+    "@aws-sdk/client-secrets-manager": "3.975.0",
+    "@dcmjs-org/commands": "0.1.1",
+    "@radicalimaging/static-wado-util": ">=1.8.1",
+    "dcmjs": "npm:@dcmjs-org/dcmjs@1.0.0-beta.17"
+  },
+  "devDependencies": {
+    "@radicalimaging/create-dicomweb": ">=1.8.1",
+    "esbuild": "0.27.7"
+  }
+}

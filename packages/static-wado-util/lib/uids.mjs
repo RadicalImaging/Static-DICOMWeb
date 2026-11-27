@@ -11,7 +11,7 @@ const uncompressed = {
 const jpeg = 'image/jpeg';
 const jls = 'image/jls';
 const jll = 'image/jll';
-const jxl = 'image/x-jxl';
+const jxl = 'image/jxl';
 const htj2k = 'image/jphc';
 const jp2 = 'image/jp2';
 const rle = 'image/dicom-rle';
@@ -34,6 +34,10 @@ const uids = {
   // Lossy, original JPEG reconstruction mode
   '1.2.840.10008.1.2.4.141': { contentType: jxl, lossy: true },
   '1.2.840.10008.1.2.4.142': { contentType: jxl, lossy: true },
+  // The final JPEG XL UIDs, with the PS3.18 media type
+  '1.2.840.10008.1.2.4.110': { contentType: 'image/jxl', extension: '.jxl' },
+  '1.2.840.10008.1.2.4.111': { contentType: 'image/jxl', extension: '.jxl' },
+  '1.2.840.10008.1.2.4.112': { contentType: 'image/jxl', lossy: true, extension: '.jxl' },
   '1.2.840.10008.1.2.4.80': { contentType: jls, extension: '.jls' },
   '1.2.840.10008.1.2.4.81': { contentType: jls, lossy: true },
   '1.2.840.10008.1.2.4.90': { contentType: jp2, extension: '.jp2' },

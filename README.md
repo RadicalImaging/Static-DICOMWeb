@@ -134,11 +134,28 @@ That will result in an instance running on port 25080 for dicomweb.
 
 There are deployment scripts in src/s3-deploy which will create an S3 bucket for DICOMweb and optionally for OHIF as well.
 
+### DICOMweb proxy on AWS Lambda
+
+[`packages/static-wado-lambda`](./packages/static-wado-lambda/README.md) is a read-through
+DICOMweb proxy for a CloudFront and S3 deployment. CloudFront serves the stored Static DICOMweb
+files from S3. When S3 has no file for a request, a Lambda function gets the data from an
+upstream DICOMweb service (default: the IDC public proxy), stores it in S3, and returns it. The
+proxy stores metadata, query results, frames (compressed by a configured rule), bulkdata, Part 10
+instances, and thumbnails. The next request for the same resource comes from S3.
+
+The [package README](./packages/static-wado-lambda/README.md) explains the configuration, the
+[local server](./packages/static-wado-lambda/README.md#local-server), and the
+[deployment to AWS](./packages/static-wado-lambda/README.md#deploy-to-aws) with CloudFormation,
+and the [requirements for the upstream, the storage, and auditing](./packages/static-wado-lambda/README.md#upstream-requirements-storage-and-auditing).
+The upstream can be any DICOMweb service that meets those requirements.
+The [specification](./docs/specs/lambda-proxy.md) gives the user requirements.
+
 # Using Static DICOMweb
 
 - [Convert DICOM Part 10 to/from DICOMweb](./packages/static-wado-creator/README.md)
 - [Deploy Static DICOMweb to AWS](./packages/s3-deploy/README.md)
 - [Deploy OHIF Viewer Accessible Static DICOMweb](./packages/s3-deploy/README.md#deploy-ohif)
+- [Proxy an upstream DICOMweb service through AWS Lambda into S3](./packages/static-wado-lambda/README.md)
 - [Storing Files to/from Cloud Server](./packages/static-wado-deploy/README.md)
 - [Run local DICOMweb webserver](./packages/static-wado-webserver/README.md)
 - [Run local SCP Server](./packages/static-wado-scp/README.md)
