@@ -74,12 +74,17 @@ Retrieval:
   form, with status 200. The Static-DICOMweb web server gives the same answer. (The client
   reads the transfer syntax from the response: section "Assumptions".) (D13)
 - **PRX-USR-6** A query with an exact UID at study or series level returns the stored index
-  file of that UID, the whole file. When S3 has no index file, the proxy gets it from the
-  upstream and stores it, also when an allowlist is set and permits the study. An exact-UID
+  file of that UID, the whole file. A query for the series of one study
+  (`studies/<uid>/series`) with no filter returns the stored series list of that study, the
+  whole list. When S3 has no index file or series list, the proxy gets it from the upstream
+  and stores it, also when an allowlist is set and permits the study (D10). An exact-UID
   query at instance level, and every query with another filter, have no stored index form.
   A query with no stored index form goes to the upstream, its answer has a cache time of 60 s,
   and the proxy does not store the answer (D8). When an allowlist is set, a query with no
-  stored index form returns 403 (`PRX-USR-9`).
+  stored index form returns 403 (`PRX-USR-9`). Exception: when S3 holds a file at the path of
+  the query (the URL without the query string), S3 returns that file, and the deployment does
+  not apply the filters of the query. For example, after an upload of the study list
+  `studies`, a query `studies?PatientName=A*` returns the whole stored study list (D14).
 - **PRX-USR-7** A request for one frame that S3 does not hold makes at most 3 upstream
   requests, or 4 for a variant that the deployment does not store. The number does not depend
   on the size of the series. A repeat of a request after an upstream auth refusal (401) does
@@ -99,8 +104,8 @@ Retrieval:
 - **PRX-USR-14** Every successful response for a stored resource has the same bytes for every
   client that requests the same URL with an Accept header that maps to the same canonical form
   (Q8). The bytes are the bytes before `Content-Encoding`. This also applies to the first
-  request. A stored resource is metadata, a single frame, bulk data, a thumbnail, or an
-  exact-UID index (`PRX-USR-6`). These responses are not in scope:
+  request. A stored resource is metadata, a single frame, bulk data, a thumbnail, an
+  exact-UID index, or the series list of a study (`PRX-USR-6`). These responses are not in scope:
   - a response for a request for several frames;
   - the answer of a query with no stored index form;
   - an error response;
@@ -112,8 +117,9 @@ Retrieval:
 Storage:
 
 - **PRX-USR-8** The deployment stores image frames in the transfer syntax that a fixed,
-  configured compression rule selects (rule: settled Q17). The default rule re-encodes some
-  data that is already lossy with one more lossy step (Q17). Exceptions: when the encode of a
+  configured compression rule selects (rule: settled Q17). The default rule adds no loss: it
+  keeps data that is already compressed, and changes JPEG baseline data only with a
+  reversible repack (Q17). Exceptions: when the encode of a
   frame fails, the deployment stores the original frame in its own transfer syntax (Q16); and
   the rule does not apply to video (`PRX-USR-16`).
 - **PRX-USR-16** The deployment stores the pixel data of a video-capable instance unchanged,
@@ -166,7 +172,7 @@ assumption fails, so an assumption is not a user requirement.
 ## Decisions
 
 Each line gives the result of one settled design question (Q1-Q35), or of one decision after
-the design questions (D1-D13). The requirement sections hold the current text. A later item
+the design questions (D1-D14). The requirement sections hold the current text. A later item
 can change an earlier item, and the line then says so.
 
 - **Q1 - Upstream scope.** The deployment has one upstream, which the configuration sets.
@@ -211,16 +217,24 @@ can change an earlier item, and the line then says so.
   original frame with its own transfer syntax, and logs the failure. Q30 and Q32 changed the
   inputs of the rule: the rule also reads the transfer syntax of the frame response
   (`PRX-IMP-16`, `PRX-USR-15`).
-- **Q17 - Compression rule details.** The rule uses first-match order, with the specific rows
-  first:
-  WSI JPEG to JPEG XL JPEG Recompression (`1.2.840.10008.1.2.4.111`);
-  segmentation to Deflated Image Frame Compression (`1.2.840.10008.1.2.8.1`);
-  colour to `.111` from JPEG input, to JPEG XL lossless (`.110`) from lossless input, and to
-  JPEG XL (`.112`) from other lossy input;
-  already compressed data stays unchanged;
-  uncompressed grayscale to JPEG-LS lossless (`1.2.840.10008.1.2.4.80`).
-  The `.112` row adds one more generation of loss, and the design accepts that loss. The
-  table is a default in code, and the deployment configuration can replace it.
+- **Q17 - Compression rule details.** The default rule is the table `DEFAULT_RULES` of
+  dcmjs-commands (`selectTargetSyntax` of `@dcmjs-org/commands/pixel`, 0.1.1). The rule uses
+  first-match order, with the specific rows first:
+  1. video stays unchanged;
+  2. WSI with JPEG baseline (`.50`) input to JPEG XL JPEG Recompression
+     (`1.2.840.10008.1.2.4.111`);
+  3. uncompressed segmentation to Deflated Image Frame Compression (`1.2.840.10008.1.2.8.1`);
+  4. colour with JPEG baseline input (or `.111` input) to `.111`;
+  5. uncompressed colour to JPEG XL lossless (`.110`);
+  6. other compressed data stays unchanged (big endian counts as compressed);
+  7. uncompressed grayscale to JPEG-LS lossless (`1.2.840.10008.1.2.4.80`).
+
+  A frame with Bits Allocated over 16, or with no Bits Allocated, stays unchanged. A frame
+  stays unchanged also when the target cannot hold it exactly (for example 1-bit data, a bit
+  depth over the limit of the target, or YBR_FULL). The default adds no generation of loss:
+  the `.50` to `.111` step is a reversible repack. The deployment configuration can replace
+  the table. (The review of #162 changed this answer: the earlier text sent colour data to
+  `.110` from all lossless input and to JPEG XL `.112` from other lossy input.)
 - **Q18 - Collection storage.** A query parameter selects an IDC collection. The deployment
   stores the study list of a collection at `collections/<id>/studies[/<offset>]`, in pages of
   1000 studies. The collection list is also the allowlist for population.
@@ -338,7 +352,11 @@ can change an earlier item, and the line then says so.
   studies outside the allowlist. So, when an allowlist is set, the proxy returns 403 for such a
   query, and sends no upstream request. Without an allowlist, the query passes through as
   before. An exact-UID study or series query of a permitted study has a stored index form, so
-  the proxy still gets and stores its index file.
+  the proxy still gets and stores its index file. The series list of a permitted study
+  (`studies/<s>/series` with no filter) also has a stored index form, the file
+  `studies/<s>/series/index.json.gz` that `create-dicomweb` writes. A viewer reads that list
+  before it opens a study, and the list names only series of one study. (The review of #162
+  added the series list.)
 - **D11 - Purpose and the terms of the upstream (adds to Q29).** The proxy is a general
   read-through cache for any DICOMweb upstream, not only IDC. Its purpose is faster access to the
   studies that clients open, for example a demonstration. It is not a tool to export an archive.
@@ -355,3 +373,8 @@ can change an earlier item, and the line then says so.
   or without the Lambda function. The Static-DICOMweb web server gives the same answer. Strict
   DICOMweb behaviour (406) would refuse a request that gets a usable multipart answer now. The
   proxy returns 406 only for a request form that is not a DICOMweb form (`PRX-IMP-31`).
+- **D14 - A filtered query when S3 holds a file at its path (changes `PRX-USR-6`).** S3 is the
+  primary origin, and S3 does not read the query string. When S3 holds a file at the path of a
+  query, S3 returns that file, and the proxy does not run. The deployment keeps this
+  behaviour, because the static DICOMweb proxy of `dicomwebserver` behaves the same way. A
+  client that needs the filter must not expect it from a path that S3 holds.

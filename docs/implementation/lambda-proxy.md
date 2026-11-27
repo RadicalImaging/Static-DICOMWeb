@@ -8,7 +8,7 @@ adds. Not implemented yet: `PRX-IMP-13`, `-14`, `-17`, `-19`, `-20`,
 This document applies the user requirements of
 [Lambda DICOMweb proxy](../specs/lambda-proxy.md) (`PRX-USR`) to the code. The specification
 holds the user requirements, the scope, the releases, and the design decisions (Q1-Q35,
-D1-D13). You can change an implementation requirement (`PRX-IMP`) freely when a better
+D1-D14). You can change an implementation requirement (`PRX-IMP`) freely when a better
 approach appears. Record the change in this document.
 
 ## § Implementation requirements
@@ -24,7 +24,9 @@ Topology:
   (`PRX-USR-2`).
 - **PRX-IMP-2** A CloudFront Function normalizes the request (for example the Accept header)
   to a canonical S3 key name. The S3 key, the cache key, and the failover use that name. The
-  CloudFront Function runs on every request, also on a hit.
+  CloudFront Function runs on every request, also on a hit. The proxy function uses the same
+  filter rule (`onlyFilter` of the edge mapping) to decide whether a query has a stored index
+  form (`PRX-USR-6`). A query with another filter goes to the upstream.
 - **PRX-IMP-3** (`PRX-USR-18`) One upstream per deployment, set in configuration, with
   pluggable auth: none (default, IDC public proxy), a bearer token from an environment variable
   (local server), or a bearer token from the `SecretString` of a Secrets Manager secret. On a
@@ -71,7 +73,10 @@ Miss handling:
   (`1.2.840.10008.1.2.4.50`) for WSI. The metadata handler removes every group 0002 element.
   It writes `AvailableTransferSyntaxUID` (0008,3002) only when the upstream gives a transfer
   syntax in (0008,3002) or (0002,0010): the destination transfer syntax when the rule
-  recompresses, else the stored transfer syntax (D6). The proxy does not fetch an extra frame
+  recompresses, else the stored transfer syntax (D6). When the rule recompresses, the metadata
+  handler also sets PhotometricInterpretation (0028,0004) to the value of the stored frames,
+  and PlanarConfiguration (0028,0006) of colour data to 0, with `updatePixelHeader` of
+  `@dcmjs-org/commands/pixel`. The proxy does not fetch an extra frame
   to find the transfer syntax. On an encode failure the proxy
   stores the original frame, labels it with its own transfer syntax, and logs the failure.
 - **PRX-IMP-17** (`PRX-USR-13`, `PRX-USR-17`) A CLI command builds `collections/<id>/studies[/<offset>]` from `idc-index`
@@ -80,7 +85,10 @@ Miss handling:
   name comes from configuration. Later pages exist only for collections with more than 1000
   studies.
 - **PRX-IMP-18** Video-capable instances skip the rule and the thumbnail path (`PRX-USR-16`,
-  `PRX-USR-4`).
+  `PRX-USR-4`). The proxy finds a video-capable instance from the stored metadata: a video SOP
+  class, or a video transfer syntax in (0008,3002) (`isVideoTransferSyntax` of dcmjs). A frame
+  miss of such an instance asks the upstream for the stored form (`transfer-syntax=*`), so that
+  the upstream does not decode the video.
 - **PRX-IMP-31** (`PRX-USR-5`, D13) Frame variants. The configuration key `variants` lists the
   permitted single-part frame extensions; the default is empty. The edge mapping maps a request
   for one frame to `frames/<n>.<extension>` only when the first media type of the Accept header
@@ -97,7 +105,10 @@ Storage format:
 - **PRX-IMP-10** The proxy writes S3 keys, content types, and content encodings with the
   `S3Ops` rules (`fileToKey`, `fileToContentType`, `fileToContentEncoding`). Those functions
   are in the shared module `@radicalimaging/static-wado-util/storageFormat`, so that the
-  Lambda function does not import deploy code.
+  Lambda function does not import deploy code. The stored index forms (`PRX-USR-6`) are the
+  files that `create-dicomweb` writes: `studies/<s>/index.json.gz`,
+  `studies/<s>/series/index.json.gz` (the series list, from one upstream answer with no
+  paging), and `studies/<s>/series/<x>/series-singleton.json.gz`.
 - **PRX-IMP-11** The metadata rewrite emits BulkDataURI values in the S3 key form (without
   `.mht.gz`), relative to the metadata document (`PRX-USR-3`). Proxied non-pixel bulkdata has
   the key of D7, for the instance that the upstream URI names. A BulkDataURI with a query
@@ -106,7 +117,9 @@ Storage format:
   library, through the subpath export `@dcmjs-org/commands/pixel` of the per-frame codec API. dcmjs-commands gets JPEG-LS and HTJ2K
   targets, and the compression rule as `selectTargetSyntax(metadata, rules)`.
 - **PRX-IMP-22** The proxy uses small functions of this repository for the metadata rewrite,
-  the multipart wrap, and the S3 key rules. It does not use the dcmjs-commands writer.
+  the multipart wrap, and the S3 key rules. It does not use the dcmjs-commands writer. The
+  multipart boundary of a stored object comes from a hash of its key, so that two concurrent
+  first requests store and return the same bytes (`PRX-USR-14`).
 - **PRX-IMP-23** The upstream client is `DicomWebFetch` of `@dcmjs-org/commands/dicomweb-fetch` (headers,
   streaming bodies, per-request `Accept`). No `jsdom` and no `dicomweb-client` in the zip
   function.
@@ -116,14 +129,18 @@ Storage format:
   the default is the IDC 406 list of the facts below. After a 406 or 500, the request sends
   `Accept: multipart/related; type="image/*"` first and `multipart/related;
   type="application/octet-stream"` second.
-  Part 10 requests send `multipart/related; type="application/dicom"; transfer-syntax=*`. The
+  Part 10 requests send `multipart/related; type="application/dicom"; transfer-syntax=*`. A
+  frame request of a video-capable instance sends `transfer-syntax=*` (`PRX-IMP-18`). The
   rule decides per frame from the media type and transfer syntax of the response.
 - **PRX-IMP-25** On an upstream error the proxy passes the status to the client and stores
   nothing. CloudFront caches a 404 for 5 minutes, and every other error for 10 seconds (for
   example a 429, a 5xx, or a 401 or 403 of an upstream auth fault). The proxy passes
   `Retry-After` through and logs each 429 with the request key.
 - **PRX-IMP-26** Stored data is final: no TTL, no version marker, no invalidation. An operator
-  deletes a study prefix in S3 by hand to get a fresh copy.
+  deletes a study prefix in S3 by hand to get a fresh copy. The proxy never writes over an
+  object that S3 holds. The proxy reads a stored object with its `Content-Encoding` (gzip),
+  for example a frame that `create-dicomweb` wrote as `frames/<n>.mht.gz`. When the proxy
+  cannot read a stored object, the request fails with 500, and the object stays unchanged.
 - **PRX-IMP-27** One upstream series metadata response writes the series metadata and every
   instance metadata file of the series, in parallel with a limit.
 
@@ -182,7 +199,10 @@ Cloud portability and Release 1 deployment:
   `variants`, `collectionParameter`, `upstreamSyntaxes`, and `rules`. The README of
   `packages/static-wado-lambda` gives the meaning and the default of each key. These keys are
   new; `static-wado.json5` has none of them. The proxy site template sets `bucket`, `root`,
-  `upstream`, and `allow`, from its parameters `Upstream` and `AllowStudies`.
+  `upstream`, and `allow`, from its parameters `Upstream` and `AllowStudies` (`PRX-USR-9`). The
+  optional parameter `UpstreamSecretArn` sets `auth` to
+  `{ "source": "secretsManager", "secretId": <ARN> }`, and gives the function role
+  `secretsmanager:GetSecretValue` on that secret (`PRX-USR-18`).
 
 ## Appendix: facts
 
