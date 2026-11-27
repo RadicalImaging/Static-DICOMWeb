@@ -99,7 +99,8 @@ describe('frame and bulkdata handlers', () => {
       if (frame) {
         // Like IDC: the stored form only; a different requested syntax is not served.
         const requested = /transfer-syntax=([\d.]+)/.exec(req.headers.accept)?.[1];
-        if (requested && requested !== frame.transferSyntaxUid) {
+        // A frame with no syntax is sent for any request, with no transfer-syntax parameter.
+        if (requested && frame.transferSyntaxUid && requested !== frame.transferSyntaxUid) {
           res.writeHead(406).end();
           return;
         }
@@ -119,7 +120,19 @@ describe('frame and bulkdata handlers', () => {
       vr: 'UN',
       BulkDataURI: `${upstreamUrl}/bulk/${instanceDir('1.2.3.4.1')}/bulkdata/00131010`,
     };
+    // A BulkDataURI with a query string has no key form (D7)
+    ct['00420012'] = { vr: 'OB', BulkDataURI: `${upstreamUrl}/wado?tag=00420012&part=1` };
+    frames['/wado?tag=00420012&part=1'] = {
+      contentType: 'application/octet-stream',
+      body: Buffer.from('EFGH'),
+    };
     const noSyntax = { ...ct, '00080018': value('UI', '1.2.3.4.4') };
+    // Stored as JPEG-LS; the upstream sends the codestream with no transfer-syntax parameter.
+    const jlsNoParameter = {
+      ...ct,
+      '00080018': value('UI', '1.2.3.4.7'),
+      '00020010': value('UI', JLS),
+    };
     delete noSyntax['00020010'];
     frames[`/bulk/${instanceDir('1.2.3.4.1')}/bulkdata/00131010`] = {
       contentType: 'application/octet-stream',
@@ -140,11 +153,14 @@ describe('frame and bulkdata handlers', () => {
         noSyntax,
         { transferSyntaxUid: EXPLICIT_LE, contentType: 'application/octet-stream', body: ctPixels },
       ],
+      [jlsNoParameter, { contentType: 'image/jls', body: Buffer.from('a JPEG-LS codestream') }],
     ]) {
       const dirOf = instanceDir(dict['00080018'].Value[0]);
       responses[`/${dirOf}/metadata`] = [dict];
       frames[`/${dirOf}/frames/1`] = frame;
     }
+    frames[`/${instanceDir('1.2.3.4.1')}/frames/2`] =
+      frames[`/${instanceDir('1.2.3.4.1')}/frames/1`];
     frames[`/${instanceDir('1.2.3.4.1')}`] = {
       transferSyntaxUid: EXPLICIT_LE,
       contentType: 'application/dicom',
@@ -155,7 +171,7 @@ describe('frame and bulkdata handlers', () => {
     store = directoryStore(dir);
     server = createLocalServer(
       createContext({
-        config: { root: '/dicomweb', upstream: upstreamUrl, variants: ['jls', 'jxl'] },
+        config: { root: '/dicomweb', upstream: upstreamUrl, variants: ['jls', 'jxl', 'jpeg'] },
         store,
         // The codec tests of dcmjs-commands cover the transcode; this records the request.
         compute: {
@@ -213,6 +229,32 @@ describe('frame and bulkdata handlers', () => {
     expect((await fetch(`${proxyUrl}/${instanceDir('1.2.3.4.1')}/frames/1.jp2`)).status).toBe(406);
   });
 
+  // User behaviour: Q20, no lossy variant of lossless data
+  it('refuses a lossy variant of a lossless stored frame, with no upstream frame request', async () => {
+    const response = await fetch(`${proxyUrl}/${instanceDir('1.2.3.4.1')}/frames/1.jpeg`);
+    expect(response.status).toBe(406);
+    expect(requests.some(url => url.includes('/frames/'))).toBe(false);
+  });
+
+  // User behaviour: PRX-USR-14 (repeat), the answer for several frames has the same bytes
+  it('gives the same bytes for a repeat of a request for several frames', async () => {
+    const url = `${proxyUrl}/${instanceDir('1.2.3.4.1')}/frames/1,2`;
+    const first = await bytes(await fetch(url));
+    expect(unwrapMultipart(first)).toHaveLength(2);
+    expect(await bytes(await fetch(url))).toEqual(first);
+  });
+
+  // User behaviour: PRX-IMP-16, a part with no transfer-syntax parameter has the requested syntax
+  it('stores a frame with no transfer-syntax parameter in the syntax that the proxy requested', async () => {
+    const encoded = encodes.length;
+    const response = await fetch(`${proxyUrl}/${instanceDir('1.2.3.4.7')}/frames/1`);
+    expect(response.status).toBe(200);
+    const part = await storedPart(`${instanceDir('1.2.3.4.7')}/frames/1`);
+    expect(part.transferSyntaxUid).toBe(JLS);
+    expect(part.body.toString()).toBe('a JPEG-LS codestream');
+    expect(encodes.length).toBe(encoded);
+  });
+
   // User behaviour: Q17, D5 (the stored form is requested)
   it('stores a JPEG WSI frame as JPEG XL JPEG recompression', async () => {
     const response = await fetch(`${proxyUrl}/${instanceDir('1.2.3.4.2')}/frames/1`);
@@ -267,6 +309,19 @@ describe('frame and bulkdata handlers', () => {
     const response = await fetch(`${proxyUrl}/${key}`);
     expect(response.status).toBe(200);
     expect((await storedPart(key)).body.toString()).toBe('ABCD');
+  });
+
+  // User behaviour: PRX-USR-3, a BulkDataURI with a query string resolves through the proxy
+  it('serves a BulkDataURI with a query string through its hashed key', async () => {
+    const metadataUrl = `${proxyUrl}/${instanceDir('1.2.3.4.1')}/metadata`;
+    const [metadata] = await (await fetch(metadataUrl)).json();
+    const uri = metadata['00420012'].BulkDataURI;
+    expect(uri).toMatch(/^\.\/bulkdata\/hash\/[0-9a-f]{32}$/);
+    const response = await fetch(new URL(uri, metadataUrl));
+    expect(response.status).toBe(200);
+    expect(requests).toContain('/wado?tag=00420012&part=1');
+    const stored = await storedPart(`${instanceDir('1.2.3.4.1')}/${uri.slice(2)}`);
+    expect(stored.body.toString()).toBe('EFGH');
   });
 
   // User behaviour: PRX-USR-4, a thumbnail with no stored data, from the store the second time

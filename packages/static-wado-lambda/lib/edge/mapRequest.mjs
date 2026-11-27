@@ -13,10 +13,11 @@ var EXTENSIONS = {
   'image/jxl': 'jxl',
 };
 
-/** Query keys that page or shape a QIDO answer, and do not filter it */
-var NOT_FILTERS = ['limit', 'offset', 'includefield', 'fuzzymatching'];
+/** Query keys that shape a QIDO answer, and do not filter it. `limit` and `offset` filter. */
+var NOT_FILTERS = ['includefield', 'fuzzymatching'];
 var PAGE_SIZE = 1000;
-var UID = /^[\d.]+$/;
+/** The UID pattern of the router */
+var UID = /^(?:\d+\.)*\d+$/;
 
 function findKey(querystring, tag, keyword) {
   for (var key in querystring) {
@@ -80,9 +81,14 @@ function mapRequest(request, options) {
   if (path === 'studies') {
     var parameter = opts.collectionParameter;
     var collection = parameter && findKey(query, parameter.toLowerCase(), undefined);
-    if (collection && /^[\w-]+$/.test(collection) && onlyFilter(query, [parameter.toLowerCase()])) {
-      var offset = Number(findKey(query, 'offset') || 0);
-      if (offset % PAGE_SIZE === 0) {
+    if (
+      collection &&
+      /^[\w-]+$/.test(collection) &&
+      onlyFilter(query, [parameter.toLowerCase(), 'offset'])
+    ) {
+      var offsetValue = findKey(query, 'offset') || '0';
+      var offset = Number(offsetValue);
+      if (/^\d+$/.test(offsetValue) && offset % PAGE_SIZE === 0) {
         return mapped('collections/' + collection + '/studies' + (offset ? '/' + offset : ''));
       }
     }
@@ -93,7 +99,7 @@ function mapRequest(request, options) {
     return { uri: uri, querystring: query };
   }
 
-  var series = /^(studies\/[\d.]+\/series)(?:\/([\d.]+))?$/.exec(path);
+  var series = /^(studies\/(?:\d+\.)*\d+\/series)(?:\/((?:\d+\.)*\d+))?$/.exec(path);
   if (series) {
     var seriesUID = series[2] || findKey(query, '0020000e', 'seriesinstanceuid');
     if (seriesUID && UID.test(seriesUID) && onlyFilter(query, ['0020000e', 'seriesinstanceuid'])) {
@@ -103,4 +109,4 @@ function mapRequest(request, options) {
   return { uri: uri, querystring: query };
 }
 
-export { mapRequest, findKey, onlyFilter, OPTIONS };
+export { mapRequest, findKey, onlyFilter, OPTIONS, UID };

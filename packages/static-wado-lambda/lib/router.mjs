@@ -11,7 +11,10 @@ const routes = [
   ['seriesMetadata', `${series}/metadata`],
   ['instanceMetadata', `${instance}/metadata`],
   ['frames', `${instance}/frames/(?<frames>\\d+(?:,\\d+)*)(?:\\.(?<variant>[a-z0-9]+))?`],
-  ['bulkdata', `${instance}/bulkdata/(?<tagPath>[0-9A-F]{8}(?:/\\d+/[0-9A-F]{8})*)`],
+  [
+    'bulkdata',
+    `${instance}/bulkdata/(?:(?<tagPath>[0-9A-F]{8}(?:/\\d+/[0-9A-F]{8})*)|hash/(?<hash>[0-9a-f]{32}))`,
+  ],
   [
     'thumbnail',
     `${study}(?:/series/(?<seriesUID>${UID})(?:/instances/(?<sopUID>${UID}))?)?/thumbnail`,
@@ -28,7 +31,8 @@ const routes = [
  *   bulkdata, thumbnail, part10, or collection. A query path with a UID at its own level (for
  *   example `studies/<uid>`) is the exact-UID index of that UID.
  * - `frames`: the 1-based frame numbers; `variant`: the extension of a single-part frame.
- * - `tagPath`: the bulkdata tag path, for example `00480105/0/00282000`.
+ * - `tagPath`: the bulkdata tag path, for example `00480105/0/00282000`; or `hash`: the hash
+ *   of a BulkDataURI with no key form (D7).
  * - `collection`, `offset`: the collection page; `offset` is a number or undefined.
  * - `query`: the URLSearchParams of the request.
  * @param {string} path - Path relative to the DICOMweb root

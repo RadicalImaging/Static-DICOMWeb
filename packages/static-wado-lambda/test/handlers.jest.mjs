@@ -137,8 +137,10 @@ describe('metadata and query handlers', () => {
   }, 60_000);
 
   // User behaviour: PRX-USR-6, Q19, a query with another filter passes through and is not stored
-  it('passes an exact-UID query with another filter through, and does not store it', async () => {
-    const query = 'studies?StudyInstanceUID=9.8.7&PatientName=ZZZ';
+  it.each([
+    ['another filter', 'studies?StudyInstanceUID=9.8.7&PatientName=ZZZ'],
+    ['a UID list', 'studies?StudyInstanceUID=9.8.7%2C9.8.6'],
+  ])('passes an exact-UID query with %s through, and does not store it', async (_, query) => {
     responses[`/${query}`] = [];
     requests.length = 0;
     const response = await fetch(`${proxyUrl}/${query}`);
@@ -182,5 +184,28 @@ describe('metadata and query handlers', () => {
     expect(await readStored(store, fileToKey(`studies/${studyUID}/series/index.json.gz`))).toEqual(
       list
     );
+  });
+
+  // User behaviour: PRX-USR-6, PRX-USR-9, D10, PRX-USR-13, queries with an allowlist
+  it('passes a query below a permitted study through, and refuses other queries with no upstream request', async () => {
+    const instances = `studies/${studyUID}/series/${seriesUID}/instances`;
+    responses[`/${instances}`] = [];
+    const context = createContext({
+      config: {
+        root: '/dicomweb',
+        upstream: upstreamUrl,
+        allow: { studies: [studyUID] },
+        collectionParameter: 'collection',
+      },
+      store,
+    });
+    const status = async query =>
+      (await handle(new Request(`http://host/dicomweb/${query}`), context)).status;
+    requests.length = 0;
+    expect(await status(instances)).toBe(200);
+    expect(requests).toEqual([`/${instances}`]);
+    expect(await status('series?Modality=CT')).toBe(403);
+    expect(await status('studies?collection=c&offset=5')).toBe(404);
+    expect(requests).toHaveLength(1);
   });
 });

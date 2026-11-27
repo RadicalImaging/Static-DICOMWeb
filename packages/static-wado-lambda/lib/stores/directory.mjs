@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 /**
  * The local object store (PRX-IMP-28), for the local server and the tests. The object of a key
@@ -36,8 +37,14 @@ export function directoryStore(root) {
     async put(key, body, { contentType, contentEncoding } = {}) {
       const name = file(key);
       await fs.mkdir(path.dirname(name), { recursive: true });
-      await fs.writeFile(`${name}.json`, JSON.stringify({ contentType, contentEncoding }));
-      await fs.writeFile(name, body);
+      // Temp file and rename, so that a reader never sees a part of a write.
+      const write = async (target, data) => {
+        const temp = `${target}.${process.pid}.${randomUUID()}.tmp`;
+        await fs.writeFile(temp, data);
+        await fs.rename(temp, target);
+      };
+      await write(`${name}.json`, JSON.stringify({ contentType, contentEncoding }));
+      await write(name, body);
     },
     async exists(key) {
       return fs.access(file(key)).then(

@@ -16,7 +16,7 @@ import { errorResponse } from '../handle.mjs';
 import { decodedBody, storedJson } from '../stores/decodedBody.mjs';
 import { instanceMetadata } from './metadata.mjs';
 import { instanceDir } from './instance.mjs';
-import { firstPart, storeParts, storedResponse } from './parts.mjs';
+import { boundaryOf, firstPart, storeParts, storedResponse } from './parts.mjs';
 
 const WSI = '1.2.840.10008.5.1.4.1.1.77.1.6';
 /** The video SOP classes of `selectTargetSyntax` of dcmjs-commands, which does not export them */
@@ -58,6 +58,41 @@ export const UPSTREAM_SYNTAXES = {
   '1.2.840.10008.1.2.4.112': JXL,
 };
 
+/** The PS3.18 default syntax of a frame media type; `image/jpeg` reads the SOF marker */
+const MEDIA_TYPE_SYNTAXES = {
+  [OCTET_STREAM]: EXPLICIT_LITTLE_ENDIAN,
+  'image/dicom-rle': '1.2.840.10008.1.2.5',
+  [JLS]: '1.2.840.10008.1.2.4.80',
+  [JP2]: '1.2.840.10008.1.2.4.90',
+  [HTJ2K]: '1.2.840.10008.1.2.4.201',
+};
+const JPEG_SOF_SYNTAXES = {
+  0xc0: JPEG_BASELINE,
+  0xc1: '1.2.840.10008.1.2.4.51',
+  0xc3: '1.2.840.10008.1.2.4.57',
+};
+
+/**
+ * The transfer syntax of a frame part with no `transfer-syntax` parameter (PRX-IMP-16): the
+ * syntax that the request named, when the part has the media type of that request; else the
+ * syntax of the media type. Undefined when neither gives one.
+ */
+function partSyntax({ contentType, body, requested }, syntaxes = UPSTREAM_SYNTAXES) {
+  if (requested && syntaxes[requested] === contentType) {
+    return requested;
+  }
+  if (contentType !== JPEG) {
+    return MEDIA_TYPE_SYNTAXES[contentType];
+  }
+  // Walk the marker segments after SOI to the SOF marker.
+  for (let i = 2; i + 3 < body.length && body[i] === 0xff; i += 2 + body.readUInt16BE(i + 2)) {
+    if (JPEG_SOF_SYNTAXES[body[i + 1]]) {
+      return JPEG_SOF_SYNTAXES[body[i + 1]];
+    }
+  }
+  return undefined;
+}
+
 /**
  * The `Accept` of a frame request for the final form `transferSyntaxUid` (D5): `.111` asks for
  * JPEG baseline, its only source; a syntax that the upstream sends asks for itself; any other
@@ -85,14 +120,15 @@ export const isVideo = metadata =>
 
 /**
  * Gets one frame from the upstream (PRX-IMP-24) with `accept`, and after a 406 or 500 with the
- * default `Accept` of the client.
+ * default `Accept` of the client. `requested` is the syntax that `accept` names.
  */
 async function fetchFrame(route, frame, accept, context) {
   const { studyUID, seriesUID, sopUID } = route;
   try {
-    return await firstPart(
+    const part = await firstPart(
       await context.upstream.retrieveFrames(studyUID, seriesUID, sopUID, frame, { accept })
     );
+    return { ...part, requested: /transfer-syntax=([\d.]+)/.exec(accept)?.[1] };
   } catch (error) {
     if (error.status !== 406 && error.status !== 500) {
       throw error;
@@ -145,8 +181,9 @@ async function storedFrame(route, frame, context) {
     context
   );
   // The stored metadata can hold the destination syntax (D6), so the rule gets the response one.
-  const incoming = fetched.transferSyntaxUid ?? assumed;
-  let part = { ...fetched, transferSyntaxUid: incoming };
+  const incoming =
+    fetched.transferSyntaxUid ?? partSyntax(fetched, context.config.upstreamSyntaxes) ?? assumed;
+  let part = { body: fetched.body, contentType: fetched.contentType, transferSyntaxUid: incoming };
   const { target, reason } = video
     ? {}
     : selectTargetSyntax(metadata, {
@@ -177,7 +214,8 @@ async function storedFrame(route, frame, context) {
  *   `<instance>/frames/<n>.<extension>`;
  * - another syntax: the upstream frame in a syntax of that extension that the upstream sends,
  *   single-part and not stored.
- * Other variants give 406, with no upstream request when the upstream sends no such syntax.
+ * Other variants give 406, with no upstream request when the upstream sends no such syntax, or
+ * when the syntax is lossy and the stored syntax is lossless (Q20).
  * The edge mapping never gives such a path for an `Accept` header (PRX-IMP-31).
  */
 export async function frames(route, request, context) {
@@ -203,9 +241,15 @@ export async function frames(route, request, context) {
   }
   if (!route.variant) {
     // shortcut: a multi-frame request is answered, not stored; add a key when clients use it.
+    const key = `${instanceDir(route)}/frames/${route.frames.join(',')}`;
     return found.length === 1
       ? storedResponse(found[0].stored)
-      : storedResponse(wrapMultipart(found.map(f => f.part)));
+      : storedResponse(
+          wrapMultipart(
+            found.map(f => f.part),
+            boundaryOf(key)
+          )
+        );
   }
   if (found.length !== 1) {
     return errorResponse({ status: 406 });
@@ -219,7 +263,8 @@ export async function frames(route, request, context) {
   }
   const sent = context.config.upstreamSyntaxes ?? UPSTREAM_SYNTAXES;
   const variantSyntax = variantSyntaxes.find(uid => sent[uid]);
-  if (!variantSyntax) {
+  // Q20: no lossy variant of lossless data.
+  if (!variantSyntax || (uids[variantSyntax].lossy && !uids[part.transferSyntaxUid]?.lossy)) {
     return errorResponse({ status: 406 });
   }
   const { contentType } = uids[variantSyntax];

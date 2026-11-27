@@ -11,21 +11,34 @@ import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-sec
  */
 export function awsSecretsManager({ secretId, client = new SecretsManagerClient({}) }) {
   let token;
+  let refreshing;
   return {
     getToken({ refresh } = {}) {
-      if (refresh || !token) {
-        const read = client
-          .send(new GetSecretValueCommand({ SecretId: secretId }))
-          .then(result => result.SecretString);
-        // Do not cache a failed read.
-        read.catch(() => {
+      // Concurrent 401s share one read.
+      if (refreshing || (!refresh && token)) {
+        return refreshing || token;
+      }
+      const read = client.send(new GetSecretValueCommand({ SecretId: secretId })).then(result => {
+        if (typeof result.SecretString !== 'string') {
+          throw new Error(`The secret ${secretId} has no SecretString`);
+        }
+        return result.SecretString;
+      });
+      refreshing = read;
+      token = read;
+      read.then(
+        () => {
+          refreshing = undefined;
+        },
+        () => {
+          refreshing = undefined;
+          // Do not cache a failed read.
           if (token === read) {
             token = undefined;
           }
-        });
-        token = read;
-      }
-      return token;
+        }
+      );
+      return read;
     },
   };
 }

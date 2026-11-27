@@ -62,7 +62,10 @@ async function renderThumbnail(route, context) {
  * skipped; other upstream errors end the request.
  */
 async function studyThumbnail(route, context) {
-  const number = series => Number(Tags.getValue(series, Tags.SeriesNumber)) || Infinity;
+  const number = series => {
+    const value = Number(Tags.getValue(series, Tags.SeriesNumber) ?? NaN);
+    return Number.isNaN(value) ? Infinity : value;
+  };
   const candidates = (await context.upstream.search(`studies/${route.studyUID}/series`))
     .filter(series => !NON_IMAGE_MODALITIES.includes(Tags.getValue(series, Tags.Modality)))
     .sort((a, b) => number(a) - number(b));

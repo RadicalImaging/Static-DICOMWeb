@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { handle } from './handle.mjs';
 import { mapRequest } from './edge/mapRequest.mjs';
 
@@ -22,11 +23,14 @@ function edgeMap(request, { root, variants = [], collectionParameter = null }) {
   return new Request(url, request);
 }
 
-/** The stored object of a GET with no query string, as the S3 origin serves it, or undefined. */
+/**
+ * The stored object of a GET or HEAD, as the S3 origin serves it, or undefined. S3 ignores the
+ * query string (D14).
+ */
 async function serveStored(request, { config, store }) {
-  const { pathname, search } = new URL(request.url);
+  const { pathname } = new URL(request.url);
   const prefix = `${config.root}/`;
-  if (request.method !== 'GET' || search || !pathname.startsWith(prefix)) {
+  if ((request.method !== 'GET' && request.method !== 'HEAD') || !pathname.startsWith(prefix)) {
     return undefined;
   }
   const stored = await store.get(pathname.slice(prefix.length));
@@ -58,14 +62,18 @@ export function createLocalServer(context) {
       );
       const response = (await serveStored(request, context)) || (await handle(request, context));
       res.writeHead(response.status, Object.fromEntries(response.headers));
-      if (response.body) {
-        Readable.fromWeb(response.body).pipe(res);
+      if (response.body && req.method !== 'HEAD') {
+        await pipeline(Readable.fromWeb(response.body), res);
       } else {
         res.end();
       }
     } catch (error) {
       console.error('Local server failure', req.url, error);
-      res.writeHead(500).end();
+      if (res.headersSent) {
+        res.destroy(error);
+      } else {
+        res.writeHead(500).end();
+      }
     }
   });
 }

@@ -20,7 +20,8 @@ function handler(event) {
       headers: {
         'access-control-allow-origin': { value: '*' },
         'access-control-allow-methods': { value: 'GET, HEAD, OPTIONS' },
-        'access-control-allow-headers': { value: '*' },
+        // A wildcard does not cover Authorization (Fetch spec), so it is named.
+        'access-control-allow-headers': { value: '*, Authorization' },
         'access-control-max-age': { value: '86400' },
       },
     };

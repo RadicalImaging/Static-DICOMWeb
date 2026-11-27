@@ -20,10 +20,19 @@ Parameters:
     Description: >-
       Optional. The ARN of a Secrets Manager secret whose SecretString is the bearer token of
       the upstream (PRX-USR-18); empty sends no token
+  ReservedConcurrency:
+    Type: Number
+    Default: 20
+    MinValue: 0
+    Description: >-
+      The maximum number of concurrent runs of the proxy function, so that a burst of
+      pass-through queries cannot use all of the Lambda concurrency of the account; 0 sets no
+      limit (use 0 in an account with the low default concurrency limit)
 
 Conditions:
   OpenAllowlist: !Equals [!Join ['', !Ref AllowStudies], '']
   HasUpstreamSecret: !Not [!Equals [!Ref UpstreamSecretArn, '']]
+  HasReservedConcurrency: !Not [!Equals [!Ref ReservedConcurrency, '0']]
 
 Resources:
   Bucket:
@@ -89,6 +98,10 @@ Resources:
       Code: ../dist/lambda
       MemorySize: 2048
       Timeout: 60
+      ReservedConcurrentExecutions: !If
+        - HasReservedConcurrency
+        - !Ref ReservedConcurrency
+        - !Ref AWS::NoValue
       Role: !GetAtt FunctionRole.Arn
       Environment:
         Variables:

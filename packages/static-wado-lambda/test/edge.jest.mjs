@@ -35,12 +35,14 @@ describe('mapRequest', () => {
       uri: '/dicomweb/collections/tcga-luad/studies',
       querystring: {},
     });
-    expect(map('/dicomweb/studies', { collection: 'c', offset: '2000', limit: '1000' }).uri).toBe(
+    expect(map('/dicomweb/studies', { collection: 'c', offset: '2000' }).uri).toBe(
       '/dicomweb/collections/c/studies/2000'
     );
-    expect(map('/dicomweb/studies', { collection: 'c', offset: '101' }).uri).toBe(
-      '/dicomweb/studies'
-    );
+    for (const paging of [{ offset: '101' }, { offset: '1e3' }, { limit: '10' }]) {
+      expect(map('/dicomweb/studies', { collection: 'c', ...paging }).uri).toBe(
+        '/dicomweb/studies'
+      );
+    }
     expect(map('/dicomweb/studies', { collection: 'c', PatientID: 'x' }).uri).toBe(
       '/dicomweb/studies'
     );
@@ -54,7 +56,16 @@ describe('mapRequest', () => {
     const singleton = '/dicomweb/studies/1.2/series/1.3/series-singleton.json';
     expect(map('/dicomweb/studies/1.2/series', { '0020000E': '1.3' }).uri).toBe(singleton);
     expect(map('/dicomweb/studies/1.2/series/1.3').uri).toBe(singleton);
-    expect(map('/dicomweb/studies', { StudyInstanceUID: '../x' }).uri).toBe('/dicomweb/studies');
+    // A value outside the router UID pattern, a UID list, and paging have no stored form.
+    for (const query of [
+      { StudyInstanceUID: '../x' },
+      { StudyInstanceUID: '..' },
+      { StudyInstanceUID: '1.2,1.3' },
+      { StudyInstanceUID: '1.2', offset: '5' },
+      { StudyInstanceUID: '1.2', limit: '0' },
+    ]) {
+      expect(map('/dicomweb/studies', query).uri).toBe('/dicomweb/studies');
+    }
   });
 
   it('leaves other queries and requests unchanged', () => {

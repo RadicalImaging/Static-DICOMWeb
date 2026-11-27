@@ -22,6 +22,10 @@ export async function firstPart(parts) {
   throw new Error('The upstream response has no part');
 }
 
+/** The multipart boundary of a key: a hash, so that each answer for the key has the same bytes */
+export const boundaryOf = key =>
+  `BOUNDARY_${createHash('sha256').update(key).digest('hex').slice(0, 32)}`;
+
 /**
  * Stores parts as one multipart/related object. The boundary is a hash of the key, so that two
  * concurrent first requests store and return the same bytes (PRX-USR-14).
@@ -33,10 +37,7 @@ export async function firstPart(parts) {
  *   object, for `storedResponse`
  */
 export async function storeParts(store, key, parts, contentEncoding) {
-  const wrapped = wrapMultipart(
-    parts,
-    `BOUNDARY_${createHash('sha256').update(key).digest('hex').slice(0, 32)}`
-  );
+  const wrapped = wrapMultipart(parts, boundaryOf(key));
   const body = contentEncoding ? gzipSync(wrapped.body) : wrapped.body;
   await store.put(key, body, { contentType: wrapped.contentType, contentEncoding });
   return { body, contentType: wrapped.contentType, contentEncoding };

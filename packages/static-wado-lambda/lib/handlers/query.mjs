@@ -1,6 +1,6 @@
 import { Tags } from '@radicalimaging/static-wado-util/dictionary/Tags.mjs';
 import { errorResponse } from '../handle.mjs';
-import { findKey, onlyFilter } from '../edge/mapRequest.mjs';
+import { findKey, onlyFilter, UID } from '../edge/mapRequest.mjs';
 import { storeJson } from './storeJson.mjs';
 
 const JSON_ACCEPT = 'application/dicom+json, application/json';
@@ -14,18 +14,24 @@ const edgeQuery = query => Object.fromEntries([...query].map(([key, value]) => [
 /** The records of a QIDO answer that have `uid` in `tag`; the stored index of a UID holds no other */
 const withUID = (records, tag, uid) => records.filter(record => Tags.getValue(record, tag) === uid);
 
+/** The exact UID of a query, or undefined: a single UID of the router pattern */
+const exactUID = value => (value && UID.test(value) ? value : undefined);
+
 /**
  * A query with no stored index form (Q19): the upstream answer with a short cache time,
- * not stored. With an allowlist, 403 (D10): the answer can name studies outside the allowlist.
+ * not stored. With an allowlist, 403 (D10) unless the path names a study, which `handle` has
+ * checked: only then the answer cannot name studies outside the allowlist.
  */
-async function passThrough(request, context) {
-  if (context.upstream.allow) {
+async function passThrough(route, request, context) {
+  if (context.upstream.allow && !route.studyUID) {
     return errorResponse({ status: 403 });
   }
   const { pathname, search } = new URL(request.url);
   const path = pathname.slice(context.config.root.length + 1);
   const response = await context.upstream.request(`${path}${search}`, JSON_ACCEPT);
-  return new Response(response.status === 204 ? null : response.body, {
+  // Buffered, so that an upstream body that fails gives an error and not a cut 200.
+  const body = response.status === 204 ? null : await response.arrayBuffer();
+  return new Response(body, {
     status: response.status,
     headers: {
       'Content-Type': response.headers.get('content-type') || 'application/dicom+json',
@@ -37,14 +43,20 @@ async function passThrough(request, context) {
 /**
  * Study query (PRX-USR-6). An exact StudyInstanceUID (`studies/<uid>`, or
  * `studies?StudyInstanceUID=<uid>`) with no other filter gets the upstream study record and
- * stores it as `studies/<uid>/index.json.gz`, the form that `create-dicomweb` writes. Other
- * study queries pass through.
+ * stores it as `studies/<uid>/index.json.gz`, the form that `create-dicomweb` writes. A
+ * collection query gets 404 with no upstream request (PRX-USR-13): the edge maps a stored page,
+ * so only a page that S3 does not hold, or a form that the edge does not map, comes here.
+ * Other study queries pass through.
  */
 export async function studyQuery(route, request, context) {
   const query = edgeQuery(route.query);
-  const studyUID = route.studyUID || findKey(query, ...STUDY_KEYS);
+  const { collectionParameter } = context.config;
+  if (collectionParameter && findKey(query, collectionParameter.toLowerCase())) {
+    return errorResponse({ status: 404 });
+  }
+  const studyUID = route.studyUID || exactUID(findKey(query, ...STUDY_KEYS));
   if (!studyUID || !onlyFilter(query, STUDY_KEYS)) {
-    return passThrough(request, context);
+    return passThrough(route, request, context);
   }
   if (!(await context.upstream.isAllowed(studyUID))) {
     return errorResponse({ status: 403 });
@@ -85,14 +97,18 @@ async function seriesList(studyUID, context) {
  */
 export async function seriesQuery(route, request, context) {
   const query = edgeQuery(route.query);
-  const seriesUID = route.seriesUID || findKey(query, ...SERIES_KEYS);
+  const seriesUID = route.seriesUID || exactUID(findKey(query, ...SERIES_KEYS));
   if (!seriesUID && route.studyUID && onlyFilter(query, [])) {
     return seriesList(route.studyUID, context);
   }
-  if (!seriesUID || !onlyFilter(query, [...SERIES_KEYS, ...STUDY_KEYS])) {
-    return passThrough(request, context);
+  const requestStudyUID = route.studyUID || exactUID(findKey(query, ...STUDY_KEYS));
+  if (
+    !seriesUID ||
+    !onlyFilter(query, [...SERIES_KEYS, ...STUDY_KEYS]) ||
+    (!requestStudyUID && findKey(query, ...STUDY_KEYS))
+  ) {
+    return passThrough(route, request, context);
   }
-  const requestStudyUID = route.studyUID || findKey(query, ...STUDY_KEYS);
   // D10: no upstream search for a refused study; with no study in the request, an allowlist refuses.
   if (
     requestStudyUID ? !(await context.upstream.isAllowed(requestStudyUID)) : context.upstream.allow
@@ -124,5 +140,5 @@ export async function seriesQuery(route, request, context) {
  * instance, so the proxy has no stored form for an exact SOPInstanceUID.
  */
 export function instanceQuery(route, request, context) {
-  return passThrough(request, context);
+  return passThrough(route, request, context);
 }
