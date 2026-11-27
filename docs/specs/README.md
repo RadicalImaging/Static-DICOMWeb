@@ -16,3 +16,4 @@ each specification states the change rules.
 | Specification | Prefixes | Implementation |
 | --- | --- | --- |
 | [Updates of derived data](derived-data-updates.md) | `SQR-U`, `SQR-D` | [Series index rebuild](../implementation/series-index-rebuild.md) (`SQR-I`) |
+| [Lambda DICOMweb proxy](lambda-proxy.md) | `PRX-USR` | [Lambda DICOMweb proxy](../implementation/lambda-proxy.md) (`PRX-IMP`) |

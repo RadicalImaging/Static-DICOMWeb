@@ -428,9 +428,6 @@ importers:
       constructs:
         specifier: 10.8.1
         version: 10.8.1
-      mime-types:
-        specifier: 2.1.35
-        version: 2.1.35
     devDependencies:
       aws-cdk:
         specifier: 2.1144.0
@@ -577,6 +574,9 @@ importers:
       loglevel:
         specifier: 1.9.2
         version: 1.9.2
+      mime-types:
+        specifier: 2.1.35
+        version: 2.1.35
       must:
         specifier: 0.13.4
         version: 0.13.4

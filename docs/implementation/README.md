@@ -14,3 +14,4 @@ the change in the implementation document.
 | Implementation | Prefix | Specification |
 | --- | --- | --- |
 | [Series index rebuild](series-index-rebuild.md) | `SQR-I` | [Updates of derived data](../specs/derived-data-updates.md) |
+| [Lambda DICOMweb proxy](lambda-proxy.md) | `PRX-IMP` | [Lambda DICOMweb proxy](../specs/lambda-proxy.md) |
