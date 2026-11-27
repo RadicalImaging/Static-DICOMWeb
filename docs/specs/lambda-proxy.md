@@ -56,7 +56,9 @@ Retrieval:
   came from S3 or from the upstream DICOMweb service through the proxy. (Which responses have
   the same bytes: `PRX-USR-14`.)
 - **PRX-USR-3** The metadata that the client gets has BulkDataURI values that resolve through
-  the CloudFront URL, not through the upstream, to the same bulk data as the upstream URI.
+  the CloudFront URL, not through the upstream, to the same bulk data as the upstream URI. This
+  also applies to a BulkDataURI with a query string, and to a BulkDataURI that is not a valid
+  URI. When the upstream cannot give the bulk data of a URI, the request returns an error.
   (Interaction with direct upstream frame access: Q31.)
 - **PRX-USR-4** A client can get a thumbnail for a study, series, or instance, also when S3
   holds no data for that study yet. The thumbnail is the resource `thumbnail` below the study,
@@ -77,13 +79,20 @@ Retrieval:
   file of that UID, the whole file. A query for the series of one study
   (`studies/<uid>/series`) with no filter returns the stored series list of that study, the
   whole list. When S3 has no index file or series list, the proxy gets it from the upstream
-  and stores it, also when an allowlist is set and permits the study (D10). An exact-UID
-  query at instance level, and every query with another filter, have no stored index form.
-  A query with no stored index form goes to the upstream, its answer has a cache time of 60 s,
-  and the proxy does not store the answer (D8). When an allowlist is set, a query with no
-  stored index form returns 403 (`PRX-USR-9`). Exception: when S3 holds a file at the path of
-  the query (the URL without the query string), S3 returns that file, and the deployment does
-  not apply the filters of the query. For example, after an upload of the study list
+  and stores it, also when an allowlist is set and permits the study (D10). A study query with
+  no parameter (`studies`) returns the stored study list when S3 holds it, the whole list.
+  These queries have no stored index form:
+  - an exact-UID query at instance level;
+  - a query with a list of UIDs, or with another parameter (a filter, `limit`, or `offset`);
+  - a study query with no parameter when S3 holds no study list.
+
+  A collection query (`PRX-USR-13`) is not in this group. A query with no stored index form goes
+  to the upstream, its answer has a cache time of 60 s, and the proxy does not store the answer
+  (D8). When an allowlist is set, a query with no stored index form returns 403 (`PRX-USR-9`),
+  except when the path of the query names a study that the allowlist permits (for example
+  `studies/<uid>/series/<uid>/instances`). That query goes to the upstream (D10). Exception:
+  when S3 holds a file at the path of the query (the URL without the query string), S3 returns
+  that file, and the deployment does not apply the filters of the query. For example, after an upload of the study list
   `studies`, a query `studies?PatientName=A*` returns the whole stored study list (D14).
 - **PRX-USR-7** A request for one frame that S3 does not hold makes at most 3 upstream
   requests, or 4 for a variant that the deployment does not store. The number does not depend
@@ -129,7 +138,7 @@ Storage:
 - **PRX-USR-9** An operator can restrict population to configured studies or IDC collections.
   When the operator sets this allowlist, the proxy gets no data of other studies from the
   upstream: a request for a resource of another study that S3 does not hold, and a query with
-  no stored index form (`PRX-USR-6`), return 403. Data that S3 already holds stays readable
+  no stored index form (`PRX-USR-6`) whose path names no permitted study, return 403. Data that S3 already holds stays readable
   (`PRX-USR-1`). No client can store data through the proxy (no STOW-RS).
 - **PRX-USR-17** An operator can build the stored study list of an IDC collection with a CLI
   command. One run per IDC release is sufficient: this is the expected frequency, not a limit.
@@ -292,7 +301,9 @@ can change an earlier item, and the line then says so.
   extra frame.
 - **Q31 - BulkDataURI and direct frame access.** The metadata rewrite always makes BulkDataURI
   values relative, so that they resolve through CloudFront. A client that fetches frames from
-  the upstream sets its frame root in its own configuration. The proxy also serves frames.
+  the upstream sets its frame root in its own configuration. The proxy also serves frames. A
+  BulkDataURI with no key form gets the hashed key of D7. (The review of #161 added the hashed
+  key.)
 - **Q32 - What the proxy asks the upstream for.** The proxy asks for no fixed transfer syntax
   for images. The rule decides per frame from the transfer syntax of the response. Frame
   requests prefer `multipart/related; type="image/*"`, then
@@ -339,7 +350,11 @@ can change an earlier item, and the line then says so.
   transfer syntax when the proxy will recompress the frames, else the stored transfer syntax.
   When the upstream gives none, the proxy does not write it (Q30, `PRX-USR-15`).
 - **D7 - Key of proxied bulkdata.** Proxied non-pixel bulkdata uses the instance key
-  `instances/<sop>/bulkdata/<tagpath>`, from the upstream tag path, and no content hash.
+  `instances/<sop>/bulkdata/<tagpath>`, from the upstream tag path, and no content hash. A
+  BulkDataURI with no key form (a query string, no `/studies/` path, or not a valid URI) uses
+  the key `instances/<sop>/bulkdata/hash/<hash>` of the instance that holds the URI. The hash
+  is of the whole URI, not of the content, so the proxy can make the key before the fetch
+  (`PRX-USR-3`, `PRX-IMP-11`). (The review of #161 added the hashed key.)
 - **D8 - Exact-UID instance query (changes Q6).** The instance level passes through to the upstream, and the
   proxy does not store it. `create-dicomweb` writes no index file for one instance.
 - **D9 - One zip function (changes Q14).** The deployment has one zip function. The function
@@ -350,13 +365,16 @@ can change an earlier item, and the line then says so.
 - **D10 - Queries with an allowlist (changes `PRX-USR-6`, `PRX-USR-9`).** The allowlist also
   applies to queries. The answer of a query with no stored index form (`PRX-USR-6`) can name
   studies outside the allowlist. So, when an allowlist is set, the proxy returns 403 for such a
-  query, and sends no upstream request. Without an allowlist, the query passes through as
+  query when its path names no permitted study, and sends no upstream request. Without an allowlist, the query passes through as
   before. An exact-UID study or series query of a permitted study has a stored index form, so
   the proxy still gets and stores its index file. The series list of a permitted study
   (`studies/<s>/series` with no filter) also has a stored index form, the file
   `studies/<s>/series/index.json.gz` that `create-dicomweb` writes. A viewer reads that list
-  before it opens a study, and the list names only series of one study. (The review of #162
-  added the series list.)
+  before it opens a study, and the list names only series of one study. Every other query whose
+  path names a permitted study (for example `studies/<s>/series/<x>/instances`, or
+  `studies/<s>/series?Modality=CT`) goes to the upstream with no stored form, because its
+  answer cannot name another study. (The reviews of #162 added the series list and the
+  queries below a permitted study.)
 - **D11 - Purpose and the terms of the upstream (adds to Q29).** The proxy is a general
   read-through cache for any DICOMweb upstream, not only IDC. Its purpose is faster access to the
   studies that clients open, for example a demonstration. It is not a tool to export an archive.

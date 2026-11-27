@@ -4,5 +4,10 @@
  * It imports no deploy code and no codecs, so the proxy and `s3-deploy` both use it.
  */
 export { fileToKey, fileToContentType, fileToContentEncoding } from './keys.mjs';
-export { mapBulkDataUris, rewriteBulkDataUris, splitSeriesMetadata } from './bulkDataUris.mjs';
+export {
+  mapBulkDataUris,
+  rewriteBulkDataUris,
+  splitSeriesMetadata,
+  hashedBulkDataPath,
+} from './bulkDataUris.mjs';
 export { wrapMultipart, unwrapMultipart, MultipartStreamWriter } from './multipart.mjs';

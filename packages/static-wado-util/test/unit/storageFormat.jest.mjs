@@ -1,5 +1,6 @@
 import {
   fileToKey,
+  hashedBulkDataPath,
   rewriteBulkDataUris,
   splitSeriesMetadata,
   wrapMultipart,
@@ -64,20 +65,20 @@ describe('storageFormat API contract', () => {
     );
   });
 
-  it('rewriteBulkDataUris leaves a URI with a query string unchanged', () => {
-    const uri = `${instances}/5?offset=100&length=50`;
-    expect(rewritten('00420011', uri)).toBe(uri);
+  it('rewriteBulkDataUris gives a URI with no key form a hashed key of its instance', () => {
+    const query = `${instances}/5?offset=100&length=50`;
+    const malformed = 'http://[bad-host/studies/1/bulkdata/x';
+    for (const uri of [query, malformed, 'https://other.example/blob/1']) {
+      expect(rewritten('00420011', uri)).toBe(`./${hashedBulkDataPath(uri)}`);
+    }
+    expect(hashedBulkDataPath(query)).toMatch(/^bulkdata\/hash\/[0-9a-f]{32}$/);
+    expect(hashedBulkDataPath(query)).not.toBe(hashedBulkDataPath(`${query}0`));
   });
 
   it('rewriteBulkDataUris keeps the instance that an upstream URI names', () => {
     expect(rewritten('00420011', `${instances}/B/bulkdata/00420011`)).toBe(
       '../B/bulkdata/00420011'
     );
-  });
-
-  it('rewriteBulkDataUris leaves a malformed URI unchanged', () => {
-    const uri = 'http://[bad-host/studies/1/bulkdata/x';
-    expect(rewritten('00420011', uri)).toBe(uri);
   });
 
   it('rewriteBulkDataUris makes each URI relative at the instance level', () => {

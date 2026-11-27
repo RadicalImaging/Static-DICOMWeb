@@ -26,7 +26,9 @@ Topology:
   to a canonical S3 key name. The S3 key, the cache key, and the failover use that name. The
   CloudFront Function runs on every request, also on a hit. The proxy function uses the same
   filter rule (`onlyFilter` of the edge mapping) to decide whether a query has a stored index
-  form (`PRX-USR-6`). A query with another filter goes to the upstream.
+  form (`PRX-USR-6`). A query with another filter goes to the upstream. `limit` and `offset`
+  count as filters. A UID value matches the UID pattern of the router (`(?:\d+\.)*\d+`), so a
+  list of UIDs, or a value such as `..`, has no stored index form.
 - **PRX-IMP-3** (`PRX-USR-18`) One upstream per deployment, set in configuration, with
   pluggable auth: none (default, IDC public proxy), a bearer token from an environment variable
   (local server), or a bearer token from the `SecretString` of a Secrets Manager secret. On a
@@ -68,9 +70,14 @@ Miss handling:
 - **PRX-IMP-15** A frame that the rule compresses (`PRX-USR-8`): fetch the original, encode,
   store, then answer from memory in the requested form.
 - **PRX-IMP-16** (`PRX-USR-8`, `PRX-USR-15`) The rule reads the metadata attributes and the transfer syntax of the frame
-  response (PRX-IMP-24). When neither gives a transfer syntax, the rule assumes Explicit VR
-  Little Endian (`1.2.840.10008.1.2.1`) for images, and JPEG baseline
-  (`1.2.840.10008.1.2.4.50`) for WSI. The metadata handler removes every group 0002 element.
+  response (PRX-IMP-24). When the part of the frame response has no `transfer-syntax`
+  parameter, the proxy uses the syntax that its request named. When the request named none
+  (`transfer-syntax=*`, or the fallback `Accept`), the proxy uses the syntax of the media type
+  of the part: the default syntax of PS3.18 (for example `image/jls` gives `.80`), and for
+  `image/jpeg` the SOF marker of the codestream (`.50`, `.51`, or `.57`). Only when none of
+  these gives a transfer syntax, the rule assumes Explicit VR Little Endian
+  (`1.2.840.10008.1.2.1`) for images, and JPEG baseline (`1.2.840.10008.1.2.4.50`) for WSI.
+  The metadata handler removes every group 0002 element.
   It writes `AvailableTransferSyntaxUID` (0008,3002) only when the upstream gives a transfer
   syntax in (0008,3002) or (0002,0010): the destination transfer syntax when the rule
   recompresses, else the stored transfer syntax (D6). When the rule recompresses, the metadata
@@ -83,7 +90,10 @@ Miss handling:
   and upstream QIDO queries by StudyInstanceUID. The CloudFront Function maps
   `studies?<parameter>=<id>[&offset=<n>]` (no other filters) to those keys. The parameter
   name comes from configuration. Later pages exist only for collections with more than 1000
-  studies.
+  studies. The proxy function returns 404 for every collection query that reaches it (a page
+  that S3 does not hold, or a query that the edge does not map), with no upstream request.
+  The proxy site template sets no collection parameter, so in that deployment a query with the
+  parameter is an ordinary filtered query (`PRX-USR-6`).
 - **PRX-IMP-18** Video-capable instances skip the rule and the thumbnail path (`PRX-USR-16`,
   `PRX-USR-4`). The proxy finds a video-capable instance from the stored metadata: a video SOP
   class, or a video transfer syntax in (0008,3002) (`isVideoTransferSyntax` of dcmjs). A frame
@@ -98,7 +108,9 @@ Miss handling:
   upstream does not send a syntax of that extension. That path is not a DICOMweb form, so the
   406 does not apply to a DICOMweb request. A variant in the stored syntax is stored at
   `frames/<n>.<extension>`. A variant in another syntax comes from the upstream, and the proxy
-  does not store it. No code compares a lossy variant with lossless stored data.
+  does not store it. The proxy also returns 406 for a variant in a lossy syntax when the stored
+  syntax, or the syntax of the source frame, is lossless (Q20). The proxy site template sets no
+  `variants`, so the CloudFront Function of that deployment maps no variant.
 
 Storage format:
 
@@ -111,15 +123,21 @@ Storage format:
   paging), and `studies/<s>/series/<x>/series-singleton.json.gz`.
 - **PRX-IMP-11** The metadata rewrite emits BulkDataURI values in the S3 key form (without
   `.mht.gz`), relative to the metadata document (`PRX-USR-3`). Proxied non-pixel bulkdata has
-  the key of D7, for the instance that the upstream URI names. A BulkDataURI with a query
-  string, and a malformed BulkDataURI, stay unchanged.
+  the key of D7, for the instance that the upstream URI names. Every other BulkDataURI with no
+  key form (a query string, no `/studies/` path, or a value that `new URL` cannot parse) gets
+  the hashed key of D7: `bulkdata/hash/<the first 32 hex digits of sha256(URI)>` of the
+  instance that holds the URI (`hashedBulkDataPath` of the storage-format module). On a miss of
+  a hashed key, the proxy reads the upstream metadata of that instance, finds the BulkDataURI
+  with the same hash, and gets that URI from the upstream. When no URI has the hash, or the
+  URI is not a valid URI, the proxy returns 404 with no bulkdata request.
 - **PRX-IMP-12** Transcoding uses `@dcmjs-org/commands` (dcmjs-commands, 0.1.1 or later) as a
   library, through the subpath export `@dcmjs-org/commands/pixel` of the per-frame codec API. dcmjs-commands gets JPEG-LS and HTJ2K
   targets, and the compression rule as `selectTargetSyntax(metadata, rules)`.
 - **PRX-IMP-22** The proxy uses small functions of this repository for the metadata rewrite,
   the multipart wrap, and the S3 key rules. It does not use the dcmjs-commands writer. The
   multipart boundary of a stored object comes from a hash of its key, so that two concurrent
-  first requests store and return the same bytes (`PRX-USR-14`).
+  first requests store and return the same bytes (`PRX-USR-14`). The answer for several frames
+  also uses a boundary from a hash of its request key, so that a repeat gives the same bytes.
 - **PRX-IMP-23** The upstream client is `DicomWebFetch` of `@dcmjs-org/commands/dicomweb-fetch` (headers,
   streaming bodies, per-request `Accept`). No `jsdom` and no `dicomweb-client` in the zip
   function.
@@ -202,7 +220,11 @@ Cloud portability and Release 1 deployment:
   `upstream`, and `allow`, from its parameters `Upstream` and `AllowStudies` (`PRX-USR-9`). The
   optional parameter `UpstreamSecretArn` sets `auth` to
   `{ "source": "secretsManager", "secretId": <ARN> }`, and gives the function role
-  `secretsmanager:GetSecretValue` on that secret (`PRX-USR-18`).
+  `secretsmanager:GetSecretValue` on that secret (`PRX-USR-18`). The template sets no
+  `variants` and no `collectionParameter`; the local server reads them. The parameter
+  `ReservedConcurrency` (default 20; 0 sets no limit) limits the concurrent runs of the
+  function, so a burst of pass-through queries cannot use all of the Lambda concurrency of the
+  account.
 
 ## Appendix: facts
 
